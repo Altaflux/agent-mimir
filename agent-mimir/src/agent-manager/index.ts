@@ -1,0 +1,116 @@
+
+import { uniqueNamesGenerator, names } from 'unique-names-generator';
+
+import { OpenAIEmbeddings } from "langchain/embeddings/openai";
+import { BaseChain } from "langchain/chains";
+
+import { Tool } from "langchain/tools";
+import { PlainTextMessageSerializer } from '../parser/plain-text-parser/index.js';
+import { WindowedConversationSummaryMemory } from '../memory/windowed-memory/index.js';
+import { ScratchPadManager } from '../utils/scratch-pad.js';
+import { CompletePlanStep, EndTool, TalkToUserTool } from '../tools/core.js';
+import { ThinkTool } from '../tools/think.js';
+import { MimirChatConversationalAgent } from '../agent/index.js';
+import { SteppedAgentExecutor } from '../executor/index.js';
+import { ChatMemoryChain } from '../memory/transactional-memory-chain.js';
+import { PREFIX_JOB } from '../agent/prompt.js';
+import { BaseChatModel } from 'langchain/chat_models';
+import { BaseLanguageModel } from "langchain/base_language";
+
+export type Helper = { name: string, profession: string, agent: BaseChain }
+
+export type CreateAgentOptions = {
+    profession: string,
+    name?: string,
+    model: BaseChatModel,
+    summaryModel?: BaseChatModel,
+    thinkingModel?: BaseLanguageModel,
+    tools?: Tool[],
+}
+export class AgentManager {
+
+    private map: Map<string, Helper> = new Map();
+    public constructor() { }
+
+    public async addHelper(config: CreateAgentOptions): Promise<Helper> {
+
+    
+        const shortName = config.name ?? uniqueNamesGenerator({
+            dictionaries: [names, names], 
+            length: 2
+        });
+        const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.AGENT_OPENAI_API_KEY });
+        const model = config.model;
+        const thinkingModel =  config.thinkingModel ?? config.model;
+
+        const messageSerializer = new PlainTextMessageSerializer();
+        const summarizingModel = config.summaryModel ?? config.model;
+        const innerMemory = new WindowedConversationSummaryMemory(summarizingModel, {
+            returnMessages: true,
+            memoryKey: "history",
+            inputKey: "inputToSave",
+            maxWindowSize: 6,
+            messageSerializer: messageSerializer,
+        });
+
+        const scratchPad = new ScratchPadManager(10);
+        const taskCompleteCommandName = "taskComplete";
+        const controlTools = [new EndTool(taskCompleteCommandName), new TalkToUserTool()]
+        const tools = [
+            ...controlTools,
+            ...(config.tools ?? []),
+            new CompletePlanStep(),
+            new ThinkTool(innerMemory, thinkingModel)
+        ];
+
+
+        const memory = new WindowedConversationSummaryMemory(summarizingModel, {
+            returnMessages: true,
+            memoryKey: "chat_history",
+            inputKey: "input",
+            outputKey: "output",
+            maxWindowSize: 6,
+            messageSerializer: messageSerializer,
+        });
+
+        const agent = MimirChatConversationalAgent.fromLLMAndTools(model, tools, {
+            systemMessage: PREFIX_JOB(shortName, config.profession),
+            taskCompleteCommandName: taskCompleteCommandName,
+            memory: innerMemory,
+            name: shortName,
+            embedding: embeddings,
+            scratchPad: scratchPad,
+            messageSerializer: messageSerializer,
+        });
+
+        let executor = SteppedAgentExecutor.fromAgentAndTools({
+            continuousMode: false,
+            memory: memory,
+            agent: agent,
+            tools,
+            verbose: false,
+        });
+
+        const chatMemoryChain = new ChatMemoryChain(
+            executor,
+            memory,
+            {
+                completeTransactionTrigger: (message) => message.output.complete,
+                messageFilter: (message) => (!message.output.toolResponse && message.input.input !== undefined)
+            }
+        );
+
+        this.map.set(shortName, { name: shortName, profession: config.profession, agent: chatMemoryChain });
+        return this.map.get(shortName)!;
+    }
+
+    public getHelper(shortName: string): Helper | undefined {
+        const agent = this.map.get(shortName);
+        return agent
+    }
+
+    public getAllHelpers(): Helper[] {
+        return Array.from(this.map.values())
+
+    }
+}
