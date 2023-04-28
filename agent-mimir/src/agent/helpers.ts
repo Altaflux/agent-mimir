@@ -1,7 +1,6 @@
-import { BaseChain } from "langchain/chains";
-import { Helper } from "../schema.js";
+import { Agent } from "../schema.js";
 
 
 export type HelperManager = {
-    getAllHelpers(): Promise<Helper[]>;
+    getAllHelpers(): Promise<Agent[]>;
 }

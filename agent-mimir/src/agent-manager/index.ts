@@ -16,8 +16,7 @@ import { ChatMemoryChain } from '../memory/transactional-memory-chain.js';
 import { PREFIX_JOB } from '../agent/prompt.js';
 import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
-
-export type Helper = { name: string, profession: string, agent: BaseChain }
+import { Agent } from '../schema.js';
 
 export type CreateAgentOptions = {
     profession: string,
@@ -25,23 +24,27 @@ export type CreateAgentOptions = {
     model: BaseChatModel,
     summaryModel?: BaseChatModel,
     thinkingModel?: BaseLanguageModel,
+    chatHistory?: {
+        maxChatHistoryWindow?: number,
+        maxTaskHistoryWindow?: number,
+    }
     tools?: Tool[],
 }
 export class AgentManager {
 
-    private map: Map<string, Helper> = new Map();
+    private map: Map<string, Agent> = new Map();
     public constructor() { }
 
-    public async addHelper(config: CreateAgentOptions): Promise<Helper> {
+    public async createAgent(config: CreateAgentOptions): Promise<Agent> {
 
-    
+
         const shortName = config.name ?? uniqueNamesGenerator({
-            dictionaries: [names, names], 
+            dictionaries: [names, names],
             length: 2
         });
         const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.AGENT_OPENAI_API_KEY });
         const model = config.model;
-        const thinkingModel =  config.thinkingModel ?? config.model;
+        const thinkingModel = config.thinkingModel ?? config.model;
 
         const messageSerializer = new PlainTextMessageSerializer();
         const summarizingModel = config.summaryModel ?? config.model;
@@ -49,7 +52,7 @@ export class AgentManager {
             returnMessages: true,
             memoryKey: "history",
             inputKey: "inputToSave",
-            maxWindowSize: 6,
+            maxWindowSize:  config.chatHistory?.maxTaskHistoryWindow ?? 6,
             messageSerializer: messageSerializer,
         });
 
@@ -69,7 +72,7 @@ export class AgentManager {
             memoryKey: "chat_history",
             inputKey: "input",
             outputKey: "output",
-            maxWindowSize: 6,
+            maxWindowSize: config.chatHistory?.maxChatHistoryWindow ?? 6,
             messageSerializer: messageSerializer,
         });
 
@@ -84,7 +87,6 @@ export class AgentManager {
         });
 
         let executor = SteppedAgentExecutor.fromAgentAndTools({
-            continuousMode: false,
             memory: memory,
             agent: agent,
             tools,
@@ -104,12 +106,12 @@ export class AgentManager {
         return this.map.get(shortName)!;
     }
 
-    public getHelper(shortName: string): Helper | undefined {
+    public getAgent(shortName: string): Agent | undefined {
         const agent = this.map.get(shortName);
         return agent
     }
 
-    public getAllHelpers(): Helper[] {
+    public getAllAgent(): Agent[] {
         return Array.from(this.map.values())
 
     }

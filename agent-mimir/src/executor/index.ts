@@ -10,7 +10,6 @@ interface AgentExecutorInput extends ChainInputs {
     returnIntermediateSteps?: boolean;
     maxIterations?: number;
     earlyStoppingMethod?: StoppingMethod;
-    continuousMode?: boolean,
 }
 
 
@@ -30,7 +29,7 @@ export class SteppedAgentExecutor extends BaseChain {
 
     pendingAgentAction?: AgentAction;
 
-    continuousMode = false;
+   // continuousMode = false;
 
     get inputKeys() {
         return this.agent.inputKeys;
@@ -46,8 +45,6 @@ export class SteppedAgentExecutor extends BaseChain {
         this.maxIterations = input.maxIterations ?? this.maxIterations;
         this.earlyStoppingMethod =
             input.earlyStoppingMethod ?? this.earlyStoppingMethod;
-        this.continuousMode = input.continuousMode ?? this.continuousMode;
-
     }
 
 
@@ -83,14 +80,15 @@ export class SteppedAgentExecutor extends BaseChain {
 
     async _call(inputs: ChainValues): Promise<ChainValues> {
 
+        const continuousMode = inputs.continuousMode !== undefined ? inputs.continuousMode : true;
         const fullValues = { ...inputs } as typeof inputs;
 
-        const output = await this._invoke(fullValues);
+        const output = await this._invoke(continuousMode, fullValues);
 
         return output.chainValues;
     }
 
-    async _invoke(inputs: ChainValues): Promise<{ storeInMem: boolean, workPending: boolean, chainValues: ChainValues }> {
+    async _invoke(continuousMode: boolean, inputs: ChainValues): Promise<{ storeInMem: boolean, workPending: boolean, chainValues: ChainValues }> {
 
         const toolsByName = Object.fromEntries(
             this.tools.map((t) => [t.name.toLowerCase(), t])
@@ -116,16 +114,16 @@ export class SteppedAgentExecutor extends BaseChain {
                 const action = await this.agent.plan(steps, inputs);
                 if ("returnValues" in action) {
                     return {
-                        workPending: false, //??
+                        workPending: false,
                         chainValues: await getOutput(action),
                         storeInMem: true
                     };
                 }
-                if (!this.continuousMode && action.tool !== "talkToUser") {
+                if (!continuousMode && action.tool !== "talkToUser") {
                     this.pendingAgentAction = action;
                     return {
                         storeInMem: false,
-                        workPending: true, //??
+                        workPending: true, 
                         chainValues: await getOutput({
                             returnValues: { [this.agent.returnValues[0]]: action.log, toolStep: true },
                             log: action.log,

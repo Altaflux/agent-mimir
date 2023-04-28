@@ -37,7 +37,7 @@ export class TalkToHelper extends Tool {
     }
     protected async _call(arg: string): Promise<string> {
         const { helperName, message } = await simpleParseJson(arg);
-        const helper = this.helperSingleton.getHelper(helperName);
+        const helper = this.helperSingleton.getAgent(helperName);
         if (!helper) {
             return `There is no helper named ${helperName}, create one with the \`createHelper\` tool.`
         }
@@ -54,7 +54,7 @@ export class CreateHelper extends Tool {
         super();
     }
     protected async _call(arg: string): Promise<string> {
-        return (await this.helperSingleton.addHelper({
+        return (await this.helperSingleton.createAgent({
             profession: arg,
             model: this.model
         })).name;
