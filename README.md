@@ -1,10 +1,10 @@
 # <img src="assets/mimir_logo.svg" width="80" height="80"> Agent Mimir
 
-Agent Mimir is a tooling, tasking, and memory system for AIs. It provides AIs the foundation to solve multi-step complex tasks using tools.
+Agent Mimir is a tooling, tasking, and memory system for autonomous AIs. It provides AIs the foundation to solve multi-step complex tasks using tools.
 
 Mimir allows you to deploy configurable AI Agents to which you can give access to tools. Each agent has two different conversational memories, general chat memory and task memory.
 
-Conversational memory is the main type memory where every messafe between you and the agent is recorded. When the agent is executing a task it will use task memory to record any information it has generated while working on the task.
+Conversational memory is the main type of memory where every message between you and the agent is recorded. When the agent is executing a task it will use task memory to record any information it has generated while working on the task.
 
 The current implementation will only clear the task memory when you tell the agent that it's task is complete. This is done to prevent the agent from accidentally clearing its memory if the task was completed incorrectly.
 
@@ -12,7 +12,8 @@ Agent Mimir is based on LangchainJS, every tool or LLM that works on Langchain s
 
 The tasking system is based on Auto-GPT and BabyAGI where the agent needs to come up with a plan, iterate over its steps and review as it completes the task.
 
-## How to use
+
+## Usage
 
 ### Requirements
 You must have installed NodeJS version 18 or above.
@@ -25,6 +26,9 @@ You must have installed NodeJS version 18 or above.
 4. In the .env file set the your OpenAI key in `AGENT_OPENAI_API_KEY` and in `AGENT_OPENAI_MODEL` the model you want to use.
 5. Start the agent by running `npm run start`
 
+
+### How to use
+It is important to tell the agent every time it has completed a task the phrase `task complete`. This will erease its task's memory. This is useful to keep the number of tokens small.
 
 ## Customizing Agents
 
