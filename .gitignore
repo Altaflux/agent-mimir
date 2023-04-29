@@ -40,3 +40,5 @@ yarn-error.log*
 mimir-cfg.js
 
 .temp_custom_deps/
+
+mimir-config/

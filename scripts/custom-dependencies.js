@@ -1,53 +1,54 @@
-const fs = require('fs');
+const fs = require('fs').promises;
+const path = require('path');
 
-function mergeJsonFiles(original, customDependencies, outputFile) {
-  fs.readFile(original, 'utf8', (err, data1) => {
-    if (err) {
-      console.error(`Error reading ${original}:`, err);
-      return;
+const fileExists = async path => !!(await fs.stat(path).catch(e => false));
+
+const main = async () => {
+  const packageJsonFile = await fs.readFile('package.json', 'utf8');
+  let customDependenciesFile = "{}";
+  try {
+
+
+    const configDirectory = process.env.CONFIG_LOCAION ?? './mimir-config';
+    let customDependencies = path.join(configDirectory, 'custom-dependencies.json');
+
+    customDependenciesFile = await fs.readFile(customDependencies, 'utf8');
+  } catch (e) {
+    console.log(`Custom dependencies not found`);
+  }
+
+
+  const packageJson = JSON.parse(packageJsonFile);
+  const dependenciesJson = JSON.parse(customDependenciesFile);
+  const mergedJson = {
+    ...packageJson,
+    dependencies: {
+      ...packageJson.dependencies ?? {},
+      ...dependenciesJson.dependencies ?? {}
     }
+  };
+  if (mergedJson.workspaces !== undefined) {
+    mergedJson.workspaces = [
+      ...mergedJson.workspaces.map((workspace) => {
+        return "../" + workspace;
+      })
+    ];
+  }
 
-    fs.readFile(customDependencies, 'utf8', (err, data2) => {
-      if (err) {
-        console.log(`Custom dependencies not found`);
-      }
+  let dir = '.temp_custom_deps';
+  if (!fileExists(dir)) {
+    await fs.mkdir(dir);
+  }
 
-      const packageJson = JSON.parse(data1);
-      const dependenciesJson = JSON.parse(data2 ?? {});
-      const mergedJson = {
-        ...packageJson, 
-        dependencies: {
-          ...packageJson.dependencies ?? {},
-          ...dependenciesJson.dependencies ?? {}
-        }
-      };
-      if (mergedJson.workspaces !== undefined) {
-        mergedJson.workspaces = [
-          ...mergedJson.workspaces.map((workspace) => {
-            return "../" + workspace;
-          })
-        ];
-      }
+  try {
+    const outputFile = '.temp_custom_deps/package.json';
+    await fs.writeFile(outputFile, JSON.stringify(mergedJson, null, 2));
+  } catch (e) {
+    console.error(`Error writing ${outputFile}:`, err);
+    return;
+  }
+  console.log(`Successfully merged files`);
 
-      let dir = '.temp_custom_deps';
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir);
-      }
-     
-      fs.writeFile(outputFile, JSON.stringify(mergedJson, null, 2), (err) => {
-        if (err) {
-          console.error(`Error writing ${outputFile}:`, err);
-          return;
-        }
-
-        console.log(`Successfully merged ${original} and ${customDependencies} into ${outputFile}`);
-      });
-    });
-  });
 }
 
-const inputFile1 = 'package.json';
-const inputFile2 = 'custom-dependencies.json';
-const outputFile = '.temp_custom_deps/package.json';
-
-mergeJsonFiles(inputFile1, inputFile2, outputFile);
+main();

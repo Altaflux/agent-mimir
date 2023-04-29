@@ -3,7 +3,7 @@
     "private": false,
     "scripts": {
         "build": "turbo run build",
-        "start": "node scripts/custom-dependencies.js && npm install --prefix .temp_custom_deps && dotenv -- npm run internalStart --prefix .temp_custom_deps",
+        "start": " dotenv -- node scripts/custom-dependencies.js && npm install --prefix .temp_custom_deps && dotenv -- npm run internalStart --prefix .temp_custom_deps",
         "internalStart": "npm run build && dotenv -- npm run start -w agent-mimir-cli",
         "dev": "turbo run dev",
         "lint": "turbo run lint",

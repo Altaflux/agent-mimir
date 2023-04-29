@@ -1,5 +1,3 @@
-import { CallbackManager } from "langchain/callbacks";
-
 import { AgentManager } from "agent-mimir";
 import chalk from "chalk";
 
@@ -8,7 +6,7 @@ import { BaseLanguageModel } from "langchain/base_language";
 import { Tool } from "langchain/tools";
 import { chatWithAgent } from "./chat.js";
 import fs from "fs";
-import { resolve } from 'path';
+import path from "path";
 
 export type AgentDefinition = {
     mainAgent?: boolean;
@@ -30,9 +28,17 @@ type AgentMimirConfig = {
 export const run = async () => {
 
     let agentConfig: AgentMimirConfig;
-    const configFile = process.env.MIMIR_CFG ?? resolve(`${process.cwd()}/../mimir-cfg.js`);
-    if (fs.existsSync(configFile)) {
-        agentConfig = (await import(`file://${configFile}`)).default()
+   
+    const configDirectory = process.env.CONFIG_LOCAION ?? './mimir-config';
+    let cfgFile = "";
+    if (path.isAbsolute(configDirectory)) {
+        cfgFile = path.join(configDirectory, 'mimir-cfg.js');
+    } else {
+        cfgFile = path.join(process.cwd(), '../', configDirectory, 'mimir-cfg.js');
+    }
+
+    if (fs.existsSync(cfgFile)) {
+        agentConfig = (await import(`file://${cfgFile}`)).default()
     } else {
         console.log(chalk.yellow("No config file found, using default ApenAI config"));
         agentConfig = (await import("./default-config.js")).default();
