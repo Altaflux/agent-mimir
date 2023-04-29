@@ -2,7 +2,7 @@
   "private": true,
   "scripts": {
     "build": "turbo run build",
-    "start": "dotenv -- npm run start -w agent-mimir-cli",
+    "start": "npm run build && dotenv -- npm run start -w agent-mimir-cli",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\""

@@ -6,6 +6,29 @@ const Tool = require('langchain/tools').Tool;
 const Serper = require('langchain/tools').Serper;
 
 const exec = require('child_process').exec;
+const chalk = require('chalk');
+const CallbackManager = require('langchain/callbacks').CallbackManager;
+//import { CallbackManager } from "langchain/callbacks";
+
+// /import chalk from 'chalk';
+
+const callbackManager = CallbackManager.fromHandlers({
+    handleLLMStart: async (llm, prompts) => {
+        console.log(chalk.yellow("####################HELPER INPUT#######################"));
+        console.log(prompts[0]);
+        console.log(chalk.yellow("###################################################"));
+    },
+    handleLLMEnd: async (output) => {
+        // console.log("#####################AI OUTPUT#######################");
+        // // console.log(JSON.stringify(output.generations[0][0].text, null, 2));
+        // console.log(output.generations[0][0].text)
+        // console.log("#####################################################");
+        // console.log("#######################################################################################\n\n");
+    },
+    handleLLMError: async (err) => {
+        console.error(err);
+    },
+});
 
 
 class PowerShell extends Tool {
@@ -43,7 +66,8 @@ const embeddings = new OpenAIEmbeddings({
 const chatModel = new ChatOpenAI({
     openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
     temperature: 0.9,
-    modelName: 'gpt-4'
+    modelName: 'gpt-4',
+    callbacks: callbackManager
 });
 
 
@@ -57,6 +81,7 @@ module.exports = function() {
                 taskModel: taskModel,
                 summaryModel: taskModel,
                 profession: 'an Assistant',
+                communicationWhitelist: ['MR_CHEF'],
                 chatHistory: {
                     maxChatHistoryWindow: 6,
                     maxTaskHistoryWindow: 6,
@@ -68,6 +93,19 @@ module.exports = function() {
                     }),
                     new Serper(),
                     new PowerShell(),
+                ],
+            },
+            'MR_CHEF': {
+                mainAgent: true,
+                chatModel: chatModel,
+                taskModel: taskModel,
+                summaryModel: taskModel,
+                profession: 'a chef',
+                chatHistory: {
+                    maxChatHistoryWindow: 6,
+                    maxTaskHistoryWindow: 6,
+                },
+                tools: [
                 ],
             }
         }

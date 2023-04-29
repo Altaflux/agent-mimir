@@ -38,6 +38,7 @@ import { LongTermMemoryManager } from "../memory/long-term-memory.js";
 import { createBulletedList } from "../utils/format.js";
 import { TrimmingMemory } from "../memory/trimming-memory/index.js";
 import { PlainTextMessageSerializer } from "../parser/plain-text-parser/index.js";
+import { AgentManager } from "../index.js";
 
 
 
@@ -93,9 +94,10 @@ export type CreatePromptArgs = {
     scratchPad?: ScratchPadManager,
 
     embedding?: Embeddings,
-    helper?: HelperManager;
+    helper?: AgentManager;
     name?: string;
     messageSerializer: AIMessageSerializer;
+    communicationWhitelist?: string[] | null;
 
 };
 
@@ -116,11 +118,12 @@ export class MimirChatConversationalAgent extends Agent {
     taskCompleteCommandName: string
     memory: BaseChatMemory;
     messageSerializer: AIMessageSerializer;
-    helper?: HelperManager;
+    helper?: AgentManager;
     name?: string;
     scratchPad?: ScratchPadManager
     currentTaskList: string[] = [];
     mainTask: string | undefined;
+    communicationWhitelist: string[] | null;
 
     constructor(
         memory: BaseChatMemory,
@@ -130,9 +133,9 @@ export class MimirChatConversationalAgent extends Agent {
         messageSerializer: AIMessageSerializer,
         outputParser?: AgentActionOutputParser,
         longTermMemoryManager?: LongTermMemoryManager,
-        helper?: HelperManager,
+        helper?: AgentManager,
         scratchPad?: ScratchPadManager,
-
+        communicationWhitelist?: string[] | null,
 
     ) {
         super(input);
@@ -145,6 +148,7 @@ export class MimirChatConversationalAgent extends Agent {
         this.name = name;
         this.scratchPad = scratchPad;
         this.messageSerializer = messageSerializer;
+        this.communicationWhitelist = communicationWhitelist ?? null;
     }
 
     _agentType(): string {
@@ -291,11 +295,13 @@ export class MimirChatConversationalAgent extends Agent {
     }
 
     private async buildHelperPrompt() {
-        const helpers = (await this.helper?.getAllHelpers());
-        const helperList = helpers?.filter((helper) => helper.name !== this.name)
+        const helpers = this.helper?.getAllAgents() ?? [];
+        const whiteList = this.communicationWhitelist ?? helpers.map((helper) => helper.name) ?? [];
+        const helperList = helpers.filter((helper) => helper.name !== this.name)
+            .filter(element => whiteList.includes(element.name))
             .map((helper) => `${helper.name}: ${helper.profession}`)
             .join("\n") ?? "";
-        return helperList !== "" ? `You have the following helpers that can be used to assist you in your task:\n${helpers}` : ``;
+        return helperList !== "" ? `You have the following helpers that can be used to assist you in your task:\n${helperList}` : ``;
     }
 
 
@@ -385,7 +391,7 @@ export class MimirChatConversationalAgent extends Agent {
             args?.embedding ? new LongTermMemoryManager(args.embedding) : undefined,
             args?.helper,
             args?.scratchPad,
-
+            args?.communicationWhitelist,
         );
     }
 }

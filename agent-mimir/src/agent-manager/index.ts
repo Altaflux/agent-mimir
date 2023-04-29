@@ -8,7 +8,7 @@ import { Tool } from "langchain/tools";
 import { PlainTextMessageSerializer } from '../parser/plain-text-parser/index.js';
 import { WindowedConversationSummaryMemory } from '../memory/windowed-memory/index.js';
 import { ScratchPadManager } from '../utils/scratch-pad.js';
-import { CompletePlanStep, EndTool, TalkToUserTool } from '../tools/core.js';
+import { CompletePlanStep, CreateHelper, EndTool, TalkToHelper, TalkToUserTool } from '../tools/core.js';
 import { ThinkTool } from '../tools/think.js';
 import { MimirChatConversationalAgent } from '../agent/index.js';
 import { SteppedAgentExecutor } from '../executor/index.js';
@@ -24,6 +24,8 @@ export type CreateAgentOptions = {
     model: BaseChatModel,
     summaryModel?: BaseChatModel,
     thinkingModel?: BaseLanguageModel,
+    allowAgentCreation?: boolean,
+    communicationWhitelist?: boolean| string[],
     chatHistory?: {
         maxChatHistoryWindow?: number,
         maxTaskHistoryWindow?: number,
@@ -59,9 +61,24 @@ export class AgentManager {
         const scratchPad = new ScratchPadManager(10);
         const taskCompleteCommandName = "taskComplete";
         const controlTools = [new EndTool(taskCompleteCommandName), new TalkToUserTool()]
+
+        const agentCommunicationTools = [];
+        if (config.communicationWhitelist) {
+            agentCommunicationTools.push(new TalkToHelper(this));
+            if (config.allowAgentCreation) {
+                agentCommunicationTools.push(new CreateHelper(this, config.model));
+            }
+          
+        }
+        const canCommunicateWithAgents = config.communicationWhitelist ?? false;
+        let communicationWhitelist = undefined;
+        if (Array.isArray(canCommunicateWithAgents)) {
+            communicationWhitelist = canCommunicateWithAgents
+        }
         const tools = [
             ...controlTools,
             ...(config.tools ?? []),
+            ...agentCommunicationTools,
             new CompletePlanStep(),
             new ThinkTool(innerMemory, thinkingModel)
         ];
@@ -83,7 +100,9 @@ export class AgentManager {
             name: shortName,
             embedding: embeddings,
             scratchPad: scratchPad,
+            helper: this,
             messageSerializer: messageSerializer,
+            communicationWhitelist: communicationWhitelist
         });
 
         let executor = SteppedAgentExecutor.fromAgentAndTools({
@@ -111,7 +130,7 @@ export class AgentManager {
         return agent
     }
 
-    public getAllAgent(): Agent[] {
+    public getAllAgents(): Agent[] {
         return Array.from(this.map.values())
 
     }

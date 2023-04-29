@@ -21,6 +21,7 @@ export type AgentDefinition = {
         maxTaskHistoryWindow?: number,
     }
     tools?: Tool[];
+    communicationWhitelist?: string[] | boolean;
 }
 type AgentMimirConfig = {
     agents: Record<string, AgentDefinition>;
@@ -51,6 +52,7 @@ export const run = async () => {
                 summaryModel: agentDefinition.summaryModel,
                 thinkingModel: agentDefinition.taskModel ?? agentDefinition.chatModel,
                 chatHistory: agentDefinition.chatHistory,
+                communicationWhitelist : agentDefinition.communicationWhitelist,
             })
         }
     }));
