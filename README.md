@@ -76,8 +76,7 @@ module.exports = function() {
                         model: taskModel,
                         embeddings: embeddings,
                     }),
-                    new Serper(),
-                    new PowerShell(),
+                    new Serper()
                 ],
             }
         }
