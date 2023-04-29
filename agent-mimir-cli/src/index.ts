@@ -7,35 +7,20 @@ import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
 import { Tool } from "langchain/tools";
 import { chatWithAgent } from "./chat.js";
-
-const callbackManager = function (name:string) {
-    return CallbackManager.fromHandlers({
-        handleLLMStart: async (llm: { name: string }, prompts: string[]) => {
-            console.log(chalk.yellow(`####################${name} INPUT#######################`));
-            console.log(prompts[0]);
-            console.log(chalk.yellow("###################################################"));
-        },
-        handleLLMEnd: async () => {
-        },
-        handleLLMError: async (err: Error) => {
-            console.log(chalk.red(`####################${name} ERROR#######################`));
-            console.log(err);
-            console.log(chalk.red("###################################################"));
-        },
-    });
-}
+import fs from "fs";
+import { resolve } from 'path';
 
 export type AgentDefinition = {
     mainAgent?: boolean;
     profession: string;
     chatModel: BaseChatModel;
     summaryModel: BaseChatModel;
-    taskModel: BaseLanguageModel;
+    taskModel?: BaseLanguageModel;
     chatHistory?: {
         maxChatHistoryWindow?: number,
         maxTaskHistoryWindow?: number,
     }
-    tools: Tool[];
+    tools?: Tool[];
 }
 type AgentMimirConfig = {
     agents: Record<string, AgentDefinition>;
@@ -43,7 +28,15 @@ type AgentMimirConfig = {
 }
 export const run = async () => {
 
-    const agentConfig: AgentMimirConfig = (await import(process.env.MIMIR_CFG ?? 'mimir-cfg.js')).default()
+    let agentConfig: AgentMimirConfig;
+    const configFile = process.env.MIMIR_CFG ?? resolve(`${process.cwd()}/../mimir-cfg.js`);
+    if (fs.existsSync(configFile)) {
+        agentConfig = (await import(`file://${configFile}`)).default()
+    } else {
+        console.log(chalk.yellow("No config file found, using default ApenAI config"));
+        agentConfig = (await import("./default-config.js")).default();
+    }
+
     const agentManager = new AgentManager();
     const continousMode = agentConfig.continuousMode ?? false;
     const agents = await Promise.all(Object.entries(agentConfig.agents).map(async ([agentName, agentDefinition]) => {
@@ -53,10 +46,10 @@ export const run = async () => {
             agent: await agentManager.createAgent({
                 name: agentName,
                 profession: agentDefinition.profession,
-                tools: agentDefinition.tools,
+                tools: agentDefinition.tools ?? [],
                 model: agentDefinition.chatModel,
                 summaryModel: agentDefinition.summaryModel,
-                thinkingModel: agentDefinition.taskModel,
+                thinkingModel: agentDefinition.taskModel ?? agentDefinition.chatModel,
                 chatHistory: agentDefinition.chatHistory,
             })
         }

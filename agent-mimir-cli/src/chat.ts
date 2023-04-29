@@ -40,9 +40,6 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent) {
       });
 
     }
-
     console.log(chalk.red("AI Response: ", chalk.blue(aiResponse!.output)));
-
-
   }
 }
