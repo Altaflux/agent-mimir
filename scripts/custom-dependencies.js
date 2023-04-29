@@ -9,16 +9,16 @@ function mergeJsonFiles(original, customDependencies, outputFile) {
 
     fs.readFile(customDependencies, 'utf8', (err, data2) => {
       if (err) {
-        console.error(`Error reading ${customDependencies}:`, err);
-        return;
+        console.log(`Custom dependencies not found`);
       }
 
-      const json1 = JSON.parse(data1);
-      const json2 = JSON.parse(data2);
+      const packageJson = JSON.parse(data1);
+      const dependenciesJson = JSON.parse(data2 ?? {});
       const mergedJson = {
-        ...json1, dependencies: {
-          ...json1.dependencies,
-          ...json2.dependencies
+        ...packageJson, 
+        dependencies: {
+          ...packageJson.dependencies ?? {},
+          ...dependenciesJson.dependencies ?? {}
         }
       };
       if (mergedJson.workspaces !== undefined) {
@@ -33,6 +33,7 @@ function mergeJsonFiles(original, customDependencies, outputFile) {
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir);
       }
+     
       fs.writeFile(outputFile, JSON.stringify(mergedJson, null, 2), (err) => {
         if (err) {
           console.error(`Error writing ${outputFile}:`, err);
