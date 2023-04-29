@@ -8,7 +8,7 @@ const taskModel = new ChatOpenAI({
 const chatModel = new ChatOpenAI({
     openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
     temperature: 0.9,
-    modelName: 'gpt-4'
+    modelName: process.env.AGENT_OPENAI_MODEL 
 });
 
 

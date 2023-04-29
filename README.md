@@ -1,81 +1,91 @@
-# Turborepo starter
+# <img src="assets/mimir_logo.svg" width="80" height="80"> Agent Mimir
 
-This is an official starter Turborepo.
+Agent Mimir is a tooling, tasking, and memory system for AIs. It provides AIs the foundation to solve multi-step complex tasks using tools.
 
-## Using this example
+Mimir allows you to deploy configurable AI Agents to which you can give access to tools. Each agent has two different conversational memories, general chat memory and task memory.
 
-Run the following command:
+Conversational memory is the main type memory where every messafe between you and the agent is recorded. When the agent is executing a task it will use task memory to record any information it has generated while working on the task.
 
-```sh
-npx create-turbo@latest
+The current implementation will only clear the task memory when you tell the agent that it's task is complete. This is done to prevent the agent from accidentally clearing its memory if the task was completed incorrectly.
+
+Agent Mimir is based on LangchainJS, every tool or LLM that works on Langchain should also work with Mimir. The prompts are currently tuned on GPT-4 and GPT-3.5 but other models might work.
+
+The tasking system is based on Auto-GPT and BabyAGI where the agent needs to come up with a plan, iterate over its steps and review as it completes the task.
+
+## How to use
+
+### Requirements
+You must have installed NodeJS version 18 or above.
+
+### Installation
+
+1. Clone this repository `git clone https://github.com/Altaflux/agent-mimir`
+2. Install the required packages `npm install`
+3. Copy the .env.example file to .env: cp .env.example .env.
+4. In the .env file set the your OpenAI key in `AGENT_OPENAI_API_KEY` and in `AGENT_OPENAI_MODEL` the model you want to use.
+5. Start the agent by running `npm run start`
+
+
+## Customizing Agents
+
+By default Mimir will create an agent with no tools and Chat GPT-3.5. You can configure a custom agent by creating a `mimir-cfg.js` configuration file at the root of the project, use `mimir-cfg.js.example` to start. By configuring an agent you can change its language model to any other model supported by LangchainJS
+
+```javascript
+
+const ChatOpenAI = require('langchain/chat_models/openai').ChatOpenAI;
+const WebBrowser = require('langchain/tools/webbrowser').WebBrowser;
+const OpenAIEmbeddings = require('langchain/embeddings/openai').OpenAIEmbeddings;
+const Serper = require('langchain/tools').Serper;
+
+//Configure your language models, tools and embeddings
+const taskModel = new ChatOpenAI({
+    openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
+    temperature: 0.9,
+});
+const embeddings = new OpenAIEmbeddings({
+    openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
+});
+const chatModel = new ChatOpenAI({
+    openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
+    temperature: 0.9,
+    modelName: 'gpt-4'
+});
+
+
+module.exports = function() {
+    return {
+        //If continuousMode is set to true the agent will not ask you before executing a tool. Disable at your own risk.
+        continuousMode: false,
+        agents: {
+            'Assistant': { //The name of the agent
+                mainAgent: true, //When using multiple agents, set one agent as the mainAgent for the chat.
+                chatModel: chatModel, //The main chat LLM used for conversation and memory.
+                summaryModel: taskModel, //The model used when summarizing conversations.
+                profession: 'an Assistant', //The profession assigned to the agent.
+                chatHistory: {
+                    maxChatHistoryWindow: 6, //Maximum size of the conversational chat before summarizing. 4 by default
+                    maxTaskHistoryWindow: 6, //Maximum size of the task chat before summarizing. 4 by default
+                },
+                tools: [ //Tools available to the agent.
+                    new WebBrowser({
+                        model: taskModel,
+                        embeddings: embeddings,
+                    }),
+                    new Serper(),
+                    new PowerShell(),
+                ],
+            }
+        }
+    }
+}
 ```
 
-## What's inside?
+## Agent communication:
 
-This Turborepo includes the following packages/apps:
 
-### Apps and Packages
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `ui`: a stub React component library shared by both `web` and `docs` applications
-- `eslint-config-custom`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `tsconfig`: `tsconfig.json`s used throughout the monorepo
+## Roardmap
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-```
-cd my-turborepo
-pnpm build
-```
-
-### Develop
-
-To develop all apps and packages, run the following command:
-
-```
-cd my-turborepo
-pnpm dev
-```
-
-### Remote Caching
-
-Turborepo can use a technique known as [Remote Caching](https://turbo.build/repo/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup), then enter the following commands:
-
-```
-cd my-turborepo
-npx turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-```
-npx turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turbo.build/repo/docs/core-concepts/monorepos/running-tasks)
-- [Caching](https://turbo.build/repo/docs/core-concepts/caching)
-- [Remote Caching](https://turbo.build/repo/docs/core-concepts/remote-caching)
-- [Filtering](https://turbo.build/repo/docs/core-concepts/monorepos/filtering)
-- [Configuration Options](https://turbo.build/repo/docs/reference/configuration)
-- [CLI Usage](https://turbo.build/repo/docs/reference/command-line-reference)
+* Configurable memory types to allow persistent memory or different use cases.
+* Different prompts for different LLMs to improve compatibility.
+* Talk to multiple agents simultaneously.
