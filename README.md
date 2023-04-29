@@ -2,13 +2,13 @@
 
 Agent Mimir is a tooling, tasking, and memory system for autonomous AIs. It provides AIs the foundation to solve multi-step complex tasks using tools.
 
-Mimir allows you to deploy configurable AI Agents to which you can give access to tools. Each agent has two different conversational memories, general chat memory and task memory.
+Mimir allows you to deploy configurable AI Agents to which you can give access to tools. Each agent has two different types of memories, general chat memory and task memory.
 
 Conversational memory is the main type of memory where every message between you and the agent is recorded. When the agent is executing a task it will use task memory to record any information it has generated while working on the task.
 
 The current implementation will only clear the task memory when you tell the agent that it's task is complete. This is done to prevent the agent from accidentally clearing its memory if the task was completed incorrectly.
 
-Agent Mimir is based on LangchainJS, every tool or LLM that works on Langchain should also work with Mimir. The prompts are currently tuned on GPT-4 and GPT-3.5 but other models might work.
+Agent Mimir is based on [LangchainJS](https://github.com/hwchase17/langchainjs), every tool or LLM that works on Langchain should also work with Mimir. The prompts are currently tuned on GPT-4 and GPT-3.5 but other models might work.
 
 The tasking system is based on Auto-GPT and BabyAGI where the agent needs to come up with a plan, iterate over its steps and review as it completes the task.
 
@@ -93,14 +93,14 @@ If you would like to add additional nodejs dependencies to the project to use cu
     }
 }
 ```
-## Agent communication:
+## Agent communication
 If you declare multiple agents in your configuration you can enable communication with each other. The agent may try to establish communication with another agent if it thinks it will help him complete a task.
 
 You can enable communication be setting `canCommunicateWithAgents` to either `true` if you want the agent to be able to communicate with every other agent or pass an array of the names of the agents it is allowed to talk to (`['Mr_Chef', 'Artist']`).
 
 Note: Even if continuous mode is set to true if an agent who is being talked to tries to use a tool it will not ask the user first. I need to rework how continuous mode is implemented.
 
-## Roardmap
+## Roadmap
 
 * Configurable memory types to allow persistent memory or different use cases.
 * Different prompts for different LLMs to improve compatibility.
