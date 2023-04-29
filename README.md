@@ -83,7 +83,16 @@ module.exports = function() {
     }
 }
 ```
+## Additional Node Dependencies
 
+If you would like to add additional nodejs dependencies to the project to use custom tools or LLMs you can declare them on `custom-dependencies.json`. 
+```json
+{
+    "dependencies": {
+        "my-tool": "1.0.0"
+    }
+}
+```
 ## Agent communication:
 If you declare multiple agents in your configuration you can enable communication with each other. The agent may try to establish communication with another agent if it thinks it will help him complete a task.
 
