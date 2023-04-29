@@ -41,7 +41,7 @@ export const run = async () => {
     const agentManager = new AgentManager();
     const continousMode = agentConfig.continuousMode ?? false;
     const agents = await Promise.all(Object.entries(agentConfig.agents).map(async ([agentName, agentDefinition]) => {
-        return {
+        const newAgent = {
             mainAgent: agentDefinition.mainAgent,
             name: agentName,
             agent: await agentManager.createAgent({
@@ -55,6 +55,8 @@ export const run = async () => {
                 communicationWhitelist : agentDefinition.communicationWhitelist,
             })
         }
+        console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.profession}"`));
+        return newAgent;
     }));
 
     const mainAgent = agents.length === 1 ? agents[0].agent : agents.find(a => a.mainAgent)?.agent;
@@ -62,7 +64,7 @@ export const run = async () => {
         throw new Error("No main agent found");
     }
 
-    console.log("Created main agent:: " + mainAgent.name);
+    console.log(chalk.green(`Using "${mainAgent.name}" as main agent`));
     await chatWithAgent(continousMode, mainAgent);
 };
 

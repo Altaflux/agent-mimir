@@ -78,13 +78,13 @@ export class ChatConversationalAgentOutputParser extends AgentActionOutputParser
 
 
 export type CreatePromptArgs = {
-    /** String to put after the list of tools. */
+
     systemMessage?: string;
-    /** String to put before the list of tools. */
+
     humanMessage?: string;
-    /** List of input variables the final prompt will expect. */
+
     inputVariables?: string[];
-    /** Output parser to use for formatting. */
+
     outputParser?: AgentActionOutputParser;
 
     taskCompleteCommandName: string,
@@ -152,7 +152,6 @@ export class MimirChatConversationalAgent extends Agent {
     }
 
     _agentType(): string {
-        /** Not turning on serialization until more sure of abstractions. */
         throw new Error("Method not implemented.");
     }
 
@@ -178,7 +177,6 @@ export class MimirChatConversationalAgent extends Agent {
         }
     }
 
-    //constructScratchPad(steps: AgentStep[]): Promise<string | BaseChatMessage[]>;
     async constructScratchPad(steps: AgentStep[]): Promise<BaseChatMessage[]> {
         const thoughts: BaseChatMessage[] = [];
         for (const step of steps) {
@@ -315,14 +313,6 @@ export class MimirChatConversationalAgent extends Agent {
         }
     }
 
-    /**
-     * Create prompt in the style of the zero shot agent.
-     *
-     * @param tools - List of tools the agent will have access to, used to format the prompt.
-     * @param args - Arguments to create the prompt with.
-     * @param args.suffix - String to put after the list of tools.
-     * @param args.prefix - String to put before the list of tools.
-     */
     static createPrompt(tools: Tool[], outputParser: AgentActionOutputParser, args?: CreatePromptArgs) {
         const {
             systemMessage = PREFIX_JOB("Assistant", "a helpful assistant"),
