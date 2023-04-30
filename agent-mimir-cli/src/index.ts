@@ -7,7 +7,6 @@ import { Tool } from "langchain/tools";
 import { chatWithAgent } from "./chat.js";
 import fs from "fs";
 import path from "path";
-
 export type AgentDefinition = {
     mainAgent?: boolean;
     profession: string;
@@ -25,24 +24,23 @@ type AgentMimirConfig = {
     agents: Record<string, AgentDefinition>;
     continuousMode?: boolean;
 }
+
+const getConfig = async () => {
+    if (process.env.MIMIR_CFG_PATH) {
+        let cfgFile = path.join(process.env.MIMIR_CFG_PATH, 'mimir-cfg.js');
+        if (fs.existsSync(cfgFile)) {
+            console.log(chalk.green(`Using config file at "${cfgFile}"`));
+            return (await import(`file://${cfgFile}`)).default()
+        }
+    }
+    console.log(chalk.yellow("No config file found, using default ApenAI config"));
+    return (await import("./default-config.js")).default();
+};
+
+
 export const run = async () => {
 
-    let agentConfig: AgentMimirConfig;
-   
-    const configDirectory = process.env.CONFIG_LOCAION ?? './mimir-config';
-    let cfgFile = "";
-    if (path.isAbsolute(configDirectory)) {
-        cfgFile = path.join(configDirectory, 'mimir-cfg.js');
-    } else {
-        cfgFile = path.join(process.cwd(), '../', configDirectory, 'mimir-cfg.js');
-    }
-
-    if (fs.existsSync(cfgFile)) {
-        agentConfig = (await import(`file://${cfgFile}`)).default()
-    } else {
-        console.log(chalk.yellow("No config file found, using default ApenAI config"));
-        agentConfig = (await import("./default-config.js")).default();
-    }
+    let agentConfig: AgentMimirConfig = await getConfig();
 
     const agentManager = new AgentManager();
     const continousMode = agentConfig.continuousMode ?? false;
@@ -58,7 +56,7 @@ export const run = async () => {
                 summaryModel: agentDefinition.summaryModel,
                 thinkingModel: agentDefinition.taskModel ?? agentDefinition.chatModel,
                 chatHistory: agentDefinition.chatHistory,
-                communicationWhitelist : agentDefinition.communicationWhitelist,
+                communicationWhitelist: agentDefinition.communicationWhitelist,
             })
         }
         console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.profession}"`));
