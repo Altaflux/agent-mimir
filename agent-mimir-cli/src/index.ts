@@ -29,7 +29,7 @@ const getConfig = async () => {
     if (process.env.MIMIR_CFG_PATH) {
         let cfgFile = path.join(process.env.MIMIR_CFG_PATH, 'mimir-cfg.js');
         if (fs.existsSync(cfgFile)) {
-            console.log(chalk.green(`Using config file at "${cfgFile}"`));
+            console.log(chalk.green(`Loading configuration file`));
             return (await import(`file://${cfgFile}`)).default()
         }
     }

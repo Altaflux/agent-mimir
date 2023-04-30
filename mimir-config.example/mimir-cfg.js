@@ -2,7 +2,6 @@
 const ChatOpenAI = require('langchain/chat_models/openai').ChatOpenAI;
 const WebBrowser = require('langchain/tools/webbrowser').WebBrowser;
 const OpenAIEmbeddings = require('langchain/embeddings/openai').OpenAIEmbeddings;
-const Serper = require('langchain/tools').Serper;
 
 const taskModel = new ChatOpenAI({
     openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
@@ -36,8 +35,7 @@ module.exports = function() {
                     new WebBrowser({
                         model: taskModel,
                         embeddings: embeddings,
-                    }),
-                    new Serper()
+                    })
                 ],
             }
         }
