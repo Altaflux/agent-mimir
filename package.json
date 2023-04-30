@@ -7,7 +7,7 @@
         "internalStart": "npm run build && dotenv -- npm run start -w agent-mimir-cli",
         "dev": "turbo run dev",
         "lint": "turbo run lint",
-        "publish": "bash scripts/release-branch.sh && turbo run build lint  &&  && npm workspace langchain run release && echo '🔗 Open https://github.com/Altaflux/agent-mimir/compare/release?expand=1 and merge the release PR'",
+        "publish": "bash scripts/release-branch.sh && turbo run build lint && npm run release -w agent-mimir && echo '🔗 Open https://github.com/Altaflux/agent-mimir/compare/release?expand=1 and merge the release PR'",
         "format": "prettier --write \"**/*.{ts,tsx,md}\""
     },
     "author": "Altaflux",
