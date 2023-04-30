@@ -3,7 +3,7 @@
     "private": false,
     "scripts": {
         "build": "turbo run build",
-        "start": "dotenv -- node scripts/config-setup.js && npm install --prefix .temp_custom_deps --silent && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStart",
+        "start": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStart",
         "internalStart": "npm run build && dotenv -- npm run start -w agent-mimir-cli",
         "dev": "turbo run dev",
         "lint": "turbo run lint",
