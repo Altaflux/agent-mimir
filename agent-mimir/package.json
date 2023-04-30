@@ -1,33 +1,32 @@
 {
     "name": "agent-mimir",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "type": "module",
     "scripts": {
-      "build": "rimraf ./dist && npm run build:esm ",
-      "build:esm": "tsc --outDir dist/ ",
-      "build:cjs": "tsc --outDir dist-cjs/ -p tsconfig.cjs.json",
-      "release": "release-it --only-version "
+        "build": "rimraf ./dist && npm run build:esm ",
+        "build:esm": "tsc --outDir dist/ ",
+        "build:cjs": "tsc --outDir dist-cjs/ -p tsconfig.cjs.json",
+        "release": "release-it --only-version "
     },
     "keywords": [],
     "author": "",
     "license": "ISC",
     "devDependencies": {
-      "@types/debug": "^4.1.7",
-      "@types/inquirer": "^9.0.3",
-      "@types/node": "^18.15.10",
-      "nodemon": "^2.0.22",
-      "rimraf": "^4.4.1",
-      "ts-node": "^10.9.1",
-      "typescript": "^5.0.2"
+        "@types/debug": "^4.1.7",
+        "@types/inquirer": "^9.0.3",
+        "@types/node": "^18.15.10",
+        "nodemon": "^2.0.22",
+        "rimraf": "^4.4.1",
+        "ts-node": "^10.9.1",
+        "typescript": "^5.0.2"
     },
     "dependencies": {
-      "jsonrepair": "^3.0.2",
-      "langchain": "^0.0.63",
-      "ring-buffer-ts": "^1.2.0",
-      "unique-names-generator": "^4.7.1"
+        "jsonrepair": "^3.0.2",
+        "langchain": "^0.0.63",
+        "ring-buffer-ts": "^1.2.0",
+        "unique-names-generator": "^4.7.1"
     }
-  }
-  
+}
