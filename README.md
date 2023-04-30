@@ -94,6 +94,53 @@ If you would like to add additional nodejs dependencies to the project to use cu
 }
 
 ```
+
+## Useful tools:
+
+Here is a list of useful and easy to install tools you can try:
+
+### Web Browser Plugin:
+```javascript
+const WebBrowser = require('langchain/tools/webbrowser').WebBrowser;
+
+const taskModel = new ChatOpenAI({
+    openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
+    temperature: 0.9,
+});
+const embeddings = new OpenAIEmbeddings({
+    openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
+});
+
+//Add to agents tool:
+    tools: [
+            new WebBrowser({
+                model: taskModel,
+                embeddings: embeddings,
+            })
+        ],
+```
+
+### Search Plugin:
+```javascript
+const Serper = require('langchain/tools').Serper;
+
+//Add to agents tool:
+    tools: [
+            new Serper(process.env.SERPER_API_KEY) // https://serper.dev.
+        ],
+```
+
+### Calculator Plugin:
+```javascript
+const Calculator = require('langchain/tools/calculator').Calculator;
+
+//Add to agents tool:
+    tools: [
+            new Calculator()
+        ],
+```
+
+
 ## Agent communication
 If you declare multiple agents in your configuration you can enable communication with each other. The agent may try to establish communication with another agent if it thinks it will help him complete a task.
 
