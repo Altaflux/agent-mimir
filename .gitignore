@@ -36,9 +36,6 @@ yarn-error.log*
 # vercel
 .vercel
 
-# User's config file
-mimir-cfg.js
-
 .temp_custom_deps/
 
 mimir-config/
