@@ -40,10 +40,10 @@ const getConfig = async () => {
 
 export const run = async () => {
 
-    let agentConfig: AgentMimirConfig = await getConfig();
-
+    const agentConfig: AgentMimirConfig = await getConfig();
     const agentManager = new AgentManager();
     const continousMode = agentConfig.continuousMode ?? false;
+    
     const agents = await Promise.all(Object.entries(agentConfig.agents).map(async ([agentName, agentDefinition]) => {
         const newAgent = {
             mainAgent: agentDefinition.mainAgent,
