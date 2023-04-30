@@ -53,7 +53,7 @@ const chatModel = new ChatOpenAI({
 });
 
 
-module.exports = function() {
+module.exports = async function() {
     return {
         //If continuousMode is set to true the agent will not ask you before executing a tool. Disable at your own risk.
         continuousMode: false,

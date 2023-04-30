@@ -17,7 +17,7 @@ const chatModel = new ChatOpenAI({
 });
 
 
-module.exports = function() {
+module.exports = async function() {
     return {
         continuousMode: false,
         agents: {
