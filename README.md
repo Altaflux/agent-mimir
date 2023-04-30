@@ -24,10 +24,11 @@ You must have installed NodeJS version 18 or above.
 2. Install the required packages `npm install`
 3. Copy the .env.example file to .env: cp .env.example .env.
 4. In the .env file set the your OpenAI key in `AGENT_OPENAI_API_KEY` and in `AGENT_OPENAI_MODEL` the model you want to use.
-5. Start the agent by running `npm run start`
+5. Optionally, create a custom configuration file to use a custom agent.
 
 
 ### How to use
+Run Agent Mimi with `npm run start`
 It is important to tell the agent every time it has completed a task the phrase `task complete`. This will erease its task's memory. This is useful to keep the number of tokens small.
 
 ## Customizing Agents
