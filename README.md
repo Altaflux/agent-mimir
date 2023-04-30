@@ -32,7 +32,7 @@ It is important to tell the agent every time it has completed a task the phrase 
 
 ## Customizing Agents
 
-By default Mimir will create an agent with no tools and Chat GPT-3.5. You can configure a custom agent by creating a `mimir-cfg.js` configuration file at the root of the project, use `mimir-cfg.js.example` to start. By configuring an agent you can change its language model to any other model supported by LangchainJS
+By default Mimir will create an agent with no tools and Chat GPT-3.5. You can configure a custom agent by creating a directory called `mimir-config` with the configuration file `mimir-cfg.js`, use `mimir_config_example` as a reference. By configuring an agent you can change its language model to any other model supported by LangchainJS
 
 ```javascript
 
@@ -85,13 +85,17 @@ module.exports = function() {
 ```
 ## Additional Node Dependencies
 
-If you would like to add additional nodejs dependencies to the project to use custom tools or LLMs you can declare them on `custom-dependencies.json`. 
+If you would like to add additional nodejs dependencies to the project to use custom tools or LLMs you can create a `package.json` file inside the `mimir-config` directory. When Mimir starts it will install the dependencies and make them available for your `mimir-cfg.js` configuration.
 ```json
 {
+    "name": "agent-mimir-deps",
+    "private": false,
+    "scripts": {},
     "dependencies": {
-        "my-tool": "1.0.0"
+        "my-tool": "1.3.0"
     }
 }
+
 ```
 ## Agent communication
 If you declare multiple agents in your configuration you can enable communication with each other. The agent may try to establish communication with another agent if it thinks it will help him complete a task.
