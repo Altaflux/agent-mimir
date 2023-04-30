@@ -10,6 +10,11 @@
         "publish": "bash scripts/release-branch.sh && turbo run build lint  &&  && npm workspace langchain run release && echo '🔗 Open https://github.com/hwchase17/langchainjs/compare/release?expand=1 and merge the release PR'",
         "format": "prettier --write \"**/*.{ts,tsx,md}\""
     },
+    "author": "Altaflux",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Altaflux/agent-mimir.git"
+    },
     "devDependencies": {
         "cross-env": "^7.0.3",
         "eslint": "^7.32.0",

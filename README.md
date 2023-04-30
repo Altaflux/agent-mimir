@@ -1,12 +1,8 @@
 # <img src="assets/mimir_logo.svg" width="80" height="80"> Agent Mimir
 
-Agent Mimir is a tooling, tasking, and memory system for autonomous AIs. It provides AIs the foundation to solve multi-step complex tasks using tools.
+Agent Mimir is a command line chat client and "agent" manager for LLM's like Chat-GPT that provides the models with access to tooling and a framework with which accomplish multi-step tasks.
 
-Mimir allows you to deploy configurable AI Agents to which you can give access to tools. Each agent has two different types of memories, general chat memory and task memory.
-
-Conversational memory is the main type of memory where every message between you and the agent is recorded. When the agent is executing a task it will use task memory to record any information it has generated while working on the task.
-
-The current implementation will only clear the task memory when you tell the agent that it's task is complete. This is done to prevent the agent from accidentally clearing its memory if the task was completed incorrectly.
+It is very easy to configure your own agent with a custom personality or profession as well as enabling access to all tools that are compatible with LangchainJS. https://js.langchain.com/docs/modules/agents/tools/integrations/.
 
 Agent Mimir is based on [LangchainJS](https://github.com/hwchase17/langchainjs), every tool or LLM that works on Langchain should also work with Mimir. The prompts are currently tuned on GPT-4 and GPT-3.5 but other models might work.
 
@@ -28,7 +24,7 @@ You must have installed NodeJS version 18 or above.
 
 
 ### How to use
-Run Agent Mimi with `npm run start`
+To start the chat run the command `npm run start`
 It is important to tell the agent every time it has completed a task the phrase `task complete`. This will erease its task's memory. This is useful to keep the number of tokens small.
 
 ## Customizing Agents
@@ -86,7 +82,7 @@ module.exports = function() {
 ```
 ## Additional Node Dependencies
 
-If you would like to add additional nodejs dependencies to the project to use custom tools or LLMs you can create a `package.json` file inside the `mimir-config` directory. When Mimir starts it will install the dependencies and make them available for your `mimir-cfg.js` configuration.
+If you would like to add additional nodejs dependencies to the project to use custom tools or LLMs you can create a `package.json` file inside the `mimir-config` directory. When Mimir starts it will install the dependencies automatically and make them available for your `mimir-cfg.js` configuration.
 ```json
 {
     "name": "agent-mimir-deps",
@@ -98,6 +94,53 @@ If you would like to add additional nodejs dependencies to the project to use cu
 }
 
 ```
+
+## Useful tools:
+
+Here is a list of useful and easy to install tools you can try:
+
+### Web Browser Plugin:
+```javascript
+const WebBrowser = require('langchain/tools/webbrowser').WebBrowser;
+
+const taskModel = new ChatOpenAI({
+    openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
+    temperature: 0.9,
+});
+const embeddings = new OpenAIEmbeddings({
+    openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
+});
+
+//Add to agents tool:
+    tools: [
+            new WebBrowser({
+                model: taskModel,
+                embeddings: embeddings,
+            })
+        ],
+```
+
+### Search Plugin:
+```javascript
+const Serper = require('langchain/tools').Serper;
+
+//Add to agents tool:
+    tools: [
+            new Serper(process.env.SERPER_API_KEY) // https://serper.dev.
+        ],
+```
+
+### Calculator Plugin:
+```javascript
+const Calculator = require('langchain/tools/calculator').Calculator;
+
+//Add to agents tool:
+    tools: [
+            new Calculator()
+        ],
+```
+
+
 ## Agent communication
 If you declare multiple agents in your configuration you can enable communication with each other. The agent may try to establish communication with another agent if it thinks it will help him complete a task.
 
@@ -110,3 +153,4 @@ Note: Even if continuous mode is set to false if an agent who is being talked to
 * Configurable memory types to allow persistent memory or different use cases.
 * Different prompts for different LLMs to improve compatibility.
 * Talk to multiple agents simultaneously.
+* Provide access to the chat in different forms like web or text to speech.
