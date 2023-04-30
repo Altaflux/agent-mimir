@@ -1,12 +1,8 @@
 # <img src="assets/mimir_logo.svg" width="80" height="80"> Agent Mimir
 
-Agent Mimir is a tooling, tasking, and memory system for autonomous AIs. It provides AIs the foundation to solve multi-step complex tasks using tools.
+Agent Mimir is a command line chat client and "agent" manager for LLM's like Chat-GPT that provides the models with access to tooling and a framework with which accomplish multi-step tasks.
 
-Mimir allows you to deploy configurable AI Agents to which you can give access to tools. Each agent has two different types of memories, general chat memory and task memory.
-
-Conversational memory is the main type of memory where every message between you and the agent is recorded. When the agent is executing a task it will use task memory to record any information it has generated while working on the task.
-
-The current implementation will only clear the task memory when you tell the agent that it's task is complete. This is done to prevent the agent from accidentally clearing its memory if the task was completed incorrectly.
+It is very easy to configure your own agent with a custom personality or profession as well as enabling access to all tools that are compatible with LangchainJS. https://js.langchain.com/docs/modules/agents/tools/integrations/.
 
 Agent Mimir is based on [LangchainJS](https://github.com/hwchase17/langchainjs), every tool or LLM that works on Langchain should also work with Mimir. The prompts are currently tuned on GPT-4 and GPT-3.5 but other models might work.
 
@@ -86,7 +82,7 @@ module.exports = function() {
 ```
 ## Additional Node Dependencies
 
-If you would like to add additional nodejs dependencies to the project to use custom tools or LLMs you can create a `package.json` file inside the `mimir-config` directory. When Mimir starts it will install the dependencies and make them available for your `mimir-cfg.js` configuration.
+If you would like to add additional nodejs dependencies to the project to use custom tools or LLMs you can create a `package.json` file inside the `mimir-config` directory. When Mimir starts it will install the dependencies automatically and make them available for your `mimir-cfg.js` configuration.
 ```json
 {
     "name": "agent-mimir-deps",
