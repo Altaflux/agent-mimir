@@ -30,7 +30,8 @@ const getConfig = async () => {
         let cfgFile = path.join(process.env.MIMIR_CFG_PATH, 'mimir-cfg.js');
         if (fs.existsSync(cfgFile)) {
             console.log(chalk.green(`Loading configuration file`));
-            return (await import(`file://${cfgFile}`)).default()
+            const configFunction: Promise<AgentMimirConfig> | AgentMimirConfig = (await import(`file://${cfgFile}`)).default()
+            return await Promise.resolve(configFunction);
         }
     }
     console.log(chalk.yellow("No config file found, using default ApenAI config"));
@@ -43,7 +44,7 @@ export const run = async () => {
     const agentConfig: AgentMimirConfig = await getConfig();
     const agentManager = new AgentManager();
     const continousMode = agentConfig.continuousMode ?? false;
-    
+
     const agents = await Promise.all(Object.entries(agentConfig.agents).map(async ([agentName, agentDefinition]) => {
         const newAgent = {
             mainAgent: agentDefinition.mainAgent,
