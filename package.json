@@ -7,6 +7,7 @@
         "internalStart": "npm run build && dotenv -- npm run start -w agent-mimir-cli",
         "dev": "turbo run dev",
         "lint": "turbo run lint",
+        "publish": "bash scripts/release-branch.sh && turbo run build lint  &&  && npm workspace langchain run release && echo '🔗 Open https://github.com/hwchase17/langchainjs/compare/release?expand=1 and merge the release PR'",
         "format": "prettier --write \"**/*.{ts,tsx,md}\""
     },
     "devDependencies": {
@@ -15,7 +16,8 @@
         "eslint-config-custom": "*",
         "fs-extra": "^11.1.1",
         "prettier": "^2.5.1",
-        "turbo": "latest"
+        "turbo": "latest",
+        "release-it": "^15.10.0"
     },
     "packageManager": "npm@9.5.0",
     "workspaces": [
