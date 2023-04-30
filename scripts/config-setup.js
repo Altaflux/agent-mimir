@@ -4,10 +4,11 @@ const fileExists = async path => !!(await fs.stat(path).catch(e => false));
 
 const target = '.temp_custom_deps';
 const main = async () => {
-    
-    if (await fileExists(target)){
+
+    if (await fileExists(target)) {
         await fs.rm(target, { recursive: true, force: true });
     }
+    await fs.mkdir(target);
 
     const configLocation = process.env.CONFIG_LOCAION ?? './mimir-config';
 
