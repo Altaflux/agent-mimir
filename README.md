@@ -106,3 +106,4 @@ Note: Even if continuous mode is set to false if an agent who is being talked to
 * Configurable memory types to allow persistent memory or different use cases.
 * Different prompts for different LLMs to improve compatibility.
 * Talk to multiple agents simultaneously.
+* Provide access to the chat in different forms like web or text to speech.
