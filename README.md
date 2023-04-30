@@ -28,7 +28,7 @@ You must have installed NodeJS version 18 or above.
 
 
 ### How to use
-Run Agent Mimi with `npm run start`
+To start the chat run the command `npm run start`
 It is important to tell the agent every time it has completed a task the phrase `task complete`. This will erease its task's memory. This is useful to keep the number of tokens small.
 
 ## Customizing Agents
