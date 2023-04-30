@@ -10,6 +10,7 @@ interface AgentExecutorInput extends ChainInputs {
     returnIntermediateSteps?: boolean;
     maxIterations?: number;
     earlyStoppingMethod?: StoppingMethod;
+    alwaysAllowTools?: string[];
 }
 
 
@@ -29,7 +30,7 @@ export class SteppedAgentExecutor extends BaseChain {
 
     pendingAgentAction?: AgentAction;
 
-   // continuousMode = false;
+    alwaysAllowTools: string[];
 
     get inputKeys() {
         return this.agent.inputKeys;
@@ -45,6 +46,7 @@ export class SteppedAgentExecutor extends BaseChain {
         this.maxIterations = input.maxIterations ?? this.maxIterations;
         this.earlyStoppingMethod =
             input.earlyStoppingMethod ?? this.earlyStoppingMethod;
+        this.alwaysAllowTools = input.alwaysAllowTools ?? [];
     }
 
 
@@ -119,11 +121,11 @@ export class SteppedAgentExecutor extends BaseChain {
                         storeInMem: true
                     };
                 }
-                if (!continuousMode && action.tool !== "talkToUser") {
+                if (!continuousMode && this.alwaysAllowTools.includes(action.tool) === false) {
                     this.pendingAgentAction = action;
                     return {
                         storeInMem: false,
-                        workPending: true, 
+                        workPending: true,
                         chainValues: await getOutput({
                             returnValues: { [this.agent.returnValues[0]]: action.log, toolStep: true },
                             log: action.log,

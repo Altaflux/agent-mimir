@@ -110,6 +110,7 @@ export class AgentManager {
             agent: agent,
             tools,
             verbose: false,
+            alwaysAllowTools: ['talkToUser'],
         });
 
         const chatMemoryChain = new ChatMemoryChain(
