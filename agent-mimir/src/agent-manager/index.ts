@@ -112,6 +112,7 @@ export class AgentManager {
         });
 
         let executor = SteppedAgentExecutor.fromAgentAndTools({
+            agentName: shortName,
             memory: memory,
             agent: agent,
             tools,
