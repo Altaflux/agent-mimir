@@ -10,7 +10,7 @@ The tasking system is based on Auto-GPT and BabyAGI where the agent needs to com
 
 <h2 align="center">Demo</h2>
 <p align="center">
-    <img align="center" src="assets/demo-screenshot.png" width="900" height="900">
+    <img align="center" src="assets/demo-screenshot.png" width="800" height="500">
 </p>
 
 ## Usage
