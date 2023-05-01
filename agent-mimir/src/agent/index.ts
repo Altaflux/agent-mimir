@@ -42,7 +42,7 @@ import { AgentManager } from "../index.js";
 
 
 
-const BAD_MESSAGE_TEXT = `I could not understand that your response, please rememeber to use the correct JSON response format and always include the "command" and "command_text" fields!.`;
+const BAD_MESSAGE_TEXT = `I could not understand that your response, please rememeber to use the correct response format and always include a valid "command" value and "command_text" fields!.`;
 
 export type AIMessageType = {
     thoughts?: string,
