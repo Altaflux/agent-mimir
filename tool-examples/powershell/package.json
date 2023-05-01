@@ -1,0 +1,8 @@
+{
+    "name": "agent-mimir-deps",
+    "private": false,
+    "scripts": {},
+    "dependencies": {
+        "child_process": "1.0.2"
+    }
+}

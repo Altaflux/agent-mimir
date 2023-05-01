@@ -1,0 +1,8 @@
+{
+    "name": "agent-mimir-deps",
+    "private": false,
+    "scripts": {},
+    "dependencies": {
+        "safe-eval": "0.4.1"
+    }
+}

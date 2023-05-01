@@ -97,7 +97,10 @@ If you would like to add additional nodejs dependencies to the project to use cu
 
 ## Useful tools:
 
+Take a look at LangchainJS documentation for how to use their tools: https://js.langchain.com/docs/modules/agents/tools/
+
 Here is a list of useful and easy to install tools you can try:
+
 
 ### Web Browser Plugin:
 ```javascript
@@ -140,6 +143,7 @@ const Calculator = require('langchain/tools/calculator').Calculator;
         ],
 ```
 
+Take a look at the `tool-examples` directory  for other tools.
 
 ## Agent communication
 If you declare multiple agents in your configuration you can enable communication with each other. The agent may try to establish communication with another agent if it thinks it will help him complete a task.
