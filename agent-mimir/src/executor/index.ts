@@ -7,6 +7,7 @@ import { Tool } from "langchain/tools";
 interface AgentExecutorInput extends ChainInputs {
     agent: Agent;
     tools: Tool[];
+    agentName: string;
     returnIntermediateSteps?: boolean;
     maxIterations?: number;
     earlyStoppingMethod?: StoppingMethod;
@@ -18,9 +19,12 @@ export class SteppedAgentExecutor extends BaseChain {
     get outputKeys(): string[] {
         return this.agent.returnValues
     }
+
     agent: BaseSingleActionAgent;
 
     tools: Tool[];
+
+    agentName: string;
 
     returnIntermediateSteps = false;
 
@@ -47,6 +51,7 @@ export class SteppedAgentExecutor extends BaseChain {
         this.earlyStoppingMethod =
             input.earlyStoppingMethod ?? this.earlyStoppingMethod;
         this.alwaysAllowTools = input.alwaysAllowTools ?? [];
+        this.agentName = input.agentName;
     }
 
 
@@ -110,7 +115,7 @@ export class SteppedAgentExecutor extends BaseChain {
                 return { ...returnValues, intermediateSteps: steps, ...additional };
             }
 
-            return { ...returnValues, ...additional };
+            return { log: finishStep.log, ...returnValues, ...additional };
         };
 
 
@@ -119,6 +124,10 @@ export class SteppedAgentExecutor extends BaseChain {
             if (!this.pendingAgentAction) {
 
                 const action = await this.agent.plan(steps, inputs);
+                if (process.env.MIMIR_LOG_AI_RESPONSE) {
+                    console.log('\x1b[34m',`"${this.agentName}" responded with: "${action.log}".`)
+                }
+              
                 if ("returnValues" in action) {
                     return {
                         workPending: false,
@@ -132,7 +141,7 @@ export class SteppedAgentExecutor extends BaseChain {
                         storeInMem: false,
                         workPending: true,
                         chainValues: await getOutput({
-                            returnValues: { [this.agent.returnValues[0]]: action.log, toolStep: true },
+                            returnValues: { [this.agent.returnValues[0]]: `Agent: "${this.agentName}" is requesting permission to use tool: "${action.tool}" with input: "${action.toolInput}"` , toolStep: true },
                             log: action.log,
                         })
                     };
