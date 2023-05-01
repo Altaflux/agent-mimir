@@ -297,7 +297,7 @@ export class MimirChatConversationalAgent extends Agent {
         const whiteList = this.communicationWhitelist ?? helpers.map((helper) => helper.name) ?? [];
         const helperList = helpers.filter((helper) => helper.name !== this.name)
             .filter(element => whiteList.includes(element.name))
-            .map((helper) => `${helper.name}: ${helper.profession}`)
+            .map((helper) => `${helper.name}: ${helper.description}`)
             .join("\n") ?? "";
         return helperList !== "" ? `You have the following helpers that can be used to assist you in your task:\n${helperList}` : ``;
     }

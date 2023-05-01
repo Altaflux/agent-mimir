@@ -4,21 +4,27 @@ import chalk from "chalk";
 import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
 import { Tool } from "langchain/tools";
+import { BaseChain } from "langchain/chains";
 import { chatWithAgent } from "./chat.js";
 import fs from "fs";
 import path from "path";
 export type AgentDefinition = {
     mainAgent?: boolean;
-    profession: string;
-    chatModel: BaseChatModel;
-    summaryModel: BaseChatModel;
-    taskModel?: BaseLanguageModel;
-    chatHistory?: {
-        maxChatHistoryWindow?: number,
-        maxTaskHistoryWindow?: number,
-    }
-    tools?: Tool[];
-    communicationWhitelist?: string[] | boolean;
+    description: string;
+    chain?: BaseChain;
+    definition?: {
+        profession: string;
+        chatModel: BaseChatModel;
+        summaryModel: BaseChatModel;
+        taskModel?: BaseLanguageModel;
+        chatHistory?: {
+            maxChatHistoryWindow?: number,
+            maxTaskHistoryWindow?: number,
+        }
+        tools?: Tool[];
+        communicationWhitelist?: string[] | boolean;
+    },
+
 }
 type AgentMimirConfig = {
     agents: Record<string, AgentDefinition>;
@@ -46,22 +52,40 @@ export const run = async () => {
     const continousMode = agentConfig.continuousMode ?? false;
 
     const agents = await Promise.all(Object.entries(agentConfig.agents).map(async ([agentName, agentDefinition]) => {
-        const newAgent = {
-            mainAgent: agentDefinition.mainAgent,
-            name: agentName,
-            agent: await agentManager.createAgent({
+        if (agentDefinition.definition) {
+            const newAgent = {
+                mainAgent: agentDefinition.mainAgent,
                 name: agentName,
-                profession: agentDefinition.profession,
-                tools: agentDefinition.tools ?? [],
-                model: agentDefinition.chatModel,
-                summaryModel: agentDefinition.summaryModel,
-                thinkingModel: agentDefinition.taskModel ?? agentDefinition.chatModel,
-                chatHistory: agentDefinition.chatHistory,
-                communicationWhitelist: agentDefinition.communicationWhitelist,
-            })
+                agent: await agentManager.createAgent({
+                    name: agentName,
+                    description: agentDefinition.description,
+                    profession: agentDefinition.definition.profession,
+                    tools: agentDefinition.definition.tools ?? [],
+                    model: agentDefinition.definition.chatModel,
+                    summaryModel: agentDefinition.definition.summaryModel,
+                    thinkingModel: agentDefinition.definition.taskModel ?? agentDefinition.definition.chatModel,
+                    chatHistory: agentDefinition.definition.chatHistory,
+                    communicationWhitelist: agentDefinition.definition.communicationWhitelist,
+                })
+            }
+            console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.definition.profession}" and description "${agentDefinition.description}"`));
+            return newAgent;
+        } else if (agentDefinition.chain) {
+            const newAgent = {
+                mainAgent: agentDefinition.mainAgent,
+                name: agentName,
+                agent: await agentManager.createAgentFromChain({
+                    name: agentName,
+                    description: agentDefinition.description,
+                    agent: agentDefinition.chain
+                })
+            }
+            console.log(chalk.green(`Created agent "${agentName}" with description "${agentDefinition.description}"`));
+            return newAgent;
+        } else {
+            throw new Error(`Agent "${agentName}" has no definition or chain`);
         }
-        console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.profession}"`));
-        return newAgent;
+
     }));
 
     const mainAgent = agents.length === 1 ? agents[0].agent : agents.find(a => a.mainAgent)?.agent;

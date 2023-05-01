@@ -20,12 +20,13 @@ import { Agent } from '../schema.js';
 
 export type CreateAgentOptions = {
     profession: string,
+    description: string,
     name?: string,
     model: BaseChatModel,
     summaryModel?: BaseChatModel,
     thinkingModel?: BaseLanguageModel,
     allowAgentCreation?: boolean,
-    communicationWhitelist?: boolean| string[],
+    communicationWhitelist?: boolean | string[],
     chatHistory?: {
         maxChatHistoryWindow?: number,
         maxTaskHistoryWindow?: number,
@@ -37,6 +38,11 @@ export class AgentManager {
     private map: Map<string, Agent> = new Map();
     public constructor() { }
 
+    public async createAgentFromChain(config: Agent): Promise<Agent> {
+        this.map.set(config.name, config);
+        return this.map.get(config.name)!;
+    }
+    
     public async createAgent(config: CreateAgentOptions): Promise<Agent> {
 
 
@@ -54,7 +60,7 @@ export class AgentManager {
             returnMessages: true,
             memoryKey: "history",
             inputKey: "inputToSave",
-            maxWindowSize:  config.chatHistory?.maxTaskHistoryWindow ?? 6,
+            maxWindowSize: config.chatHistory?.maxTaskHistoryWindow ?? 6,
             messageSerializer: messageSerializer,
         });
 
@@ -68,7 +74,7 @@ export class AgentManager {
             if (config.allowAgentCreation) {
                 agentCommunicationTools.push(new CreateHelper(this, config.model));
             }
-          
+
         }
         const canCommunicateWithAgents = config.communicationWhitelist ?? false;
         let communicationWhitelist = undefined;
@@ -122,7 +128,7 @@ export class AgentManager {
             }
         );
 
-        this.map.set(shortName, { name: shortName, profession: config.profession, agent: chatMemoryChain });
+        this.map.set(shortName, { name: shortName, description: config.description, agent: chatMemoryChain });
         return this.map.get(shortName)!;
     }
 

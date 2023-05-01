@@ -60,21 +60,25 @@ module.exports = async function() {
         agents: {
             'Assistant': { //The name of the agent
                 mainAgent: true, //When using multiple agents, set one agent as the mainAgent for the chat.
-                chatModel: chatModel, //The main chat LLM used for conversation and memory.
-                summaryModel: taskModel, //The model used when summarizing conversations.
-                profession: 'an Assistant', //The profession assigned to the agent.
-                communicationWhitelist: ['MR_CHEF'], //The list of agents it is allowed to talk to.
-                chatHistory: {
-                    maxChatHistoryWindow: 6, //Maximum size of the conversational chat before summarizing. 4 by default
-                    maxTaskHistoryWindow: 6, //Maximum size of the task chat before summarizing. 4 by default
-                },
-                tools: [ //Tools available to the agent.
-                    new WebBrowser({
-                        model: taskModel,
-                        embeddings: embeddings,
-                    }),
-                    new Serper()
-                ],
+                description: 'An assistant', //A description of the agent and how to talk to it.
+                definition: {
+                    chatModel: chatModel, //The main chat LLM used for conversation and memory.
+                    summaryModel: taskModel, //The model used when summarizing conversations.
+                    taskModel: taskModel, //The model used for brainstorming steps.
+                    profession: 'an Assistant', //The profession assigned to the agent.
+                    communicationWhitelist: ['MR_CHEF'], //The list of agents it is allowed to talk to.
+                    chatHistory: {
+                        maxChatHistoryWindow: 6, //Maximum size of the conversational chat before summarizing. 4 by default
+                        maxTaskHistoryWindow: 6, //Maximum size of the task chat before summarizing. 4 by default
+                    },
+                    tools: [ //Tools available to the agent.
+                        new WebBrowser({
+                            model: taskModel,
+                            embeddings: embeddings,
+                        }),
+                        new Serper()
+                    ]
+                }
             }
         }
     }

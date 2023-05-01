@@ -18,16 +18,19 @@ export default function () {
         agents: {
             'Assistant': {
                 mainAgent: true,
-                chatModel: chatModel,
-                taskModel: taskModel,
-                summaryModel: taskModel,
-                profession: 'an Assistant',
-                chatHistory: {
-                    maxChatHistoryWindow: 4,
-                    maxTaskHistoryWindow: 4,
-                },
-                tools: [
-                ],
+                description: 'An assistant',
+                definition: {
+                    chatModel: chatModel,
+                    taskModel: taskModel,
+                    summaryModel: taskModel,
+                    profession: 'an Assistant',
+                    chatHistory: {
+                        maxChatHistoryWindow: 4,
+                        maxTaskHistoryWindow: 4,
+                    },
+                    tools: [
+                    ],
+                }
             }
         }
     }

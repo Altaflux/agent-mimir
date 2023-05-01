@@ -21,22 +21,21 @@ module.exports = async function() {
     return {
         continuousMode: false,
         agents: {
-            'Assistant': {
-                mainAgent: true,
-                chatModel: chatModel,
-                taskModel: taskModel,
-                summaryModel: taskModel,
-                profession: 'an Assistant',
-                chatHistory: {
-                    maxChatHistoryWindow: 6,
-                    maxTaskHistoryWindow: 6,
-                },
-                tools: [
-                    new WebBrowser({
-                        model: taskModel,
-                        embeddings: embeddings,
-                    })
-                ],
+            'Assistant': { 
+                mainAgent: true, 
+                description: 'An assistant', 
+                definition: {
+                    chatModel: chatModel,
+                    taskModel: taskModel,
+                    summaryModel: taskModel,
+                    profession: 'an Assistant',
+                    tools: [ 
+                        new WebBrowser({
+                            model: taskModel,
+                            embeddings: embeddings,
+                        })
+                    ]
+                }
             }
         }
     }

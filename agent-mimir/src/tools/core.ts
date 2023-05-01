@@ -56,6 +56,7 @@ export class CreateHelper extends Tool {
     protected async _call(arg: string): Promise<string> {
         return (await this.helperSingleton.createAgent({
             profession: arg,
+            description: arg,
             model: this.model
         })).name;
     }

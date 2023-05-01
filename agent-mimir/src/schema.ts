@@ -21,4 +21,4 @@ export abstract class AIMessageSerializer extends BaseOutputParser<string> {
 }
 
 
-export type Agent = { name: string, profession: string, agent: BaseChain }
+export type Agent = { name: string, description: string, agent: BaseChain }
