@@ -76,7 +76,7 @@ module.exports = async function() {
                             model: taskModel,
                             embeddings: embeddings,
                         }),
-                        new Serper()
+                        new Serper(process.env.SERPER_API_KEY)
                     ]
                 }
             }
