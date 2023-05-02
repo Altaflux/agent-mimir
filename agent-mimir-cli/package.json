@@ -27,7 +27,6 @@
     },
     "dependencies": {
       "agent-mimir": "*",
-      "dotenv-cli": "latest",
       "inquirer": "^9.1.5",
       "chalk": "^5.2.0"
     }
