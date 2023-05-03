@@ -1,5 +1,5 @@
 import { BaseChain } from "langchain/chains";
-import { BaseOutputParser } from "langchain/schema";
+import { BaseOutputParser } from "langchain/schema/output_parser";
 
 export type AIMessageType = {
     thoughts?: string,
