@@ -21,16 +21,14 @@ import {
     ChainValues,
     AgentAction,
     AgentFinish,
-    BaseOutputParser,
 } from "langchain/schema";
+import { BaseOutputParser } from "langchain/schema/output_parser";
 
 import { Tool } from "langchain/tools";
 import { Agent, AgentActionOutputParser, AgentInput } from "langchain/agents";
 import { BaseLanguageModel } from "langchain/base_language";
 import { ConversationChain } from "langchain/chains";
 import { BaseChatMemory, BufferMemory, getInputValue } from "langchain/memory";
-import { HelperManager } from "./helpers.js";
-
 import { Embeddings } from "langchain/embeddings/base";
 import { AIMessageSerializer } from "../schema.js";
 import { ScratchPadManager } from "../utils/scratch-pad.js";
