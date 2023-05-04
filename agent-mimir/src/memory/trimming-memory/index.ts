@@ -24,6 +24,13 @@ export class TrimmingMemory extends BaseChatMemory {
         this.startCollectionFilter = args.startCollectionFilter ?? (() => true);
         this.memory = memory;
     }
+
+
+    get memoryKeys(): string[] {
+        return this.memory.memoryKeys;
+    }
+
+
     async saveContext(inputValues: InputValues, outputValues: Record<string, any>): Promise<void> {
         if (this.startCollectionFilter({ input: inputValues, output: outputValues })) {
             if (!this.pendingMessage) {

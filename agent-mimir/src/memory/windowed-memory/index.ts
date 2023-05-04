@@ -63,6 +63,10 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
         this.messageSerializer = fields?.messageSerializer;
     }
 
+    get memoryKeys(): string[] {
+        return [this.memoryKey]
+    }
+
     async predictNewSummary(
         messages: BaseChatMessage[],
         existingSummary: string

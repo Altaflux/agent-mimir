@@ -120,7 +120,6 @@ export class MimirChatConversationalAgent extends Agent {
     name?: string;
     scratchPad?: ScratchPadManager
     currentTaskList: string[] = [];
-    mainTask: string | undefined;
     communicationWhitelist: string[] | null;
 
     constructor(
@@ -183,8 +182,7 @@ export class MimirChatConversationalAgent extends Agent {
                 new HumanChatMessage(
                     renderTemplate(TEMPLATE_TOOL_RESPONSE, "f-string", {
                         observation: step.observation,
-                        current_plan: "",
-                        main_task: "",
+                        current_plan: ""
                     })
                 )
             );
@@ -213,15 +211,12 @@ export class MimirChatConversationalAgent extends Agent {
         const nextMessage = this.getMessageForAI(steps, inputs);
         const scratchPadElements = await this.scratchPad?.buildScratchPadList() ?? "";
         const currentPlan = createBulletedList(this.currentTaskList);
-        if (!this.mainTask) {
-            this.mainTask = inputs.input;
-        }
+     
         const realInput = nextMessage.type === "USER_MESSAGE" ? renderTemplate(USER_INPUT, "f-string", {
             input: nextMessage.message,
         }) : renderTemplate(TEMPLATE_TOOL_RESPONSE, "f-string", {
             observation: nextMessage.message,
-            current_plan: currentPlan,
-            main_task: this.mainTask,
+            current_plan: currentPlan
         });
 
         const relevantMemory = await this.longTermMemoryManager?.retrieveMessages(nextMessage.message, 3) ?? "";
@@ -255,7 +250,6 @@ export class MimirChatConversationalAgent extends Agent {
             console.log("----Clearing memory---");
             this.scratchPad?.clear();
             this.longTermMemoryManager?.clear()
-            this.mainTask = undefined;
             this.currentTaskList = [];
             await this.memory.clear()
         }

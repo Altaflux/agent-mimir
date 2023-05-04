@@ -2,14 +2,30 @@
 import { AIMessageSerializer, AIMessageType } from "../../schema.js";
 import { FORMAT_INSTRUCTIONS } from "./prompt.js";
 
+const responseParts = [
+    "-Reasoning",
+    "-Plan",
+    "-Command Text",
+    "-Command",
+    "-Save To ScratchPad",
+    "-Current Plan Step",
+    "-Thoughts",
+    "-Goal Given By User",
+].join('|');
+
+
+function regexBuilder(field: string) {
+    return new RegExp(`(?<=-${field}:\\s)([\\s\\S]*?)` + '(?=\\s' + responseParts +  "|$)");
+}
 const regexParser = {
-    thougths: new RegExp(/(?<=-Thoughts:\s)([\s\S]*?)(?=\s-Reasoning|-Plan|-Command Text|-Command|-Save To ScratchPad|-Current Plan Step|$)/),
-    reasoning: new RegExp(/(?<=-Reasoning:\s)([\s\S]*?)(?=\s-Reasoning|-Plan|-Command Text|-Command|-Save To ScratchPad|-Current Plan Step|$)/),
-    plan: new RegExp(/(?<=-Plan:\s)([\s\S]*?)(?=\s-Reasoning|-Plan|-Command Text|-Command|-Save To ScratchPad|-Current Plan Step|$)/),
-    command: new RegExp(/(?<=-Command:\s)([\s\S]*?)(?=\s-Reasoning|-Plan|-Command Text|-Command|-Save To ScratchPad|-Current Plan Step|$)/),
-    commandText: new RegExp(/(?<=-Command Text:\s)([\s\S]*?)(?=\s-Reasoning|-Plan|-Command Text|-Command|-Save To ScratchPad|-Current Plan Step|$)/),
-    saveToScratchPad: new RegExp(/(?<=-Save To ScratchPad:\s)([\s\S]*?)(?=\s-Reasoning|-Plan|-Command Text|-Command|-Save To ScratchPad|-Current Plan Step|$)/),
-    currentPlanStep: new RegExp(/(?<=-Current Plan Step:\s)([\s\S]*?)(?=\s-Reasoning|-Plan|-Command Text|-Command|-Save To ScratchPad|-Current Plan Step|$)/),
+    thougths: regexBuilder('Thoughts'),
+    reasoning: regexBuilder('Reasoning'),
+    plan: regexBuilder('Plan'),
+    command: regexBuilder('Command'),
+    commandText: regexBuilder('Command Text'),
+    saveToScratchPad: regexBuilder('Save To ScratchPad'),
+    currentPlanStep: regexBuilder('Current Plan Step'),
+    mainGoal: regexBuilder('Goal Given By User'),
 }
 
 export class PlainTextMessageSerializer extends AIMessageSerializer {
@@ -24,6 +40,7 @@ export class PlainTextMessageSerializer extends AIMessageSerializer {
 -Plan: ${message.plan ? JSON.stringify(message.plan) : ""}
 -Current Plan Step: ${message.currentPlanStep ?? ""}
 -Save To ScratchPad: ${message.saveToScratchPad ?? ""}
+-Goal Given By User: ${message.mainGoal ?? ""}
 -Command: ${message.action ?? ""}
 -Command Text: ${message.action_input ?? ""}
 `
@@ -37,6 +54,7 @@ export class PlainTextMessageSerializer extends AIMessageSerializer {
         const commandText = regexParser.commandText.exec(text)?.[0]?.trim();
         const saveToScratchPad = regexParser.saveToScratchPad.exec(text)?.[0]?.trim();
         const currentPlanStep = regexParser.currentPlanStep.exec(text)?.[0]?.trim();
+        const mainGoal = regexParser.mainGoal.exec(text)?.[0]?.trim();
         const result: AIMessageType = {
             thoughts: thoughts,
             reasoning: reasoning,
@@ -45,6 +63,7 @@ export class PlainTextMessageSerializer extends AIMessageSerializer {
             action_input: commandText!,
             saveToScratchPad: saveToScratchPad,
             currentPlanStep: currentPlanStep,
+            mainGoal: mainGoal,
         }
         return result;
     }

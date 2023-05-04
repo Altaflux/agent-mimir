@@ -43,6 +43,10 @@ export class ThinkTool extends Tool {
 
 
 class NoSaveMemory extends BaseMemory {
+
+    get memoryKeys(): string[] {
+        return []
+    }
     constructor(private memory: BaseMemory) {
         super();
     }
