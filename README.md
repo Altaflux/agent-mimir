@@ -38,7 +38,7 @@ By default Mimir will create an agent with no tools and Chat GPT-3.5. You can co
 ```javascript
 
 const ChatOpenAI = require('langchain/chat_models/openai').ChatOpenAI;
-const WebBrowser = require('langchain/tools/webbrowser').WebBrowser;
+const SeleniumWebBrowser = require('@agent-mimir/selenium-browser').SeleniumWebBrowser;
 const OpenAIEmbeddings = require('langchain/embeddings/openai').OpenAIEmbeddings;
 const Serper = require('langchain/tools').Serper;
 
@@ -76,10 +76,13 @@ module.exports = async function() {
                         maxTaskHistoryWindow: 6, //Maximum size of the task chat before summarizing. 4 by default
                     },
                     tools: [ //Tools available to the agent.
-                        new WebBrowser({
-                            model: taskModel,
-                            embeddings: embeddings,
-                        }),
+                        new SeleniumWebBrowser({
+                                model: model,
+                                embeddings: embeddings,
+                                seleniumDriverOptions: {
+                                    browserName: 'chrome',
+                                }
+                            }),
                         new Serper(process.env.SERPER_API_KEY)
                     ]
                 }
@@ -112,7 +115,7 @@ Here is a list of useful and easy to install tools you can try:
 
 ### Web Browser Plugin:
 ```javascript
-const WebBrowser = require('langchain/tools/webbrowser').WebBrowser;
+const SeleniumWebBrowser = require('@agent-mimir/selenium-browser').SeleniumWebBrowser;
 
 const taskModel = new ChatOpenAI({
     openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
@@ -124,9 +127,12 @@ const embeddings = new OpenAIEmbeddings({
 
 //Add to agents tool:
     tools: [
-            new WebBrowser({
-                model: taskModel,
+        new SeleniumWebBrowser({
+                model: model,
                 embeddings: embeddings,
+                seleniumDriverOptions: {
+                    browserName: 'chrome',
+                }
             })
         ],
 ```

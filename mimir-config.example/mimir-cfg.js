@@ -1,6 +1,6 @@
 
 const ChatOpenAI = require('langchain/chat_models/openai').ChatOpenAI;
-const WebBrowser = require('langchain/tools/webbrowser').WebBrowser;
+const SeleniumWebBrowser = require('@agent-mimir/selenium-browser').SeleniumWebBrowser;
 const OpenAIEmbeddings = require('langchain/embeddings/openai').OpenAIEmbeddings;
 
 const taskModel = new ChatOpenAI({
@@ -30,9 +30,12 @@ module.exports = async function() {
                     summaryModel: taskModel,
                     profession: 'an Assistant',
                     tools: [ 
-                        new WebBrowser({
+                        new SeleniumWebBrowser({
                             model: taskModel,
                             embeddings: embeddings,
+                            seleniumDriverOptions: {
+                                browserName: "chrome"
+                            }
                         })
                     ]
                 }

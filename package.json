@@ -28,7 +28,9 @@
     "packageManager": "npm@9.5.0",
     "workspaces": [
         "agent-mimir",
-        "agent-mimir-cli"
+        "agent-mimir-cli",
+        "tools/*",
+        ".temp_custom_deps"
     ],
     "dependencies": {}
 }
