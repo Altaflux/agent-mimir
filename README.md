@@ -114,6 +114,18 @@ Here is a list of useful and easy to install tools you can try:
 
 
 ### Web Browser Plugin:
+`package.json`
+```json
+{
+    "name": "agent-mimir-deps",
+    "private": false,
+    "scripts": {},
+    "dependencies": {
+        "@agent-mimir/selenium-browser": "*"
+    }
+}
+```
+`mimir-cfg.js`
 ```javascript
 const SeleniumWebBrowser = require('@agent-mimir/selenium-browser').SeleniumWebBrowser;
 
@@ -138,6 +150,8 @@ const embeddings = new OpenAIEmbeddings({
 ```
 
 ### Search Plugin:
+
+`mimir-cfg.js`
 ```javascript
 const Serper = require('langchain/tools').Serper;
 
@@ -148,6 +162,8 @@ const Serper = require('langchain/tools').Serper;
 ```
 
 ### Calculator Plugin:
+
+`mimir-cfg.js`
 ```javascript
 const Calculator = require('langchain/tools/calculator').Calculator;
 
