@@ -9,7 +9,7 @@
         "build": "rimraf ./dist && npm run build:esm ",
         "build:esm": "tsc --outDir dist/ ",
         "build:cjs": "tsc --outDir dist-cjs/ -p tsconfig.cjs.json",
-        "release": "release-it --only-version "
+        "release": "npm run build && release-it --only-version "
     },
     "keywords": [],
     "author": "",

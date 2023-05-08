@@ -87,7 +87,7 @@ const configureDriver = async (options: SeleniumDriverOptions) => {
         }
     }
 
-    return builder
+    return builder;
 }
 
 const downloadDrivers = async (browserName: string | undefined) => {
@@ -126,12 +126,16 @@ const getHtml = async (
     try {
         await downloadDrivers(options.browserName);
         driver = driverConfiguration.build();
+        await driver.manage().setTimeouts({
+            pageLoad: 10000,
+        });
 
         await driver.get(baseUrl);
-        await driver.wait(async (ds)=>{
-           let state = await ds.executeScript("return document.readyState");
+        await driver.wait(async (wd)=>{
+           let state = await wd.executeScript("return document.readyState");
            return state === 'complete';
-        })
+        });
+
         const html = await driver.getPageSource()
 
         return html;
