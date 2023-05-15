@@ -1,0 +1,36 @@
+{
+    "name": "selenium-web-browser",
+    "private": false,
+    "type": "module",
+    "main": "dist/cjs/index.js",
+    "module": "dist/mjs/index.js",
+    "exports": {
+        ".": {
+            "import": "./dist/mjs/index.js",
+            "require": "./dist/cjs/index.js"
+        }
+    },
+    "scripts": {
+        "compile": "tsc -b ./tsconfig.cjs.json ./tsconfig.esm.json ./tsconfig.types.json",
+        "build:clean": "rimraf ./build",
+        "build": "rimraf dist/ && tsc -p tsconfig.json && tsc -p tsconfig-cjs.json && node ./scripts/prepare-package-json.js"
+    },
+    "devDependencies": {
+        "@types/chromedriver": "^81.0.1",
+        "@types/debug": "^4.1.7",
+        "@types/inquirer": "^9.0.3",
+        "@types/node": "^18.15.10",
+        "@types/selenium-webdriver": "^4.1.14",
+        "nodemon": "^2.0.22",
+        "npm-run-all": "^4.1.5",
+        "rimraf": "^4.4.1",
+        "ts-node": "^10.9.1",
+        "typescript": "^5.0.2"
+    },
+    "dependencies": {
+       
+        "langchain": "^0.0.63",
+        "selenium-webdriver": "4.9.0",
+        "webdriver-manager": "^13.0.2"
+    }
+}

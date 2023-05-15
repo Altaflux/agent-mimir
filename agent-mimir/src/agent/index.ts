@@ -379,7 +379,7 @@ export class MimirChatConversationalAgent extends Agent {
 }
 
 
-class AgentOutputParser extends BaseOutputParser {
+class AgentOutputParser extends BaseOutputParser<string> {
     constructor(private messageSerializer: AIMessageSerializer) {
         super();
     }
