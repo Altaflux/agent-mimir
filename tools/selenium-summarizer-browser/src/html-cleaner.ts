@@ -229,7 +229,7 @@ function getInputs(html: string) {
 
     const listOfInputs = inputsAndLabels.map((input) => {
         return {
-            description: input.description!,
+            description: input.description!.replaceAll("\n", " ").replaceAll(/ +/g, ' '),
             id: input.element.getAttribute('id')!,
             xpath: getXPath(input.element),
             type: input.type,

@@ -4,7 +4,9 @@
     "scripts": {
         "build": "turbo run build",
         "start": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStart",
+        "qstart": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run qinternalStart",
         "internalStart": "npm run build && dotenv -- npm run start -w agent-mimir-cli",
+        "qinternalStart": "dotenv -- npm run start -w agent-mimir-cli",
         "dev": "turbo run dev",
         "lint": "turbo run lint",
         "publish": "bash scripts/release-branch.sh && turbo run build lint && npm run release -w agent-mimir && echo '🔗 Open https://github.com/Altaflux/agent-mimir/compare/release?expand=1 and merge the release PR'",
