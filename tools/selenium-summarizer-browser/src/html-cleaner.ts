@@ -12,7 +12,9 @@ function removeAttributesExcept(htmlString: string) {
     for (const element of Array.from(allElements)) {
         const attrs = Array.from(element.attributes);
         for (const attr of attrs) {
-            if (attr.name !== 'aria-label' && !(attr.name === 'id' && persistableElements.includes(element.tagName.toLowerCase()))) {
+            if (attr.name !== 'aria-label'
+           //     && !(attr.name === 'id' && persistableElements.includes(element.tagName.toLowerCase()))
+                && !(attr.name === 'id' && persistableElements.includes(element.tagName.toLowerCase()))) {
                 element.removeAttribute(attr.name);
             }
         }
@@ -131,16 +133,31 @@ function addRandomIdToElements(htmlString: string) {
     const elements = doc.querySelectorAll(persistableElements.join(', '));
 
     elements.forEach(element => {
-        if (element.getAttribute('id')) {
-            element.setAttribute('originalId', `${element.getAttribute('id')!}`);
-        }
-        element.setAttribute('id', getRandomId().toString());
+        // if (element.getAttribute('id')) {
+        //     element.setAttribute('originalId', `${element.getAttribute('id')!}`);
+        // }
+        element.setAttribute('referenceId', getRandomId().toString());
     });
 
     return '<!DOCTYPE html>\n<html>\n' + doc.head.outerHTML + '\n' + doc.body.outerHTML + '\n</html>';
-    // const updatedHtml = new XMLSerializer().serializeToString(doc);
-    // return updatedHtml;
 }
+function moveIdToCorrectLocation(htmlString: string) {
+    // const parser = new DOMParser();
+    //  const doc = parser.parseFromString(htmlString, 'text/html');
+    const doc = new JSDOM(htmlString).window.document;
+
+    const elements = doc.querySelectorAll(persistableElements.join(', '));
+
+    elements.forEach(element => {
+        if (element.getAttribute('referenceId')) {
+            element.setAttribute('id', `${element.getAttribute('referenceId')!}`);
+        }
+        //element.setAttribute('id', getRandomId().toString());
+    });
+
+    return '<!DOCTYPE html>\n<html>\n' + doc.head.outerHTML + '\n' + doc.body.outerHTML + '\n</html>';
+}
+
 
 // export function doAll(html: string) {
 //     return addRandomIdToElements(compactHTML(removeAttributesExcept(createLeanHtml(html)))).replaceAll("\n", "").replaceAll("\t", "");
@@ -152,17 +169,17 @@ export function doAllNew(html: string) {
 
 }
 
-function findIDs(inputString: string) {
-    var regex = /id="([^"]*)"/g;
-    var result;
-    var ids = [];
+// function findIDs(inputString: string) {
+//     var regex = /id="([^"]*)"/g;
+//     var result;
+//     var ids = [];
 
-    while ((result = regex.exec(inputString)) !== null) {
-        ids.push(result[1]);
-    }
+//     while ((result = regex.exec(inputString)) !== null) {
+//         ids.push(result[1]);
+//     }
 
-    return ids;
-}
+//     return ids;
+// }
 
 function getInputs(html: string) {
 
@@ -230,10 +247,10 @@ function getInputs(html: string) {
     const listOfInputs = inputsAndLabels.map((input) => {
         return {
             description: input.description!.replaceAll("\n", " ").replaceAll(/ +/g, ' '),
-            id: input.element.getAttribute('id')!,
+            id: input.element.getAttribute('referenceId')!,
             xpath: getXPath(input.element),
             type: input.type,
-            originalId: input.element.getAttribute('originalId') ?? null,
+            originalId: input.element.getAttribute('id') ?? null,
         }
     });
 
@@ -250,21 +267,39 @@ function getInputs(html: string) {
     //     }
     // });
 }
+
+function findIDs(inputString: string) {
+    var regex = /id="([^"]*)"/g;
+    var result;
+    var ids = [];
+
+    while ((result = regex.exec(inputString)) !== null) {
+        ids.push(result[1]);
+    }
+
+    return ids;
+}
+
+
 export function clickables(html: string) {
     let cleanHtml = addRandomIdToElements((html));
-  //  let cleanHtml = html;
+    //  let cleanHtml = html;
     let doc = new JSDOM(cleanHtml).window.document;
     const elements = doc.querySelectorAll('a, link');
     let clickables = Array.from(elements).map((element) => {
         return {
-            id: element.getAttribute('id')!,
+            id: element.getAttribute('referenceId')!,
             xpath: getXPath(element),
-            originalId: element.getAttribute('originalId') ?? null,
+            originalId: element.getAttribute('id') ?? null,
         }
     });
     const inputs = getInputs(cleanHtml);
+    const finalHtml = doAllNew(moveIdToCorrectLocation(cleanHtml));
+    const finalDoc = new JSDOM(finalHtml).window.document;
+
+    console.log("");
     return {
-        html: doAllNew(cleanHtml),
+        html: finalHtml,
         clickables: clickables,
         inputs: inputs
     }

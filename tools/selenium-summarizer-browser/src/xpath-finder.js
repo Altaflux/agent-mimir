@@ -20,12 +20,6 @@ export function getXPath(node) {
         }
         return position;
     }
-
-    // if (node instanceof Document) {
-    //     return '/';
-    // }
-
-    // for (; node && !(node instanceof Document); node = node.nodeType == ATTRIBUTE_NODE ? node.ownerElement : node.parentNode) {
     for (; node && !(node.nodeType === DOCUMENT_NODE); node = node.nodeType == ATTRIBUTE_NODE ? node.ownerElement : node.parentNode) {
         comp = comps[comps.length] = {};
         switch (node.nodeType) {
@@ -43,15 +37,23 @@ export function getXPath(node) {
                 break;
             case ELEMENT_NODE:
                 comp.name = node.nodeName;
+                if (node.hasAttribute('id')) {
+                  comp.name = '/*[@id="' + node.getAttribute('id') + '"]';
+                  node = null; // Stop traversing parent elements
+                }
                 break;
         }
-        comp.position = getPos(node);
+        if (!node) {
+            break; // We've found an ID, no need to contiue upwards
+        } else {
+            comp.position = getPos(node);
+        }
     }
 
     for (var i = comps.length - 1; i >= 0; i--) {
         comp = comps[i];
         xpath += '/' + comp.name;
-        if (comp.position != null) {
+        if (comp.position) {
             xpath += '[' + comp.position + ']';
         }
     }
