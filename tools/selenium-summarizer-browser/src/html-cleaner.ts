@@ -7,10 +7,10 @@ import TurndownService from 'turndown';
 //import { TurndownService } from 'turndown';
 const persistableElements = ['a', 'button', 'input', 'link', 'select', 'textarea'];
 const inputElements = ['button', 'input', 'select', 'textarea'];
-function removeAttributesExcept(htmlString: string) {
+function removeAttributesExcept(doc: Element) {
     // const parser = new DOMParser();
     // const doc = parser.parseFromString(htmlString, 'text/html');
-    const doc = new JSDOM(htmlString).window.document;
+  //  const doc = new JSDOM(htmlString).window.document;
     const allElements = doc.querySelectorAll('*');
 
     for (const element of Array.from(allElements)) {
@@ -27,13 +27,12 @@ function removeAttributesExcept(htmlString: string) {
         }
     }
 
-    return doc.documentElement.outerHTML;
+    return doc;
 }
 
-function createLeanHtml(htmlString: string) {
+function createLeanHtml(doc: Element) {
     // Create a DOM parser to parse the HTML string
     //   const parser = new DOMParser();
-    const doc = new JSDOM(htmlString).window.document;
 
     // Function to check if an element is a button, link or has readable text
     function isRelevantElement(element: Element) {
@@ -63,7 +62,7 @@ function createLeanHtml(htmlString: string) {
     }
 
     // Function to remove specific unwanted elements
-    function removeUnwantedElements(element: Document, tagsToRemove: string[]) {
+    function removeUnwantedElements(element: Element, tagsToRemove: string[]) {
         for (const tag of tagsToRemove) {
             const unwantedElements = element.getElementsByTagName(tag);
             while (unwantedElements.length > 0) {
@@ -90,10 +89,10 @@ function createLeanHtml(htmlString: string) {
     }
 
     // Remove irrelevant elements from the body of the parsed HTML document
-    removeIrrelevantElements(doc.body);
+    removeIrrelevantElements(doc);
 
     // Return the leaner HTML document
-    return '<!DOCTYPE html>\n<html>\n' + doc.body.outerHTML + '\n</html>';
+    return doc;
 }
 
 
@@ -132,72 +131,50 @@ function getRandomId() {
     return Math.floor(Math.random() * 9000) + 1000;
 }
 
-function addRandomIdToElements(htmlString: string) {
+function addRandomIdToElements(doc: Element) {
     // const parser = new DOMParser();
     //  const doc = parser.parseFromString(htmlString, 'text/html');
-    const doc = new JSDOM(htmlString).window.document;
+    //const doc = new JSDOM(htmlString).window.document;
 
     const elements = doc.querySelectorAll(persistableElements.join(', '));
 
     elements.forEach(element => {
-        // if (element.getAttribute('id')) {
-        //     element.setAttribute('originalId', `${element.getAttribute('id')!}`);
-        // }
         element.setAttribute('referenceId', getRandomId().toString());
     });
 
-    return '<!DOCTYPE html>\n<html>\n' + doc.head.outerHTML + '\n' + doc.body.outerHTML + '\n</html>';
+    return doc;
 }
-function moveIdToCorrectLocation(htmlString: string) {
-    // const parser = new DOMParser();
-    //  const doc = parser.parseFromString(htmlString, 'text/html');
-    const doc = new JSDOM(htmlString).window.document;
+function moveIdToCorrectLocation(doc: Element) {
+
+  //  const doc = new JSDOM(htmlString).window.document;
 
     const elements = doc.querySelectorAll(persistableElements.join(', '));
 
     elements.forEach(element => {
         if (element.getAttribute('referenceId')) {
+
             element.setAttribute('id', `${element.getAttribute('referenceId')!}`);
         }
-        //element.setAttribute('id', getRandomId().toString());
     });
 
-    return '<!DOCTYPE html>\n<html>\n' + doc.head.outerHTML + '\n' + doc.body.outerHTML + '\n</html>';
+    return doc;
 }
 
 
-// export function doAll(html: string) {
-//     return addRandomIdToElements(compactHTML(removeAttributesExcept(createLeanHtml(html)))).replaceAll("\n", "").replaceAll("\t", "");
 
+// export function doAllNew(html: string) {
+//     return compactHTML(removeAttributesExcept(createLeanHtml(html))).replaceAll("\n", "").replaceAll("\t", "");
 // }
 
-export function doAllNew(html: string) {
-    return compactHTML(removeAttributesExcept(createLeanHtml(html))).replaceAll("\n", "").replaceAll("\t", "");
-}
-
-export function doAllNew2(html: string) {
-    return (removeAttributesExcept(createLeanHtml(html))).replaceAll("\n", "").replaceAll("\t", "");
+export function doAllNew2(html: Element) {
+    return (removeAttributesExcept(createLeanHtml(html)));
 
 }
 
-// function findIDs(inputString: string) {
-//     var regex = /id="([^"]*)"/g;
-//     var result;
-//     var ids = [];
 
-//     while ((result = regex.exec(inputString)) !== null) {
-//         ids.push(result[1]);
-//     }
+function getInputs(document: ParentNode) {
 
-//     return ids;
-// }
 
-function getInputs(html: string) {
-
-    // const $ = load(html);
-    // const inputs = $('input, button');
-    const dom = new JSDOM(html);
-    const document = dom.window.document;
     const inputs = Array.from(document.querySelectorAll('input, button'));
 
     const inputsAndLabels = inputs
@@ -248,12 +225,7 @@ function getInputs(html: string) {
         })
         .filter(input => input.description !== null);
 
-    // inputsAndLabels.forEach(({ element }, i) => {
-    //     if (element.getAttribute('id') !== null) {
-    //         element.setAttribute('originalId', element.getAttribute('id')!);
-    //     }
-    //     element.setAttribute('id', getRandomId().toString());
-    // });
+
 
     const listOfInputs = inputsAndLabels.map((input) => {
         return {
@@ -266,37 +238,18 @@ function getInputs(html: string) {
     });
 
     return listOfInputs;
-    // let doc = new JSDOM(html).window.document;
-    // const elements = doc.querySelectorAll('input');
-    // let inputs = Array.from(elements).map((element) => {
-    //     if (element.getAttribute('type') === 'text') {
 
-    //     }
-    //     return {
-    //         id: element.getAttribute('id')!,
-    //         xpath: getXPath(element)
-    //     }
-    // });
 }
 
-function findIDs(inputString: string) {
-    var regex = /id="([^"]*)"/g;
-    var result;
-    var ids = [];
-
-    while ((result = regex.exec(inputString)) !== null) {
-        ids.push(result[1]);
-    }
-
-    return ids;
-}
 
 
 export function clickables(html: string) {
-    let cleanHtml = addRandomIdToElements((html));
+    const ogDoc = new JSDOM(html).window.document;
+    const body = ogDoc.getElementsByTagName('body')[0];
+    let cleanHtml = addRandomIdToElements(body);
     //  let cleanHtml = html;
-    let doc = new JSDOM(cleanHtml).window.document;
-    const elements = doc.querySelectorAll('a, link');
+   // let doc = new JSDOM(cleanHtml).window.document;
+    const elements = cleanHtml.querySelectorAll('a, link');
     let clickables = Array.from(elements).map((element) => {
         return {
             id: element.getAttribute('referenceId')!,
@@ -305,10 +258,9 @@ export function clickables(html: string) {
         }
     });
     const inputs = getInputs(cleanHtml);
-    const finalHtml = doAllNew(moveIdToCorrectLocation(cleanHtml));
-    const finalHtml2 = doAllNew2(moveIdToCorrectLocation(cleanHtml));
-    const finalDoc = new JSDOM(finalHtml).window.document;
 
+    const finalHtml2 = doAllNew2(moveIdToCorrectLocation(cleanHtml));
+  
     const turndownService = new TurndownService()
         .addRule('formatLink', {
             filter: ['a'],
@@ -328,7 +280,7 @@ export function clickables(html: string) {
                 return (node as any).outerHTML;
             }
         });
-    const markdown = turndownService.turndown(finalHtml2);
+    const markdown = turndownService.turndown(finalHtml2.outerHTML.replaceAll("\n", "").replaceAll("\t", ""));
     console.log("");
     return {
         html: markdown,
