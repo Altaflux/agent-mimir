@@ -1,8 +1,12 @@
 import { JSDOM } from 'jsdom';
 import { getXPath } from './xpath-finder.js';
 import { load } from 'cheerio';
+import TurndownService from 'turndown';
 
-const persistableElements = ['a', 'button', 'input', 'link'];
+
+//import { TurndownService } from 'turndown';
+const persistableElements = ['a', 'button', 'input', 'link', 'select', 'textarea'];
+const inputElements = ['button', 'input', 'select', 'textarea'];
 function removeAttributesExcept(htmlString: string) {
     // const parser = new DOMParser();
     // const doc = parser.parseFromString(htmlString, 'text/html');
@@ -12,8 +16,11 @@ function removeAttributesExcept(htmlString: string) {
     for (const element of Array.from(allElements)) {
         const attrs = Array.from(element.attributes);
         for (const attr of attrs) {
-            if (attr.name !== 'aria-label'
-           //     && !(attr.name === 'id' && persistableElements.includes(element.tagName.toLowerCase()))
+            if ( true
+                && attr.name !== 'aria-label'
+             //   && !(attr.name === 'href' && persistableElements.includes(element.tagName.toLowerCase()))
+              //  && !(persistableElements.includes(element.tagName.toLowerCase()) && attr.name !== 'href')
+                && !((attr.name === 'type' || attr.name === 'name' || attr.name === 'value' ) && inputElements.includes(element.tagName.toLowerCase()))
                 && !(attr.name === 'id' && persistableElements.includes(element.tagName.toLowerCase()))) {
                 element.removeAttribute(attr.name);
             }
@@ -166,6 +173,10 @@ function moveIdToCorrectLocation(htmlString: string) {
 
 export function doAllNew(html: string) {
     return compactHTML(removeAttributesExcept(createLeanHtml(html))).replaceAll("\n", "").replaceAll("\t", "");
+}
+
+export function doAllNew2(html: string) {
+    return (removeAttributesExcept(createLeanHtml(html))).replaceAll("\n", "").replaceAll("\t", "");
 
 }
 
@@ -295,11 +306,32 @@ export function clickables(html: string) {
     });
     const inputs = getInputs(cleanHtml);
     const finalHtml = doAllNew(moveIdToCorrectLocation(cleanHtml));
+    const finalHtml2 = doAllNew2(moveIdToCorrectLocation(cleanHtml));
     const finalDoc = new JSDOM(finalHtml).window.document;
 
+    const turndownService = new TurndownService()
+        .addRule('formatLink', {
+            filter: ['a'],
+            replacement: function (content, node, options) {
+                return (node as any).outerHTML;
+            }
+        })
+        .addRule('formatButton', {
+            filter: ['button'],
+            replacement: function (content, node, options) {
+                return (node as any).outerHTML;
+            }
+        })
+        .addRule('formatInput', {
+            filter: ['input'],
+            replacement: function (content, node, options) {
+                return (node as any).outerHTML;
+            }
+        });
+    const markdown = turndownService.turndown(finalHtml2);
     console.log("");
     return {
-        html: finalHtml,
+        html: markdown,
         clickables: clickables,
         inputs: inputs
     }

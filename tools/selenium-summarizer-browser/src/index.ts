@@ -205,6 +205,7 @@ export class WebBrowserToolManager {
 
     driver?: ThenableWebDriver;
     vectorStore?: VectorStore;
+    currentPage?: string;
     documents: {
         ids: string[],
         doc: Document
@@ -251,6 +252,7 @@ export class WebBrowserToolManager {
             return state === 'complete';
         });
         await delay(4000);
+        this.currentPage = url;
         await this.refreshPageState()
     }
 
@@ -273,7 +275,7 @@ export class WebBrowserToolManager {
         const docs = texts.map(
             (pageContent, index) =>
                 new Document({
-                    pageContent: `This is part ${index + 1} of ${texts.length} of the HTML: \n${pageContent}`,
+                    pageContent: `${pageContent}`,
                     metadata: [],
                 })
         );
@@ -317,10 +319,10 @@ export class WebBrowserToolManager {
                 ids: inputs
             }
         }));
-        const allIds = selectedDocs.map((doc) =>doc.ids).flat();
+      //  const allIds = selectedDocs.map((doc) =>doc.ids).flat();
 
-        const theInputs =  this.inputs.filter((input) => allIds.includes(input.id));
-        const inputs = `List of inputs and buttons on the page:\n${theInputs.map((input) => `Id: ${input.id} Type: ${input.type} Description: "${input.description}" `).join("\n")}\n\n`;
+     //   const theInputs =  this.inputs.filter((input) => allIds.includes(input.id));
+       // const inputs = `List of inputs and buttons on the page:\n${theInputs.map((input) => `Id: ${input.id} Type: ${input.type} Description: "${input.description}" `).join("\n")}\n\n`;
         // if (selectedDocs.length > 1) {
         //     const chain = loadSummarizationChain(this.model, { type: "stuff" });
         //     const res = await chain.call({
@@ -328,17 +330,21 @@ export class WebBrowserToolManager {
         //     });
         //     return res[chain.outputKeys[0]];
         // }
-        return selectedDocs[0].document.pageContent + `\n\n${inputs}`;
+        return selectedDocs[0].document.pageContent;
 
     }
 
 
     private async doSummary(docs: Document[], question: string) {
+        let focus = question;
+        if (!question || question === "") {
+            focus = "Main content of the page";
+        }
         const chain = loadSummarizationChain(this.model, { type: "refine", refinePrompt: REFINE_PROMPT, questionPrompt: SUMMARY_PROMPT });
 
         const res = await chain.call({
             input_documents: docs,
-            focus: question
+            focus: focus
         });
         const result = res.output_text;
         return result as string;
@@ -379,6 +385,9 @@ export class ClickWebSiteLinkOrButton extends Tool {
         super();
     }
     protected async _call(inputs: string, runManager?: CallbackManagerForToolRun | undefined): Promise<string> {
+        if (!this.toolManager.currentPage) {
+            return "You are not in any website at the moment, navigate into one using: click-website-link-or-button";
+        }
         const [baseUrl, task] = inputs.split(",").map((input: string) => {
             let t = input.trim();
             t = t.startsWith('"') ? t.slice(1) : t;
@@ -418,6 +427,9 @@ export class PassValueToInput extends Tool {
         super();
     }
     protected async _call(inputs: string, runManager?: CallbackManagerForToolRun | undefined): Promise<string> {
+        if (!this.toolManager.currentPage) {
+            return "You are not in any website at the moment, navigate into one using: click-website-link-or-button";
+        }
         const [baseUrl, task] = inputs.split(",").map((input: string) => {
             let t = input.trim();
             t = t.startsWith('"') ? t.slice(1) : t;
@@ -426,6 +438,8 @@ export class PassValueToInput extends Tool {
             t = t.endsWith("/") ? t.slice(0, -1) : t;
             return t.trim();
         });
+
+     
         const elementId = baseUrl.replace(/\D/g, '');
         const driver = await this.toolManager.getDriver();
         const clickableElement = this.toolManager.inputs.find((c) => c.id === elementId);
