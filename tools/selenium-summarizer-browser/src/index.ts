@@ -279,14 +279,14 @@ export class WebBrowserToolManager {
                     metadata: [],
                 })
         );
-        
+
         this.documents = docs.map((doc) => {
             return {
                 ids: findIDs(doc.pageContent),
                 doc: doc
             }
         });
-      
+
         let store = await MemoryVectorStore.fromDocuments(
             docs,
             this.embeddings
@@ -303,9 +303,9 @@ export class WebBrowserToolManager {
         } else {
             results = await this.vectorStore!.similaritySearch(question, 1);
         }
-        
+
         let selectedDocs = await Promise.all(results.map(async (document) => {
-            
+
             const location = this.documents.findIndex((doc) => doc.doc.pageContent === document.pageContent);
             const startingLocation = location > 0 ? location - 1 : 0;
             const selectedDocuments = this.documents.slice(startingLocation, startingLocation + 3);
@@ -319,10 +319,10 @@ export class WebBrowserToolManager {
                 ids: inputs
             }
         }));
-      //  const allIds = selectedDocs.map((doc) =>doc.ids).flat();
+        //  const allIds = selectedDocs.map((doc) =>doc.ids).flat();
 
-     //   const theInputs =  this.inputs.filter((input) => allIds.includes(input.id));
-       // const inputs = `List of inputs and buttons on the page:\n${theInputs.map((input) => `Id: ${input.id} Type: ${input.type} Description: "${input.description}" `).join("\n")}\n\n`;
+        //   const theInputs =  this.inputs.filter((input) => allIds.includes(input.id));
+        // const inputs = `List of inputs and buttons on the page:\n${theInputs.map((input) => `Id: ${input.id} Type: ${input.type} Description: "${input.description}" `).join("\n")}\n\n`;
         // if (selectedDocs.length > 1) {
         //     const chain = loadSummarizationChain(this.model, { type: "stuff" });
         //     const res = await chain.call({
@@ -407,12 +407,17 @@ export class ClickWebSiteLinkOrButton extends Tool {
         const byExpression = clickableElement.originalId ? By.id(clickableElement.originalId) : By.xpath(clickableElement.xpath);
         const elementFound = await driver!.findElement(byExpression);
         if (elementFound) {
-            await driver.actions().move({ origin: elementFound }).click().perform();
-           // await driver.actions().move({ origin: elementFound }).click().perform();
-            await delay(4000);
-            await this.toolManager.refreshPageState();
-            const result = await this.toolManager.obtainSummaryOfPage(task, 'slow');
-            return `You are currently in page: ${await driver.getTitle()}\n ${result}`;
+            try {
+                await driver.actions().move({ origin: elementFound }).click().perform();
+                // await driver.actions().move({ origin: elementFound }).click().perform();
+                await delay(4000);
+                await this.toolManager.refreshPageState();
+                const result = await this.toolManager.obtainSummaryOfPage(task, 'slow');
+                return `You are currently in page: ${await driver.getTitle()}\n ${result}`;
+            } catch (e) {
+                return "Click failed for id: " + baseUrl;
+            }
+
         } else {
             return "Button or link not found for id: " + baseUrl;
         }
@@ -439,7 +444,7 @@ export class PassValueToInput extends Tool {
             return t.trim();
         });
 
-     
+
         const elementId = baseUrl.replace(/\D/g, '');
         const driver = await this.toolManager.getDriver();
         const clickableElement = this.toolManager.inputs.find((c) => c.id === elementId);
@@ -452,8 +457,8 @@ export class PassValueToInput extends Tool {
             await driver.actions().move({ origin: elementFound }).clear()
             await driver.actions().move({ origin: elementFound }).sendKeys(task).perform();
             await delay(4000);
-           // await this.toolManager.refreshPageState();
-           // const result = await this.toolManager.obtainSummaryOfPage(task, 'slow');
+            // await this.toolManager.refreshPageState();
+            // const result = await this.toolManager.obtainSummaryOfPage(task, 'slow');
             return `Input's value has been updated successfully.`;
         } else {
             return "Input not found for id: " + baseUrl;
