@@ -6,13 +6,13 @@ import {
 
 
 
-const _DEFAULT_SUMMARIZER_TEMPLATE2 = `Combine the following two pieces of a markdown documents into one.": 
+const _DEFAULT_SUMMARIZER_TEMPLATE2 = `Combine the following two parts of a markdown documents into one.": 
 The result should be in Markdown format.
 Prioritize content related to the following: "{focus}".
 
-Include the html inputs, buttons and link elements that are relevant (always including all attributes and text). Do not rewrite or simplify the html elements!
+Include any relevant html inputs, buttons, and link elements (always including all attributes and text). Do not rewrite or simplify the html elements!
 
-If the combined document is too long, remove content that is not related to the focus.
+If the combined document is too long, discard content that is not related to the focus.
 
 -------------------------
 This is part 1 of the document:

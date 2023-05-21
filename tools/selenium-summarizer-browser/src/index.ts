@@ -21,6 +21,7 @@ import {
 import { clickables } from "./html-cleaner.js";
 import { REFINE_PROMPT, SUMMARY_PROMPT } from "./summary/prompt.js";
 import { COMBINE_PROMPT } from "./summary/combiner-prompt.js";
+import { RELEVANCE_PROMPT } from "./summary/relevance-prompt.js";
 
 
 export type SeleniumDriverOptions = {
@@ -28,62 +29,6 @@ export type SeleniumDriverOptions = {
     driver?: ThenableWebDriver
 }
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
-// export const getText = (
-//     html: string,
-//     baseUrl: string,
-//     summary: boolean
-// ): string => {
-
-//     const reducedhtml = doAll(html);
-//     return reducedhtml;
-// }
-
-// export const getText = (
-//     html: string,
-//     baseUrl: string,
-//     summary: boolean
-// ): string => {
-//     // scriptingEnabled so noscript elements are parsed
-//     const $ = cheerio.load(html, { scriptingEnabled: true });
-
-//     let text = "";
-
-//     // lets only get the body if its a summary, dont need to summarize header or footer etc
-//     const rootElement = summary ? "body " : "*";
-
-//     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-//     $(`${rootElement}:not(style):not(script):not(svg)`).each((_i, elem: any) => {
-//         // we dont want duplicated content as we drill down so remove children
-//         let content = $(elem).clone().children().remove().end().text().trim();
-//         const $el = $(elem);
-
-//         // if its an ahref, print the content and url
-//         let href = $el.attr("href");
-//         if ($el.prop("tagName")?.toLowerCase() === "a" && href) {
-//             if (!href.startsWith("http")) {
-//                 try {
-//                     href = new URL(href, baseUrl).toString();
-//                 } catch {
-//                     // if this fails thats fine, just no url for this
-//                     href = "";
-//                 }
-//             }
-
-//             const imgAlt = $el.find("img[alt]").attr("alt")?.trim();
-//             if (imgAlt) {
-//                 content += ` ${imgAlt}`;
-//             }
-
-//             text += ` [${content}](${href})`;
-//         }
-//         // otherwise just print the content
-//         else if (content !== "") {
-//             text += ` ${content}`;
-//         }
-//     });
-
-//     return text.trim().replace(/\n+/g, " ");
-// };
 
 const configureDriver = async (options: SeleniumDriverOptions) => {
     let builder = new Builder();
@@ -262,19 +207,54 @@ export class WebBrowserToolManager {
         console.log("refreshed page state");
     }
 
+     getBiggestFive(numbers: {
+        relevant: number,
+         doc:  { ids: string[]; doc: Document<Record<string, any>>; };
+     }[]): {
+        relevant: number,
+         doc:  { ids: string[]; doc: Document<Record<string, any>>; };
+     }[] {
+        if (!numbers || numbers.length === 0) {
+            return [];
+        }
+    
+        // Sort the array in descending order
+        let sortedNumbers = numbers.sort((a, b) => b.relevant - a.relevant);
+    
+        // Get the first five numbers
+        return sortedNumbers.slice(0, 3);
+    }
+    
     async obtainSummaryOfPage(question: string, mode: SUMMARY_MODE = 'slow') {
         let results;
         if (!question || question === "") {
             results = [this.documents[1].doc];
         } else {
-            results = await this.vectorStore!.similaritySearch(question, 1);
+            //results = await this.vectorStore!.similaritySearch(question, 1);
+
+            let fpp = (await Promise.all(await this.documents!.map(async (doc) => {
+                const relevanceChain = new LLMChain({ llm: this.model, prompt: RELEVANCE_PROMPT });
+                const result = (await relevanceChain.call({
+                    document: doc.doc.pageContent,
+                    focus: question,
+                })).text as string;
+                const elementId = Number(result.replace(/\D/g, ''));
+                return  {
+                    relevant: elementId,
+                    doc: doc
+                }               
+            })));
+            fpp = this.getBiggestFive(fpp);
+            
+            results = (fpp).map((doc) => doc.doc.doc);
+            console.log(`Selected ${results.length} documents`);
         }
 
         let selectedDocs = await Promise.all(results.map(async (document) => {
             const location = this.documents.findIndex((doc) => doc.doc.pageContent === document.pageContent);
             const startingLocation = location > 0 ? location - 1 : 0;
             const selectedDocuments = this.documents.slice(startingLocation, startingLocation + 3);
-
+           // const selectedDocuments = this.documents;
             const inputs = selectedDocuments.map((doc) => doc.ids).flat();
             return {
                 document: new Document({
@@ -328,15 +308,8 @@ export class WebBrowserToolManager {
                     metadata: [],
                 });
             });
-        const result = res.pageContent;
-        // const chain = loadSummarizationChain(this.model, { type: "refine", refinePrompt: REFINE_PROMPT, questionPrompt: SUMMARY_PROMPT });
 
-        // const res = await chain.call({
-        //     input_documents: docs,
-        //     focus: focus
-        // });
-        // const result = res.output_text;
-        return result as string;
+        return res.pageContent;
     }
 }
 
