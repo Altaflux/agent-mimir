@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import { BaseLanguageModel } from "langchain/base_language";
+import { LLMChain } from "langchain/chains";
 import { CallbackManager, CallbackManagerForToolRun } from "langchain/callbacks";
 import { Embeddings } from "langchain/embeddings";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
@@ -19,6 +20,7 @@ import {
 } from 'webdriver-manager';
 import { clickables } from "./html-cleaner.js";
 import { REFINE_PROMPT, SUMMARY_PROMPT } from "./summary/prompt.js";
+import { COMBINE_PROMPT } from "./summary/combiner-prompt.js";
 
 
 export type SeleniumDriverOptions = {
@@ -132,43 +134,7 @@ const downloadDrivers = async (browserName: string | undefined) => {
         }
     }
 }
-const getHtml = async (
-    baseUrl: string,
-    options: SeleniumDriverOptions
-) => {
 
-    const driverConfiguration = await configureDriver(options);
-    let driver = undefined;
-    if (options.driver) {
-        driver = options.driver;
-    } else {
-        await downloadDrivers(options.browserName);
-        driver = driverConfiguration.build();
-        await driver.manage().setTimeouts({
-            pageLoad: 10000,
-        });
-    }
-    try {
-        await driver.get(baseUrl);
-        await driver.wait(async (wd) => {
-            let state = await wd.executeScript("return document.readyState");
-            return state === 'complete';
-        });
-
-        const html = await driver.getPageSource()
-
-        return html;
-    } finally {
-        // if (driver) {
-        //     try {
-        //         await driver.close()
-        //         await driver.quit();
-        //     } catch (e) {
-        //         //
-        //     }
-        // }
-    }
-}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Headers = Record<string, any>;
@@ -305,7 +271,6 @@ export class WebBrowserToolManager {
         }
 
         let selectedDocs = await Promise.all(results.map(async (document) => {
-
             const location = this.documents.findIndex((doc) => doc.doc.pageContent === document.pageContent);
             const startingLocation = location > 0 ? location - 1 : 0;
             const selectedDocuments = this.documents.slice(startingLocation, startingLocation + 3);
@@ -313,23 +278,12 @@ export class WebBrowserToolManager {
             const inputs = selectedDocuments.map((doc) => doc.ids).flat();
             return {
                 document: new Document({
-                    pageContent: await this.doSummary(selectedDocuments.map((doc) => doc.doc), question),
+                    pageContent: await this.doSummary2(selectedDocuments.map((doc) => doc.doc), question),
                     metadata: [],
                 }),
                 ids: inputs
             }
         }));
-        //  const allIds = selectedDocs.map((doc) =>doc.ids).flat();
-
-        //   const theInputs =  this.inputs.filter((input) => allIds.includes(input.id));
-        // const inputs = `List of inputs and buttons on the page:\n${theInputs.map((input) => `Id: ${input.id} Type: ${input.type} Description: "${input.description}" `).join("\n")}\n\n`;
-        // if (selectedDocs.length > 1) {
-        //     const chain = loadSummarizationChain(this.model, { type: "stuff" });
-        //     const res = await chain.call({
-        //         [chain.inputKey]: selectedDocs,
-        //     });
-        //     return res[chain.outputKeys[0]];
-        // }
         return selectedDocs[0].document.pageContent;
 
     }
@@ -349,7 +303,44 @@ export class WebBrowserToolManager {
         const result = res.output_text;
         return result as string;
     }
+
+    private async doSummary2(docs: Document[], question: string) {
+        let focus = question;
+        if (!question || question === "") {
+            focus = "Main content of the page";
+        }
+        if (docs.length <= 1) {
+            return docs[0].pageContent;
+        }
+
+        const res = await docs.map((doc) => Promise.resolve(doc))
+            .reduce(async (prev, current) => {
+                const llmChain = new LLMChain({ prompt: COMBINE_PROMPT, llm: this.model, verbose: false });
+                const document1 = (await prev).pageContent;
+                const document2 = (await current).pageContent;
+                const result = (await llmChain.call({
+                    document1: document1,
+                    document2: document2,
+                    focus: focus
+                })).text;
+                return new Document({
+                    pageContent: result,
+                    metadata: [],
+                });
+            });
+        const result = res.pageContent;
+        // const chain = loadSummarizationChain(this.model, { type: "refine", refinePrompt: REFINE_PROMPT, questionPrompt: SUMMARY_PROMPT });
+
+        // const res = await chain.call({
+        //     input_documents: docs,
+        //     focus: focus
+        // });
+        // const result = res.output_text;
+        return result as string;
+    }
 }
+
+
 
 type SUMMARY_MODE = 'fast' | 'slow' | number;
 
