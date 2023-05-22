@@ -170,7 +170,7 @@ export class WebBrowserToolManager {
     async refreshPageState() {
         let driver = await this.getDriver();
         const html = await driver!.getPageSource()
-        let cleanHtml = clickables(html);
+        let cleanHtml = await clickables(html, driver);
         this.cleanHtml = cleanHtml.html;
         this.clickables = cleanHtml.clickables;
         this.inputs = cleanHtml.inputs;

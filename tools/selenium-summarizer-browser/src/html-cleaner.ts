@@ -3,6 +3,7 @@ import { getXPath } from './xpath-finder.js';
 import { load } from 'cheerio';
 import TurndownService from 'turndown';
 import { is } from 'cheerio/lib/api/traversing.js';
+import { ThenableWebDriver, WebDriver } from 'selenium-webdriver';
 
 
 //import { TurndownService } from 'turndown';
@@ -180,7 +181,20 @@ function moveIdToCorrectLocation(doc: Element) {
     return doc;
 }
 
+function findAllRelevantElements(doc: Element) {
+    // const parser = new DOMParser();
+    //  const doc = parser.parseFromString(htmlString, 'text/html');
+    //const doc = new JSDOM(htmlString).window.document;
+    const elements = [];
+    const allElements = doc.querySelectorAll('*');
+    for (const element of Array.from(allElements)) {
+        if (isRelevantElement(element)) {
+            elements.push(element);
+        }
+    }
 
+    return elements;
+}
 
 // export function doAllNew(html: string) {
 //     return compactHTML(removeAttributesExcept(createLeanHtml(html))).replaceAll("\n", "").replaceAll("\t", "");
@@ -261,38 +275,110 @@ function getInputs(document: ParentNode) {
 
 }
 
-function removeNonInteractableElements(element: Element, theDoc: Document) {
-    const elements = element.querySelectorAll('*');
+// function removeNonInteractableElements(element: Element, theDoc: Document) {
+//     const elements = element.querySelectorAll('*');
 
-    elements.forEach(element => {
-        if (!isElementInteractable(element, theDoc)) {
-            element.remove();
+//     elements.forEach(element => {
+//         if (!isElementInteractable(element, theDoc)) {
+//             element.remove();
+//         }
+//     });
+//     return element;
+// }
+
+// function isElementUnderOverlay(element: Element, theDoc: Document) {
+//     const rect = element.getBoundingClientRect();
+//     const middleX = rect.left + rect.width / 2;
+//     const middleY = rect.top + rect.height / 2;
+//     const topElement = theDoc.elementFromPoint(middleX, middleY);
+//     return topElement !== element && !element.contains(topElement);
+// }
+
+// function isElementClickable(element: Element, theDoc: Document) {
+//     const styles = getComputedStyle(element);
+//     return styles.pointerEvents !== 'none';
+// }
+
+// function isElementInteractable(element: Element, theDoc: Document) {
+//     return !isElementUnderOverlay(element, theDoc) && isElementClickable(element, theDoc);
+// }
+
+type RelevantThingsInfo = {
+    id: string;
+    xpath: string;
+    originalId: string | null;
+};
+
+async function removeInvisibleElements(document: Element, driver: WebDriver, relevants: RelevantThingsInfo[]) {
+
+    let invisibles: string[] = await driver.executeScript(`function removeNonInteractableElements(element) {
+        const elements = element.querySelectorAll('*');
+        elements.forEach(element => {
+            if (!isElementInteractable(element)) {
+                element.remove();
+            }
+        });
+        return element;
+    }
+    function isElementUnderOverlay(element, theDoc) {
+        const rect = element.getBoundingClientRect();
+        const middleX = rect.left + rect.width / 2;
+        const middleY = rect.top + rect.height / 2;
+        const topElement = document.elementFromPoint(middleX, middleY);
+        return topElement !== element && !element.contains(topElement);
+    }
+    function isElementClickable(element) {
+        const styles = getComputedStyle(element);
+        return styles.pointerEvents !== 'none';
+    }
+    function isElementInteractable(element) {
+        return !isElementUnderOverlay(element) && isElementClickable(element);
+    }
+    
+    function getElementByXpath(path) {
+      return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+    }
+    
+    
+    let selected = [];
+    arguments[0].forEach(async (relevant) => {
+        let xpath = relevant.xpath;
+        let id = relevant.id;
+        let el = getElementByXpath(xpath);
+        if (el && !isElementInteractable(el)) {
+            selected.push(id)
         }
     });
-    return element;
+    return selected;`, relevants);
+    invisibles.forEach((relevant) => {
+        let foundElement = relevants.find((r) => r.id === relevant)?.id;
+        if (foundElement) {
+            let elementToRemove = document.querySelector(`[referenceId="${foundElement}"]`);
+            if (elementToRemove) {
+                elementToRemove.remove();
+            }
+        }
+        // const element = driver.findElement(By.xpath(relevant.xpath));
+
+    });
 }
 
-function isElementUnderOverlay(element: Element, theDoc: Document) {
-    const rect = element.getBoundingClientRect();
-    const middleX = rect.left + rect.width / 2;
-    const middleY = rect.top + rect.height / 2;
-    const topElement = theDoc.elementFromPoint(middleX, middleY);
-    return topElement !== element && !element.contains(topElement);
-}
 
-function isElementClickable(element: Element, theDoc: Document) {
-    const styles = getComputedStyle(element);
-    return styles.pointerEvents !== 'none';
-}
-
-function isElementInteractable(element: Element, theDoc: Document) {
-    return !isElementUnderOverlay(element, theDoc) && isElementClickable(element, theDoc);
-}
-
-export function clickables(html: string) {
+export async function clickables(html: string, driver: WebDriver) {
+    //let foo = await driver.executeScript("return arguments[0]", [23, 4, 5]);
     const ogDoc = new JSDOM(html).window.document;
     const body = ogDoc.getElementsByTagName('body')[0];
     let cleanHtml = addRandomIdToElements(body);
+    let allRelevantElements = findAllRelevantElements(cleanHtml)
+        .map((element) => {
+            return {
+                id: element.getAttribute('referenceId')!,
+                xpath: getXPath(element),
+                originalId: element.getAttribute('id') ?? null,
+            }
+        });
+
+    await removeInvisibleElements(cleanHtml, driver, allRelevantElements);
     //let cleanHtml = body;
     //  let cleanHtml = html;
     // let doc = new JSDOM(cleanHtml).window.document;
