@@ -2,26 +2,42 @@ import { JSDOM } from 'jsdom';
 import { getXPath } from './xpath-finder.js';
 import { load } from 'cheerio';
 import TurndownService from 'turndown';
+import { is } from 'cheerio/lib/api/traversing.js';
 
 
 //import { TurndownService } from 'turndown';
-const persistableElements = ['a', 'button', 'input', 'link', 'select', 'textarea'];
+const persistableElements = ['a', 'button', 'input', 'link', 'select', 'textarea', (element: Element) => {
+    return (element.childNodes.length === 1 &&
+        element.childNodes[0].nodeType === 3 &&  //3 is for Text Node (Node.TEXT_NODE)
+        element.childNodes[0].textContent?.trim() !== '')
+}];
 const inputElements = ['button', 'input', 'select', 'textarea'];
+
+function isPersistableElement(element: Element) {
+    let isPersistable = persistableElements.find((e) => {
+        if (typeof e === 'string') {
+            return e === element.tagName.toLowerCase();
+        } else if (typeof e === 'function') {
+            return e(element);
+        }
+    });
+    return isPersistable !== undefined;
+}
 function removeAttributesExcept(doc: Element) {
     // const parser = new DOMParser();
     // const doc = parser.parseFromString(htmlString, 'text/html');
-  //  const doc = new JSDOM(htmlString).window.document;
+    //  const doc = new JSDOM(htmlString).window.document;
     const allElements = doc.querySelectorAll('*');
 
     for (const element of Array.from(allElements)) {
         const attrs = Array.from(element.attributes);
         for (const attr of attrs) {
-            if ( true
+            if (true
                 && attr.name !== 'aria-label'
-             //   && !(attr.name === 'href' && persistableElements.includes(element.tagName.toLowerCase()))
-              //  && !(persistableElements.includes(element.tagName.toLowerCase()) && attr.name !== 'href')
-                && !((attr.name === 'type' || attr.name === 'name' || attr.name === 'value' ) && inputElements.includes(element.tagName.toLowerCase()))
-                && !(attr.name === 'id' && persistableElements.includes(element.tagName.toLowerCase()))) {
+                //   && !(attr.name === 'href' && persistableElements.includes(element.tagName.toLowerCase()))
+                //  && !(persistableElements.includes(element.tagName.toLowerCase()) && attr.name !== 'href')
+                && !((attr.name === 'type' || attr.name === 'name' || attr.name === 'value') && inputElements.includes(element.tagName.toLowerCase()))
+                && !(attr.name === 'id' && isPersistableElement(element))) {
                 element.removeAttribute(attr.name);
             }
         }
@@ -30,36 +46,35 @@ function removeAttributesExcept(doc: Element) {
     return doc;
 }
 
+
+// Function to check if an element is a button, link or has readable text
+function isRelevantElement(element: Element) {
+    return (
+        isPersistableElement(element)
+    );
+}
+
+// Function to check if an element is a direct or indirect parent of a relevant element
+function hasRelevantChild(element: Element) {
+    if (isRelevantElement(element)) {
+        element.setAttribute('referenceId', getRandomId().toString());
+        return true;
+    }
+
+    for (const child of Array.from(element.children)) {
+        if (hasRelevantChild(child)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function createLeanHtml(doc: Element) {
     // Create a DOM parser to parse the HTML string
     //   const parser = new DOMParser();
 
-    // Function to check if an element is a button, link or has readable text
-    function isRelevantElement(element: Element) {
-        return (
-            element.tagName.toLowerCase() === 'button' ||
-            element.tagName.toLowerCase() === 'input' ||
-            element.tagName.toLowerCase() === 'a' ||
-            (element.childNodes.length === 1 &&
-                element.childNodes[0].nodeType === 3 &&  //3 is for Text Node (Node.TEXT_NODE)
-                element.childNodes[0].textContent?.trim() !== '')
-        );
-    }
 
-    // Function to check if an element is a direct or indirect parent of a relevant element
-    function hasRelevantChild(element: Element) {
-        if (isRelevantElement(element)) {
-            return true;
-        }
-
-        for (const child of Array.from(element.children)) {
-            if (hasRelevantChild(child)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
 
     // Function to remove specific unwanted elements
     function removeUnwantedElements(element: Element, tagsToRemove: string[]) {
@@ -136,19 +151,45 @@ function addRandomIdToElements(doc: Element) {
     //  const doc = parser.parseFromString(htmlString, 'text/html');
     //const doc = new JSDOM(htmlString).window.document;
 
-    const elements = doc.querySelectorAll(persistableElements.join(', '));
+    for (let i = 0; i < doc.children.length; i++) {
+        const child = doc.children[i];
 
-    elements.forEach(element => {
-        element.setAttribute('referenceId', getRandomId().toString());
-    });
+        if (!hasRelevantChild(child)) {
+            // child.remove();
+            // i--; // Adjust index after removing element
+        } else {
+            child.setAttribute('referenceId', getRandomId().toString());
+            addRandomIdToElements(child);
+        }
+    }
+    // const elements = doc.querySelectorAll(persistableElements.filter(e => typeof e === 'string').join(', '));
+
+    // elements.forEach(element => {
+    //     element.setAttribute('referenceId', getRandomId().toString());
+    // });
 
     return doc;
 }
 function moveIdToCorrectLocation(doc: Element) {
 
-  //  const doc = new JSDOM(htmlString).window.document;
 
-    const elements = doc.querySelectorAll(persistableElements.join(', '));
+    for (let i = 0; i < doc.children.length; i++) {
+        const child = doc.children[i];
+
+        if (!hasRelevantChild(child)) {
+            // child.remove();
+            // i--; // Adjust index after removing element
+        } else {
+            if (child.getAttribute('referenceId')) {
+                child.setAttribute('id', `${child.getAttribute('referenceId')!}`);
+            }
+            moveIdToCorrectLocation(child);
+        }
+    }
+
+    //  const doc = new JSDOM(htmlString).window.document;
+
+    const elements = doc.querySelectorAll(persistableElements.filter(e => typeof e === 'string').join(', '));
 
     elements.forEach(element => {
         if (element.getAttribute('referenceId')) {
@@ -241,14 +282,41 @@ function getInputs(document: ParentNode) {
 
 }
 
+function removeNonInteractableElements(element: Element, theDoc: Document) {
+    const elements = element.querySelectorAll('*');
 
+    elements.forEach(element => {
+        if (!isElementInteractable(element, theDoc)) {
+            element.remove();
+        }
+    });
+    return element;
+}
+
+function isElementUnderOverlay(element: Element, theDoc: Document) {
+    const rect = element.getBoundingClientRect();
+    const middleX = rect.left + rect.width / 2;
+    const middleY = rect.top + rect.height / 2;
+    const topElement = theDoc.elementFromPoint(middleX, middleY);
+    return topElement !== element && !element.contains(topElement);
+}
+
+function isElementClickable(element: Element, theDoc: Document) {
+    const styles = getComputedStyle(element);
+    return styles.pointerEvents !== 'none';
+}
+
+function isElementInteractable(element: Element, theDoc: Document) {
+    return !isElementUnderOverlay(element, theDoc) && isElementClickable(element, theDoc);
+}
 
 export function clickables(html: string) {
     const ogDoc = new JSDOM(html).window.document;
     const body = ogDoc.getElementsByTagName('body')[0];
     let cleanHtml = addRandomIdToElements(body);
+    //let cleanHtml = body;
     //  let cleanHtml = html;
-   // let doc = new JSDOM(cleanHtml).window.document;
+    // let doc = new JSDOM(cleanHtml).window.document;
     const elements = cleanHtml.querySelectorAll('a, link');
     let clickables = Array.from(elements).map((element) => {
         return {
@@ -259,8 +327,9 @@ export function clickables(html: string) {
     });
     const inputs = getInputs(cleanHtml);
 
-    const finalHtml2 = doAllNew2(moveIdToCorrectLocation(cleanHtml));
-  
+    let finalHtml2 = doAllNew2(moveIdToCorrectLocation(cleanHtml));
+    //finalHtml2 = removeNonInteractableElements(finalHtml2, ogDoc);
+
     const turndownService = new TurndownService()
         .addRule('formatLink', {
             filter: ['a'],
