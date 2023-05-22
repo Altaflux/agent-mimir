@@ -228,7 +228,7 @@ export class WebBrowserToolManager {
     async obtainSummaryOfPage(question: string, mode: SUMMARY_MODE = 'slow') {
         let results;
         if (!question || question === "") {
-            results = [this.documents[1].doc];
+            results = [this.documents[1]?.doc ?? this.documents[0]?.doc];
         } else {
             //results = await this.vectorStore!.similaritySearch(question, 1);
 

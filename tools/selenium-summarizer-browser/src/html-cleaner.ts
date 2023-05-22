@@ -58,7 +58,7 @@ function isRelevantElement(element: Element) {
 // Function to check if an element is a direct or indirect parent of a relevant element
 function hasRelevantChild(element: Element) {
     if (isRelevantElement(element)) {
-        element.setAttribute('referenceId', getRandomId().toString());
+       // element.setAttribute('referenceId', getRandomId().toString());
         return true;
     }
 
@@ -320,7 +320,9 @@ async function removeInvisibleElements(document: Element, driver: WebDriver, rel
         });
         return element;
     }
-    function isElementUnderOverlay(element, theDoc) {
+    function isElementUnderOverlay(element) {
+        const currentScrollPosition = window.scrollY;
+        element.scrollIntoView();
         const rect = element.getBoundingClientRect();
         const middleX = rect.left + rect.width / 2;
         const middleY = rect.top + rect.height / 2;
@@ -378,7 +380,9 @@ export async function clickables(html: string, driver: WebDriver) {
             }
         });
 
+    const preCleanup = cleanHtml.outerHTML;
     await removeInvisibleElements(cleanHtml, driver, allRelevantElements);
+    const postCleanup = cleanHtml.outerHTML;
     //let cleanHtml = body;
     //  let cleanHtml = html;
     // let doc = new JSDOM(cleanHtml).window.document;
