@@ -154,19 +154,12 @@ function addRandomIdToElements(doc: Element) {
     for (let i = 0; i < doc.children.length; i++) {
         const child = doc.children[i];
 
-        if (!hasRelevantChild(child)) {
-            // child.remove();
-            // i--; // Adjust index after removing element
-        } else {
+        if (hasRelevantChild(child)) {
             child.setAttribute('referenceId', getRandomId().toString());
             addRandomIdToElements(child);
         }
     }
-    // const elements = doc.querySelectorAll(persistableElements.filter(e => typeof e === 'string').join(', '));
 
-    // elements.forEach(element => {
-    //     element.setAttribute('referenceId', getRandomId().toString());
-    // });
 
     return doc;
 }
@@ -176,27 +169,13 @@ function moveIdToCorrectLocation(doc: Element) {
     for (let i = 0; i < doc.children.length; i++) {
         const child = doc.children[i];
 
-        if (!hasRelevantChild(child)) {
-            // child.remove();
-            // i--; // Adjust index after removing element
-        } else {
+        if (hasRelevantChild(child)) {
             if (child.getAttribute('referenceId')) {
                 child.setAttribute('id', `${child.getAttribute('referenceId')!}`);
             }
             moveIdToCorrectLocation(child);
         }
     }
-
-    //  const doc = new JSDOM(htmlString).window.document;
-
-    const elements = doc.querySelectorAll(persistableElements.filter(e => typeof e === 'string').join(', '));
-
-    elements.forEach(element => {
-        if (element.getAttribute('referenceId')) {
-
-            element.setAttribute('id', `${element.getAttribute('referenceId')!}`);
-        }
-    });
 
     return doc;
 }
