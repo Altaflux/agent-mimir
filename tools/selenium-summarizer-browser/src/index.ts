@@ -207,24 +207,24 @@ export class WebBrowserToolManager {
         console.log("refreshed page state");
     }
 
-     getBiggestFive(numbers: {
+    getBiggestFive(numbers: {
         relevant: number,
-         doc:  { ids: string[]; doc: Document<Record<string, any>>; };
-     }[]): {
+        doc: { ids: string[]; doc: Document<Record<string, any>>; };
+    }[]): {
         relevant: number,
-         doc:  { ids: string[]; doc: Document<Record<string, any>>; };
-     }[] {
+        doc: { ids: string[]; doc: Document<Record<string, any>>; };
+    }[] {
         if (!numbers || numbers.length === 0) {
             return [];
         }
-    
+
         // Sort the array in descending order
         let sortedNumbers = numbers.sort((a, b) => b.relevant - a.relevant);
-    
+
         // Get the first five numbers
         return sortedNumbers.slice(0, 3);
     }
-    
+
     async obtainSummaryOfPage(question: string, mode: SUMMARY_MODE = 'slow') {
         let results;
         if (!question || question === "") {
@@ -239,13 +239,13 @@ export class WebBrowserToolManager {
                     focus: question,
                 })).text as string;
                 const elementId = Number(result.replace(/\D/g, ''));
-                return  {
+                return {
                     relevant: elementId,
                     doc: doc
-                }               
+                }
             })));
             fpp = this.getBiggestFive(fpp);
-            
+
             results = (fpp).map((doc) => doc.doc.doc);
             console.log(`Selected ${results.length} documents`);
         }
@@ -254,7 +254,7 @@ export class WebBrowserToolManager {
             const location = this.documents.findIndex((doc) => doc.doc.pageContent === document.pageContent);
             const startingLocation = location > 0 ? location - 1 : 0;
             const selectedDocuments = this.documents.slice(startingLocation, startingLocation + 3);
-           // const selectedDocuments = this.documents;
+            // const selectedDocuments = this.documents;
             const inputs = selectedDocuments.map((doc) => doc.ids).flat();
             return {
                 document: new Document({
