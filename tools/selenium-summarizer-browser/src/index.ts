@@ -6,7 +6,7 @@ import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { Tool, ToolParams } from "langchain/tools";
 import { MemoryVectorStore, } from "langchain/vectorstores/memory";
 import { VectorStore } from "langchain/vectorstores";
-import { Document } from 'langchain/document'
+import { Document as LangVector} from 'langchain/document'
 import { loadSummarizationChain } from "langchain/chains";
 import {  Builder, By, ThenableWebDriver } from 'selenium-webdriver';
 import { JSDOM } from 'jsdom';
@@ -18,6 +18,7 @@ import { clickables } from "./html-cleaner.js";
 import { REFINE_PROMPT, SUMMARY_PROMPT } from "./summary/prompt.js";
 import { COMBINE_PROMPT } from "./summary/combiner-prompt.js";
 import { RELEVANCE_PROMPT } from "./summary/relevance-prompt.js";
+import { htmlToMarkdown } from "./to-markdown.js";
 
 
 export type SeleniumDriverOptions = {
@@ -99,8 +100,8 @@ export class WebBrowserToolManager {
     driver?: ThenableWebDriver;
     vectorStore?: VectorStore;
     currentPage?: string;
-    documents: Document[] = [];
-    cleanHtml?: string;
+    documents: LangVector[] = [];
+    cleanHtml?: Document;
     clickables: {
         id: string,
         xpath: string,
@@ -144,12 +145,10 @@ export class WebBrowserToolManager {
         this.cleanHtml = cleanHtml.html;
         this.clickables = cleanHtml.clickables;
 
-        const doc = new JSDOM(this.cleanHtml!).window.document;
-        const body = doc.body.outerHTML;
-
+        const siteMarkdown = htmlToMarkdown(this.cleanHtml!);
         const textSplitter = new RecursiveCharacterTextSplitter({ chunkSize: 2500, chunkOverlap: 200 });
-        const texts = await textSplitter.splitText(body);
-        const documents = texts.map((pageContent) => new Document({ pageContent: pageContent }));
+        const texts = await textSplitter.splitText(siteMarkdown);
+        const documents = texts.map((pageContent) => new LangVector({ pageContent: pageContent }));
 
         let store = await MemoryVectorStore.fromDocuments(this.documents, this.embeddings);
 
@@ -194,7 +193,7 @@ export class WebBrowserToolManager {
             const startingLocation = location > 0 ? location - 1 : 0;
             const selectedDocuments = this.documents.slice(startingLocation, startingLocation + 3);
             return {
-                document: new Document({
+                document: new LangVector({
                     pageContent: await this.doSummary2(selectedDocuments, question),
                     metadata: [],
                 })
@@ -206,12 +205,12 @@ export class WebBrowserToolManager {
 
 
 
-    private async doSummary2(documents: Document[], question: string) {
+    private async doSummary2(documents: LangVector[], question: string) {
         let focus = question;
         if (!question || question === "") {
             focus = "Main content of the page";
         }
-        
+
         return (await documents.map((doc) => Promise.resolve(doc))
             .reduce(async (prev, current) => {
                 const llmChain = new LLMChain({ prompt: COMBINE_PROMPT, llm: this.model, verbose: false });
@@ -221,7 +220,7 @@ export class WebBrowserToolManager {
                     focus: focus
                 })).text;
 
-                return new Document({
+                return new LangVector({
                     pageContent: result,
                     metadata: [],
                 });

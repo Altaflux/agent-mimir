@@ -1,6 +1,5 @@
 import { JSDOM } from 'jsdom';
 import { getXPath } from './xpath.js';
-import TurndownService from 'turndown';
 import { By, WebDriver } from 'selenium-webdriver';
 
 const selectableElements = ['input', 'select', 'textarea'];
@@ -11,7 +10,12 @@ const persistableElements = [...interactableElements, (element: Element) => {
         element.childNodes[0].textContent?.trim() !== '')
 }];
 
-type RelevantElement = "input" | "clickable" | "text";
+export type RelevantElement = "input" | "clickable" | "text";
+
+export type RelevantThingsInfo = {
+    id: string;
+    xpath: string;
+};
 
 // Function to check if an element is a button, link or has readable text
 function isRelevantElement(element: Element) {
@@ -53,50 +57,15 @@ function findAllRelevantElements(doc: Element) {
 
 }
 
+async function removeInvisibleElements(element: Element, driver: WebDriver, relevants: RelevantThingsInfo[]) {
 
-
-function isEmptyOrSpaces(str: string | null) {
-    return str === null || str.match(/^ *$/) !== null;
-}
-
-function getInputorLinkInfo(document: ParentNode, element: Element) {
-
-    const ariaLabel = element.getAttribute('aria-label');
-    if (ariaLabel && ariaLabel !== '') {
-        return ariaLabel!
-    }
-    const ariaLabelledBy = element.getAttribute('aria-labelledby');
-    if (ariaLabelledBy) {
-        const labelledByElement = document.querySelector(`#${ariaLabelledBy}`)  //  $(`#${ariaLabelledBy}`);
-        if (labelledByElement) {
-            if (!labelledByElement.textContent) {
-                console.log(`No text content for aria-labelledby ${ariaLabelledBy}`);
-            }
-            return labelledByElement.textContent?.trim() ?? null;
-        }
-    }
-
-    if (!isEmptyOrSpaces(element.textContent?.trim() ?? null)) {
-        return element.textContent?.trim() ?? null;
-    }
-    return null;
-}
-
-type RelevantThingsInfo = {
-    id: string;
-    xpath: string;
-};
-async function removeInvisibleElements2(element: Element, driver: WebDriver, relevants: RelevantThingsInfo[]) {
-
-    let counter = 0;
-    let discardCounter = 0;
     for (const relevant of relevants) {
         const byExpression = By.xpath(relevant.xpath);
         const foundElement = await driver!.findElement(byExpression);
 
         if (foundElement) {
             try {
-                let isElementInteractable: boolean = await driver.executeScript(`
+                const isElementInteractable: boolean = await driver.executeScript(`
                 window.document.documentElement.style.setProperty("scroll-behavior", "auto", "important");
                 function isElementUnderOverlay(element) {
                     const rect = element.getBoundingClientRect();
@@ -123,12 +92,11 @@ async function removeInvisibleElements2(element: Element, driver: WebDriver, rel
                     el.scrollIntoView({ behavior: "instant", block: "center", inline: "nearest" });
                     return isElementInteractable(el);
                 }
-                return true;`, relevant.xpath);
+                return undefined;`, relevant.xpath);
 
                 if (!isElementInteractable) {
                     let elementToRemove = element.querySelector(`[x-interactableId="${relevant.id}"]`);
                     if (elementToRemove) {
-                        discardCounter++;
                         elementToRemove.remove();
                     }
                 }
@@ -139,8 +107,6 @@ async function removeInvisibleElements2(element: Element, driver: WebDriver, rel
         }
 
     }
-    console.log(`Scrolled ${counter} times`);
-    console.log(`Discarded ${discardCounter} elements`);
 }
 
 
@@ -150,7 +116,7 @@ export async function clickables(html: string, driver: WebDriver) {
     let cleanHtml = addRandomIdToElements(ogDoc.body);
     let allRelevantElements = findAllRelevantElements(cleanHtml);
 
-    await removeInvisibleElements2(cleanHtml, driver, allRelevantElements);
+    await removeInvisibleElements(cleanHtml, driver, allRelevantElements);
 
     let clickables = allRelevantElements
         .filter((relevant) => interactableElements.includes(relevant.element.tagName.toLowerCase()))
@@ -162,61 +128,9 @@ export async function clickables(html: string, driver: WebDriver) {
             }
         });
 
-    const turndownService = new TurndownService()
-        .addRule('formatLink', {
-            filter: ['a'],
-            replacement: function (content, node, options) {
-                let element = node as HTMLElement;
-                const description = getInputorLinkInfo(ogDoc, element);
-                if (description) {
-                    return `<a ${buildAttribute("id", element.getAttribute('x-interactableId'))}>${description}</a>`
-                }
-                return "";
-            }
-        })
-        .addRule('formatButton', {
-            filter: ['button'],
-            replacement: function (content, node, options) {
-                let element = node as HTMLElement;
-                const description = getInputorLinkInfo(ogDoc, element);
-                if (description) {
-                    return `<button ${buildAttribute("type", element.getAttribute('type'), "button")} ${buildAttribute("id", element.getAttribute('x-interactableId'))} >${description}</button>`
-                }
-                return "";
-            }
-        })
-        .addRule('removeScript', {
-            filter: ['script'],
-            replacement: function () {
-                return "";
-            }
-        })
-        .addRule('formatInput', {
-            filter: ['input'],
-            replacement: function (_, node) {
-                let element = node as HTMLElement;
-                const description = getInputorLinkInfo(ogDoc, element);
-                if (description) {
-                    return `<input ${buildAttribute("type", element.getAttribute('type'), "text")} ${buildAttribute("name", element.getAttribute('name'))}  ${buildAttribute("id", element.getAttribute('x-interactableId'))} >${description}</input>`
-                }
-                return "";
-            }
-        });
-
-    const markdown = turndownService.turndown(cleanHtml.outerHTML);
-    console.log("");
     return {
-        html: markdown,
+        html: ogDoc,
         clickables: clickables,
         inputs: []
     }
-}
-
-function buildAttribute(attributeName: string, attributeValue: string | null, defaultValue?: string) {
-    if (attributeValue) {
-        return `${attributeName}="${attributeValue}"`;
-    } else if (defaultValue) {
-        return `${attributeName}="${defaultValue}"`;
-    }
-    return "";
 }

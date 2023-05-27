@@ -3,7 +3,7 @@ type XpathComponent = {
     position?: number | null
 }
 
-export function getXPath(node2: Element) {
+export function getXPath(node: Element) {
     var comp, comps : XpathComponent[] = [];
     var xpath = '';
     var getPos = function (node: Element) {
@@ -18,7 +18,7 @@ export function getXPath(node2: Element) {
         }
         return position;
     }
-    let nodeToFind: Element | null = node2;
+    let nodeToFind: Element | null = node;
     for (; nodeToFind && !(nodeToFind.nodeType === nodeToFind.DOCUMENT_NODE); nodeToFind = nodeToFind.nodeType == nodeToFind.ATTRIBUTE_NODE ? (nodeToFind as any).ownerElement : nodeToFind.parentNode) {
         
         let comp: XpathComponent | null  = comps[comps.length] = {};
@@ -39,7 +39,7 @@ export function getXPath(node2: Element) {
                 comp.name = nodeToFind.nodeName;
                 if (nodeToFind.hasAttribute('id')) {
                   comp.name = '/*[@id="' + nodeToFind.getAttribute('id') + '"]';
-                  nodeToFind = null; // Stop traversing parent elements
+                  nodeToFind = null; 
                 }
                 break;
         }
