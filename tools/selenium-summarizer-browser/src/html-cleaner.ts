@@ -3,10 +3,11 @@ import { getXPath } from './xpath.js';
 import { By, WebDriver } from 'selenium-webdriver';
 
 const selectableElements = ['input', 'select', 'textarea'];
-const interactableElements = [...selectableElements, 'a', 'button', 'input', 'link', 'select', 'textarea'];
+const clickableElements = ['a', 'button', 'link'];
+const interactableElements = [...selectableElements, ...clickableElements];
 const persistableElements = [...interactableElements, (element: Element) => {
     return (element.childNodes.length === element.ELEMENT_NODE &&
-        element.childNodes[0].nodeType === element.TEXT_NODE &&  //3 is for Text Node (Node.TEXT_NODE)
+        element.childNodes[0].nodeType === element.TEXT_NODE && 
         element.childNodes[0].textContent?.trim() !== '')
 }];
 
@@ -15,6 +16,7 @@ export type RelevantElement = "input" | "clickable" | "text";
 export type RelevantThingsInfo = {
     id: string;
     xpath: string;
+    type: RelevantElement;
 };
 
 // Function to check if an element is a button, link or has readable text
@@ -61,57 +63,46 @@ async function removeInvisibleElements(element: Element, driver: WebDriver, rele
 
     for (const relevant of relevants) {
         const byExpression = By.xpath(relevant.xpath);
-        const foundElement = await driver!.findElement(byExpression);
+        let foundElement;
+        try {
+            foundElement = await driver!.findElement(byExpression);
+        } catch (e) {
+            continue;
+        }
 
-        if (foundElement) {
-            try {
-                const isElementInteractable: boolean = await driver.executeScript(`
+        try {
+            const isElementInteractable: boolean = await driver.executeScript(`
                 window.document.documentElement.style.setProperty("scroll-behavior", "auto", "important");
+
                 function isElementUnderOverlay(element) {
                     const rect = element.getBoundingClientRect();
-                    const middleX = rect.left + rect.width / 2;
-                    const middleY = rect.top + rect.height / 2;
-                    const topElement = document.elementFromPoint(middleX, middleY);
+                    const topElement = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
                     return topElement !== element && !element.contains(topElement);
                 }
+
                 function isElementClickable(element) {
                     const styles = getComputedStyle(element);
                     return styles.pointerEvents !== 'none';
                 }
-                function isElementInteractable(element) {
-                    return !isElementUnderOverlay(element) && isElementClickable(element);
-                }
-                
-                function getElementByXpath(path) {
-                  return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-                }
-                
-                let xpath = arguments[0];
-                let el = getElementByXpath(xpath);
-                if (el) {
-                    el.scrollIntoView({ behavior: "instant", block: "center", inline: "nearest" });
-                    return isElementInteractable(el);
-                }
-                return undefined;`, relevant.xpath);
 
-                if (!isElementInteractable) {
-                    let elementToRemove = element.querySelector(`[x-interactableId="${relevant.id}"]`);
-                    if (elementToRemove) {
-                        elementToRemove.remove();
-                    }
-                }
-            } catch (e) {
+                let element = arguments[0];
+                element.scrollIntoView({ behavior: "instant", block: "center", inline: "nearest" });
+                return !isElementUnderOverlay(element) && isElementClickable(element);`, foundElement);
 
+            if (!isElementInteractable) {
+                let elementToRemove = element.querySelector(`[x-interactableId="${relevant.id}"]`);
+                if (elementToRemove) {
+                    elementToRemove.remove();
+                }
             }
-
+        } catch (e) {
+            continue;
         }
-
     }
 }
 
 
-
-export async function clickables(html: string, driver: WebDriver) {
+export async function extractHtml(html: string, driver: WebDriver) {
     const ogDoc = new JSDOM(html).window.document;
     let cleanHtml = addRandomIdToElements(ogDoc.body);
     let allRelevantElements = findAllRelevantElements(cleanHtml);
@@ -130,7 +121,6 @@ export async function clickables(html: string, driver: WebDriver) {
 
     return {
         html: ogDoc,
-        clickables: clickables,
-        inputs: []
+        clickables: clickables
     }
 }

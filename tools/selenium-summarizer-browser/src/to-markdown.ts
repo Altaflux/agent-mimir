@@ -22,7 +22,7 @@ function getInputorLinkInfo(document: ParentNode, element: Element) {
     }
     const ariaLabelledBy = element.getAttribute('aria-labelledby');
     if (ariaLabelledBy) {
-        const labelledByElement = document.querySelector(`#${ariaLabelledBy}`)  //  $(`#${ariaLabelledBy}`);
+        const labelledByElement = document.querySelector(`[id="${ariaLabelledBy}"]`);
         if (labelledByElement) {
             if (!labelledByElement.textContent) {
                 console.log(`No text content for aria-labelledby ${ariaLabelledBy}`);
@@ -58,7 +58,7 @@ export function htmlToMarkdown(htmlDoc: Document) {
                 let element = node as HTMLElement;
                 const description = getInputorLinkInfo(htmlDoc, element);
                 if (description) {
-                    return `<button ${buildAttribute("type", element.getAttribute('type'), "button")} ${buildAttribute("id", element.getAttribute('x-interactableId'))} >${description}</button>`
+                    return `<button ${buildAttribute("type", element.getAttribute('type'), "button")} ${buildAttribute("id", element.getAttribute('x-interactableId'))}>${description}</button>`
                 }
                 return "";
             }
@@ -75,7 +75,7 @@ export function htmlToMarkdown(htmlDoc: Document) {
                 let element = node as HTMLElement;
                 const description = getInputorLinkInfo(htmlDoc, element);
                 if (description) {
-                    return `<input ${buildAttribute("type", element.getAttribute('type'), "text")} ${buildAttribute("name", element.getAttribute('name'))}  ${buildAttribute("id", element.getAttribute('x-interactableId'))} >${description}</input>`
+                    return `<input ${buildAttribute("type", element.getAttribute('type'), "text")} ${buildAttribute("name", element.getAttribute('name'))}  ${buildAttribute("id", element.getAttribute('x-interactableId'))}>${description}</input>`
                 }
                 return "";
             }
