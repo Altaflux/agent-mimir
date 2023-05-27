@@ -1,20 +1,21 @@
 import { JSDOM } from 'jsdom';
 import { getXPath } from './xpath-finder.js';
-import { load } from 'cheerio';
 import TurndownService from 'turndown';
-import { is } from 'cheerio/lib/api/traversing.js';
-import { ThenableWebDriver, WebDriver } from 'selenium-webdriver';
+import { By,  WebDriver } from 'selenium-webdriver';
 
 
 //import { TurndownService } from 'turndown';
-const persistableElements = ['a', 'button', 'input', 'link', 'select', 'textarea', (element: Element) => {
+const interactableElements = ['a', 'button', 'input', 'link', 'select', 'textarea'];
+const persistableElements = [...interactableElements, (element: Element) => {
     return (element.childNodes.length === 1 &&
         element.childNodes[0].nodeType === 3 &&  //3 is for Text Node (Node.TEXT_NODE)
         element.childNodes[0].textContent?.trim() !== '')
 }];
-const inputElements = ['button', 'input', 'select', 'textarea'];
 
-function isPersistableElement(element: Element) {
+
+
+// Function to check if an element is a button, link or has readable text
+function isRelevantElement(element: Element) {
     let isPersistable = persistableElements.find((e) => {
         if (typeof e === 'string') {
             return e === element.tagName.toLowerCase();
@@ -24,41 +25,11 @@ function isPersistableElement(element: Element) {
     });
     return isPersistable !== undefined;
 }
-function removeAttributesExcept(doc: Element) {
-    // const parser = new DOMParser();
-    // const doc = parser.parseFromString(htmlString, 'text/html');
-    //  const doc = new JSDOM(htmlString).window.document;
-    const allElements = doc.querySelectorAll('*');
-
-    for (const element of Array.from(allElements)) {
-        const attrs = Array.from(element.attributes);
-        for (const attr of attrs) {
-            if (true
-                && attr.name !== 'aria-label'
-                //   && !(attr.name === 'href' && persistableElements.includes(element.tagName.toLowerCase()))
-                //  && !(persistableElements.includes(element.tagName.toLowerCase()) && attr.name !== 'href')
-                && !((attr.name === 'type' || attr.name === 'name' || attr.name === 'value') && inputElements.includes(element.tagName.toLowerCase()))
-                && !(attr.name === 'id' && isPersistableElement(element))) {
-                element.removeAttribute(attr.name);
-            }
-        }
-    }
-
-    return doc;
-}
-
-
-// Function to check if an element is a button, link or has readable text
-function isRelevantElement(element: Element) {
-    return (
-        isPersistableElement(element)
-    );
-}
 
 // Function to check if an element is a direct or indirect parent of a relevant element
 function hasRelevantChild(element: Element) {
     if (isRelevantElement(element)) {
-       // element.setAttribute('referenceId', getRandomId().toString());
+        // element.setAttribute('referenceId', getRandomId().toString());
         return true;
     }
 
@@ -71,92 +42,18 @@ function hasRelevantChild(element: Element) {
     return false;
 }
 
-function createLeanHtml(doc: Element) {
-    // Create a DOM parser to parse the HTML string
-    //   const parser = new DOMParser();
 
-
-
-    // Function to remove specific unwanted elements
-    function removeUnwantedElements(element: Element, tagsToRemove: string[]) {
-        for (const tag of tagsToRemove) {
-            const unwantedElements = element.getElementsByTagName(tag);
-            while (unwantedElements.length > 0) {
-                unwantedElements[0].parentNode?.removeChild(unwantedElements[0]);
-            }
-        }
-    }
-
-    // Remove unwanted elements from the parsed HTML document
-    removeUnwantedElements(doc, ['style', 'script', 'svg']);
-
-    // Recursive function to remove irrelevant elements
-    function removeIrrelevantElements(element: Element) {
-        for (let i = 0; i < element.children.length; i++) {
-            const child = element.children[i];
-
-            if (!hasRelevantChild(child)) {
-                child.remove();
-                i--; // Adjust index after removing element
-            } else {
-                removeIrrelevantElements(child);
-            }
-        }
-    }
-
-    // Remove irrelevant elements from the body of the parsed HTML document
-    removeIrrelevantElements(doc);
-
-    // Return the leaner HTML document
-    return doc;
-}
-
-
-///
-export function compactHTML(html: string) {
-    // Parse the HTML string
-    // const parser = new DOMParser();
-    //const doc = parser.parseFromString(html, "text/html");
-    html = html.replace(/[\r\n]+/g, '').replace(/\s{2,10}/g, ' ');
-    html = html.replace(/<!--.*?-->/g, '');
-
-    const doc = new JSDOM(html).window.document;
-    // Recursive function to compact the HTML tree
-    function compactNode(node: Element) {
-        if (node.children.length === 1 && node.tagName !== 'BODY') {
-            const child = node.children[0];
-            node.replaceWith(child);
-            compactNode(child);
-        } else {
-            for (let i = 0; i < node.children.length; i++) {
-                compactNode(node.children[i]);
-            }
-        }
-    }
-
-    // Compact the root node
-    compactNode(doc.body);
-
-    // Serialize the modified document back to an HTML string
-    return '<!DOCTYPE html>\n<html>\n' + doc.body.outerHTML + '\n</html>';
-    // const serializer = new XMLSerializer();
-    // return serializer.serializeToString(doc);
-}
 
 function getRandomId() {
     return Math.floor(Math.random() * 9000) + 1000;
 }
 
 function addRandomIdToElements(doc: Element) {
-    // const parser = new DOMParser();
-    //  const doc = parser.parseFromString(htmlString, 'text/html');
-    //const doc = new JSDOM(htmlString).window.document;
-
     for (let i = 0; i < doc.children.length; i++) {
         const child = doc.children[i];
 
         if (hasRelevantChild(child)) {
-            child.setAttribute('referenceId', getRandomId().toString());
+            child.setAttribute('x-interactableId', getRandomId().toString());
             addRandomIdToElements(child);
         }
     }
@@ -164,22 +61,7 @@ function addRandomIdToElements(doc: Element) {
 
     return doc;
 }
-function moveIdToCorrectLocation(doc: Element) {
 
-
-    for (let i = 0; i < doc.children.length; i++) {
-        const child = doc.children[i];
-
-        if (hasRelevantChild(child)) {
-            if (child.getAttribute('referenceId')) {
-                child.setAttribute('id', `${child.getAttribute('referenceId')!}`);
-            }
-            moveIdToCorrectLocation(child);
-        }
-    }
-
-    return doc;
-}
 
 function findAllRelevantElements(doc: Element) {
     // const parser = new DOMParser();
@@ -193,87 +75,44 @@ function findAllRelevantElements(doc: Element) {
         }
     }
 
-    return elements;
-}
-
-// export function doAllNew(html: string) {
-//     return compactHTML(removeAttributesExcept(createLeanHtml(html))).replaceAll("\n", "").replaceAll("\t", "");
-// }
-
-export function doAllNew2(html: Element) {
-    return (removeAttributesExcept(createLeanHtml(html)));
-
-}
-
-
-function getInputs(document: ParentNode) {
-
-
-    const inputs = Array.from(document.querySelectorAll('input, button'));
-
-    const inputsAndLabels = inputs
-        .map(input => {
-            const tagName = input.tagName.toLocaleLowerCase();
-            let attributeType;
-            if (tagName === 'input') {
-                attributeType = input.getAttribute('type') ?? 'text';
-            } else if (tagName === 'button') {
-                attributeType = input.getAttribute('type') ?? 'button';
-            }
-            const type = `"${tagName}" - Input Type: "${attributeType ?? ""}"`;
-            return {
-                element: input,
-                type: type
-            }
-        })
-        .map((input, i) => {
-            const ariaLabel = input.element.getAttribute('aria-label');
-            if (ariaLabel && ariaLabel !== '') {
-                return {
-                    ...input,
-                    description: ariaLabel!
-                }
-            }
-            const ariaLabelledBy = input.element.getAttribute('aria-labelledby');
-            if (ariaLabelledBy) {
-                const labelledByElement = document.querySelectorAll(`#${ariaLabelledBy}`)  //  $(`#${ariaLabelledBy}`);
-                if (labelledByElement.length > 0) {
-                    if (!labelledByElement[0].textContent) {
-                        console.log(`No text content for aria-labelledby ${ariaLabelledBy}`);
-                    }
-                    return {
-                        ...input,
-                        description: labelledByElement[0].textContent?.trim()
-                    }
-                }
-            } else if (input.element.tagName.toLocaleLowerCase() === 'button' && input.element.textContent) {
-                return {
-                    ...input,
-                    description: input.element.textContent.trim()
-                }
-            }
-            return {
-                ...input,
-                description: null
-            }
-        })
-        .filter(input => input.description !== null);
-
-
-
-    const listOfInputs = inputsAndLabels.map((input) => {
+    return elements.map((element) => {
         return {
-            description: input.description!.replaceAll("\n", " ").replaceAll(/ +/g, ' '),
-            id: input.element.getAttribute('referenceId')!,
-            xpath: getXPath(input.element),
-            type: input.type,
-            originalId: input.element.getAttribute('id') ?? null,
+            id: element.getAttribute('x-interactableId')!,
+            xpath: getXPath(element),
+            originalId: element.getAttribute('id') ?? null,
+            element: element
         }
     });
-
-    return listOfInputs;
-
 }
+
+
+
+function isEmptyOrSpaces(str: string | null) {
+    return str === null || str.match(/^ *$/) !== null;
+}
+
+function getInputorLinkInfo(document: ParentNode, element: Element) {
+    if (!isEmptyOrSpaces(element.textContent?.trim() ?? null)) {
+        return element.textContent?.trim() ?? null;
+    }
+
+    const ariaLabel = element.getAttribute('aria-label');
+    if (ariaLabel && ariaLabel !== '') {
+        return ariaLabel!
+    }
+    const ariaLabelledBy = element.getAttribute('aria-labelledby');
+    if (ariaLabelledBy) {
+        const labelledByElement = document.querySelector(`#${ariaLabelledBy}`)  //  $(`#${ariaLabelledBy}`);
+        if (labelledByElement) {
+            if (!labelledByElement.textContent) {
+                console.log(`No text content for aria-labelledby ${ariaLabelledBy}`);
+            }
+            return labelledByElement.textContent?.trim() ?? null;
+        }
+    }
+    return null;
+}
+
 
 // function removeNonInteractableElements(element: Element, theDoc: Document) {
 //     const elements = element.querySelectorAll('*');
@@ -302,27 +141,105 @@ function getInputs(document: ParentNode) {
 // function isElementInteractable(element: Element, theDoc: Document) {
 //     return !isElementUnderOverlay(element, theDoc) && isElementClickable(element, theDoc);
 // }
-
+const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 type RelevantThingsInfo = {
     id: string;
     xpath: string;
     originalId: string | null;
 };
+async function removeInvisibleElements2(element: Element, driver: WebDriver, relevants: RelevantThingsInfo[]) {
 
-async function removeInvisibleElements(document: Element, driver: WebDriver, relevants: RelevantThingsInfo[]) {
+    await driver.executeScript(`window.document.documentElement.style.setProperty("scroll-behavior", "auto", "important")`)
+    //  const maxHeight: number = await driver.executeScript("return document.body.scrollHeight");
+    //  await driver.manage().window().setSize(currentWidth, maxHeight);
+    let counter = 0;
+    let discardCounter = 0;
+    for (const relevant of relevants) {
+        const byExpression = relevant.originalId ? By.id(relevant.originalId) : By.xpath(relevant.xpath);
+        const foundElement = await driver!.findElement(byExpression);
 
-    let invisibles: string[] = await driver.executeScript(`function removeNonInteractableElements(element) {
-        const elements = element.querySelectorAll('*');
-        elements.forEach(element => {
-            if (!isElementInteractable(element)) {
-                element.remove();
+        if (foundElement) {
+            try {
+                let isNotElementInteractable: boolean = await driver.executeScript(`
+        
+                function isElementUnderOverlay(element) {
+                    //const currentScrollPosition = window.scrollY;
+                    //element.scrollIntoView({ behavior: "instant", block: "center", inline: "nearest" });
+                    const rect = element.getBoundingClientRect();
+                    const middleX = rect.left + rect.width / 2;
+                    const middleY = rect.top + rect.height / 2;
+                    const topElement = document.elementFromPoint(middleX, middleY);
+                    return topElement !== element && !element.contains(topElement);
+                }
+                function isElementClickable(element) {
+                    const styles = getComputedStyle(element);
+                    return styles.pointerEvents !== 'none';
+                }
+                function isElementInteractable(element) {
+                    return !isElementUnderOverlay(element) && isElementClickable(element);
+                }
+                
+                function getElementByXpath(path) {
+                  return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                }
+                
+                let xpath = arguments[0].xpath;
+                let id = arguments[0].id;
+                let el = getElementByXpath(xpath);
+                if (el) {
+                    el.scrollIntoView(true);
+                }
+                return el && !isElementInteractable(el);`, relevant);
+
+                if (isNotElementInteractable) {
+                    let elementToRemove = element.querySelector(`[x-interactableId="${relevant.id}"]`);
+                    if (elementToRemove) {
+                        discardCounter++;
+                        elementToRemove.remove();
+                    }
+                }
+            } catch (e) {
+
             }
-        });
-        return element;
+
+        }
+
     }
+    console.log(`Scrolled ${counter} times`);
+    console.log(`Discarded ${discardCounter} elements`);
+}
+
+async function removeInvisibleElements(element: Element, driver: WebDriver, relevants: RelevantThingsInfo[]) {
+
+    // driver.executeAsyncScript(function () {
+    //     async function isElementUnderOverlay(element: Element) {
+    //         const currentScrollPosition = window.scrollY;
+    //         element.scrollIntoView({ behavior: "instant", block: "center", inline: "nearest" });
+    //         const rect = element.getBoundingClientRect();
+    //         const middleX = rect.left + rect.width / 2;
+    //         const middleY = rect.top + rect.height / 2;
+    //         const topElement = document.elementFromPoint(middleX, middleY);
+    //         return topElement !== element && !element.contains(topElement);
+    //     }
+
+    //     function isElementClickable(element: Element) {
+    //         const styles = getComputedStyle(element);
+    //         return styles.pointerEvents !== 'none';
+    //     }
+    //     function isElementInteractable(element: Element) {
+    //         return !isElementUnderOverlay(element) && isElementClickable(element);
+    //     }
+
+    //     function getElementByXpath(path: string) {
+    //         return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+    //     }
+    // });
+
+    let invisibles: string[] = await driver.executeScript(`
+    
     function isElementUnderOverlay(element) {
         const currentScrollPosition = window.scrollY;
-        element.scrollIntoView();
+        element.scrollIntoView({ behavior: "instant", block: "center", inline: "nearest" });
         const rect = element.getBoundingClientRect();
         const middleX = rect.left + rect.width / 2;
         const middleY = rect.top + rect.height / 2;
@@ -351,11 +268,12 @@ async function removeInvisibleElements(document: Element, driver: WebDriver, rel
             selected.push(id)
         }
     });
+    console.log("Completed invisibles");
     return selected;`, relevants);
     invisibles.forEach((relevant) => {
         let foundElement = relevants.find((r) => r.id === relevant)?.id;
         if (foundElement) {
-            let elementToRemove = document.querySelector(`[referenceId="${foundElement}"]`);
+            let elementToRemove = element.querySelector(`[x-interactableId="${foundElement}"]`);
             if (elementToRemove) {
                 elementToRemove.remove();
             }
@@ -367,55 +285,65 @@ async function removeInvisibleElements(document: Element, driver: WebDriver, rel
 
 
 export async function clickables(html: string, driver: WebDriver) {
-    //let foo = await driver.executeScript("return arguments[0]", [23, 4, 5]);
     const ogDoc = new JSDOM(html).window.document;
     const body = ogDoc.getElementsByTagName('body')[0];
     let cleanHtml = addRandomIdToElements(body);
-    let allRelevantElements = findAllRelevantElements(cleanHtml)
-        .map((element) => {
+    let allRelevantElements = findAllRelevantElements(cleanHtml);
+
+    await removeInvisibleElements2(cleanHtml, driver, allRelevantElements);
+
+    let clickables = allRelevantElements
+        .filter((relevant) => interactableElements.includes(relevant.element.tagName.toLowerCase()))
+        .map((entries) => {
             return {
-                id: element.getAttribute('referenceId')!,
-                xpath: getXPath(element),
-                originalId: element.getAttribute('id') ?? null,
+                id: entries.element.getAttribute('x-interactableId')!,
+                xpath: entries.xpath,
+                originalId: entries.element.getAttribute('id') ?? null,
             }
         });
 
-    const preCleanup = cleanHtml.outerHTML;
-    await removeInvisibleElements(cleanHtml, driver, allRelevantElements);
-    const postCleanup = cleanHtml.outerHTML;
-    //let cleanHtml = body;
-    //  let cleanHtml = html;
-    // let doc = new JSDOM(cleanHtml).window.document;
-    const elements = cleanHtml.querySelectorAll('a, link');
-    let clickables = Array.from(elements).map((element) => {
-        return {
-            id: element.getAttribute('referenceId')!,
-            xpath: getXPath(element),
-            originalId: element.getAttribute('id') ?? null,
-        }
-    });
-    const inputs = getInputs(cleanHtml);
 
-    let finalHtml2 = doAllNew2(moveIdToCorrectLocation(cleanHtml));
-    //finalHtml2 = removeNonInteractableElements(finalHtml2, ogDoc);
+    let finalHtml2 = cleanHtml;
+
 
     const turndownService = new TurndownService()
         .addRule('formatLink', {
             filter: ['a'],
             replacement: function (content, node, options) {
-                return (node as any).outerHTML;
+                let element = node as HTMLElement;
+                const description = getInputorLinkInfo(ogDoc, element);
+                if (description) {
+                    return `<a ${buildAttribute("id", element.getAttribute('x-interactableId'))}>${description}</a>`
+                }
+                return "";
             }
         })
         .addRule('formatButton', {
             filter: ['button'],
             replacement: function (content, node, options) {
-                return (node as any).outerHTML;
+                let element = node as HTMLElement;
+                const description = getInputorLinkInfo(ogDoc, element);
+                if (description) {
+                    return `<button ${buildAttribute("type", element.getAttribute('type'), "button")} ${buildAttribute("id", element.getAttribute('x-interactableId'))} >${description}</button>`
+                }
+                return "";
+            }
+        })
+        .addRule('removeScript', {
+            filter: ['script'],
+            replacement: function (content, node, options) {
+                return "";
             }
         })
         .addRule('formatInput', {
             filter: ['input'],
             replacement: function (content, node, options) {
-                return (node as any).outerHTML;
+                let element = node as HTMLElement;
+                const description = getInputorLinkInfo(ogDoc, element);
+                if (description) {
+                    return `<input ${buildAttribute("type", element.getAttribute('type'), "text")} ${buildAttribute("name", element.getAttribute('name'))}  ${buildAttribute("id", element.getAttribute('x-interactableId'))} >${description}</input>`
+                }
+                return "";
             }
         });
     const markdown = turndownService.turndown(finalHtml2.outerHTML.replaceAll("\n", "").replaceAll("\t", ""));
@@ -423,6 +351,15 @@ export async function clickables(html: string, driver: WebDriver) {
     return {
         html: markdown,
         clickables: clickables,
-        inputs: inputs
+        inputs: []
     }
+}
+
+function buildAttribute(attributeName: string, attributeValue: string | null, defaultValue?: string) {
+    if (attributeValue) {
+        return `${attributeName}="${attributeValue}"`;
+    } else if (defaultValue) {
+        return `${attributeName}="${defaultValue}"`;
+    }
+    return "";
 }
