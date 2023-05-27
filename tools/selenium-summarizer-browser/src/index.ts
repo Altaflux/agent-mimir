@@ -1,4 +1,3 @@
-import * as cheerio from "cheerio";
 import { BaseLanguageModel } from "langchain/base_language";
 import { LLMChain } from "langchain/chains";
 import { CallbackManager, CallbackManagerForToolRun } from "langchain/callbacks";
@@ -8,11 +7,8 @@ import { Tool, ToolParams } from "langchain/tools";
 import { MemoryVectorStore, } from "langchain/vectorstores/memory";
 import { VectorStore } from "langchain/vectorstores";
 import { Document } from 'langchain/document'
-import { StringPromptValue } from "langchain/prompts";
 import { loadSummarizationChain } from "langchain/chains";
-import { Actions, Builder, By, ThenableWebDriver } from 'selenium-webdriver';
-import { Options as ChromeOptions } from 'selenium-webdriver/chrome.js';
-import { Options as FireFoxOptions } from 'selenium-webdriver/firefox.js';
+import {  Builder, By, ThenableWebDriver } from 'selenium-webdriver';
 import { JSDOM } from 'jsdom';
 import {
     Options,
@@ -81,15 +77,13 @@ const downloadDrivers = async (browserName: string | undefined) => {
 }
 
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Headers = Record<string, any>;
+
 
 export interface WebBrowserArgs extends ToolParams {
     model: BaseLanguageModel;
 
     embeddings: Embeddings;
 
-    headers?: Headers;
 
     /** @deprecated */
     callbackManager?: CallbackManager;
@@ -100,39 +94,16 @@ export interface WebBrowserArgs extends ToolParams {
 
 
 
-function findIDs(inputString: string) {
-    var regex = /id="([^"]*)"/g;
-    var result;
-    var ids = [];
-
-    while ((result = regex.exec(inputString)) !== null) {
-        ids.push(result[1]);
-    }
-
-    return ids;
-}
-
 export class WebBrowserToolManager {
 
     driver?: ThenableWebDriver;
     vectorStore?: VectorStore;
     currentPage?: string;
-    documents: {
-        ids: string[],
-        doc: Document
-    }[] = [];
+    documents: Document[] = [];
     cleanHtml?: string;
-    inputs: {
-        id: string,
-        xpath: string,
-        description: string,
-        type: string,
-        originalId: string | null,
-    }[] = [];
     clickables: {
         id: string,
         xpath: string,
-        originalId: string | null,
     }[] = [];
 
     constructor(private seleniumDriverOptions: SeleniumDriverOptions, private model: BaseLanguageModel, private embeddings: Embeddings) {
@@ -169,147 +140,92 @@ export class WebBrowserToolManager {
 
     async refreshPageState() {
         let driver = await this.getDriver();
-        const html = await driver!.getPageSource()
-        let cleanHtml = await clickables(html, driver);
+        let cleanHtml = await clickables(await driver!.getPageSource(), driver);
         this.cleanHtml = cleanHtml.html;
         this.clickables = cleanHtml.clickables;
-        this.inputs = cleanHtml.inputs;
 
         const doc = new JSDOM(this.cleanHtml!).window.document;
-        const allElements = doc.querySelectorAll('body');
-        const body = allElements[0]?.outerHTML ?? "";
-        const textSplitter = new RecursiveCharacterTextSplitter({
-            chunkSize: 2500,
-            chunkOverlap: 200,
-        });
-        const texts = await textSplitter.splitText(body);
-        const docs = texts.map(
-            (pageContent, index) =>
-                new Document({
-                    pageContent: `${pageContent}`,
-                    metadata: [],
-                })
-        );
+        const body = doc.body.outerHTML;
 
-        this.documents = docs.map((doc) => {
+        const textSplitter = new RecursiveCharacterTextSplitter({ chunkSize: 2500, chunkOverlap: 200 });
+        const texts = await textSplitter.splitText(body);
+        const documents = texts.map((pageContent) => new Document({ pageContent: pageContent }));
+
+        let store = await MemoryVectorStore.fromDocuments(this.documents, this.embeddings);
+
+        this.documents = documents;
+        this.vectorStore = store;
+
+    }
+
+    async calculateRelevanceByPrompt(question: string, maxEntries: number = 5) {
+        return (await Promise.all(this.documents!.map(async (doc) => {
+            const relevanceChain = new LLMChain({ llm: this.model, prompt: RELEVANCE_PROMPT });
+            const result = (await relevanceChain.call({
+                document: doc.pageContent,
+                focus: question,
+            })).text as string;
+            const relevance = Number(result.replace(/\D/g, ''));
             return {
-                ids: findIDs(doc.pageContent),
+                relevant: relevance,
                 doc: doc
             }
-        });
-
-        let store = await MemoryVectorStore.fromDocuments(
-            docs,
-            this.embeddings
-        );
-
-        this.vectorStore = store;
-        console.log("refreshed page state");
+        })))
+        .sort((a, b) => b.relevant - a.relevant)
+        .slice(0, maxEntries);
     }
 
-    getBiggestFive(numbers: {
-        relevant: number,
-        doc: { ids: string[]; doc: Document<Record<string, any>>; };
-    }[]): {
-        relevant: number,
-        doc: { ids: string[]; doc: Document<Record<string, any>>; };
-    }[] {
-        if (!numbers || numbers.length === 0) {
-            return [];
-        }
-
-        // Sort the array in descending order
-        let sortedNumbers = numbers.sort((a, b) => b.relevant - a.relevant);
-
-        // Get the first five numbers
-        return sortedNumbers.slice(0, 3);
+    async getDocumentsBySimilarity(question: string, maxEntries: number = 5) {
+       return await this.vectorStore!.similaritySearch(question, maxEntries);
     }
+    
 
     async obtainSummaryOfPage(question: string, mode: SUMMARY_MODE = 'slow') {
         let results;
         if (!question || question === "") {
-            results = [this.documents[1]?.doc ?? this.documents[0]?.doc];
+            results = [this.documents[1] ?? this.documents[0]];
         } else {
-            //results = await this.vectorStore!.similaritySearch(question, 1);
-
-            let fpp = (await Promise.all(await this.documents!.map(async (doc) => {
-                const relevanceChain = new LLMChain({ llm: this.model, prompt: RELEVANCE_PROMPT });
-                const result = (await relevanceChain.call({
-                    document: doc.doc.pageContent,
-                    focus: question,
-                })).text as string;
-                const elementId = Number(result.replace(/\D/g, ''));
-                return {
-                    relevant: elementId,
-                    doc: doc
-                }
-            })));
-            fpp = this.getBiggestFive(fpp);
-
-            results = (fpp).map((doc) => doc.doc.doc);
-            console.log(`Selected ${results.length} documents`);
+            results = (await this.calculateRelevanceByPrompt(question, 4))
+                .map((doc) => doc.doc);
         }
 
         let selectedDocs = await Promise.all(results.map(async (document) => {
-            const location = this.documents.findIndex((doc) => doc.doc.pageContent === document.pageContent);
+            const location = this.documents.findIndex((doc) => doc.pageContent === document.pageContent);
             const startingLocation = location > 0 ? location - 1 : 0;
             const selectedDocuments = this.documents.slice(startingLocation, startingLocation + 3);
-            // const selectedDocuments = this.documents;
-            const inputs = selectedDocuments.map((doc) => doc.ids).flat();
             return {
                 document: new Document({
-                    pageContent: await this.doSummary2(selectedDocuments.map((doc) => doc.doc), question),
+                    pageContent: await this.doSummary2(selectedDocuments, question),
                     metadata: [],
-                }),
-                ids: inputs
+                })
             }
         }));
-        return selectedDocs[0].document.pageContent;
 
+        return await this.doSummary2(selectedDocs.map((doc) => doc.document), question);
     }
 
 
-    private async doSummary(docs: Document[], question: string) {
+
+    private async doSummary2(documents: Document[], question: string) {
         let focus = question;
         if (!question || question === "") {
             focus = "Main content of the page";
         }
-        const chain = loadSummarizationChain(this.model, { type: "refine", refinePrompt: REFINE_PROMPT, questionPrompt: SUMMARY_PROMPT });
-
-        const res = await chain.call({
-            input_documents: docs,
-            focus: focus
-        });
-        const result = res.output_text;
-        return result as string;
-    }
-
-    private async doSummary2(docs: Document[], question: string) {
-        let focus = question;
-        if (!question || question === "") {
-            focus = "Main content of the page";
-        }
-        if (docs.length <= 1) {
-            return docs[0].pageContent;
-        }
-
-        const res = await docs.map((doc) => Promise.resolve(doc))
+        
+        return (await documents.map((doc) => Promise.resolve(doc))
             .reduce(async (prev, current) => {
                 const llmChain = new LLMChain({ prompt: COMBINE_PROMPT, llm: this.model, verbose: false });
-                const document1 = (await prev).pageContent;
-                const document2 = (await current).pageContent;
                 const result = (await llmChain.call({
-                    document1: document1,
-                    document2: document2,
+                    document1: (await prev).pageContent,
+                    document2: (await current).pageContent,
                     focus: focus
                 })).text;
+
                 return new Document({
                     pageContent: result,
                     metadata: [],
                 });
-            });
-
-        return res.pageContent;
+            })).pageContent;
     }
 }
 
@@ -362,18 +278,16 @@ export class ClickWebSiteLinkOrButton extends Tool {
         });
         const elementId = baseUrl.replace(/\D/g, '');
         const driver = await this.toolManager.getDriver();
-        const clickableElement1 = this.toolManager.clickables.find((c) => c.id === elementId);
-        const clickableElement2 = this.toolManager.inputs.find((c) => c.id === elementId);
-        const clickableElement = clickableElement1 ?? clickableElement2;
+        const clickableElement = this.toolManager.clickables.find((c) => c.id === elementId);
+
         if (!clickableElement) {
             return "Button or link not found for id: " + baseUrl;
         }
-        const byExpression = clickableElement.originalId ? By.id(clickableElement.originalId) : By.xpath(clickableElement.xpath);
+        const byExpression = By.xpath(clickableElement.xpath);
         const elementFound = await driver!.findElement(byExpression);
         if (elementFound) {
             try {
                 await driver.actions().move({ origin: elementFound }).click().perform();
-                // await driver.actions().move({ origin: elementFound }).click().perform();
                 await delay(4000);
                 await this.toolManager.refreshPageState();
                 const result = await this.toolManager.obtainSummaryOfPage(task, 'slow');
@@ -411,18 +325,15 @@ export class PassValueToInput extends Tool {
 
         const elementId = baseUrl.replace(/\D/g, '');
         const driver = await this.toolManager.getDriver();
-        const clickableElement = this.toolManager.inputs.find((c) => c.id === elementId);
+        const clickableElement = this.toolManager.clickables.find((c) => c.id === elementId);
         if (!clickableElement) {
             return "Button or link not found for id: " + baseUrl;
         }
-        const byExpression = clickableElement.originalId ? By.id(clickableElement.originalId) : By.xpath(clickableElement.xpath);
+        const byExpression = By.xpath(clickableElement.xpath);
         const elementFound = await driver!.findElement(byExpression);
         if (elementFound) {
             await driver.actions().move({ origin: elementFound }).clear()
             await driver.actions().move({ origin: elementFound }).sendKeys(task).perform();
-            await delay(4000);
-            // await this.toolManager.refreshPageState();
-            // const result = await this.toolManager.obtainSummaryOfPage(task, 'slow');
             return `Input's value has been updated successfully.`;
         } else {
             return "Input not found for id: " + baseUrl;

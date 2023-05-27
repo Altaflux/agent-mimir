@@ -1,16 +1,17 @@
 import { JSDOM } from 'jsdom';
-import { getXPath } from './xpath-finder.js';
+import { getXPath } from './xpath.js';
 import TurndownService from 'turndown';
-import { By,  WebDriver } from 'selenium-webdriver';
+import { By, WebDriver } from 'selenium-webdriver';
 
-
-const interactableElements = ['a', 'button', 'input', 'link', 'select', 'textarea'];
+const selectableElements = ['input', 'select', 'textarea'];
+const interactableElements = [...selectableElements, 'a', 'button', 'input', 'link', 'select', 'textarea'];
 const persistableElements = [...interactableElements, (element: Element) => {
-    return (element.childNodes.length === 1 &&
-        element.childNodes[0].nodeType === 3 &&  //3 is for Text Node (Node.TEXT_NODE)
+    return (element.childNodes.length === element.ELEMENT_NODE &&
+        element.childNodes[0].nodeType === element.TEXT_NODE &&  //3 is for Text Node (Node.TEXT_NODE)
         element.childNodes[0].textContent?.trim() !== '')
 }];
 
+type RelevantElement = "input" | "clickable" | "text";
 
 // Function to check if an element is a button, link or has readable text
 function isRelevantElement(element: Element) {
@@ -24,28 +25,11 @@ function isRelevantElement(element: Element) {
     return isPersistable !== undefined;
 }
 
-// Function to check if an element is a direct or indirect parent of a relevant element
-function hasRelevantChild(element: Element) {
-    if (isRelevantElement(element)) {
-        return true;
-    }
-
-    for (const child of Array.from(element.children)) {
-        if (hasRelevantChild(child)) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
 function addRandomIdToElements(doc: Element) {
-    for (let i = 0; i < doc.children.length; i++) {
-        const child = doc.children[i];
-        if (hasRelevantChild(child)) {
-            child.setAttribute('x-interactableId', (Math.floor(Math.random() * 9000) + 1000).toString());
-            addRandomIdToElements(child);
+    const allElements = doc.querySelectorAll('*');
+    for (const element of Array.from(allElements)) {
+        if (isRelevantElement(element)) {
+            element.setAttribute('x-interactableId', (Math.floor(Math.random() * 9000) + 1000).toString());
         }
     }
     return doc;
@@ -53,22 +37,20 @@ function addRandomIdToElements(doc: Element) {
 
 
 function findAllRelevantElements(doc: Element) {
-    const elements = [];
     const allElements = doc.querySelectorAll('*');
-    for (const element of Array.from(allElements)) {
-        if (isRelevantElement(element)) {
-            elements.push(element);
-        }
-    }
+    return Array.from(allElements)
+        .filter((e) => isRelevantElement(e))
+        .map((element) => {
+            const tag = element.tagName.toLowerCase();
+            const type = (selectableElements.includes(tag) ? 'input' : interactableElements.includes(tag) ? 'clickable' : 'text') as RelevantElement;
+            return {
+                id: element.getAttribute('x-interactableId')!,
+                xpath: getXPath(element),
+                element: element,
+                type: type,
+            }
+        });
 
-    return elements.map((element) => {
-        return {
-            id: element.getAttribute('x-interactableId')!,
-            xpath: getXPath(element),
-            originalId: element.getAttribute('id') ?? null,
-            element: element
-        }
-    });
 }
 
 
@@ -103,11 +85,9 @@ function getInputorLinkInfo(document: ParentNode, element: Element) {
 type RelevantThingsInfo = {
     id: string;
     xpath: string;
-    originalId: string | null;
 };
 async function removeInvisibleElements2(element: Element, driver: WebDriver, relevants: RelevantThingsInfo[]) {
 
-    await driver.executeScript(`window.document.documentElement.style.setProperty("scroll-behavior", "auto", "important")`)
     let counter = 0;
     let discardCounter = 0;
     for (const relevant of relevants) {
@@ -117,6 +97,7 @@ async function removeInvisibleElements2(element: Element, driver: WebDriver, rel
         if (foundElement) {
             try {
                 let isElementInteractable: boolean = await driver.executeScript(`
+                window.document.documentElement.style.setProperty("scroll-behavior", "auto", "important");
                 function isElementUnderOverlay(element) {
                     const rect = element.getBoundingClientRect();
                     const middleX = rect.left + rect.width / 2;
@@ -136,14 +117,13 @@ async function removeInvisibleElements2(element: Element, driver: WebDriver, rel
                   return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
                 }
                 
-                let xpath = arguments[0].xpath;
-                let id = arguments[0].id;
+                let xpath = arguments[0];
                 let el = getElementByXpath(xpath);
                 if (el) {
                     el.scrollIntoView({ behavior: "instant", block: "center", inline: "nearest" });
                     return isElementInteractable(el);
                 }
-                return true;`, relevant);
+                return true;`, relevant.xpath);
 
                 if (!isElementInteractable) {
                     let elementToRemove = element.querySelector(`[x-interactableId="${relevant.id}"]`);
@@ -167,8 +147,7 @@ async function removeInvisibleElements2(element: Element, driver: WebDriver, rel
 
 export async function clickables(html: string, driver: WebDriver) {
     const ogDoc = new JSDOM(html).window.document;
-    const body = ogDoc.getElementsByTagName('body')[0];
-    let cleanHtml = addRandomIdToElements(body);
+    let cleanHtml = addRandomIdToElements(ogDoc.body);
     let allRelevantElements = findAllRelevantElements(cleanHtml);
 
     await removeInvisibleElements2(cleanHtml, driver, allRelevantElements);
@@ -179,13 +158,9 @@ export async function clickables(html: string, driver: WebDriver) {
             return {
                 id: entries.element.getAttribute('x-interactableId')!,
                 xpath: entries.xpath,
-                originalId: entries.element.getAttribute('id') ?? null,
+                type: entries.type,
             }
         });
-
-
-    let finalHtml2 = cleanHtml;
-
 
     const turndownService = new TurndownService()
         .addRule('formatLink', {
@@ -228,7 +203,7 @@ export async function clickables(html: string, driver: WebDriver) {
             }
         });
 
-    const markdown = turndownService.turndown(finalHtml2.outerHTML);
+    const markdown = turndownService.turndown(cleanHtml.outerHTML);
     console.log("");
     return {
         html: markdown,
