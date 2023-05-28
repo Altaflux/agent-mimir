@@ -12,6 +12,7 @@ import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { MemoryVectorStore, } from "langchain/vectorstores/memory";
 import { COMBINE_PROMPT } from "./prompt/combiner-prompt.js";
 import { Options, update, } from 'webdriver-manager';
+import { Options as ChromeOptions } from 'selenium-webdriver/chrome';
 
 export type SeleniumDriverOptions = {
     browserName?: 'chrome' | 'firefox' | 'safari' | 'edge';
@@ -44,6 +45,12 @@ export class WebDriverManager {
         this.maximumChunkSize = config.maximumChunkSize || 3000;
         this.windowSize = config.windowSize || 1;
         this.numeberOfRelevantDocuments = config.numeberOfRelevantDocuments || 1;
+
+        process.on('exit', () => {
+            console.log('Closing browser');
+            this.driver?.quit();
+            console.log('Closing browser2');
+        });
     }
 
     async getDriver() {
@@ -68,16 +75,15 @@ export class WebDriverManager {
             let state = await wd.executeScript("return document.readyState");
             return state === 'complete';
         });
-        await delay(4000);
         this.currentPage = url;
         await this.refreshPageState()
     }
 
     async refreshPageState() {
         let driver = await this.getDriver();
-        let cleanHtml = await extractHtml(await driver!.getPageSource(), driver);
-        this.cleanHtml = cleanHtml.html;
-        this.interactableElements = cleanHtml.interactableElements;
+        let webPage = await extractHtml(await driver!.getPageSource(), driver);
+        this.cleanHtml = webPage.html;
+        this.interactableElements = webPage.interactableElements;
 
         const siteMarkdown = htmlToMarkdown(this.cleanHtml!);
 
@@ -85,10 +91,10 @@ export class WebDriverManager {
         const texts = await textSplitter.splitText(siteMarkdown);
         const documents = texts.map((pageContent) => new VectorDocument({ pageContent: pageContent }));
 
-        let store = await MemoryVectorStore.fromDocuments(this.documents, this.embeddings);
+        let vectorStore = await MemoryVectorStore.fromDocuments(this.documents, this.embeddings);
 
         this.documents = documents;
-        this.vectorStore = store;
+        this.vectorStore = vectorStore;
 
     }
 
@@ -104,8 +110,7 @@ export class WebDriverManager {
                 relevant: relevance,
                 doc: doc
             }
-        })))
-            .sort((a, b) => b.relevant - a.relevant)
+        }))).sort((a, b) => b.relevant - a.relevant)
             .slice(0, maxEntries)
             .map((doc) => doc.doc);
     }
@@ -170,8 +175,7 @@ const configureDriver = async (options: SeleniumDriverOptions) => {
     switch (options.browserName) {
         case 'chrome': {
             builder = builder.forBrowser("chrome")
-            //  .setChromeOptions(new ChromeOptions().addArguments('--headless=new'))
-
+            //   .setChromeOptions(new ChromeOptions().addArguments('--headless=new'))
             break
         }
         case 'firefox': {

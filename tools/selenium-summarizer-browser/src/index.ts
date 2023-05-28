@@ -47,14 +47,14 @@ export class ClickWebSiteLinkOrButton extends Tool {
         if (!this.toolManager.currentPage) {
             return "You are not in any website at the moment, navigate into one using: navigate-to-website";
         }
-        const [baseUrl, task] = responseParser(inputs);
+        const [id, focus] = responseParser(inputs);
 
-        const elementId = baseUrl.replace(/\D/g, '');
+        const elementId = id.replace(/\D/g, '');
         const driver = await this.toolManager.getDriver();
         const clickableElement = this.toolManager.interactableElements.get(elementId);
 
         if (!clickableElement) {
-            return "Button or link not found for id: " + baseUrl;
+            return "Button or link not found for id: " + id;
         }
         const byExpression = By.xpath(clickableElement.xpath);
         const elementFound = await driver!.findElement(byExpression);
@@ -63,14 +63,14 @@ export class ClickWebSiteLinkOrButton extends Tool {
                 await driver.actions().move({ origin: elementFound }).click().perform();
                 await delay(2000);
                 await this.toolManager.refreshPageState();
-                const result = await this.toolManager.obtainSummaryOfPage(task, 'slow');
+                const result = await this.toolManager.obtainSummaryOfPage(focus, 'fast');
                 return `You are currently in page: ${await driver.getTitle()}\n ${result}`;
             } catch (e) {
-                return "Click failed for id: " + baseUrl;
+                return "Click failed for id: " + id;
             }
 
         } else {
-            return "Button or link not found for id: " + baseUrl;
+            return "Button or link not found for id: " + id;
         }
     }
     name = "click-website-link-or-button";
@@ -86,30 +86,22 @@ export class PassValueToInput extends Tool {
         if (!this.toolManager.currentPage) {
             return "You are not in any website at the moment, navigate into one using: click-website-link-or-button";
         }
-        const [baseUrl, task] = inputs.split(",").map((input: string) => {
-            let t = input.trim();
-            t = t.startsWith('"') ? t.slice(1) : t;
-            t = t.endsWith('"') ? t.slice(0, -1) : t;
-            // it likes to put / at the end of urls, wont matter for task
-            t = t.endsWith("/") ? t.slice(0, -1) : t;
-            return t.trim();
-        });
+        const [id, value] = responseParser(inputs);
 
-
-        const elementId = baseUrl.replace(/\D/g, '');
+        const elementId = id.replace(/\D/g, '');
         const driver = await this.toolManager.getDriver();
         const clickableElement = this.toolManager.interactableElements.get(elementId);
         if (!clickableElement) {
-            return "Button or link not found for id: " + baseUrl;
+            return "Button or link not found for id: " + id;
         }
         const byExpression = By.xpath(clickableElement.xpath);
         const elementFound = await driver!.findElement(byExpression);
         if (elementFound) {
             await driver.actions().move({ origin: elementFound }).clear()
-            await driver.actions().move({ origin: elementFound }).sendKeys(task).perform();
+            await driver.actions().move({ origin: elementFound }).sendKeys(value).perform();
             return `Input's value has been updated successfully.`;
         } else {
-            return "Input not found for id: " + baseUrl;
+            return "Input not found for id: " + id;
         }
     }
     name = "set-value-in-page-input";
