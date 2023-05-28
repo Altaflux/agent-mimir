@@ -11,8 +11,6 @@ const persistableElements = [...interactableElements, (element: Element) => {
         element.childNodes[0].textContent?.trim() !== '')
 }];
 
-export type RelevantElement = "input" | "clickable" | "text";
-
 export type RelevantThingsInfo = {
     id: string;
     xpath: string;
@@ -100,8 +98,14 @@ async function removeInvisibleElements(element: Element, driver: WebDriver, rele
         }
     }
 }
+export type RelevantElement = "input" | "clickable" | "text";
 
 
+export type InteractableElement = {
+    id: string;
+    xpath: string;
+    type: RelevantElement;
+}
 export async function extractHtml(html: string, driver: WebDriver) {
     const ogDoc = new JSDOM(html).window.document;
     let cleanHtml = addRandomIdToElements(ogDoc.body);
@@ -109,18 +113,18 @@ export async function extractHtml(html: string, driver: WebDriver) {
 
     await removeInvisibleElements(cleanHtml, driver, allRelevantElements);
 
-    let clickables = allRelevantElements
+    let interactables = allRelevantElements
         .filter((relevant) => interactableElements.includes(relevant.element.tagName.toLowerCase()))
         .map((entries) => {
             return {
                 id: entries.element.getAttribute('x-interactableId')!,
                 xpath: entries.xpath,
                 type: entries.type,
-            }
+            } as InteractableElement
         });
-
+       
     return {
         html: ogDoc,
-        clickables: clickables
+        interactableElements: interactables.reduce((map, obj) => map.set(obj.id, obj), new Map())
     }
 }

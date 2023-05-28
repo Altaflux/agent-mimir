@@ -1,12 +1,12 @@
 
-import { Document as LangVector } from 'langchain/document'
+import { Document as VectorDocument } from 'langchain/document'
 import { VectorStore } from "langchain/vectorstores";
 import { Embeddings } from "langchain/embeddings";
 import { Builder, ThenableWebDriver } from 'selenium-webdriver';
 import { BaseLanguageModel } from "langchain/base_language";
 import { LLMChain } from "langchain/chains";
 import { RELEVANCE_PROMPT } from "./prompt/relevance-prompt.js";
-import { extractHtml } from "./html-cleaner.js";
+import { InteractableElement, extractHtml } from "./html-cleaner.js";
 import { htmlToMarkdown } from "./to-markdown.js";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { MemoryVectorStore, } from "langchain/vectorstores/memory";
@@ -36,12 +36,9 @@ export class WebDriverManager {
 
     vectorStore?: VectorStore;
     currentPage?: string;
-    documents: LangVector[] = [];
+    documents: VectorDocument[] = [];
     cleanHtml?: Document;
-    clickables: {
-        id: string,
-        xpath: string,
-    }[] = [];
+    interactableElements: Map<string, InteractableElement> = new Map();
 
     constructor(private config: WebBrowserOptions, private model: BaseLanguageModel, private embeddings: Embeddings) {
         this.maximumChunkSize = config.maximumChunkSize || 3000;
@@ -80,13 +77,13 @@ export class WebDriverManager {
         let driver = await this.getDriver();
         let cleanHtml = await extractHtml(await driver!.getPageSource(), driver);
         this.cleanHtml = cleanHtml.html;
-        this.clickables = cleanHtml.clickables;
+        this.interactableElements = cleanHtml.interactableElements;
 
         const siteMarkdown = htmlToMarkdown(this.cleanHtml!);
-    
+
         const textSplitter = new RecursiveCharacterTextSplitter({ chunkSize: this.maximumChunkSize, chunkOverlap: 200 });
         const texts = await textSplitter.splitText(siteMarkdown);
-        const documents = texts.map((pageContent) => new LangVector({ pageContent: pageContent }));
+        const documents = texts.map((pageContent) => new VectorDocument({ pageContent: pageContent }));
 
         let store = await MemoryVectorStore.fromDocuments(this.documents, this.embeddings);
 
@@ -132,7 +129,7 @@ export class WebDriverManager {
             const windowSize = this.windowSize;
             const selectedDocuments = this.documents.slice(startingLocation, startingLocation + windowSize);
             return {
-                document: new LangVector({
+                document: new VectorDocument({
                     pageContent: await this.doSummary(selectedDocuments, question),
                     metadata: [],
                 })
@@ -144,7 +141,7 @@ export class WebDriverManager {
 
 
 
-    private async doSummary(documents: LangVector[], question: string) {
+    private async doSummary(documents: VectorDocument[], question: string) {
         let focus = question;
         if (!question || question === "") {
             focus = "Main content of the page";
@@ -159,7 +156,7 @@ export class WebDriverManager {
                     focus: focus
                 })).text;
 
-                return new LangVector({
+                return new VectorDocument({
                     pageContent: result,
                     metadata: [],
                 });

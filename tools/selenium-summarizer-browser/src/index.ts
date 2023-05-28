@@ -51,7 +51,7 @@ export class ClickWebSiteLinkOrButton extends Tool {
 
         const elementId = baseUrl.replace(/\D/g, '');
         const driver = await this.toolManager.getDriver();
-        const clickableElement = this.toolManager.clickables.find((c) => c.id === elementId);
+        const clickableElement = this.toolManager.interactableElements.get(elementId);
 
         if (!clickableElement) {
             return "Button or link not found for id: " + baseUrl;
@@ -98,7 +98,7 @@ export class PassValueToInput extends Tool {
 
         const elementId = baseUrl.replace(/\D/g, '');
         const driver = await this.toolManager.getDriver();
-        const clickableElement = this.toolManager.clickables.find((c) => c.id === elementId);
+        const clickableElement = this.toolManager.interactableElements.get(elementId);
         if (!clickableElement) {
             return "Button or link not found for id: " + baseUrl;
         }
