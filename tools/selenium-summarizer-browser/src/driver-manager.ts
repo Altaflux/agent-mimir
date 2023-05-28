@@ -1,32 +1,39 @@
 
-import { Document as LangVector} from 'langchain/document'
+import { Document as LangVector } from 'langchain/document'
 import { VectorStore } from "langchain/vectorstores";
 import { Embeddings } from "langchain/embeddings";
-import {  Builder, By, ThenableWebDriver } from 'selenium-webdriver';
+import { Builder, ThenableWebDriver } from 'selenium-webdriver';
 import { BaseLanguageModel } from "langchain/base_language";
 import { LLMChain } from "langchain/chains";
-import { RELEVANCE_PROMPT } from "./summary/relevance-prompt.js";
+import { RELEVANCE_PROMPT } from "./prompt/relevance-prompt.js";
 import { extractHtml } from "./html-cleaner.js";
 import { htmlToMarkdown } from "./to-markdown.js";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { MemoryVectorStore, } from "langchain/vectorstores/memory";
-import { COMBINE_PROMPT } from "./summary/combiner-prompt.js";
-import {
-    Options,
-    update,
-} from 'webdriver-manager';
+import { COMBINE_PROMPT } from "./prompt/combiner-prompt.js";
+import { Options, update, } from 'webdriver-manager';
 
 export type SeleniumDriverOptions = {
     browserName?: 'chrome' | 'firefox' | 'safari' | 'edge';
     driver?: ThenableWebDriver
 }
 
+export type WebBrowserOptions = {
+    browserConfig: SeleniumDriverOptions
+    maximumChunkSize?: number
+    windowSize?: number
+    numeberOfRelevantDocuments?: number
+}
 export type SUMMARY_MODE = 'fast' | 'slow' | number;
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 export class WebDriverManager {
 
     driver?: ThenableWebDriver;
+    maximumChunkSize: number
+    windowSize: number
+    numeberOfRelevantDocuments: number
+
     vectorStore?: VectorStore;
     currentPage?: string;
     documents: LangVector[] = [];
@@ -36,15 +43,18 @@ export class WebDriverManager {
         xpath: string,
     }[] = [];
 
-    constructor(private seleniumDriverOptions: SeleniumDriverOptions, private model: BaseLanguageModel, private embeddings: Embeddings) {
+    constructor(private config: WebBrowserOptions, private model: BaseLanguageModel, private embeddings: Embeddings) {
+        this.maximumChunkSize = config.maximumChunkSize || 3000;
+        this.windowSize = config.windowSize || 1;
+        this.numeberOfRelevantDocuments = config.numeberOfRelevantDocuments || 1;
     }
 
     async getDriver() {
         if (this.driver) {
             return this.driver;
         } else {
-            const driverConfiguration = await configureDriver(this.seleniumDriverOptions);
-            await downloadDrivers(this.seleniumDriverOptions.browserName);
+            const driverConfiguration = await configureDriver(this.config.browserConfig);
+            await downloadDrivers(this.config.browserConfig?.browserName);
             let driver = driverConfiguration.build();
             await driver.manage().setTimeouts({
                 pageLoad: 120000,
@@ -73,7 +83,8 @@ export class WebDriverManager {
         this.clickables = cleanHtml.clickables;
 
         const siteMarkdown = htmlToMarkdown(this.cleanHtml!);
-        const textSplitter = new RecursiveCharacterTextSplitter({ chunkSize: 2500, chunkOverlap: 200 });
+    
+        const textSplitter = new RecursiveCharacterTextSplitter({ chunkSize: this.maximumChunkSize, chunkOverlap: 200 });
         const texts = await textSplitter.splitText(siteMarkdown);
         const documents = texts.map((pageContent) => new LangVector({ pageContent: pageContent }));
 
@@ -97,28 +108,29 @@ export class WebDriverManager {
                 doc: doc
             }
         })))
-        .sort((a, b) => b.relevant - a.relevant)
-        .slice(0, maxEntries);
+            .sort((a, b) => b.relevant - a.relevant)
+            .slice(0, maxEntries)
+            .map((doc) => doc.doc);
     }
 
     async getDocumentsBySimilarity(question: string, maxEntries: number = 5) {
-       return await this.vectorStore!.similaritySearch(question, maxEntries);
+        return await this.vectorStore!.similaritySearch(question, maxEntries);
     }
-    
 
-    async obtainSummaryOfPage(question: string, mode: SUMMARY_MODE = 'slow') {
+
+    async obtainSummaryOfPage(question: string, mode: SUMMARY_MODE = 'fast') {
         let results;
         if (!question || question === "") {
             results = [this.documents[1] ?? this.documents[0]];
         } else {
-            results = (await this.calculateRelevanceByPrompt(question, 4))
-                .map((doc) => doc.doc);
+            results = mode === 'fast' ? await this.calculateRelevanceByPrompt(question, this.numeberOfRelevantDocuments) : await this.getDocumentsBySimilarity(question, this.numeberOfRelevantDocuments);
         }
 
         let selectedDocs = await Promise.all(results.map(async (document) => {
             const location = this.documents.findIndex((doc) => doc.pageContent === document.pageContent);
-            const startingLocation = location > 0 ? location - 1 : 0;
-            const selectedDocuments = this.documents.slice(startingLocation, startingLocation + 3);
+            const startingLocation = location;
+            const windowSize = this.windowSize;
+            const selectedDocuments = this.documents.slice(startingLocation, startingLocation + windowSize);
             return {
                 document: new LangVector({
                     pageContent: await this.doSummary(selectedDocuments, question),

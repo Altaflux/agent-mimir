@@ -4,8 +4,6 @@ import {
     PromptTemplate,
 } from "langchain/prompts";
 
-
-
 const _DEFAULT_SUMMARIZER_TEMPLATE2 = `Combine the following two parts of a markdown documents into one.": 
 The result should be in Markdown format.
 Prioritize content related to the following: "{focus}".
