@@ -6,10 +6,10 @@
     "types": "./dist/index.d.ts",
     "type": "module",
     "scripts": {
-        "build": "rimraf ./dist && npm run build:esm ",
+        "build": "rimraf ./dist && yarn run build:esm ",
         "build:esm": "tsc --outDir dist/ ",
         "build:cjs": "tsc --outDir dist-cjs/ -p tsconfig.cjs.json",
-        "release": "npm run build && release-it --only-version "
+        "release": "yarn run build && release-it --only-version "
     },
     "keywords": [],
     "author": "",

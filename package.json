@@ -1,15 +1,12 @@
 {
     "name": "agent-mimir-pck",
-    "private": false,
     "scripts": {
         "build": "turbo run build",
-        "start": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStart",
-        "qstart": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run qinternalStart",
-        "internalStart": "npm run build && dotenv -- npm run start -w agent-mimir-cli",
-        "qinternalStart": "dotenv -- npm run start -w agent-mimir-cli",
+        "start": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && yarn install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps yarn run internalStart",
+        "internalStart": "yarn run build && dotenv -- yarn workspace agent-mimir-cli run start",
         "dev": "turbo run dev",
         "lint": "turbo run lint",
-        "publish": "bash scripts/release-branch.sh && turbo run build lint && npm run release -w agent-mimir && echo '🔗 Open https://github.com/Altaflux/agent-mimir/compare/release?expand=1 and merge the release PR'",
+        "publish": "bash scripts/release-branch.sh && turbo run build lint && yarn run release -w agent-mimir && echo '🔗 Open https://github.com/Altaflux/agent-mimir/compare/release?expand=1 and merge the release PR'",
         "format": "prettier --write \"**/*.{ts,tsx,md}\""
     },
     "author": "Altaflux",
@@ -19,20 +16,19 @@
     },
     "devDependencies": {
         "cross-env": "^7.0.3",
-        "eslint": "^7.32.0",
         "dotenv-cli": "latest",
+        "eslint": "^7.32.0",
         "eslint-config-custom": "*",
         "fs-extra": "^11.1.1",
         "prettier": "^2.5.1",
-        "turbo": "latest",
-        "release-it": "^15.10.0"
+        "release-it": "^15.10.0",
+        "turbo": "latest"
     },
-    "packageManager": "npm@9.5.0",
+    "packageManager": "yarn@3.5.1",
     "workspaces": [
         "agent-mimir",
         "agent-mimir-cli",
         "tools/*",
         ".temp_custom_deps"
-    ],
-    "dependencies": {}
+    ]
 }
