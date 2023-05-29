@@ -1,45 +1,43 @@
 import { ChainValues } from "langchain/schema";
 
-import inquirer from "inquirer";
 import chalk from 'chalk';
 import { Agent } from "agent-mimir";
+import readline from 'readline';
+
 
 export async function chatWithAgent(continuousMode: boolean, assistant: Agent) {
   const executor = assistant.agent!;
+  var rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
   let aiResponse: undefined | ChainValues = undefined;
   while (true) {
     if (aiResponse && aiResponse.toolStep) {
-      const questions = [
-        {
-          type: 'input',
-          name: 'message',
-          message: "Should AI Continue? Type Y or click Enter to continue, otherwise type a message to the AI: ",
-        },
-      ];
-      aiResponse = await (inquirer).prompt(questions).then((answers: any) => {
-        if (answers.message.toLowerCase() === "y" || answers.message === "") {
-          return executor.call({ continuousMode, continue: true })
-        }
-        return executor.call({ continuousMode, input: answers.message })
-      }).then((result) => {
-        return result;
-      });
+
+      let answers = await Promise.race([new Promise<{ message: string }>((resolve, reject) => {
+        rl.question((chalk.blue("Should AI Continue? Type Y or click Enter to continue, otherwise type a message to the AI: ")), (answer) => {
+          resolve({ message: answer });
+        });
+      })]);
+
+      if (answers.message.toLowerCase() === "y" || answers.message === "") {
+        aiResponse = (await executor.call({ continuousMode, continue: true })).output
+      } else {
+        aiResponse = (await executor.call({ continuousMode, input: answers.message })).output
+      }
     } else {
-      const questions = [
-        {
-          type: 'input',
-          name: 'message',
-          message: "Human: ",
 
-        },
-      ];
-      aiResponse = await (inquirer).prompt(questions).then((answers: any) => {
-        return executor.call({ continuousMode, input: answers.message })
-      }).then((result) => {
-        return result;
-      });
+      let answers = await Promise.race([new Promise<{ message: string }>((resolve, reject) => {
+        rl.question((chalk.blue("Human: ")), (answer) => {
+          resolve({ message: answer });
+        });
+      })]);
 
+      aiResponse = (await executor.call({ continuousMode, input: answers.message })).output
     }
-    console.log(chalk.red("AI Response: ", chalk.blue(aiResponse!.output)));
+    console.log(chalk.red("AI Response: ", chalk.blue(aiResponse!)));
   }
 }
+
