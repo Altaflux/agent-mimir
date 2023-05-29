@@ -43,8 +43,20 @@ const getConfig = async () => {
     console.log(chalk.yellow("No config file found, using default ApenAI config"));
     return (await import("./default-config.js")).default();
 };
-
-
+process.on('exit', () => {
+    console.log('Cloadsafadsfowser');
+  
+    console.log('Cloafdsder2');
+});
+process
+.on( 'SIGHUP', function() {
+    console.log('Cloadsafadsfowser');
+  
+    console.log('Cloafdsder2');
+} )
+.on( 'exit', function() {
+    process.kill( process.pid, 'SIGTERM' );
+} );
 export const run = async () => {
 
     const agentConfig: AgentMimirConfig = await getConfig();

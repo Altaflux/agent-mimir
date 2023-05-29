@@ -1,0 +1,33 @@
+{
+  "name": "@agent-mimir/selenium-summarizer-browser",
+  "description": "Selenium Web browser tool for langchain",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "rimraf dist/ && tsc -p tsconfig.json "
+  },
+  "author": "Altaflux",
+  "keywords": [
+    "langchain"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/jsdom": "^21.1.1",
+    "@types/node": "^18.16.3",
+    "@types/selenium-webdriver": "^4.1.14",
+    "@types/turndown": "^5.0.1",
+    "npm-run-all": "^4.1.5",
+    "release-it": "^15.10.0",
+    "rimraf": "^5.0.0",
+    "typescript": "^5.0.4"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.12",
+    "jsdom": "22.0.0",
+    "selenium-webdriver": "4.9.0",
+    "turndown": "^7.1.2",
+    "webdriver-manager": "^13.0.2"
+  },
+  "peerDependencies": {
+    "agent-mimir": "*"
+  }
+}
