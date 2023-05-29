@@ -13,7 +13,7 @@ import { MemoryVectorStore, } from "langchain/vectorstores/memory";
 import { COMBINE_PROMPT } from "./prompt/combiner-prompt.js";
 import { Options, update, } from 'webdriver-manager';
 import { Options as ChromeOptions } from 'selenium-webdriver/chrome';
-
+import exitHook from 'async-exit-hook';
 export type SeleniumDriverOptions = {
     browserName?: 'chrome' | 'firefox' | 'safari' | 'edge';
     driver?: ThenableWebDriver
@@ -46,10 +46,9 @@ export class WebDriverManager {
         this.windowSize = config.windowSize || 1;
         this.numeberOfRelevantDocuments = config.numeberOfRelevantDocuments || 1;
 
-        process.on('exit', () => {
-            console.log('Closing browser');
-            this.driver?.quit();
-            console.log('Closing browser2');
+        exitHook(async (callback) => {
+            await this.driver?.quit();
+            callback();
         });
     }
 
