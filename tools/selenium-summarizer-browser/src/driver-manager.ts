@@ -1,11 +1,11 @@
 
+import { CallbackManagerForToolRun } from "langchain/callbacks";
 import { Document as VectorDocument } from 'langchain/document'
 import { VectorStore } from "langchain/vectorstores";
 import { Embeddings } from "langchain/embeddings";
 import { Builder, ThenableWebDriver } from 'selenium-webdriver';
 import { BaseLanguageModel } from "langchain/base_language";
 import { LLMChain } from "langchain/chains";
-import { RELEVANCE_PROMPT } from "./prompt/relevance-prompt.js";
 import { InteractableElement, extractHtml } from "./html-cleaner.js";
 import { htmlToMarkdown } from "./to-markdown.js";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
@@ -25,8 +25,7 @@ export type WebBrowserOptions = {
     windowSize?: number
     numeberOfRelevantDocuments?: number
 }
-export type SUMMARY_MODE = 'fast' | 'slow' | number;
-const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+
 
 export class WebDriverManager {
 
@@ -36,9 +35,8 @@ export class WebDriverManager {
     numeberOfRelevantDocuments: number
 
     vectorStore?: VectorStore;
-    currentPage?: string;
     documents: VectorDocument[] = [];
-    cleanHtml?: Document;
+    currentPage?: Document;
     interactableElements: Map<string, InteractableElement> = new Map();
 
     constructor(private config: WebBrowserOptions, private model: BaseLanguageModel, private embeddings: Embeddings) {
@@ -59,9 +57,6 @@ export class WebDriverManager {
             const driverConfiguration = await configureDriver(this.config.browserConfig);
             await downloadDrivers(this.config.browserConfig?.browserName);
             let driver = driverConfiguration.build();
-            await driver.manage().setTimeouts({
-                pageLoad: 120000,
-            });
             this.driver = driver;
             return driver;
         }
@@ -70,21 +65,16 @@ export class WebDriverManager {
     async navigateToUrl(url: string) {
         let driver = await this.getDriver();
         await driver!.get(url);
-        await driver!.wait(async (wd) => {
-            let state = await wd.executeScript("return document.readyState");
-            return state === 'complete';
-        });
-        this.currentPage = url;
         await this.refreshPageState()
     }
 
     async refreshPageState() {
         let driver = await this.getDriver();
         let webPage = await extractHtml(await driver!.getPageSource(), driver);
-        this.cleanHtml = webPage.html;
+        this.currentPage = webPage.html;
         this.interactableElements = webPage.interactableElements;
 
-        const siteMarkdown = htmlToMarkdown(this.cleanHtml!);
+        const siteMarkdown = htmlToMarkdown(this.currentPage!);
 
         const textSplitter = new RecursiveCharacterTextSplitter({ chunkSize: this.maximumChunkSize, chunkOverlap: 200 });
         const texts = await textSplitter.splitText(siteMarkdown);
@@ -97,34 +87,16 @@ export class WebDriverManager {
 
     }
 
-    async calculateRelevanceByPrompt(question: string, maxEntries: number = 5) {
-        return (await Promise.all(this.documents!.map(async (doc) => {
-            const relevanceChain = new LLMChain({ llm: this.model, prompt: RELEVANCE_PROMPT });
-            const result = (await relevanceChain.call({
-                document: doc.pageContent,
-                focus: question,
-            })).text as string;
-            const relevance = Number(result.replace(/\D/g, ''));
-            return {
-                relevant: relevance,
-                doc: doc
-            }
-        }))).sort((a, b) => b.relevant - a.relevant)
-            .slice(0, maxEntries)
-            .map((doc) => doc.doc);
-    }
-
     async getDocumentsBySimilarity(question: string, maxEntries: number = 5) {
         return await this.vectorStore!.similaritySearch(question, maxEntries);
     }
 
-
-    async obtainSummaryOfPage(question: string, mode: SUMMARY_MODE = 'fast') {
+    async obtainSummaryOfPage(question: string, runManager?: CallbackManagerForToolRun) {
         let results;
         if (!question || question === "") {
             results = [this.documents[1] ?? this.documents[0]];
         } else {
-            results = mode === 'fast' ? await this.calculateRelevanceByPrompt(question, this.numeberOfRelevantDocuments) : await this.getDocumentsBySimilarity(question, this.numeberOfRelevantDocuments);
+            results = await this.vectorStore!.similaritySearch(question, this.numeberOfRelevantDocuments)
         }
 
         let selectedDocs = await Promise.all(results.map(async (document) => {
@@ -140,12 +112,12 @@ export class WebDriverManager {
             }
         }));
 
-        return await this.doSummary(selectedDocs.map((doc) => doc.document), question);
+        return await this.doSummary(selectedDocs.map((doc) => doc.document), question, runManager);
     }
 
 
 
-    private async doSummary(documents: VectorDocument[], question: string) {
+    private async doSummary(documents: VectorDocument[], question: string,  runManager?: CallbackManagerForToolRun) {
         let focus = question;
         if (!question || question === "") {
             focus = "Main content of the page";
@@ -158,7 +130,7 @@ export class WebDriverManager {
                     document1: (await prev).pageContent,
                     document2: (await current).pageContent,
                     focus: focus
-                })).text;
+                }, runManager?.getChild())).text;
 
                 return new VectorDocument({
                     pageContent: result,
