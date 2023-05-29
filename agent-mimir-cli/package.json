@@ -5,29 +5,30 @@
     "main": "index.js",
     "type": "module",
     "scripts": {
-        "start:dev": "npx nodemon",
-        "build": "rimraf ./dist && tsc",
-        "start": "yarn run build && node dist/index.js",
-        "test": "echo \"Error: no test specified\" && exit 1"
+      "start:dev": "npx nodemon",
+      "build": "rimraf ./dist && tsc",
+      "start": "npm run build && node dist/index.js",
+      "test": "echo \"Error: no test specified\" && exit 1"
     },
     "files": [
-        "dist/"
+      "dist/"
     ],
     "keywords": [],
     "author": "",
     "license": "ISC",
     "devDependencies": {
-        "@types/debug": "^4.1.7",
-        "@types/inquirer": "^9.0.3",
-        "@types/node": "^18.15.10",
-        "nodemon": "^2.0.22",
-        "rimraf": "^4.4.1",
-        "ts-node": "^10.9.1",
-        "typescript": "^5.0.2"
+      "@types/debug": "^4.1.7",
+      "@types/inquirer": "^9.0.3",
+      "@types/node": "^18.15.10",
+      "nodemon": "^2.0.22",
+      "rimraf": "^4.4.1",
+      "ts-node": "^10.9.1",
+      "typescript": "^5.0.2"
     },
     "dependencies": {
-        "agent-mimir": "*",
-        "chalk": "^5.2.0",
-        "inquirer": "^9.1.5"
+      "agent-mimir": "*",
+      "inquirer": "^9.1.5",
+      "chalk": "^5.2.0"
     }
-}
+  }
+  
