@@ -4,7 +4,7 @@ import {
     PromptTemplate,
 } from "langchain/prompts";
 
-const _DEFAULT_SUMMARIZER_TEMPLATE2 = `Combine the following two parts of a markdown documents into one.": 
+const _DEFAULT_SUMMARIZER_TEMPLATE = `Combine the following two parts of a markdown documents into one.": 
 The result should be in Markdown format.
 Prioritize content related to the following: "{focus}".
 
@@ -26,6 +26,6 @@ This is part 2 of the document:
 Combined Markdown document:
 `;
 export const COMBINE_PROMPT = /* #__PURE__ */ new PromptTemplate({
-    template: _DEFAULT_SUMMARIZER_TEMPLATE2,
+    template: _DEFAULT_SUMMARIZER_TEMPLATE,
     inputVariables: ["document1", "document2", "focus"],
 });

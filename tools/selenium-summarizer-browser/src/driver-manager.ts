@@ -87,7 +87,7 @@ export class WebDriverManager {
 
     }
 
-    async getDocumentsBySimilarity(question: string, maxEntries: number = 5) {
+    async getDocumentsBySimilarity(question: string, maxEntries: number) {
         return await this.vectorStore!.similaritySearch(question, maxEntries);
     }
 
