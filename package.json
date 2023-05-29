@@ -32,5 +32,7 @@
         "tools/*",
         ".temp_custom_deps"
     ],
-    "dependencies": {}
+    "dependencies": {
+        "langchain": "^0.0.84"
+    }
 }

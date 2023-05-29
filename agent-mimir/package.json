@@ -25,7 +25,6 @@
     },
     "dependencies": {
         "jsonrepair": "^3.0.2",
-        "langchain": "^0.0.68",
         "ring-buffer-ts": "^1.2.0",
         "unique-names-generator": "^4.7.1"
     }
