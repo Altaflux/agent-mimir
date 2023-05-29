@@ -107,18 +107,16 @@ export class WebDriverManager {
             const selectedDocuments = this.documents.slice(startingLocation, startingLocation + windowSize);
             return {
                 document: new VectorDocument({
-                    pageContent: await this.doSummary(selectedDocuments, question),
+                    pageContent: await this.combineDocuments(selectedDocuments, question, runManager),
                     metadata: [],
                 })
             }
         }));
 
-        return await this.doSummary(selectedDocs.map((doc) => doc.document), question, runManager);
+        return await this.combineDocuments(selectedDocs.map((doc) => doc.document), question, runManager);
     }
 
-
-
-    private async doSummary(documents: VectorDocument[], question: string,  runManager?: CallbackManagerForToolRun) {
+    private async combineDocuments(documents: VectorDocument[], question: string,  runManager?: CallbackManagerForToolRun) {
         let focus = question;
         if (!question || question === "") {
             focus = "Main content of the page";
