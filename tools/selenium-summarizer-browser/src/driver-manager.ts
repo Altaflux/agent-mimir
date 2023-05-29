@@ -32,7 +32,7 @@ export class WebDriverManager {
     driver?: ThenableWebDriver;
     maximumChunkSize: number
     windowSize: number
-    numeberOfRelevantDocuments: number
+    numberOfRelevantDocuments: number
 
     vectorStore?: VectorStore;
     documents: VectorDocument[] = [];
@@ -42,7 +42,7 @@ export class WebDriverManager {
     constructor(private config: WebBrowserOptions, private model: BaseLanguageModel, private embeddings: Embeddings) {
         this.maximumChunkSize = config.maximumChunkSize || 3000;
         this.windowSize = config.windowSize || 1;
-        this.numeberOfRelevantDocuments = config.numeberOfRelevantDocuments || 1;
+        this.numberOfRelevantDocuments = config.numeberOfRelevantDocuments || 1;
 
         exitHook(async (callback) => {
             await this.driver?.quit();
@@ -94,9 +94,10 @@ export class WebDriverManager {
     async obtainSummaryOfPage(question: string, runManager?: CallbackManagerForToolRun) {
         let results;
         if (!question || question === "") {
-            results = [this.documents[1] ?? this.documents[0]];
+            results = [this.documents[0]];
         } else {
-            results = await this.vectorStore!.similaritySearch(question, this.numeberOfRelevantDocuments)
+            const similaritySearchResults = await this.vectorStore!.similaritySearch(question, this.numberOfRelevantDocuments)
+            results = similaritySearchResults.length > 0 ? similaritySearchResults : [this.documents[0]];
         }
 
         let selectedDocs = await Promise.all(results.map(async (document) => {
