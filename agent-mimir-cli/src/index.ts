@@ -8,6 +8,9 @@ import { BaseChain } from "langchain/chains";
 import { chatWithAgent } from "./chat.js";
 import fs from "fs";
 import path from "path";
+
+import readline from 'readline';
+
 export type AgentDefinition = {
     mainAgent?: boolean;
     description: string;
@@ -58,6 +61,20 @@ process
     process.kill( process.pid, 'SIGTERM' );
 } );
 export const run = async () => {
+
+    if (process.platform === "win32") {
+        var rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
+        });
+
+        rl.on("SIGINT", function () {
+            process.emit("SIGINT");
+        });
+    }
+    process.on("SIGINT", function () {
+        process.exit();
+    });
 
     const agentConfig: AgentMimirConfig = await getConfig();
     const agentManager = new AgentManager();
