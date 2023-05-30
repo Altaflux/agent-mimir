@@ -38,10 +38,11 @@ function getInputorLinkInfo(document: ParentNode, element: Element) {
 }
 
 function applyTurndownFixes(htmlDoc: Document) {
-    //Turndown incorrectly does not mark <textarea> elements as void elements thus discarding them. 
+    //Turndown incorrectly does not mark <textarea> elements as a void element thus discarding them. 
     //By setting a value inside the textarea, we can force turndown to treat it as a non-blank element.
+    //Fix: https://github.com/mixmark-io/turndown/pull/437
     for (const textArea of htmlDoc.getElementsByTagName('textarea')) {
-        if (/^\s*$/i.test(textArea.textContent ?? '')) {
+        if (!textArea.textContent || /^\s*$/i.test(textArea.textContent)) {
             textArea.textContent = "*";
         }
     }
