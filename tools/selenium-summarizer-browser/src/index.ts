@@ -7,8 +7,8 @@ import { Embeddings } from "langchain/embeddings";
 import { BaseLanguageModel } from "langchain/base_language";
 import { WebBrowserTool, PassValueToInput, AskSiteQuestion, ClickWebSiteLinkOrButton } from "./tools.js";
 
-
 export { WebDriverManager, SeleniumDriverOptions, WebBrowserOptions } from "./driver-manager.js";
+export { WebBrowserTool, PassValueToInput, AskSiteQuestion, ClickWebSiteLinkOrButton } from "./tools.js";
 
 export class WebBrowserToolKit extends Toolkit {
 
@@ -24,14 +24,4 @@ export class WebBrowserToolKit extends Toolkit {
             new PassValueToInput(driverManager),
         ];
     }
-}
-
-export function createWebBrowserTools(config: WebBrowserOptions, model: BaseLanguageModel, embeddings: Embeddings) : Tool[] {
-    const driverManager = new WebDriverManager(config, model, embeddings);
-    return [
-        new WebBrowserTool(driverManager),
-        new ClickWebSiteLinkOrButton(driverManager),
-        new AskSiteQuestion(driverManager),
-        new PassValueToInput(driverManager)
-    ];
 }

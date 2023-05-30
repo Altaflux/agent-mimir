@@ -6,16 +6,19 @@ import { Embeddings } from "langchain/embeddings";
 import { Builder, ThenableWebDriver } from 'selenium-webdriver';
 import { BaseLanguageModel } from "langchain/base_language";
 import { LLMChain } from "langchain/chains";
-import { InteractableElement, extractHtml } from "./html-cleaner.js";
+import { InteractableElement, extractHtml } from "./html-processor.js";
 import { htmlToMarkdown } from "./to-markdown.js";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { MemoryVectorStore, } from "langchain/vectorstores/memory";
 import { COMBINE_PROMPT } from "./prompt/combiner-prompt.js";
 import { Options, update, } from 'webdriver-manager';
 import { Options as ChromeOptions } from 'selenium-webdriver/chrome';
+import { Options as FireFoxOptions } from 'selenium-webdriver/firefox';
+import { Options as EdgeOptions } from 'selenium-webdriver/edge.js';
 import exitHook from 'async-exit-hook';
 export type SeleniumDriverOptions = {
-    browserName?: 'chrome' | 'firefox' | 'safari' | 'edge';
+    browserName?: 'chrome' | 'firefox' | 'edge';
+    disableHeadless?: boolean;
     driver?: ThenableWebDriver
 }
 
@@ -116,7 +119,7 @@ export class WebDriverManager {
         return await this.combineDocuments(selectedDocs.map((doc) => doc.document), question, runManager);
     }
 
-    private async combineDocuments(documents: VectorDocument[], question: string,  runManager?: CallbackManagerForToolRun) {
+    private async combineDocuments(documents: VectorDocument[], question: string, runManager?: CallbackManagerForToolRun) {
         let focus = question;
         if (!question || question === "") {
             focus = "Main content of the page";
@@ -144,19 +147,25 @@ const configureDriver = async (options: SeleniumDriverOptions) => {
     let builder = new Builder();
     switch (options.browserName) {
         case 'chrome': {
-            builder = builder.forBrowser("chrome")
-            //   .setChromeOptions(new ChromeOptions().addArguments('--headless=new'))
+            builder = builder.forBrowser("chrome");
+            if (!options.disableHeadless) {
+                builder = builder.setChromeOptions(new ChromeOptions().addArguments('--headless=new'))
+            }
+
             break
         }
         case 'firefox': {
-            builder = builder.forBrowser("firefox")
-            //   .setFirefoxOptions(new FireFoxOptions().headless())
-
+            builder = builder.forBrowser("firefox");
+            if (!options.disableHeadless) {
+                builder = builder.setFirefoxOptions(new FireFoxOptions().headless())
+            }
             break;
         }
         case 'edge': {
-            builder = builder.forBrowser("MicrosoftEdge")
-            //   .setFirefoxOptions(new FireFoxOptions().headless())
+            builder = builder.forBrowser("MicrosoftEdge");
+            if (!options.disableHeadless) {
+                builder = builder.setEdgeOptions(new EdgeOptions().headless());
+            }
 
             break;
         }

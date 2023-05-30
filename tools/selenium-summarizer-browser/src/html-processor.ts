@@ -11,7 +11,7 @@ const persistableElements = [...interactableElements, (element: Element) => {
         element.childNodes[0].textContent?.trim() !== '')
 }];
 
-export type RelevantThingsInfo = {
+export type RelevantElements = {
     id: string;
     xpath: string;
     type: RelevantElement;
@@ -56,7 +56,7 @@ function findAllRelevantElements(doc: Element) {
 
 }
 
-async function removeInvisibleElements(element: Element, driver: WebDriver, relevants: RelevantThingsInfo[]) {
+async function removeInvisibleElements(element: Element, driver: WebDriver, relevants: RelevantElements[]) {
 
     for (const relevant of relevants) {
         const byExpression = By.xpath(relevant.xpath);
@@ -66,7 +66,7 @@ async function removeInvisibleElements(element: Element, driver: WebDriver, rele
         } catch (e) {
             continue;
         }
-
+      
         try {
             const isElementInteractable: boolean = await driver.executeScript(`
                 window.document.documentElement.style.setProperty("scroll-behavior", "auto", "important");
