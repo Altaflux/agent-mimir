@@ -25,8 +25,7 @@ export type SeleniumDriverOptions = {
 export type WebBrowserOptions = {
     browserConfig: SeleniumDriverOptions
     maximumChunkSize?: number
-    windowSize?: number
-    numeberOfRelevantDocuments?: number
+    numberOfRelevantDocuments?: number
 }
 
 
@@ -34,7 +33,6 @@ export class WebDriverManager {
 
     driver?: ThenableWebDriver;
     maximumChunkSize: number
-    windowSize: number
     numberOfRelevantDocuments: number
 
     vectorStore?: VectorStore;
@@ -44,8 +42,7 @@ export class WebDriverManager {
 
     constructor(private config: WebBrowserOptions, private model: BaseLanguageModel, private embeddings: Embeddings) {
         this.maximumChunkSize = config.maximumChunkSize || 3000;
-        this.windowSize = config.windowSize || 1;
-        this.numberOfRelevantDocuments = config.numeberOfRelevantDocuments || 1;
+        this.numberOfRelevantDocuments = config.numberOfRelevantDocuments || 2;
 
         exitHook(async (callback) => {
             await this.driver?.quit();
@@ -81,7 +78,7 @@ export class WebDriverManager {
 
         const textSplitter = new RecursiveCharacterTextSplitter({ chunkSize: this.maximumChunkSize, chunkOverlap: 200 });
         const texts = await textSplitter.splitText(siteMarkdown);
-        const documents = texts.map((pageContent) => new VectorDocument({ pageContent: pageContent }));
+        const documents = texts.map((pageContent, index) => new VectorDocument({ pageContent: pageContent, metadata: { pageNumber: index } }));
 
         let vectorStore = await MemoryVectorStore.fromDocuments(this.documents, this.embeddings);
 
@@ -103,20 +100,9 @@ export class WebDriverManager {
             results = similaritySearchResults.length > 0 ? similaritySearchResults : this.documents.slice(0, this.numberOfRelevantDocuments);;
         }
 
-        let selectedDocs = await Promise.all(results.map(async (document) => {
-            const location = this.documents.findIndex((doc) => doc.pageContent === document.pageContent);
-            const startingLocation = location;
-            const windowSize = this.windowSize;
-            const selectedDocuments = this.documents.slice(startingLocation, startingLocation + windowSize);
-            return {
-                document: new VectorDocument({
-                    pageContent: await this.combineDocuments(selectedDocuments, question, runManager),
-                    metadata: [],
-                })
-            }
-        }));
-
-        return await this.combineDocuments(selectedDocs.map((doc) => doc.document), question, runManager);
+        return await this.combineDocuments(results
+            .sort((doc1, doc2) => doc1.metadata.pageNumber - doc2.metadata.pageNumber)
+            , question, runManager);
     }
 
     private async combineDocuments(documents: VectorDocument[], question: string, runManager?: CallbackManagerForToolRun) {
