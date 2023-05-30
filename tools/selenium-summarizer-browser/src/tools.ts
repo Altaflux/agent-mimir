@@ -101,7 +101,7 @@ export class PassValueToInput extends Tool {
             return "Input not found for id: " + id;
         }
     }
-    name = "set-value-in-page-input";
+    name = "set-value-in-website-input-or-textarea";
     description = `useful for when you need to set a value to an input type element from the current page you are on. input should be a comma seperated list of "ONE valid id of a input","the value to set to the input.".`;
 
 }
@@ -115,7 +115,7 @@ export class AskSiteQuestion extends Tool {
         const result = await this.toolManager.obtainSummaryOfPage(inputs, runManager);
         return result;
     }
-    name = "look-information-on-current-page";
+    name = "look-information-on-current-website";
     description = `useful for when you need to find more information in the site you are currently on. input should be what information are you looking for.`;
 
 }
