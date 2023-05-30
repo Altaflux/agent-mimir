@@ -37,6 +37,15 @@ function getInputorLinkInfo(document: ParentNode, element: Element) {
     return null;
 }
 
+function applyTurndownFixes(htmlDoc: Document) {
+    //Turndown incorrectly does not mark <textarea> elements as void elements thus discarding them. 
+    //By setting a value inside the textarea, we can force turndown to treat it as a non-blank element.
+    for (const textArea of htmlDoc.getElementsByTagName('textarea')) {
+        if (/^\s*$/i.test(textArea.textContent ?? '')) {
+            textArea.textContent = "*";
+        }
+    }
+}
 
 export function htmlToMarkdown(htmlDoc: Document) {
 
@@ -51,8 +60,7 @@ export function htmlToMarkdown(htmlDoc: Document) {
                 }
                 return "";
             }
-        })
-        .addRule('formatButton', {
+        }).addRule('formatButton', {
             filter: ['button'],
             replacement: function (content, node, options) {
                 let element = node as HTMLElement;
@@ -62,25 +70,34 @@ export function htmlToMarkdown(htmlDoc: Document) {
                 }
                 return "";
             }
-        })
-        .addRule('removeScript', {
+        }).addRule('textarea', {
+            filter: ['textarea'],
+            replacement: function (content, node, options) {
+                let element = node as HTMLElement;
+                const description = getInputorLinkInfo(htmlDoc, element);
+                if (description) {
+                    return `<textarea ${buildAttribute("aria-label", description)} ${buildAttribute("id", element.getAttribute('x-interactableId'))}>${description}</textarea>`
+                }
+                return "";
+            }
+        }).addRule('removeScript', {
             filter: ['script'],
             replacement: function () {
                 return "";
             }
-        })
-        .addRule('formatInput', {
+        }).addRule('formatInput', {
             filter: ['input'],
             replacement: function (_, node) {
                 let element = node as HTMLElement;
                 const description = getInputorLinkInfo(htmlDoc, element);
                 if (description) {
-                    return `<input ${buildAttribute("type", element.getAttribute('type'), "text")} ${buildAttribute("name", element.getAttribute('name'))}  ${buildAttribute("id", element.getAttribute('x-interactableId'))}>${description}</input>`
+                    return `<input ${buildAttribute("type", element.getAttribute('type'), "text")} ${buildAttribute("aria-label", description)} ${buildAttribute("name", element.getAttribute('name'))}  ${buildAttribute("id", element.getAttribute('x-interactableId'))}></input>`
                 }
                 return "";
             }
         });
 
+    applyTurndownFixes(htmlDoc);
     const markdown = turndownService.turndown(htmlDoc.body.outerHTML);
     return markdown;
 }
