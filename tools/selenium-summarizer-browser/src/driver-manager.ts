@@ -154,6 +154,12 @@ const configureDriver = async (options: SeleniumDriverOptions) => {
 
             break;
         }
+        case 'edge': {
+            builder = builder.forBrowser("MicrosoftEdge")
+            //   .setFirefoxOptions(new FireFoxOptions().headless())
+
+            break;
+        }
         default: {
             throw new Error(`Browser ${options.browserName} not supported`);
         }
@@ -177,7 +183,7 @@ const downloadDrivers = async (browserName: string | undefined) => {
             break;
         }
     }
-    if (!driverName) {
+    if (driverName) {
         try {
             const optionsSel: Options = {
                 browserDrivers: [{ name: driverName }]

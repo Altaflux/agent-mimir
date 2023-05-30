@@ -17,7 +17,6 @@ export type RelevantThingsInfo = {
     type: RelevantElement;
 };
 
-// Function to check if an element is a button, link or has readable text
 function isRelevantElement(element: Element) {
     let isPersistable = persistableElements.find((e) => {
         if (typeof e === 'string') {

@@ -13,7 +13,7 @@ export { WebDriverManager, SeleniumDriverOptions, WebBrowserOptions } from "./dr
 export class WebBrowserToolKit extends Toolkit {
 
     tools: Tool[];
-    
+
     constructor(config: WebBrowserOptions, model: BaseLanguageModel, embeddings: Embeddings) {
         super();
         const driverManager = new WebDriverManager(config, model, embeddings);
@@ -24,4 +24,14 @@ export class WebBrowserToolKit extends Toolkit {
             new PassValueToInput(driverManager),
         ];
     }
+}
+
+export function createWebBrowserTools(config: WebBrowserOptions, model: BaseLanguageModel, embeddings: Embeddings) : Tool[] {
+    const driverManager = new WebDriverManager(config, model, embeddings);
+    return [
+        new WebBrowserTool(driverManager),
+        new ClickWebSiteLinkOrButton(driverManager),
+        new AskSiteQuestion(driverManager),
+        new PassValueToInput(driverManager)
+    ];
 }

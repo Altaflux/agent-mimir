@@ -94,7 +94,7 @@ export class PassValueToInput extends Tool {
         const byExpression = By.xpath(clickableElement.xpath);
         const elementFound = await driver!.findElement(byExpression);
         if (elementFound) {
-            await driver.actions().move({ origin: elementFound }).clear()
+            await driver.actions().move({ origin: elementFound }).clear();
             await driver.actions().move({ origin: elementFound }).sendKeys(value).perform();
             return `Input's value has been updated successfully.`;
         } else {
