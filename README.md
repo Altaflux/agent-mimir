@@ -127,25 +127,21 @@ Here is a list of useful and easy to install tools you can try:
 ```
 `mimir-cfg.js`
 ```javascript
-const SeleniumWebBrowser = require('@agent-mimir/selenium-browser').SeleniumWebBrowser;
 
-const taskModel = new ChatOpenAI({
-    openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
-    temperature: 0.9,
-});
-const embeddings = new OpenAIEmbeddings({
-    openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
-});
+    const WebBrowserToolKit = require('@agent-mimir/selenium-browser').WebBrowserToolKit;
+    const model = new ChatOpenAI({
+        openAIApiKey: process.env.OPENAI_API_KEY,
+        temperature: 0.9,
+    });
+    const embeddings = new OpenAIEmbeddings({
+        openAIApiKey: process.env.OPENAI_API_KEY,
+    });
 
-//Add to agents tool:
+    const webToolKit = new WebBrowserToolKit({ browserConfig: { browserName: "chrome" } }, model, embeddings);
+
+    //Add to agents tool:
     tools: [
-        new SeleniumWebBrowser({
-                model: model,
-                embeddings: embeddings,
-                seleniumDriverOptions: {
-                    browserName: 'chrome',
-                }
-            })
+            ...webToolKit.tools,
         ],
 ```
 

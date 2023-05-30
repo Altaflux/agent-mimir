@@ -5,6 +5,7 @@
     "allowSyntheticDefaultImports": true,
     "baseUrl": "src",
     "declaration": true,
+    "sourceMap": true,
     "inlineSourceMap": false,
     "moduleResolution": "node",
     "rootDir": "src",
