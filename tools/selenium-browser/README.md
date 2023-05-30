@@ -4,7 +4,7 @@ A langchain web browser tool based on Selenium
 
 ## Usage:
 ```javascript
-    const SeleniumWebBrowser = require('@agent-mimir/selenium-browser').SeleniumWebBrowser;
+    const WebBrowserToolKit = require('@agent-mimir/selenium-browser').WebBrowserToolKit;
     const model = new ChatOpenAI({
         openAIApiKey: process.env.OPENAI_API_KEY,
         temperature: 0.9,
@@ -13,11 +13,10 @@ A langchain web browser tool based on Selenium
         openAIApiKey: process.env.OPENAI_API_KEY,
     });
 
-    const webBrowserTool = new SeleniumWebBrowser({
-        model: model,
-        embeddings: embeddings,
-        seleniumDriverOptions: {
-            browserName: 'chrome',
-        }
-    })
+    const webToolKit = new WebBrowserToolKit({ browserConfig: { browserName: "chrome" } }, model, embeddings);
+
+    //Add to agents tool:
+    tools: [
+            ...webToolKit.tools,
+        ],
 ```
