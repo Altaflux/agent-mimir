@@ -23,9 +23,9 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent) {
       })]);
 
       if (answers.message.toLowerCase() === "y" || answers.message === "") {
-        aiResponse = (await executor.call({ continuousMode, continue: true })).output
+        aiResponse = (await executor.call({ continuousMode, continue: true }))
       } else {
-        aiResponse = (await executor.call({ continuousMode, input: answers.message })).output
+        aiResponse = (await executor.call({ continuousMode, input: answers.message }))
       }
     } else {
 
@@ -35,9 +35,9 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent) {
         });
       })]);
 
-      aiResponse = (await executor.call({ continuousMode, input: answers.message })).output
+      aiResponse = (await executor.call({ continuousMode, input: answers.message }))
     }
-    console.log(chalk.red("AI Response: ", chalk.blue(aiResponse!)));
+    console.log(chalk.red("AI Response: ", chalk.blue(aiResponse?.output)));
   }
 }
 
