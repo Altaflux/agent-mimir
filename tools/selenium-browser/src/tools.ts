@@ -32,7 +32,7 @@ export class WebBrowserTool extends Tool {
         return `You are currently in page: ${await driver.getTitle()}\n ${result}`;
     }
     name = "navigate-to-website";
-    description = `useful for when you need to find something on or summarize a webpage. input should be a comma seperated list of "ONE valid http URL including protocol","what you want to find on the page in plain english or empty string for a summary".`;
+    description = `useful for when you need to find something on or summarize a webpage. input should be a comma seperated list of "ONE valid http URL including protocol","keywords of you want to find on the page in plain english or empty string for a summary".`;
 
 }
 
