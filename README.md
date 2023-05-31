@@ -38,7 +38,7 @@ By default Mimir will create an agent with no tools and Chat GPT-3.5. You can co
 ```javascript
 
 const ChatOpenAI = require('langchain/chat_models/openai').ChatOpenAI;
-const SeleniumWebBrowser = require('@agent-mimir/selenium-browser').SeleniumWebBrowser;
+const WebBrowserToolKit = require('@agent-mimir/selenium-browser').WebBrowserToolKit;
 const OpenAIEmbeddings = require('langchain/embeddings/openai').OpenAIEmbeddings;
 const Serper = require('langchain/tools').Serper;
 
@@ -57,6 +57,7 @@ const chatModel = new ChatOpenAI({
 });
 
 
+const webToolKit = new WebBrowserToolKit({ browserConfig: { browserName: "chrome" } }, taskModel, embeddings);
 module.exports = async function() {
     return {
         //If continuousMode is set to true the agent will not ask you before executing a tool. Disable at your own risk.
@@ -76,13 +77,7 @@ module.exports = async function() {
                         maxTaskHistoryWindow: 6, //Maximum size of the task chat before summarizing. 4 by default
                     },
                     tools: [ //Tools available to the agent.
-                        new SeleniumWebBrowser({
-                                model: model,
-                                embeddings: embeddings,
-                                seleniumDriverOptions: {
-                                    browserName: 'chrome',
-                                }
-                            }),
+                        ...webToolKit.tools,
                         new Serper(process.env.SERPER_API_KEY)
                     ]
                 }

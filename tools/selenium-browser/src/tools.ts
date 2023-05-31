@@ -32,7 +32,7 @@ export class WebBrowserTool extends Tool {
         return `You are currently in page: ${await driver.getTitle()}\n ${result}`;
     }
     name = "navigate-to-website";
-    description = `useful for when you need to find something on or summarize a webpage. input should be a comma seperated list of "ONE valid http URL including protocol","what you want to find on the page in plain english in the form of a question.".`;
+    description = `useful for when you need to find something on or summarize a webpage. input should be a comma seperated list of "ONE valid http URL including protocol","what you want to find on the page in plain english or empty string for a summary".`;
 
 }
 
@@ -81,7 +81,7 @@ export class PassValueToInput extends Tool {
     }
     protected async _call(inputs: string): Promise<string> {
         if (!this.toolManager.currentPage) {
-            return "You are not in any website at the moment, navigate into one using: click-website-link-or-button";
+            return "You are not in any website at the moment, navigate into one using: navigate-to-website";
         }
         const [id, value] = parseToolInput(inputs);
 
@@ -112,6 +112,9 @@ export class AskSiteQuestion extends Tool {
         super();
     }
     protected async _call(inputs: string, runManager?: CallbackManagerForToolRun): Promise<string> {
+        if (!this.toolManager.currentPage) {
+            return "You are not in any website at the moment, navigate into one using: navigate-to-website";
+        }
         const result = await this.toolManager.obtainSummaryOfPage(inputs, runManager);
         return result;
     }
