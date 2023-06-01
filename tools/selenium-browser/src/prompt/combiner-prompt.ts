@@ -4,10 +4,14 @@ import {
     PromptTemplate,
 } from "langchain/prompts";
 
-const _DEFAULT_SUMMARIZER_TEMPLATE = `Combine the following two parts of a markdown documents into one.": 
+const _DEFAULT_SUMMARIZER_TEMPLATE = `Combine the following two parts of a markdown document into one.
+The markdown document is a representation of the contents of a website.
+The title of the website is "{title}".
+
 The result should be in Markdown format.
-Prioritize content related to the following: "{focus}".
-Discard content that is not related to: "{focus}".
+Prioritize content related to the following task I am tryinng to accomplish: "{focus}".
+Remove content that is not related to the task.
+
 Include any relevant html inputs, buttons, and link elements (always including all attributes and text). Do not rewrite or simplify the html elements!
 
 Summarize any large pieces of text while keeping key relevant pieces of information.
@@ -29,5 +33,5 @@ Combined Markdown document:
 `;
 export const COMBINE_PROMPT = /* #__PURE__ */ new PromptTemplate({
     template: _DEFAULT_SUMMARIZER_TEMPLATE,
-    inputVariables: ["document1", "document2", "focus"],
+    inputVariables: ["title", "document1", "document2", "focus"],
 });

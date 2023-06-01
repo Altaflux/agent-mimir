@@ -16,6 +16,7 @@ import { Options as ChromeOptions } from 'selenium-webdriver/chrome';
 import { Options as FireFoxOptions } from 'selenium-webdriver/firefox';
 import { Options as EdgeOptions } from 'selenium-webdriver/edge.js';
 import exitHook from 'async-exit-hook';
+
 export type SeleniumDriverOptions = {
     browserName?: 'chrome' | 'firefox' | 'edge';
     disableHeadless?: boolean;
@@ -25,15 +26,14 @@ export type SeleniumDriverOptions = {
 export type WebBrowserOptions = {
     browserConfig: SeleniumDriverOptions
     maximumChunkSize?: number
-    numberOfRelevantDocuments?: number
+    numberOfRelevantDocuments?: number | 'all'
 }
-
 
 export class WebDriverManager {
 
     driver?: ThenableWebDriver;
     maximumChunkSize: number
-    numberOfRelevantDocuments: number
+    numberOfRelevantDocuments: number | 'all'
 
     vectorStore?: VectorStore;
     documents: VectorDocument[] = [];
@@ -91,12 +91,15 @@ export class WebDriverManager {
         return await this.vectorStore!.similaritySearch(question, maxEntries);
     }
 
-    async obtainSummaryOfPage(question: string, runManager?: CallbackManagerForToolRun) {
+    async obtainSummaryOfPage(keywords: string, question: string, runManager?: CallbackManagerForToolRun) {
         let results;
-        if (!question || question === "") {
+        if (this.numberOfRelevantDocuments === 'all') {
+            results = this.documents;
+        }
+        else if (!keywords || keywords === "") {
             results = this.documents.slice(0, this.numberOfRelevantDocuments);
         } else {
-            const similaritySearchResults = await this.vectorStore!.similaritySearch(question, this.numberOfRelevantDocuments)
+            const similaritySearchResults = await this.vectorStore!.similaritySearch(keywords, this.numberOfRelevantDocuments)
             results = similaritySearchResults.length > 0 ? similaritySearchResults : this.documents.slice(0, this.numberOfRelevantDocuments);;
         }
 
@@ -110,11 +113,12 @@ export class WebDriverManager {
         if (!question || question === "") {
             focus = "Main content of the page";
         }
-
+        const title = await this.driver!.getTitle()
         return (await documents.map((doc) => Promise.resolve(doc))
             .reduce(async (prev, current) => {
                 const llmChain = new LLMChain({ prompt: COMBINE_PROMPT, llm: this.model, verbose: false });
                 const result = (await llmChain.call({
+                    title: title,
                     document1: (await prev).pageContent,
                     document2: (await current).pageContent,
                     focus: focus
