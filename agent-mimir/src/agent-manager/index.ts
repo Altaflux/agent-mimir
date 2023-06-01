@@ -84,9 +84,7 @@ export class AgentManager {
         const tools = [
             ...controlTools,
             ...(config.tools ?? []),
-            ...agentCommunicationTools,
-            new CompletePlanStep(),
-            new ThinkTool(innerMemory, thinkingModel)
+            ...agentCommunicationTools
         ];
 
 

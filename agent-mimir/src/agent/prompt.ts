@@ -19,6 +19,11 @@ PERFORMANCE EVALUATION:
 You have the following items in your scratchpad:
 {scratchpad_items}
 
+When working on a task you have to choose between this two options: 
+- Use your own knowledge, capabilities, and skills to complete the task.
+- If you cannot accomplish the task with your own knowledge or capabilities use a command.
+
+
 `;
 };
 
