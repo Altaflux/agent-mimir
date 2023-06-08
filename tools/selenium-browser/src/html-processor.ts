@@ -58,14 +58,7 @@ function findAllRelevantElements(doc: Element) {
     const allElements = doc.querySelectorAll('*');
 
     return Array.from(allElements)
-        .filter((e) => {
-        
-            const isRelevant = isRelevantElement(e);
-                if (e.textContent?.startsWith('The ultimate dual-u')) {
-                console.log('found');
-            }
-            return isRelevant;
-        })
+        .filter((e) => isRelevantElement(e))
         .map((element) => {
             const tag = element.tagName.toLowerCase();
             const type = (selectableElements.includes(tag) ? 'input' : interactableElements.includes(tag) ? 'clickable' : 'text') as RelevantElement;
