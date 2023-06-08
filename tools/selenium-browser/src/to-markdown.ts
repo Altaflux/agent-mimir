@@ -81,6 +81,23 @@ export function htmlToMarkdown(htmlDoc: Document) {
                 }
                 return "";
             }
+        }).addRule('img', {
+            filter: ['img'],
+            replacement: function (content, node, options) {
+                let element = node as HTMLElement;
+                var alt = cleanAttribute(element.getAttribute('alt'));
+                if (alt === '') return '';
+
+                var src = element.getAttribute('src') || '';
+                var title = cleanAttribute(element.getAttribute('title'));
+                var titlePart = title ? ' "' + title + '"' : '';
+                return src ? '![' + alt + ']' + '(' + '...' + src.slice(-15) + titlePart + ')' : '';
+            }
+        }).addRule('removePicture', {
+            filter: ['picture'],
+            replacement: function () {
+                return "";
+            }
         }).addRule('removeScript', {
             filter: ['script'],
             replacement: function () {
@@ -102,3 +119,7 @@ export function htmlToMarkdown(htmlDoc: Document) {
     const markdown = turndownService.turndown(htmlDoc.body.outerHTML);
     return markdown;
 }
+
+function cleanAttribute (attribute:string | null) {
+    return attribute ? attribute.replace(/(\n+\s*)+/g, '\n') : ''
+  }

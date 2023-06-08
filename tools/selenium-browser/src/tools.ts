@@ -7,13 +7,14 @@ import { WebDriverManager } from "./driver-manager.js";
 export { WebDriverManager, SeleniumDriverOptions } from "./driver-manager.js";
 
 function parseToolInput(response: string) {
-    return response.split(",").map((input: string) => {
+    const result = response.split(",").map((input: string) => {
         let t = input.trim();
         t = t.startsWith('"') ? t.slice(1) : t;
         t = t.endsWith('"') ? t.slice(0, -1) : t;
         t = t.endsWith("/") ? t.slice(0, -1) : t;
         return t.trim();
     });
+    return [...result.slice(0, 2), result.slice(2).join('')];
 }
 
 export class WebBrowserTool extends Tool {
@@ -32,7 +33,7 @@ export class WebBrowserTool extends Tool {
         return `You are currently in page: ${await driver.getTitle()}\n ${result}`;
     }
     name = "navigate-to-website";
-    description = `useful for when you need to find something on or summarize a webpage. input should be a comma seperated list of "ONE valid http URL including protocol","keywords representing what you want to find", "a long description of the task you are trying to accomplish".`;
+    description = `useful for when you need to find something on or summarize a webpage. input should be a comma seperated list of "ONE valid http URL including protocol","keywords representing what you want to find", "a long and detailed description of what do expect to find in the page".`;
 
 }
 
@@ -71,7 +72,7 @@ export class ClickWebSiteLinkOrButton extends Tool {
         }
     }
     name = "click-website-link-or-button";
-    description = `useful for when you need to click on an element from the current page you are on. input should be a comma seperated list of "ONE valid id of a link or button", "keywords representing what you want to find", "a long description of the task you are trying to accomplish".`;
+    description = `useful for when you need to click on an element from the current page you are on. input should be a comma seperated list of "ONE valid id of a link or button", "keywords representing what you want to find", "a long and detailed description of what do expect to find in the page".`;
 
 }
 
@@ -120,6 +121,6 @@ export class AskSiteQuestion extends Tool {
         return result;
     }
     name = "look-information-on-current-website";
-    description = `useful for when you need to find more information in the site you are currently on. input should be a comma seperated list of "keywords representing what you want to find", "a long description of the task you are trying to accomplish".`;
+    description = `useful for when you need to find more information in the site you are currently on. input should be a comma seperated list of "keywords representing what you want to find", "a long and detailed description of what do expect to find in the page".`;
 
 }

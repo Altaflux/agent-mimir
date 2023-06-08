@@ -5,8 +5,8 @@ import { By, WebDriver } from 'selenium-webdriver';
 const selectableElements = ['input', 'select', 'textarea'];
 const clickableElements = ['a', 'button', 'link'];
 const interactableElements = [...selectableElements, ...clickableElements];
-const persistableElements = [...interactableElements, (element: Element) => {
-    return (element.childNodes.length === element.ELEMENT_NODE &&
+const persistableElements = ['img',...interactableElements, (element: Element) => {
+    return (element.childNodes.length > 0 &&
         element.childNodes[0].nodeType === element.TEXT_NODE && 
         element.childNodes[0].textContent?.trim() !== '')
 }];
@@ -38,11 +38,34 @@ function addRandomIdToElements(doc: Element) {
     return doc;
 }
 
+function convertPicturesToImages(doc: Element) {
+    const allElements = doc.querySelectorAll('picture');
+    for (const pictureElement of Array.from(allElements)) {
+        const img = pictureElement.querySelector('img')
+        const alt = img?.getAttribute('alt');
+        if (!alt || alt === '') {
+            pictureElement.replaceWith();
+        }
+        if (img) {
+            pictureElement.replaceWith(img);
+        }
+    }
+    return doc;
+}
+
 
 function findAllRelevantElements(doc: Element) {
     const allElements = doc.querySelectorAll('*');
+
     return Array.from(allElements)
-        .filter((e) => isRelevantElement(e))
+        .filter((e) => {
+        
+            const isRelevant = isRelevantElement(e);
+                if (e.textContent?.startsWith('The ultimate dual-u')) {
+                console.log('found');
+            }
+            return isRelevant;
+        })
         .map((element) => {
             const tag = element.tagName.toLowerCase();
             const type = (selectableElements.includes(tag) ? 'input' : interactableElements.includes(tag) ? 'clickable' : 'text') as RelevantElement;
@@ -64,9 +87,10 @@ async function removeInvisibleElements(element: Element, driver: WebDriver, rele
         try {
             foundElement = await driver!.findElement(byExpression);
         } catch (e) {
+            console.log(`Could not find element with xpath ${relevant.xpath}`);
             continue;
         }
-      
+
         try {
             const isElementInteractable: boolean = await driver.executeScript(`
                 window.document.documentElement.style.setProperty("scroll-behavior", "auto", "important");
@@ -107,7 +131,8 @@ export type InteractableElement = {
 }
 export async function extractHtml(html: string, driver: WebDriver) {
     const ogDoc = new JSDOM(html).window.document;
-    let cleanHtml = addRandomIdToElements(ogDoc.body);
+    let cleanHtml = convertPicturesToImages(ogDoc.body);
+    cleanHtml = addRandomIdToElements(ogDoc.body);
     let allRelevantElements = findAllRelevantElements(cleanHtml);
 
     await removeInvisibleElements(cleanHtml, driver, allRelevantElements);
@@ -121,7 +146,7 @@ export async function extractHtml(html: string, driver: WebDriver) {
                 type: entries.type,
             } as InteractableElement
         });
-       
+
     return {
         html: ogDoc,
         interactableElements: interactables.reduce((map, obj) => map.set(obj.id, obj), new Map())

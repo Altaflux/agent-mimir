@@ -3,21 +3,22 @@
 import {
     PromptTemplate,
 } from "langchain/prompts";
-
-const _DEFAULT_SUMMARIZER_TEMPLATE = `Combine the following two parts of a markdown document into one.
-The markdown document is a representation of the contents of a website.
+//Combine the following two parts of a markdown document into one.
+const _DEFAULT_SUMMARIZER_TEMPLATE =`Combine the contents of "part 2" of a markdown document with "part 1" of the document.
+The document is a representation of the contents of a website.
 The title of the website is "{title}".
 
 The result should be in Markdown format.
-Prioritize content related to the following task I am tryinng to accomplish: "{focus}".
-Remove content that is not related to the task.
+Prioritize keeping content related to what I intend to find in the site: "{focus}".
+Remove content that is not related to what I intend to find.
 
 Include any relevant html inputs, buttons, and link elements (always including all attributes and text). Do not rewrite or simplify the html elements!
 
 Summarize any large pieces of text while keeping key relevant pieces of information.
 
-If the combined document is too long, remove less relevant content.
+If the combined document is too long, remove less relevant content from any of the parts of the document.
 
+If the contents of part 2 of the document is irrelevant to what I intend to find and you will not combine any content from it, respond only with the word "DISCARD" and nothing else!
 -------------------------
 This is part 1 of the document:
 

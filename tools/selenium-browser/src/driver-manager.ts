@@ -16,6 +16,7 @@ import { Options as ChromeOptions } from 'selenium-webdriver/chrome';
 import { Options as FireFoxOptions } from 'selenium-webdriver/firefox';
 import { Options as EdgeOptions } from 'selenium-webdriver/edge.js';
 import exitHook from 'async-exit-hook';
+import { IS_RELEVANT_PROMPT } from "./prompt/relevance-prompt.js";
 
 export type SeleniumDriverOptions = {
     browserName?: 'chrome' | 'firefox' | 'edge';
@@ -69,6 +70,8 @@ export class WebDriverManager {
     }
 
     async refreshPageState() {
+
+        await new Promise(resolve => setTimeout(resolve, 2000));
         let driver = await this.getDriver();
         let webPage = await extractHtml(await driver!.getPageSource(), driver);
         this.currentPage = webPage.html;
@@ -99,13 +102,38 @@ export class WebDriverManager {
         else if (!keywords || keywords === "") {
             results = this.documents.slice(0, this.numberOfRelevantDocuments);
         } else {
-            const similaritySearchResults = await this.vectorStore!.similaritySearch(keywords, this.numberOfRelevantDocuments)
-            results = similaritySearchResults.length > 0 ? similaritySearchResults : this.documents.slice(0, this.numberOfRelevantDocuments);;
+            const similaritySearchResults = await this.getDocumentsBySimilarity(keywords, this.numberOfRelevantDocuments)
+            results = similaritySearchResults.length > 0 ? similaritySearchResults : this.documents.slice(0, this.numberOfRelevantDocuments);
         }
 
-        return await this.combineDocuments(results
+        if (results.length === 1) {
+            return results[0].pageContent;
+        }
+
+        const summarizedPageView = await this.combineDocuments(results
             .sort((doc1, doc2) => doc1.metadata.pageNumber - doc2.metadata.pageNumber)
             , question, runManager);
+
+        if (!await this.isPageRelevant(summarizedPageView, question, runManager)) {
+            return await this.combineDocuments(results
+                .sort((doc1, doc2) => doc1.metadata.pageNumber - doc2.metadata.pageNumber)
+                , "Important information on the site.", runManager);
+        }
+        return summarizedPageView;
+    }
+
+
+    private async isPageRelevant(page: string, question: string, runManager?: CallbackManagerForToolRun) {
+        const llmChain = new LLMChain({ prompt: IS_RELEVANT_PROMPT, llm: this.model, verbose: false });
+        const title = await this.driver!.getTitle()
+        const llmResponse = (await llmChain.call({
+            title: title,
+            document: page,
+            focus: question
+        }, runManager?.getChild())).text;
+        const result = llmResponse as string;
+        const isRelevant = result.toLowerCase().match(/\btrue\b/g);
+        return isRelevant != null;
     }
 
     private async combineDocuments(documents: VectorDocument[], question: string, runManager?: CallbackManagerForToolRun) {
@@ -113,25 +141,31 @@ export class WebDriverManager {
         if (!question || question === "") {
             focus = "Main content of the page";
         }
-        const title = await this.driver!.getTitle()
+
+        const title = await this.driver!.getTitle();
         return (await documents.map((doc) => Promise.resolve(doc))
             .reduce(async (prev, current) => {
                 const llmChain = new LLMChain({ prompt: COMBINE_PROMPT, llm: this.model, verbose: false });
-                const result = (await llmChain.call({
-                    title: title,
-                    document1: (await prev).pageContent,
-                    document2: (await current).pageContent,
-                    focus: focus
-                }, runManager?.getChild())).text;
+                const previousDocument = await prev;
+                const currentDocument = await current;
 
+                const result = ((await llmChain.call({
+                    title: title,
+                    document1: previousDocument.pageContent,
+                    document2: currentDocument.pageContent,
+                    focus: focus
+                }, runManager?.getChild())).text as string);
+                const shouldDiscard = result.substring(0, 15).toLowerCase().match(/\discard\b/g);
+                if (shouldDiscard != null) {
+                    return previousDocument;
+                }
                 return new VectorDocument({
                     pageContent: result,
                     metadata: [],
                 });
-            })).pageContent;
+            }, Promise.resolve(new VectorDocument({ pageContent: "(Empty the following piece is the beginning of the website)", metadata: { pageNumber: 0 } })))).pageContent;
     }
 }
-
 
 const configureDriver = async (options: SeleniumDriverOptions) => {
     let builder = new Builder();
