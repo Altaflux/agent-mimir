@@ -325,20 +325,18 @@ export class MimirChatConversationalAgent extends Agent {
 
         const template = [systemMessage, outputParser.getFormatInstructions(), humanMessage].join("\n\n");
 
-        const foo = new SystemMessagePromptTemplate(
-            new PromptTemplate({
-              template: template,
-              inputVariables: ["helper_prompt", "scratchpad_items"],
-              partialVariables: {
-                tools: MimirChatConversationalAgent.createToolSchemasString(tools),
-                tool_names: tools.map((tool) => tool.name).join(", "),
-                json_instructions: JSON_INSTRUCTIONS,
-              },
-            })
-          );
         const messages = [
-            //SystemMessagePromptTemplate.fromTemplate(systemMessage + finalPrompt),
-            foo,
+            new SystemMessagePromptTemplate(
+                new PromptTemplate({
+                    template: template,
+                    inputVariables: ["helper_prompt", "scratchpad_items"],
+                    partialVariables: {
+                        tools: MimirChatConversationalAgent.createToolSchemasString(tools),
+                        tool_names: tools.map((tool) => tool.name).join(", "),
+                        json_instructions: JSON_INSTRUCTIONS,
+                    },
+                })
+            ),
             SystemMessagePromptTemplate.fromTemplate(`The current time is: {currentTime}`),
             SystemMessagePromptTemplate.fromTemplate("This reminds you of these events from your past:\n{relevantMemory}"),
             new MessagesPlaceholder("chat_history"),
