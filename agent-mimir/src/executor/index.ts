@@ -22,8 +22,8 @@ export class SteppedAgentExecutor extends BaseChain {
 
     agent: BaseSingleActionAgent;
 
-    tools: StructuredTool[];
-
+    tools: this["agent"]["ToolType"][];
+    
     agentName: string;
 
     returnIntermediateSteps = false;

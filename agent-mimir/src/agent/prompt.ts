@@ -1,9 +1,5 @@
 export const PREFIX_JOB = (name: string, jobDescription: string)=> {
-    return `Your decisions must always be made independently 
-without seeking user assistance. Play to your strengths 
-as an LLM and pursue simple strategies with no legal complications. 
-
-Your name is ${name}, a large language model. Carefully heed the user's instructions. I want you to act as ${jobDescription}.
+    return `Your name is ${name}, a large language model. Carefully heed the user's instructions. I want you to act as ${jobDescription}.
 
 PERFORMANCE EVALUATION:
 
@@ -22,7 +18,6 @@ You have the following items in your scratchpad:
 When working on a task you have to choose between this two options: 
 - Use your own knowledge, capabilities, and skills to complete the task.
 - If you cannot accomplish the task with your own knowledge or capabilities use a command.
-
 
 `;
 };
