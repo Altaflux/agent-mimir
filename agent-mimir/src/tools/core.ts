@@ -10,7 +10,7 @@ export class TalkToUserTool extends StructuredTool {
 
     returnDirect: boolean = true;
 
-    protected async _call(arg: z.input<this["schema"]>,): Promise<string> {
+    protected async _call(arg: z.input<this["schema"]>): Promise<string> {
         return arg.messageToUser;
     }
 
@@ -32,8 +32,8 @@ export class EndTool extends StructuredTool {
         this.name = name;
     }
 
-    protected async _call(arg: string): Promise<string> {
-        return arg;
+    protected async _call(arg: z.input<this["schema"]>): Promise<string> {
+        return arg.messageToUser;
     }
 }
 
