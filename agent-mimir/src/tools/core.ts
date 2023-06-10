@@ -5,7 +5,7 @@ import { z } from "zod";
 
 export class TalkToUserTool extends StructuredTool {
     schema = z.object({
-        messageToUser: z.string().describe(" The message you want to tell the user"),
+        messageToUser: z.string().describe("The message you want to tell the user."),
     })
 
     returnDirect: boolean = true;
@@ -21,10 +21,9 @@ export class TalkToUserTool extends StructuredTool {
 export class EndTool extends StructuredTool {
 
     schema = z.object({
-        messageToUser: z.string().describe("The message you want to tell the user"),
+        messageToUser: z.string().describe("The message you want to tell the user."),
     })
 
-    returnDirect: boolean = false;
     name: string;
     description: string = "Only call this command when the user has informed you that you have completed the task.";
 

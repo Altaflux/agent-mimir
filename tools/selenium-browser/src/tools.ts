@@ -1,22 +1,11 @@
 
 import { CallbackManagerForToolRun } from "langchain/callbacks";
-import { StructuredTool, Tool } from "langchain/tools";
+import { StructuredTool } from "langchain/tools";
 import { By } from 'selenium-webdriver';
 import { WebDriverManager } from "./driver-manager.js";
-import { ZodObject, ZodEffects } from "zod";
 import { z } from "zod";
 export { WebDriverManager, SeleniumDriverOptions } from "./driver-manager.js";
 
-function parseToolInput(response: string) {
-    const result = response.split(",").map((input: string) => {
-        let t = input.trim();
-        t = t.startsWith('"') ? t.slice(1) : t;
-        t = t.endsWith('"') ? t.slice(0, -1) : t;
-        t = t.endsWith("/") ? t.slice(0, -1) : t;
-        return t.trim();
-    });
-    return [...result.slice(0, 2), result.slice(2).join('')];
-}
 
 export class WebBrowserTool extends StructuredTool {
     schema = z.object({
@@ -29,7 +18,7 @@ export class WebBrowserTool extends StructuredTool {
         super();
     }
     protected async _call(inputs: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun): Promise<string> {
-        const {url, keywords, searchDescription} = inputs;
+        const { url, keywords, searchDescription } = inputs;
         let formattedBaseUrl = url;
         if (!formattedBaseUrl.startsWith("http://") && !formattedBaseUrl.startsWith("https://")) {
             formattedBaseUrl = "https://" + formattedBaseUrl;
@@ -60,7 +49,7 @@ export class ClickWebSiteLinkOrButton extends StructuredTool {
         if (!this.toolManager.currentPage) {
             return "You are not in any website at the moment, navigate into one using: navigate-to-website";
         }
-        const {id, keywords, searchDescription} = inputs;
+        const { id, keywords, searchDescription } = inputs;
 
         const elementId = id.replace(/\D/g, '');
         const driver = await this.toolManager.getDriver();
@@ -102,10 +91,10 @@ export class PassValueToInput extends StructuredTool {
         super();
     }
     protected async _call(inputs: z.input<this["schema"]>): Promise<string> {
+        
         if (!this.toolManager.currentPage) {
             return "You are not in any website at the moment, navigate into one using: navigate-to-website";
         }
-
 
         const elementId = inputs.id.replace(/\D/g, '');
         const driver = await this.toolManager.getDriver();
@@ -139,12 +128,12 @@ export class AskSiteQuestion extends StructuredTool {
     constructor(private toolManager: WebDriverManager) {
         super();
     }
-    protected async _call(inputs: string, runManager?: CallbackManagerForToolRun): Promise<string> {
+    protected async _call(inputs: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun): Promise<string> {
         if (!this.toolManager.currentPage) {
             return "You are not in any website at the moment, navigate into one using: navigate-to-website";
         }
-        const [keywords, task] = parseToolInput(inputs);
-        const result = await this.toolManager.obtainSummaryOfPage(keywords, task, runManager);
+        const { keywords, searchDescription } = inputs;
+        const result = await this.toolManager.obtainSummaryOfPage(keywords.join(','), searchDescription, runManager);
         return result;
     }
     name = "look-information-on-current-website";
