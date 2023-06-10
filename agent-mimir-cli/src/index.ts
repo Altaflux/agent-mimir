@@ -1,6 +1,5 @@
 import { AgentManager } from "agent-mimir";
 import chalk from "chalk";
-
 import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
 import { Tool } from "langchain/tools";
@@ -44,7 +43,6 @@ const getConfig = async () => {
     console.log(chalk.yellow("No config file found, using default ApenAI config"));
     return (await import("./default-config.js")).default();
 };
-
 
 export const run = async () => {
 

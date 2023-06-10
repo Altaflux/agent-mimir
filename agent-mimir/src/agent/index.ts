@@ -3,6 +3,7 @@ import {
     HumanMessagePromptTemplate,
     ChatPromptTemplate,
     MessagesPlaceholder,
+    PromptTemplate,
 } from "langchain/prompts";
 import { renderTemplate } from "langchain/prompts";
 import {
@@ -10,6 +11,7 @@ import {
     TEMPLATE_TOOL_RESPONSE,
     USER_INPUT,
     PREFIX_JOB,
+    JSON_INSTRUCTIONS,
 } from "./prompt.js";
 
 
@@ -24,7 +26,7 @@ import {
 } from "langchain/schema";
 import { BaseOutputParser } from "langchain/schema/output_parser";
 
-import { Tool } from "langchain/tools";
+import { StructuredTool } from "langchain/tools";
 import { Agent, AgentActionOutputParser, AgentInput } from "langchain/agents";
 import { BaseLanguageModel } from "langchain/base_language";
 import { ConversationChain } from "langchain/chains";
@@ -37,7 +39,8 @@ import { createBulletedList } from "../utils/format.js";
 import { TrimmingMemory } from "../memory/trimming-memory/index.js";
 import { PlainTextMessageSerializer } from "../parser/plain-text-parser/index.js";
 import { AgentManager } from "../index.js";
-
+import { JsonSchema7ObjectType } from "zod-to-json-schema/src/parsers/object.js";
+import { zodToJsonSchema } from "zod-to-json-schema";
 
 const BAD_MESSAGE_TEXT = `I could not understand that your response, please rememeber to use the correct response format and always include a valid "command" value and "command_text" fields!.`;
 
@@ -163,7 +166,7 @@ export class MimirChatConversationalAgent extends Agent {
         return ["Observation:"];
     }
 
-    static validateTools(tools: Tool[]) {
+    static validateTools(tools: StructuredTool[]) {
         const invalidTool = tools.find((tool) => !tool.description);
         if (invalidTool) {
             const msg =
@@ -172,6 +175,7 @@ export class MimirChatConversationalAgent extends Agent {
             throw new Error(msg);
         }
     }
+
 
     async constructScratchPad(steps: AgentStep[]): Promise<BaseChatMessage[]> {
         const thoughts: BaseChatMessage[] = [];
@@ -210,7 +214,7 @@ export class MimirChatConversationalAgent extends Agent {
         const nextMessage = this.getMessageForAI(steps, inputs);
         const scratchPadElements = await this.scratchPad?.buildScratchPadList() ?? "";
         const currentPlan = createBulletedList(this.currentTaskList);
-     
+
         const realInput = nextMessage.type === "USER_MESSAGE" ? renderTemplate(USER_INPUT, "f-string", {
             input: nextMessage.message,
         }) : renderTemplate(TEMPLATE_TOOL_RESPONSE, "f-string", {
@@ -303,26 +307,38 @@ export class MimirChatConversationalAgent extends Agent {
             message: steps.slice(-1)[0].observation
         }
     }
-
-    static createPrompt(tools: Tool[], outputParser: AgentActionOutputParser, args?: CreatePromptArgs) {
+    static createToolSchemasString(tools: StructuredTool[]) {
+        return tools
+            .map(
+                (tool) =>
+                    `${tool.name}: ${tool.description}, args: ${JSON.stringify(
+                        (zodToJsonSchema(tool.schema) as JsonSchema7ObjectType).properties
+                    )}`
+            )
+            .join("\n");
+    }
+    static createPrompt(tools: StructuredTool[], outputParser: AgentActionOutputParser, args?: CreatePromptArgs) {
         const {
             systemMessage = PREFIX_JOB("Assistant", "a helpful assistant"),
             humanMessage = SUFFIX,
         } = args ?? {};
-        const toolStrings = tools
-            .map((tool) => `${tool.name}: ${tool.description}`)
-            .join("\n");
-        const formatInstructions = renderTemplate(humanMessage, "f-string", {
-            format_instructions: outputParser.getFormatInstructions(),
-        });
-        const toolNames = tools.map((tool) => `"${tool.name}"`).join(", ");
-        const finalPrompt = renderTemplate(formatInstructions, "f-string", {
-            tools: toolStrings,
-            tool_names: toolNames,
-        });
 
+        const template = [systemMessage, outputParser.getFormatInstructions(), humanMessage].join("\n\n");
+
+        const foo = new SystemMessagePromptTemplate(
+            new PromptTemplate({
+              template: template,
+              inputVariables: ["helper_prompt", "scratchpad_items"],
+              partialVariables: {
+                tools: MimirChatConversationalAgent.createToolSchemasString(tools),
+                tool_names: tools.map((tool) => tool.name).join(", "),
+                json_instructions: JSON_INSTRUCTIONS,
+              },
+            })
+          );
         const messages = [
-            SystemMessagePromptTemplate.fromTemplate(systemMessage + finalPrompt),
+            //SystemMessagePromptTemplate.fromTemplate(systemMessage + finalPrompt),
+            foo,
             SystemMessagePromptTemplate.fromTemplate(`The current time is: {currentTime}`),
             SystemMessagePromptTemplate.fromTemplate("This reminds you of these events from your past:\n{relevantMemory}"),
             new MessagesPlaceholder("chat_history"),
@@ -336,7 +352,7 @@ export class MimirChatConversationalAgent extends Agent {
 
     public static fromLLMAndTools(
         llm: BaseLanguageModel,
-        tools: Tool[],
+        tools: StructuredTool[],
         args?: CreatePromptArgs,
     ) {
         const expandedTools = [...tools]

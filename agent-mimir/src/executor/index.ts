@@ -2,11 +2,11 @@
 import { Agent, BaseSingleActionAgent, StoppingMethod } from "langchain/agents";
 import { BaseChain, ChainInputs, SerializedLLMChain } from "langchain/chains";
 import { AgentAction, AgentFinish, AgentStep, ChainValues } from "langchain/schema";
-import { Tool } from "langchain/tools";
+import { StructuredTool } from "langchain/tools";
 
 interface AgentExecutorInput extends ChainInputs {
     agent: Agent;
-    tools: Tool[];
+    tools: StructuredTool[];
     agentName: string;
     returnIntermediateSteps?: boolean;
     maxIterations?: number;
@@ -22,7 +22,7 @@ export class SteppedAgentExecutor extends BaseChain {
 
     agent: BaseSingleActionAgent;
 
-    tools: Tool[];
+    tools: StructuredTool[];
 
     agentName: string;
 
@@ -64,7 +64,7 @@ export class SteppedAgentExecutor extends BaseChain {
     }
 
 
-    async doTool(action: AgentAction, toolsByName: { [k: string]: Tool }, steps: AgentStep[], getOutput: (finishStep: AgentFinish)
+    async doTool(action: AgentAction, toolsByName: { [k: string]: StructuredTool }, steps: AgentStep[], getOutput: (finishStep: AgentFinish)
         => Promise<ChainValues>) {
 
         const tool = toolsByName[action.tool?.toLowerCase()];
@@ -141,7 +141,7 @@ export class SteppedAgentExecutor extends BaseChain {
                         storeInMem: false,
                         workPending: true,
                         chainValues: await getOutput({
-                            returnValues: { [this.agent.returnValues[0]]: `Agent: "${this.agentName}" is requesting permission to use tool: "${action.tool}" with input: "${action.toolInput}"` , toolStep: true },
+                            returnValues: { [this.agent.returnValues[0]]: `Agent: "${this.agentName}" is requesting permission to use tool: "${action.tool}" with input: "${JSON.stringify(action.toolInput)}"` , toolStep: true },
                             log: action.log,
                         })
                     };

@@ -5,7 +5,7 @@ import { FORMAT_INSTRUCTIONS } from "./prompt.js";
 const responseParts = [
     "-Reasoning",
     "-Plan",
-    "-Command Text",
+    "-Command JSON",
     "-Command",
     "-Save To ScratchPad",
     "-Current Plan Step",
@@ -22,7 +22,7 @@ const regexParser = {
     reasoning: regexBuilder('Reasoning'),
     plan: regexBuilder('Plan'),
     command: regexBuilder('Command'),
-    commandText: regexBuilder('Command Text'),
+    commandText: regexBuilder('Command JSON'),
     saveToScratchPad: regexBuilder('Save To ScratchPad'),
     currentPlanStep: regexBuilder('Current Plan Step'),
     mainGoal: regexBuilder('Goal Given By User'),
@@ -42,7 +42,7 @@ export class PlainTextMessageSerializer extends AIMessageSerializer {
 -Save To ScratchPad: ${message.saveToScratchPad ?? ""}
 -Goal Given By User: ${message.mainGoal ?? ""}
 -Command: ${message.action ?? ""}
--Command Text: ${message.action_input ?? ""}
+-Command JSON: ${JSON.stringify(message.action_input) ?? ""}
 `
         return result;
     }
@@ -60,7 +60,7 @@ export class PlainTextMessageSerializer extends AIMessageSerializer {
             reasoning: reasoning,
             plan: plan ? JSON.parse(plan) : undefined,
             action: command!,
-            action_input: commandText!,
+            action_input: JSON.parse(commandText!),
             saveToScratchPad: saveToScratchPad,
             currentPlanStep: currentPlanStep,
             mainGoal: mainGoal,

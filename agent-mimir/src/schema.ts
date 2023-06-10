@@ -7,7 +7,7 @@ export type AIMessageType = {
     saveToScratchPad?: string,
     currentPlanStep?: string,
     action: string,
-    action_input: string,
+    action_input: any,
     plan?: string[],
     mainGoal?: string,
 }

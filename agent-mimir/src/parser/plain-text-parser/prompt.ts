@@ -11,7 +11,7 @@ When responding to me please, please output a response in the following format:
 -Goal Given By User: string \\ What is the main goal the user has tasked you with. If the user has made a change in your task then please update this field to reflect the change.
 -Save To ScratchPad: string, \\ Any important piece of information you may be able to use later. This field is optional. 
 -Command: string \\ The command to run. This field is obligatory. Must be one of {tool_names}
--Command Text: \\Command text goes here, the input to the command. This field is obligatory.
+-Command JSON: \\Command JSON goes here, the input to the command. This field is obligatory.
 
 
 
@@ -24,7 +24,7 @@ Example Response:
 -Goal Given By User: Find a solution to the problem.
 -Save To ScratchPad: The plot of the story is about a young kid going on an adventure to find his lost dog.
 -Command: someCommand
--Command Text:
+-Command JSON:
 The input value of a the command
 
 `;
