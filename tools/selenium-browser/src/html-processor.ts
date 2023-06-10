@@ -80,7 +80,6 @@ async function removeInvisibleElements(element: Element, driver: WebDriver, rele
         try {
             foundElement = await driver!.findElement(byExpression);
         } catch (e) {
-            console.log(`Could not find element with xpath ${relevant.xpath}`);
             continue;
         }
 

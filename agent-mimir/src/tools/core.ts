@@ -1,4 +1,4 @@
-import { StructuredTool, Tool } from "langchain/tools";
+import { StructuredTool } from "langchain/tools";
 import { AgentManager } from "../agent-manager/index.js";
 import { BaseChatModel } from "langchain/chat_models";
 import { z } from "zod";

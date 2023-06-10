@@ -83,10 +83,8 @@ export class WebDriverManager {
         const texts = await textSplitter.splitText(siteMarkdown);
         const documents = texts.map((pageContent, index) => new VectorDocument({ pageContent: pageContent, metadata: { pageNumber: index } }));
 
-        const vectorStore = await MemoryVectorStore.fromDocuments(this.documents, this.embeddings);
-
         this.documents = documents;
-        this.vectorStore = vectorStore;
+        this.vectorStore =  await MemoryVectorStore.fromDocuments(this.documents, this.embeddings);;
 
     }
 
