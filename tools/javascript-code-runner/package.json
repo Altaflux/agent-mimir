@@ -1,6 +1,6 @@
 {
-  "name": "@agent-mimir/selenium-browser",
-  "description": "Selenium Web browser tool for langchain",
+  "name": "@agent-mimir/javascript-code-runner",
+  "description": "Javascript code runner tool for langchain",
   "main": "dist/index.js",
   "scripts": {
     "build": "rimraf dist/ && tsc -p tsconfig.json "
@@ -9,14 +9,8 @@
   "keywords": [
     "langchain"
   ],
-    "devDependencies": {
-    "@types/async-exit-hook": "^2.0.0",
-    "@types/jsdom": "^21.1.1",
+  "devDependencies": {
     "@types/node": "^18.16.3",
-    "@types/selenium-webdriver": "^4.1.14",
-    "@types/turndown": "^5.0.1",
-    "npm-run-all": "^4.1.5",
-    "release-it": "^15.10.0",
     "rimraf": "^5.0.0",
     "typescript": "^5.0.4"
   },
@@ -26,7 +20,8 @@
     "jsdom": "22.0.0",
     "selenium-webdriver": "4.9.0",
     "turndown": "^7.1.2",
-    "webdriver-manager": "^13.0.2"
+    "webdriver-manager": "^13.0.2",
+    "vm2": "^3.9.19"
   },
   "peerDependencies": {
     "agent-mimir": "*"

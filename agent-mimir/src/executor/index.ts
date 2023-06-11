@@ -73,7 +73,7 @@ export class SteppedAgentExecutor extends BaseChain {
             : `${action.tool} is not a valid tool, try another one.`;
 
         if (process.env.MIMIR_LOG_TOOL_RESPONSE) {
-            console.log('\x1b[32m%s\x1b[0m',`Executed command: "${action.tool}" with input: "${action.toolInput}". Tool response:\n${observation}`)
+            console.log('\x1b[32m%s\x1b[0m',`Executed command: "${action.tool}" with input: "${JSON.stringify(action.toolInput)}". Tool response:\n${observation}`)
         }
       
         steps.push({ action, observation });
