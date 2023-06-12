@@ -29,6 +29,6 @@
     "webdriver-manager": "^13.0.2"
   },
   "peerDependencies": {
-    "agent-mimir": "*"
+    "langchain": "^0.0.84"
   }
 }

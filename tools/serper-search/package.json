@@ -1,6 +1,6 @@
 {
-  "name": "@agent-mimir/javascript-code-runner",
-  "description": "Javascript code runner tool for langchain",
+  "name": "@agent-mimir/serper-search",
+  "description": "Serper search tool for langchain",
   "main": "dist/index.js",
   "scripts": {
     "build": "rimraf dist/ && tsc -p tsconfig.json "
@@ -15,7 +15,6 @@
     "typescript": "^5.0.4"
   },
   "dependencies": {
-    "vm2": "^3.9.19"
   },
   "peerDependencies": {
     "langchain": "^0.0.84"

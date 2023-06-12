@@ -203,6 +203,7 @@ export class MimirChatConversationalAgent extends Agent {
     ): Promise<AgentFinish["returnValues"]> {
         return {
             complete: _returnValues.complete ?? false,
+            output: _returnValues.output.messageToUser ?? _returnValues.output,
         };
     }
 

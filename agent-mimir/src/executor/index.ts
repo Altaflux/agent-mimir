@@ -114,8 +114,7 @@ export class SteppedAgentExecutor extends BaseChain {
             if (this.returnIntermediateSteps) {
                 return { ...returnValues, intermediateSteps: steps, ...additional };
             }
-
-            return { log: finishStep.log, ...returnValues, ...additional };
+            return { log: finishStep.log, ...returnValues, ...additional }
         };
 
 
