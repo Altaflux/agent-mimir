@@ -34,6 +34,8 @@ export class PlainTextMessageSerializer extends AIMessageSerializer {
         return FORMAT_INSTRUCTIONS;
     }
 
+    lc_namespace = ["langchain", "output_parsers"]
+
     async serialize(message: AIMessageType): Promise<string> {
         const result = `-Thoughts: I can come up with an innovative solution to this problem.
 -Reasoning: ${message.reasoning ?? ""}

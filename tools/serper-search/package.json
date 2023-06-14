@@ -17,6 +17,6 @@
   "dependencies": {
   },
   "peerDependencies": {
-    "langchain": "^0.0.84"
+    "langchain": "*"
   }
 }

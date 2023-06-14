@@ -18,6 +18,6 @@
     "vm2": "^3.9.19"
   },
   "peerDependencies": {
-    "langchain": "^0.0.84"
+    "langchain": "*"
   }
 }

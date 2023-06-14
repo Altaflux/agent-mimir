@@ -60,6 +60,8 @@ export class ChatConversationalAgentOutputParser extends AgentActionOutputParser
         super();
     }
 
+    lc_namespace = ["langchain", "agents",  "output-parser"]
+
     async parse(input: string): Promise<AgentAction | AgentFinish> {
         const out = JSON.parse(input) as AIMessageType;
 
@@ -124,6 +126,7 @@ export class MimirChatConversationalAgent extends Agent {
     currentTaskList: string[] = [];
     communicationWhitelist: string[] | null;
 
+    
     constructor(
         memory: BaseChatMemory,
         taskCompleteCommandName: string,
@@ -149,6 +152,8 @@ export class MimirChatConversationalAgent extends Agent {
         this.messageSerializer = messageSerializer;
         this.communicationWhitelist = communicationWhitelist ?? null;
     }
+
+    lc_namespace = ["langchain", "agents"]
 
     _agentType(): string {
         throw new Error("Method not implemented.");
@@ -394,9 +399,12 @@ export class MimirChatConversationalAgent extends Agent {
 
 
 class AgentOutputParser extends BaseOutputParser<string> {
+
     constructor(private messageSerializer: AIMessageSerializer) {
         super();
     }
+
+    lc_namespace = ["langchain", "output_parsers"]
 
     async parse(text: string): Promise<string> {
         const result = await this.messageSerializer.deserialize(text);
