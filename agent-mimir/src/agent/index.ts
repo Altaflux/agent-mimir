@@ -17,9 +17,6 @@ import {
 
 import {
     AgentStep,
-    BaseChatMessage,
-    AIChatMessage,
-    HumanChatMessage,
     ChainValues,
     AgentAction,
     AgentFinish,
@@ -27,9 +24,9 @@ import {
 import { BaseOutputParser } from "langchain/schema/output_parser";
 
 import { StructuredTool } from "langchain/tools";
-import { Agent, AgentActionOutputParser, AgentInput } from "langchain/agents";
+import { AgentActionOutputParser, AgentInput, BaseSingleActionAgent } from "langchain/agents";
 import { BaseLanguageModel } from "langchain/base_language";
-import { ConversationChain } from "langchain/chains";
+import { ConversationChain, LLMChain } from "langchain/chains";
 import { BaseChatMemory, BufferMemory, getInputValue } from "langchain/memory";
 import { Embeddings } from "langchain/embeddings/base";
 import { AIMessageSerializer } from "../schema.js";
@@ -41,6 +38,7 @@ import { PlainTextMessageSerializer } from "../parser/plain-text-parser/index.js
 import { AgentManager } from "../index.js";
 import { JsonSchema7ObjectType } from "zod-to-json-schema/src/parsers/object.js";
 import { zodToJsonSchema } from "zod-to-json-schema";
+import { CallbackManager } from "langchain/callbacks";
 
 const BAD_MESSAGE_TEXT = `I could not understand that your response, please rememeber to use the correct response format and always include a valid "command" value and "command_text" fields!.`;
 
@@ -60,7 +58,7 @@ export class ChatConversationalAgentOutputParser extends AgentActionOutputParser
         super();
     }
 
-    lc_namespace = ["langchain", "agents",  "output-parser"]
+    lc_namespace = ["langchain", "agents", "output-parser"]
 
     async parse(input: string): Promise<AgentAction | AgentFinish> {
         const out = JSON.parse(input) as AIMessageType;
@@ -114,7 +112,7 @@ export type MimirChatConversationalAgentInput = AgentInput;
  * Agent for the MRKL chain.
  * @augments Agent
  */
-export class MimirChatConversationalAgent extends Agent {
+export class MimirChatConversationalAgent extends BaseSingleActionAgent {
     outputParser: AgentActionOutputParser;
     longTermMemoryManager?: LongTermMemoryManager
     taskCompleteCommandName: string
@@ -126,7 +124,10 @@ export class MimirChatConversationalAgent extends Agent {
     currentTaskList: string[] = [];
     communicationWhitelist: string[] | null;
 
-    
+
+    lc_namespace: string[] = [];
+
+    llmChain: LLMChain;
     constructor(
         memory: BaseChatMemory,
         taskCompleteCommandName: string,
@@ -141,6 +142,7 @@ export class MimirChatConversationalAgent extends Agent {
 
     ) {
         super(input);
+        this.llmChain = input.llmChain;
         this.taskCompleteCommandName = taskCompleteCommandName;
         this.outputParser =
             outputParser ?? new ChatConversationalAgentOutputParser(this.taskCompleteCommandName, messageSerializer);
@@ -153,7 +155,10 @@ export class MimirChatConversationalAgent extends Agent {
         this.communicationWhitelist = communicationWhitelist ?? null;
     }
 
-    lc_namespace = ["langchain", "agents"]
+
+    get inputKeys(): string[] {
+        return this.llmChain.inputKeys;
+    }
 
     _agentType(): string {
         throw new Error("Method not implemented.");
@@ -182,22 +187,6 @@ export class MimirChatConversationalAgent extends Agent {
     }
 
 
-    async constructScratchPad(steps: AgentStep[]): Promise<BaseChatMessage[]> {
-        const thoughts: BaseChatMessage[] = [];
-        for (const step of steps) {
-            thoughts.push(new AIChatMessage(step.action.log));
-            thoughts.push(
-                new HumanChatMessage(
-                    renderTemplate(TEMPLATE_TOOL_RESPONSE, "f-string", {
-                        observation: step.observation,
-                        current_plan: ""
-                    })
-                )
-            );
-        }
-        return thoughts;
-    }
-
     finishToolName(): string {
         return this.taskCompleteCommandName;
     }
@@ -214,7 +203,8 @@ export class MimirChatConversationalAgent extends Agent {
 
     async plan(
         steps: AgentStep[],
-        inputs: ChainValues
+        inputs: ChainValues,
+        callbackManager?: CallbackManager,
     ): Promise<AgentAction | AgentFinish> {
 
         const nextMessage = this.getMessageForAI(steps, inputs);
@@ -231,7 +221,7 @@ export class MimirChatConversationalAgent extends Agent {
         const relevantMemory = await this.longTermMemoryManager?.retrieveMessages(nextMessage.message, 3) ?? "";
         const helperStrings = await this.buildHelperPrompt();
 
-        const agentResponse = await this.executePlanWithRetry(steps, {
+        const agentResponse = await this.executePlanWithRetry({
             ...inputs,
             realInput,
             relevantMemory: relevantMemory,
@@ -269,18 +259,30 @@ export class MimirChatConversationalAgent extends Agent {
         };
     }
 
-    private async executePlanWithRetry(steps: AgentStep[], inputs: Record<string, any>, retries: number = 6) {
+    private async executeChain(
+        inputs: ChainValues,
+        callbackManager?: CallbackManager
+    ): Promise<AgentAction | AgentFinish> {
+
+        const output = await this.llmChain.predict(inputs, callbackManager);
+        if (!this.outputParser) {
+            throw new Error("Output parser not set");
+        }
+        return this.outputParser.parse(output, callbackManager);
+    }
+
+    private async executePlanWithRetry(inputs: Record<string, any>, retries: number = 6) {
         let attempts = 0;
 
         let agentResponse: AgentAction | AgentFinish | undefined;
         while (attempts < retries) {
             if (attempts >= 1) {
-                agentResponse = await super.plan(steps, {
+                agentResponse = await this.executeChain({
                     ...inputs,
                     realInput: BAD_MESSAGE_TEXT
                 });
             } else {
-                agentResponse = await super.plan(steps, inputs);
+                agentResponse = await this.executeChain(inputs);
             }
 
             const aiMessage = await JSON.parse(agentResponse.log) as AIMessageType;

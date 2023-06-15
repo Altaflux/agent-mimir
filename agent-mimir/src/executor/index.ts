@@ -1,11 +1,11 @@
 
-import { Agent, BaseSingleActionAgent, StoppingMethod } from "langchain/agents";
+import { BaseSingleActionAgent, StoppingMethod } from "langchain/agents";
 import { BaseChain, ChainInputs, SerializedLLMChain } from "langchain/chains";
 import { AgentAction, AgentFinish, AgentStep, ChainValues } from "langchain/schema";
 import { StructuredTool } from "langchain/tools";
 
 interface AgentExecutorInput extends ChainInputs {
-    agent: Agent;
+    agent: BaseSingleActionAgent;
     tools: StructuredTool[];
     agentName: string;
     returnIntermediateSteps?: boolean;
