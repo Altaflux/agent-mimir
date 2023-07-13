@@ -102,10 +102,10 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
         let output = await getInputValue(outputValues, this.outputKey);
         let input = `${await getInputValue(inputValues, this.inputKey)}`;
         try {
-            const formattedOutput = JSON.parse(await getInputValue(outputValues, this.outputKey)) as AIMessageType;
+            const formattedOutput = (await getInputValue(outputValues, this.outputKey)) as AIMessageType;
             output = await this.messageSerializer?.serialize(formattedOutput) ?? output;
         } catch (e) {
-
+             console.log(e);
         }
 
         const outputKey = this.outputKey ?? "output";

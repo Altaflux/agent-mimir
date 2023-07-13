@@ -16,6 +16,8 @@ import { PREFIX_JOB } from '../agent/prompt.js';
 import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
 import { Agent } from '../schema.js';
+import { Gpt4FunctionAgent } from '../index.js';
+import { createOpenAiFunctionAgent } from '../agent/nfunction.js';
 
 export type CreateAgentOptions = {
     profession: string,
@@ -60,12 +62,12 @@ export class AgentManager {
             memoryKey: "history",
             inputKey: "inputToSave",
             maxWindowSize: config.chatHistory?.maxTaskHistoryWindow ?? 6,
-            messageSerializer: messageSerializer,
+           // messageSerializer: messageSerializer,
         });
 
         const scratchPad = new ScratchPadManager(10);
         const taskCompleteCommandName = "taskComplete";
-        const controlTools = [new EndTool(taskCompleteCommandName), new TalkToUserTool()]
+        const controlTools = [new EndTool(taskCompleteCommandName)]
 
         const agentCommunicationTools = [];
         if (config.communicationWhitelist) {
@@ -93,26 +95,35 @@ export class AgentManager {
             inputKey: "input",
             outputKey: "output",
             maxWindowSize: config.chatHistory?.maxChatHistoryWindow ?? 6,
-            messageSerializer: messageSerializer,
+           // messageSerializer: messageSerializer,
         });
-
-        const agent = MimirChatConversationalAgent.fromLLMAndTools(model, tools, {
-            systemMessage: PREFIX_JOB(shortName, config.profession),
-            taskCompleteCommandName: taskCompleteCommandName,
+        const talkToUserTool = new TalkToUserTool();
+        const agent = createOpenAiFunctionAgent({
+            llm: model,
             memory: innerMemory,
             name: shortName,
-            embedding: embeddings,
-            scratchPad: scratchPad,
-            helper: this,
-            messageSerializer: messageSerializer,
-            communicationWhitelist: communicationWhitelist
+            taskCompleteCommandName: taskCompleteCommandName,
+            talkToUserCommandName: talkToUserTool.name,
+            tools
         });
+        // const agent = Gpt4FunctionAgent.fromLLMAndTools(model, tools, {
+        //     systemMessage: PREFIX_JOB(shortName, config.profession),
+        //     taskCompleteCommandName: taskCompleteCommandName,
+        //     memory: innerMemory,
+        //     name: shortName,
+        //     embedding: embeddings,
+        //     scratchPad: scratchPad,
+        //     talkToUserTool: talkToUserTool,
+        //     helper: this,
+        //     messageSerializer: messageSerializer,
+        //     communicationWhitelist: communicationWhitelist
+        // });
 
         let executor = SteppedAgentExecutor.fromAgentAndTools({
             agentName: shortName,
             memory: memory,
             agent: agent,
-            tools,
+            tools: [...tools, talkToUserTool],
             verbose: false,
             alwaysAllowTools: ['talkToUser'],
         });
@@ -121,8 +132,13 @@ export class AgentManager {
             executor,
             memory,
             {
-                completeTransactionTrigger: (message) => message.output.complete,
-                messageFilter: (message) => (!message.output.toolResponse && message.input.input !== undefined)
+                completeTransactionTrigger: (message) => {
+                    return message.output.complete;
+                },
+                messageFilter: (message) =>{
+                    const foo = (!message.output.toolStep)
+                    return foo;
+                }
             }
         );
 

@@ -10,6 +10,7 @@ export type AIMessageType = {
     action_input: any,
     plan?: string[],
     mainGoal?: string,
+    messageToUser?: string,
 }
 
 export abstract class AIMessageSerializer extends BaseOutputParser<string> {

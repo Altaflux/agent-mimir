@@ -1,60 +1,48 @@
-import {
-    SystemMessagePromptTemplate,
-    HumanMessagePromptTemplate,
-    ChatPromptTemplate,
-    MessagesPlaceholder,
-    PromptTemplate,
-} from "langchain/prompts";
-import { renderTemplate } from "langchain/prompts";
-import {
-    SUFFIX,
-    TEMPLATE_TOOL_RESPONSE,
-    USER_INPUT,
-    PREFIX_JOB,
-    JSON_INSTRUCTIONS,
-} from "./prompt.js";
-
-
-import {
-    AgentStep,
-    ChainValues,
-    AgentAction,
-    AgentFinish,
-} from "langchain/schema";
-import { BaseOutputParser } from "langchain/schema/output_parser";
-
-import { StructuredTool } from "langchain/tools";
-import { AgentActionOutputParser, AgentInput, BaseSingleActionAgent } from "langchain/agents";
-import { BaseLanguageModel } from "langchain/base_language";
-import { ConversationChain, LLMChain } from "langchain/chains";
+import { AgentActionOutputParser, BaseSingleActionAgent } from "langchain/agents";
+import { CallbackManager, CallbackManagerForChainRun } from "langchain/callbacks";
+import { AgentAction, AgentFinish, AgentStep, BasePromptValue, ChainValues, ChatGeneration, FunctionChatMessage, Generation } from "langchain/schema";
+import { LongTermMemoryManager } from "../../memory/long-term-memory.js";
+import { AIMessageSerializer, AIMessageType, AgentManager } from "../../index.js";
 import { BaseChatMemory, BufferMemory, getInputValue } from "langchain/memory";
-import { Embeddings } from "langchain/embeddings/base";
-import { AIMessageSerializer } from "../schema.js";
-import { ScratchPadManager } from "../utils/scratch-pad.js";
-import { LongTermMemoryManager } from "../memory/long-term-memory.js";
-import { createBulletedList } from "../utils/format.js";
-import { TrimmingMemory } from "../memory/trimming-memory/index.js";
-import { PlainTextMessageSerializer } from "../parser/plain-text-parser/index.js";
-import { AgentManager } from "../index.js";
+import { ScratchPadManager } from "../../utils/scratch-pad.js";
+import { CreatePromptArgs } from "../index.js";
+import { StructuredTool } from "langchain/tools";
+import { PREFIX_JOB } from "./prompt.js";
+import { ChatPromptTemplate,  MessagesPlaceholder, PromptTemplate, SystemMessagePromptTemplate, renderTemplate } from "langchain/prompts";
 import { JsonSchema7ObjectType } from "zod-to-json-schema/src/parsers/object.js";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { CallbackManager } from "langchain/callbacks";
+import { FunctionCallAiMessageSerializer, HumanMessageSerializerImp, PlainTextMessageSerializer, deserializeWithFunction } from "../../parser/plain-text-parser/index.js";
+import { TrimmingMemory } from "../../memory/trimming-memory/index.js";
+import { ConversationChain, LLMChain, LLMChainInput } from "langchain/chains";
+import { BaseLLMOutputParser, BaseOutputParser } from "langchain/schema/output_parser";
+import { BaseLanguageModel } from "langchain/base_language";
+import { createBulletedList } from "../../utils/format.js";
+import { ChatOpenAI } from "langchain/chat_models/openai";
+import { HumanChatMessage } from "langchain/schema";
+import { FORMAT_INSTRUCTIONS_WITHOUT_COMMAND } from "../../parser/plain-text-parser/prompt.js";
+import { TransformationalMemory } from "../../memory/transform-memory.js";
+// const model = new ChatOpenAI({
+//     temperature: 0.9,
+//     openAIApiKey: "YOUR-API-KEY", // In Node.js defaults to process.env.OPENAI_API_KEY
+//   });
+
 
 const BAD_MESSAGE_TEXT = `I could not understand that your response, please rememeber to use the correct response format and always include a valid "command" value and "command_text" fields!.`;
 
-export type AIMessageType = {
-    thoughts?: string,
-    reasoning?: string,
-    saveToScratchPad?: string,
-    currentPlanStep?: string,
-    action: string,
-    action_input: string,
-    plan?: string[],
+
+type NextMessage = {
+    type: "ACTION" | "USER_MESSAGE",
+    message: string,
+    tool?: string,
 }
+export type MimirChatConversationalAgentInput = {
+    tools: StructuredTool[],
+    llmChain: LLMChain<MimirAIMessage>;
+    outputParser: AgentActionOutputParser | undefined;
+};
+export class ChatConversationalAgentOutputParser extends BaseOutputParser<AgentAction | AgentFinish> {
 
-export class ChatConversationalAgentOutputParser extends AgentActionOutputParser {
-
-    constructor(private finishToolName: string, private messageSerializer: AIMessageSerializer) {
+    constructor(private finishToolName: string, private talkToUserTool: string| undefined,  private messageSerializer: AIMessageSerializer) {
         super();
     }
 
@@ -62,7 +50,11 @@ export class ChatConversationalAgentOutputParser extends AgentActionOutputParser
 
     async parse(input: string): Promise<AgentAction | AgentFinish> {
         const out = JSON.parse(input) as AIMessageType;
-
+        //TODO HACK!
+        if (this.talkToUserTool && !out.action && out.messageToUser && out.messageToUser.length > 1) {
+            out.action = this.talkToUserTool;
+            out.action_input = { messageToUser: out.messageToUser };
+        }
         const action = { tool: out.action, toolInput: out.action_input, log: input }
         if (action.tool === this.finishToolName) {
             return { returnValues: { output: action.toolInput, complete: true }, log: action.log };
@@ -76,46 +68,8 @@ export class ChatConversationalAgentOutputParser extends AgentActionOutputParser
 }
 
 
-
-export type CreatePromptArgs = {
-
-    systemMessage?: string;
-
-    humanMessage?: string;
-
-    inputVariables?: string[];
-
-    outputParser?: AgentActionOutputParser;
-
-    taskCompleteCommandName: string,
-
-    memory: BaseChatMemory,
-
-    scratchPad?: ScratchPadManager,
-
-    talkToUserTool?: StructuredTool,
-
-    embedding?: Embeddings,
-    helper?: AgentManager;
-    name?: string;
-    messageSerializer: AIMessageSerializer;
-    communicationWhitelist?: string[] | null;
-
-};
-
-type NextMessage = {
-    type: "ACTION" | "USER_MESSAGE",
-    message: string,
-}
-
-export type MimirChatConversationalAgentInput = AgentInput;
-
-/**
- * Agent for the MRKL chain.
- * @augments Agent
- */
-export class MimirChatConversationalAgent extends BaseSingleActionAgent {
-    outputParser: AgentActionOutputParser;
+export class Gpt4FunctionAgent extends BaseSingleActionAgent {
+    outputParser: BaseOutputParser<AgentAction | AgentFinish>;
     longTermMemoryManager?: LongTermMemoryManager
     taskCompleteCommandName: string
     memory: BaseChatMemory;
@@ -125,47 +79,45 @@ export class MimirChatConversationalAgent extends BaseSingleActionAgent {
     scratchPad?: ScratchPadManager
     currentTaskList: string[] = [];
     communicationWhitelist: string[] | null;
-
+    tools: StructuredTool[];
+    talkToUserTool?: StructuredTool
+    get inputKeys(): string[] {
+        return this.llmChain.inputKeys;
+    }
 
     lc_namespace: string[] = [];
 
-    llmChain: LLMChain;
+    llmChain: LLMChain<MimirAIMessage>;
     constructor(
         memory: BaseChatMemory,
         taskCompleteCommandName: string,
         input: MimirChatConversationalAgentInput,
         name: string,
         messageSerializer: AIMessageSerializer,
-        outputParser?: AgentActionOutputParser,
+        talkToUserTool?: StructuredTool,
+        outputParser?: BaseOutputParser<AgentAction | AgentFinish>,
         longTermMemoryManager?: LongTermMemoryManager,
         helper?: AgentManager,
         scratchPad?: ScratchPadManager,
         communicationWhitelist?: string[] | null,
 
+
     ) {
         super(input);
+        this.tools = input.tools;
         this.llmChain = input.llmChain;
         this.taskCompleteCommandName = taskCompleteCommandName;
         this.outputParser =
-            outputParser ?? new ChatConversationalAgentOutputParser(this.taskCompleteCommandName, messageSerializer);
+            outputParser ?? new ChatConversationalAgentOutputParser(this.taskCompleteCommandName, talkToUserTool?.name, messageSerializer);
         this.longTermMemoryManager = longTermMemoryManager;
         this.memory = memory;
+        this.talkToUserTool = talkToUserTool;
         this.helper = helper;
         this.name = name;
         this.scratchPad = scratchPad;
         this.messageSerializer = messageSerializer;
         this.communicationWhitelist = communicationWhitelist ?? null;
     }
-
-
-    get inputKeys(): string[] {
-        return this.llmChain.inputKeys;
-    }
-
-    _agentType(): string {
-        throw new Error("Method not implemented.");
-    }
-
 
     static validateTools(tools: StructuredTool[]) {
         const invalidTool = tools.find((tool) => !tool.description);
@@ -175,11 +127,6 @@ export class MimirChatConversationalAgent extends BaseSingleActionAgent {
                 ` This agent requires descriptions for all tools.`;
             throw new Error(msg);
         }
-    }
-
-
-    finishToolName(): string {
-        return this.taskCompleteCommandName;
     }
 
     async prepareForOutput(
@@ -202,24 +149,27 @@ export class MimirChatConversationalAgent extends BaseSingleActionAgent {
         const scratchPadElements = await this.scratchPad?.buildScratchPadList() ?? "";
         const currentPlan = createBulletedList(this.currentTaskList);
 
-        const realInput = nextMessage.type === "USER_MESSAGE" ? renderTemplate(USER_INPUT, "f-string", {
-            input: nextMessage.message,
-        }) : renderTemplate(TEMPLATE_TOOL_RESPONSE, "f-string", {
-            observation: nextMessage.message,
-            current_plan: currentPlan
-        });
+        // const realInput = nextMessage.type === "USER_MESSAGE" ? renderTemplate(USER_INPUT, "f-string", {
+        //     input: nextMessage.message,
+        // }) : renderTemplate(TEMPLATE_TOOL_RESPONSE, "f-string", {
+        //     observation: nextMessage.message,
+        //     current_plan: currentPlan
+        // });
+        const realInput = nextMessage.type === "USER_MESSAGE" ? new HumanChatMessage(nextMessage.message) : new FunctionChatMessage(nextMessage.message, nextMessage.tool!);
 
         const relevantMemory = await this.longTermMemoryManager?.retrieveMessages(nextMessage.message, 3) ?? "";
+        //const relevantMemory = "";
         const helperStrings = await this.buildHelperPrompt();
 
         const agentResponse = await this.executePlanWithRetry({
             ...inputs,
-            realInput,
+            tools: this.tools,////////////////////
+            realInput: realInput,
             relevantMemory: relevantMemory,
             helper_prompt: helperStrings,
             scratchpad_items: scratchPadElements,
             currentTime: new Date().toISOString(),
-            inputToSave: nextMessage.message
+            inputToSave: realInput
         });
 
         let aiMessage = await JSON.parse(agentResponse.log) as AIMessageType;
@@ -250,16 +200,23 @@ export class MimirChatConversationalAgent extends BaseSingleActionAgent {
         };
     }
 
+    finishToolName(): string {
+        return this.taskCompleteCommandName;
+    }
+
     private async executeChain(
         inputs: ChainValues,
         callbackManager?: CallbackManager
     ): Promise<AgentAction | AgentFinish> {
 
-        const output = await this.llmChain.predict(inputs, callbackManager);
+        const output1 = await this.llmChain.predict(inputs, callbackManager);
         if (!this.outputParser) {
             throw new Error("Output parser not set");
         }
-        return this.outputParser.parse(output, callbackManager);
+        const output =  await deserializeWithFunction(output1.text!, output1.functionCall?.name!, output1.functionCall?.arguments!);
+        //TODO: This is a hack to use "message to user" as the talkToUser tool.
+    
+        return this.outputParser.parse(JSON.stringify(output), callbackManager);
     }
 
     private async executePlanWithRetry(inputs: Record<string, any>, retries: number = 6) {
@@ -303,7 +260,8 @@ export class MimirChatConversationalAgent extends BaseSingleActionAgent {
             message: inputs.input
         } : {
             type: "ACTION",
-            message: steps.slice(-1)[0].observation
+            message: steps.slice(-1)[0].observation,
+            tool: steps.slice(-1)[0].action.tool,
         }
     }
     static createToolSchemasString(tools: StructuredTool[]) {
@@ -316,36 +274,37 @@ export class MimirChatConversationalAgent extends BaseSingleActionAgent {
             )
             .join("\n");
     }
+
     static createPrompt(tools: StructuredTool[], outputParser: AgentActionOutputParser, args?: CreatePromptArgs) {
         const {
             systemMessage = PREFIX_JOB("Assistant", "a helpful assistant"),
-            humanMessage = SUFFIX,
         } = args ?? {};
 
-        const template = [systemMessage, outputParser.getFormatInstructions(), humanMessage].join("\n\n");
+        // const template = [systemMessage, outputParser.getFormatInstructions(), humanMessage].join("\n\n");
+        const template = [systemMessage, FORMAT_INSTRUCTIONS_WITHOUT_COMMAND].join("\n\n");
 
         const messages = [
             new SystemMessagePromptTemplate(
                 new PromptTemplate({
                     template: template,
                     inputVariables: ["helper_prompt", "scratchpad_items"],
-                    partialVariables: {
-                        tools: MimirChatConversationalAgent.createToolSchemasString(tools),
-                        tool_names: tools.map((tool) => tool.name).join(", "),
-                        json_instructions: JSON_INSTRUCTIONS,
-                    },
+                    // partialVariables: {
+                    //     tools: Gpt4FunctionAgent.createToolSchemasString(tools),
+                    //     tool_names: tools.map((tool) => tool.name).join(", "),
+                    //     json_instructions: JSON_INSTRUCTIONS,
+                    // },
                 })
             ),
             SystemMessagePromptTemplate.fromTemplate(`The current time is: {currentTime}`),
             SystemMessagePromptTemplate.fromTemplate("This reminds you of these events from your past:\n{relevantMemory}"),
             new MessagesPlaceholder("chat_history"),
             new MessagesPlaceholder("history"),
-            HumanMessagePromptTemplate.fromTemplate(`{realInput}`),
+            new MessagesPlaceholder("realInput"),
+            //HumanMessagePromptTemplate.fromTemplate(`{realInput}`),
         ];
         const prompt = ChatPromptTemplate.fromPromptMessages(messages);
         return prompt;
     }
-
 
     public static fromLLMAndTools(
         llm: BaseLanguageModel,
@@ -353,34 +312,38 @@ export class MimirChatConversationalAgent extends BaseSingleActionAgent {
         args?: CreatePromptArgs,
     ) {
         const expandedTools = [...tools]
-        MimirChatConversationalAgent.validateTools(expandedTools);
+        Gpt4FunctionAgent.validateTools(expandedTools);
 
         const taskCompleteCommandName = args?.taskCompleteCommandName ?? "taskComplete";
+        const talkToUserTool = args?.talkToUserTool;
         const serializer = args?.messageSerializer ?? new PlainTextMessageSerializer();
-        const { outputParser = new ChatConversationalAgentOutputParser(taskCompleteCommandName, serializer) } =
+        const { outputParser = new ChatConversationalAgentOutputParser(taskCompleteCommandName, talkToUserTool?.name, serializer) } =
             args ?? {};
 
-        const prompt = MimirChatConversationalAgent.createPrompt(expandedTools, outputParser, args);
+        const prompt = Gpt4FunctionAgent.createPrompt(expandedTools, outputParser, args);
         const innerMemory = new TrimmingMemory(args?.memory ?? new BufferMemory({ returnMessages: true, memoryKey: "history", inputKey: "realInput" }), {
             startCollectionFilter: (messagePack) => {
                 const message = getInputValue(messagePack.output, innerMemory.outputKey);
-                const aiMessage = JSON.parse(message) as AIMessageType;
-                return aiMessage.action === "PARSING_ERROR";
+                const aiMessage = message as MimirAIMessage;
+                return (aiMessage.functionCall?.name ?? "") === "PARSING_ERROR";
             }
         });
 
-        const chain = new ConversationChain({ prompt, llm, memory: innerMemory, outputParser: new AgentOutputParser(serializer) });
+        const transformMemory = new TransformationalMemory(innerMemory, new FunctionCallAiMessageSerializer(), new HumanMessageSerializerImp());
+        const chain = new LLMChain({ prompt, llm, memory: transformMemory, outputParser: new AIMessageLLMOutputParser() });
+        //const chain = new FunctionChatLLM({ prompt, llm, memory: transformMemory, outputParser: undefined });
 
-        return new MimirChatConversationalAgent(
+        return new Gpt4FunctionAgent(
             innerMemory,
             taskCompleteCommandName,
             {
                 outputParser: outputParser,
                 llmChain: chain,
-                allowedTools: expandedTools.map((t) => t.name),
+                tools: expandedTools,
             },
             args?.name ?? "Assistant",
             serializer,
+            args?.talkToUserTool,
             outputParser,
             args?.embedding ? new LongTermMemoryManager(args.embedding) : undefined,
             args?.helper,
@@ -391,20 +354,27 @@ export class MimirChatConversationalAgent extends BaseSingleActionAgent {
 }
 
 
-class AgentOutputParser extends BaseOutputParser<string> {
-
-    constructor(private messageSerializer: AIMessageSerializer) {
-        super();
+export type MimirAIMessage = {
+    functionCall?: {
+        name: string,
+        arguments: string
+    },
+    text?: string,
+}
+class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
+    async parseResult(generations: Generation[] | ChatGeneration[]): Promise<MimirAIMessage> {
+        const generation = generations[0] as ChatGeneration;
+        const functionCall: any = generation.message?.additional_kwargs?.function_call
+       
+        return {
+            functionCall: {
+                name:  functionCall?.name,
+                arguments: functionCall?.arguments
+            },
+            text: generation.text,
+        }
+        //
     }
-
-    lc_namespace = ["langchain", "output_parsers"]
-
-    async parse(text: string): Promise<string> {
-        const result = await this.messageSerializer.deserialize(text);
-        return JSON.stringify(result, null, 2);
-    }
-    getFormatInstructions(): string {
-        throw new Error("Method not implemented.");
-    }
+    lc_namespace: string[] = [];
 
 }
