@@ -1,8 +1,7 @@
 
-import { AIChatMessage, BaseChatMessage, StoredMessage } from "langchain/schema";
+import {  BaseChatMessage, StoredMessage } from "langchain/schema";
 import { AIMessageSerializer, AIMessageType } from "../../schema.js";
 import { FORMAT_INSTRUCTIONS } from "./prompt.js";
-import { MimirAIMessage } from "../../agent/function/index.js";
 import { mapStoredMessagesToChatMessages } from "../../utils/format.js";
 
 const responseParts = [
@@ -95,7 +94,7 @@ export abstract class HumanMessageSerializer {
     };
 }
 
-export class HumanMessageSerializerImp extends HumanMessageSerializer {
+export class DefaultHumanMessageSerializerImp extends HumanMessageSerializer {
     async serialize(message: BaseChatMessage): Promise<string> {
         const serializedMessage = message.toJSON();
         return JSON.stringify(serializedMessage);
@@ -112,20 +111,3 @@ export abstract class AiMessageSerializer {
     };
 }
 
-export class FunctionCallAiMessageSerializer extends AiMessageSerializer {
-
-    async serialize(aiMessage: any): Promise<string> {
-        const output = aiMessage;
-        const functionCall = output.functionCall?.name ? {
-            function_call: {
-                name: output.functionCall?.name,
-                arguments: (output.functionCall?.arguments)
-            },
-        } : {};
-        const message = new AIChatMessage(output.text ?? "", {
-            ...functionCall
-        });
-        const serializedMessage = message.toJSON();
-        return JSON.stringify(serializedMessage);
-    }
-}

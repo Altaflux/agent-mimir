@@ -2,7 +2,6 @@
 import { uniqueNamesGenerator, names } from 'unique-names-generator';
 
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
-import { BaseChain } from "langchain/chains";
 
 import { Tool } from "langchain/tools";
 import { PlainTextMessageSerializer } from '../parser/plain-text-parser/index.js';
@@ -12,13 +11,13 @@ import { CreateHelper, EndTool, TalkToHelper, TalkToUserTool } from '../tools/co
 import { MimirChatConversationalAgent } from '../agent/index.js';
 import { SteppedAgentExecutor } from '../executor/index.js';
 import { ChatMemoryChain } from '../memory/transactional-memory-chain.js';
-import { PREFIX_JOB } from '../agent/prompt.js';
+
 import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
 import { Agent } from '../schema.js';
-import { Gpt4FunctionAgent } from '../index.js';
-import { createOpenAiFunctionAgent } from '../agent/nfunction.js';
 
+import { createOpenAiFunctionAgent } from '../agent/nfunction.js';
+import { createDefaultMimirAgent } from '../agent/default-agent.js';
 export type CreateAgentOptions = {
     profession: string,
     description: string,
@@ -98,12 +97,21 @@ export class AgentManager {
            // messageSerializer: messageSerializer,
         });
         const talkToUserTool = new TalkToUserTool();
-        const agent = createOpenAiFunctionAgent({
+        // const agent = createOpenAiFunctionAgent({
+        //     llm: model,
+        //     memory: innerMemory,
+        //     name: shortName,
+        //     taskCompleteCommandName: taskCompleteCommandName,
+        //     talkToUserCommandName: talkToUserTool.name,
+        //     tools
+        // });
+        
+        const agent = createDefaultMimirAgent({
             llm: model,
             memory: innerMemory,
             name: shortName,
             taskCompleteCommandName: taskCompleteCommandName,
-            talkToUserCommandName: talkToUserTool.name,
+            talkToUserTool: talkToUserTool,
             tools
         });
         // const agent = Gpt4FunctionAgent.fromLLMAndTools(model, tools, {

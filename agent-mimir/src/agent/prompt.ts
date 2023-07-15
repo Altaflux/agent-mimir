@@ -38,7 +38,6 @@ You can use the following commands to look up information that may be helpful in
 The commands with their JSON schemas you can use are:
 {tools}
 
-
 `;
 
 export const USER_INPUT = `USER'S INPUT

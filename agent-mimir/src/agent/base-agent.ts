@@ -3,7 +3,7 @@ import { CallbackManager } from "langchain/callbacks";
 import { AgentAction, AgentFinish, AgentStep, BaseChatMessage, ChainValues } from "langchain/schema";
 import { BaseChatMemory, BufferMemory, getInputValue } from "langchain/memory";
 import { ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
-import { FunctionCallAiMessageSerializer, HumanMessageSerializerImp } from "./../parser/plain-text-parser/index.js";
+import { AiMessageSerializer, HumanMessageSerializer } from "./../parser/plain-text-parser/index.js";
 import { TrimmingMemory } from "./../memory/trimming-memory/index.js";
 import { LLMChain } from "langchain/chains";
 import { BaseLLMOutputParser, BaseOutputParser } from "langchain/schema/output_parser";
@@ -176,7 +176,7 @@ export class Gpt4FunctionAgent extends BaseSingleActionAgent {
             }
         });
 
-        const transformMemory = new TransformationalMemory(innerMemory, new FunctionCallAiMessageSerializer(), new HumanMessageSerializerImp());
+        const transformMemory = new TransformationalMemory(innerMemory, args.aiMessageSerializer, args.humanMessageSerializer);
         const chain = new LLMChain({ prompt, llm, memory: transformMemory, outputParser: mimirOutputParser });
 
         return new Gpt4FunctionAgent(
@@ -211,6 +211,9 @@ export type CreatePromptArgs = {
     defaultInputs?: Record<string, any>,
 
     communicationWhitelist?: string[] | null;
+
+    aiMessageSerializer: AiMessageSerializer;
+    humanMessageSerializer: HumanMessageSerializer;
 
 };
 export type MimirAIMessage = {
