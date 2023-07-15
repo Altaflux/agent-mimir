@@ -33,20 +33,20 @@ When working on a task you have to choose between this two options:
 };
 
 
-const JSON_INSTRUCTIONS = `You must format your inputs to these commands to match their "JSON schema" definitions below.
+const JSON_INSTRUCTIONS = `You must format your inputs to these functions to match their "JSON schema" definitions below.
 "JSON Schema" is a declarative language that allows you to annotate and validate JSON documents.
 For example, the example "JSON Schema" instance {"properties": {"foo": {"description": "a list of test words", "type": "array", "items": {"type": "string"}}}, "required": ["foo"]}}
 would match an object with one required property, "foo". The "type" property specifies "foo" must be an "array", and the "description" property semantically describes it as "a list of test words". The items within "foo" must be strings.
 Thus, the object {"foo": ["bar", "baz"]} is a well-formatted instance of this example "JSON Schema". The object {"properties": {"foo": ["bar", "baz"]}} is not well-formatted.`
 
-const SUFFIX = `\nCOMMANDS
+const SUFFIX = `\nFUNCTIONS
 ------
-You can use the following commands to look up information that may be helpful in answering the users original question or interact with the user.
+You can use the following functions to look up information that may be helpful in completing the users request or interact with the user.
 
 
 {json_instructions}
 
-The commands with their JSON schemas you can use are:
+The functions with their JSON schemas you can use are:
 {toolList}
 
 `;
@@ -57,7 +57,7 @@ Here is the user's input (remember to respond with using the format instructions
 
 {input}`;
 
-const TEMPLATE_TOOL_RESPONSE = `COMMAND RESPONSE, (Note from user: I cannot see the command response, any information from the command response you must tell me explicitly): 
+const TEMPLATE_TOOL_RESPONSE = `FUNCTION RESPONSE, (Note from user: I cannot see the function's response, any information from the function's response you must tell me explicitly): 
 ---------------------
 {observation}
 
@@ -141,13 +141,7 @@ const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseCha
 
 };
 
-
-
-
 export class DefaultAiMessageSerializer extends AiMessageSerializer {
-    // constructor(private fieldMapper: ResponseFieldMapper<AIMessageType>) { 
-    //     super(); 
-    // }
 
     async serialize(aiMessage: any): Promise<string> {
         const output = aiMessage as MimirAIMessage;
@@ -194,16 +188,16 @@ const atts: AttributeDescriptor[] = [
         example: "The plot of the story is about a young kid going on an adventure to find his lost dog."
     },
     {
-        name: "Command",
-        description: "\\ The command to run. This field is obligatory.",
+        name: "Function Name",
+        description: "\\ The function to run. This field is obligatory.",
+        example: "someFunction",
         variableName: "functionName",
-        example: "someCommand"
     },
     {
-        name: "Command JSON",
-        description: "\\ Command JSON goes here, the input to the command. This field is obligatory.",
+        name: "Arguments",
+        description: "\\ function's JSON argument goes here. This field is obligatory.",
+        example: "{" + JSON.stringify({ someInput: "someValue" }) + "}",
         variableName: "functionArguments",
-        example: JSON.stringify({ someInput: "someValue" })
     },
 ]
 
