@@ -12,7 +12,6 @@ import { HumanChatMessage } from "langchain/schema";
 import { TransformationalMemory } from "./../memory/transform-memory.js";
 
 
-
 const BAD_MESSAGE_TEXT = `I could not understand that your response, please rememeber to use the correct response format.`;
 
 
@@ -36,6 +35,7 @@ export class Gpt4FunctionAgent extends BaseSingleActionAgent {
     lc_namespace: string[] = [];
     llmChain: LLMChain<MimirAIMessage>;
     defaultInputs?: Record<string, any>;
+    plugins: InternalAgentPlugin[];
     messageGenerator: (arg: NextMessage) => Promise<{ message: BaseChatMessage, messageToSave: BaseChatMessage, }>;
 
     constructor(
@@ -44,6 +44,7 @@ export class Gpt4FunctionAgent extends BaseSingleActionAgent {
         input: MimirChatConversationalAgentInput,
         outputParser: BaseOutputParser<AgentAction | AgentFinish>,
         messageGenerator: (arg: NextMessage) => Promise<{ message: BaseChatMessage, messageToSave: BaseChatMessage, }>,
+        plugins?: InternalAgentPlugin[],
         defaultInputs?: Record<string, any>,
     ) {
         super(input);
@@ -53,6 +54,7 @@ export class Gpt4FunctionAgent extends BaseSingleActionAgent {
         this.memory = memory;
         this.messageGenerator = messageGenerator;
         this.defaultInputs = defaultInputs;
+        this.plugins = plugins ?? [];
 
     }
 
@@ -78,15 +80,21 @@ export class Gpt4FunctionAgent extends BaseSingleActionAgent {
     ): Promise<AgentAction | AgentFinish> {
 
         const nextMessage = this.getMessageForAI(steps, inputs);
-        const { message, messageToSave} = await this.messageGenerator(nextMessage);
+        const { message, messageToSave } = await this.messageGenerator(nextMessage);
+
+        const pluginInputs = (await Promise.all(this.plugins.map(async plugin => await plugin.getInputs())))
+            .reduce((acc, val) => ({ ...acc, ...val }), {})
 
         const agentResponse = await this.executePlanWithRetry({
             ...this.defaultInputs,
+            ...pluginInputs,
             ...inputs,
             currentTime: new Date().toISOString(),
             realInput: message,
             inputToSave: messageToSave
         });
+
+        this.plugins.forEach(plugin => plugin.readResponse(agentResponse));
 
 
         if (agentResponse.functionCall?.name === this.finishToolName()) {
@@ -145,8 +153,10 @@ export class Gpt4FunctionAgent extends BaseSingleActionAgent {
     }
 
     static createPrompt(args: CreatePromptArgs) {
+        // const pluginsSystemMessages = args.plugins?.map(plugin => plugin.systemMessages()).flatMap(e => e) ?? [];
         const messages = [
             ...args.systemMessage,
+           // ...pluginsSystemMessages,
             SystemMessagePromptTemplate.fromTemplate(`The current time is: {currentTime}`),
             new MessagesPlaceholder("chat_history"),
             new MessagesPlaceholder("history"),
@@ -188,6 +198,7 @@ export class Gpt4FunctionAgent extends BaseSingleActionAgent {
             },
             outputParser,
             messageGenerator,
+            args.plugins,
             args.defaultInputs
         );
     }
@@ -213,9 +224,19 @@ export type CreatePromptArgs = {
     communicationWhitelist?: string[] | null;
 
     aiMessageSerializer: AiMessageSerializer;
+
     humanMessageSerializer: HumanMessageSerializer;
 
+    plugins: InternalAgentPlugin[];
+
 };
+
+
+export type InternalAgentPlugin = {
+    getInputs: () => Promise<Record<string, any>>,
+    readResponse: (aiMessage: MimirAIMessage) => Promise<void>,
+}
+
 export type MimirAIMessage = {
     functionCall?: {
         name: string,

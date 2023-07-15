@@ -1,6 +1,6 @@
 import { BaseLanguageModel } from "langchain/base_language";
 import { BaseLLMOutputParser } from "langchain/schema/output_parser";
-import { Gpt4FunctionAgent, MimirAIMessage, NextMessage } from "./base-agent.js";
+import { Gpt4FunctionAgent, InternalAgentPlugin, MimirAIMessage, NextMessage } from "./base-agent.js";
 import { AIChatMessage, AgentAction, AgentFinish, BaseChatMessage, ChatGeneration, FunctionChatMessage, Generation, HumanChatMessage } from "langchain/schema";
 import { AiMessageSerializer, HumanMessageSerializer, DefaultHumanMessageSerializerImp } from "../parser/plain-text-parser/index.js";
 import { SystemMessagePromptTemplate } from "langchain/prompts";
@@ -8,7 +8,7 @@ import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.j
 
 import { AgentActionOutputParser } from "langchain/agents";
 import { BaseChatMemory } from "langchain/memory";
-import { StructuredTool } from "langchain/tools";
+import { MimirAgentPlugin } from "../index.js";
 
 
 const PREFIX_JOB = (name: string, jobDescription: string) => {
@@ -169,16 +169,28 @@ export type OpenAIFunctionMimirAgentArgs = {
     memory: BaseChatMemory
     taskCompleteCommandName: string,
     talkToUserCommandName?: string,
-    tools: StructuredTool[]
+    // tools: StructuredTool[],
+    plugins: MimirAgentPlugin[]
 }
 export function createOpenAiFunctionAgent(args: OpenAIFunctionMimirAgentArgs) {
 
-    const formatManager = new ResponseFieldMapper(atts);
+    const pluginAttributes = args.plugins.map(plugin => plugin.attributes()).flat();
+    const formatManager = new ResponseFieldMapper([...atts, ...pluginAttributes]);
+
     const systemMessages = [
         SystemMessagePromptTemplate.fromTemplate(PREFIX_JOB(args.name, "an Assistant")),
         SystemMessagePromptTemplate.fromTemplate(formatManager.createFieldInstructions()),
+        ...args.plugins.map(plugin => plugin.systemMessages()).flat(),
     ];
 
+    const internalPlugins = args.plugins.map(plugin =>  {
+        return {
+            getInputs: plugin.getInputs,
+            readResponse: async (response: MimirAIMessage) => {
+                await plugin.readResponse(response, formatManager);
+            }
+        } as InternalAgentPlugin
+    });
 
     const agent = Gpt4FunctionAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGenerator, {
         systemMessage: systemMessages,
@@ -186,10 +198,11 @@ export function createOpenAiFunctionAgent(args: OpenAIFunctionMimirAgentArgs) {
         taskCompleteCommandName: args.taskCompleteCommandName,
         memory: args.memory,
         defaultInputs: {
-            tools: args.tools
+            tools: args.plugins.map(plugin => plugin.tools()).flat(),
         },
         aiMessageSerializer: new FunctionCallAiMessageSerializer(),
         humanMessageSerializer: new DefaultHumanMessageSerializerImp(),
+        plugins: internalPlugins,
     });
 
     return agent;

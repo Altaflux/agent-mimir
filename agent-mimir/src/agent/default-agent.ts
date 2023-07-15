@@ -1,6 +1,6 @@
 import { BaseLanguageModel } from "langchain/base_language";
 import { BaseLLMOutputParser } from "langchain/schema/output_parser";
-import { Gpt4FunctionAgent, MimirAIMessage, NextMessage } from "./base-agent.js";
+import { Gpt4FunctionAgent, InternalAgentPlugin, MimirAIMessage, NextMessage } from "./base-agent.js";
 import { AIChatMessage, AgentAction, AgentFinish, BaseChatMessage, ChatGeneration, FunctionChatMessage, Generation, HumanChatMessage } from "langchain/schema";
 import { AiMessageSerializer, DefaultHumanMessageSerializerImp } from "../parser/plain-text-parser/index.js";
 import { PromptTemplate, SystemMessagePromptTemplate, renderTemplate } from "langchain/prompts";
@@ -11,6 +11,7 @@ import { BaseChatMemory } from "langchain/memory";
 import { StructuredTool } from "langchain/tools";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { JsonSchema7ObjectType } from "zod-to-json-schema/src/parsers/object.js";
+import {  MimirAgentPlugin } from "../index.js";
 
 const PREFIX_JOB = (name: string, jobDescription: string) => {
     return `Your name is ${name}, a large language model. Carefully heed the user's instructions. I want you to act as ${jobDescription}.
@@ -208,19 +209,30 @@ export type DefaultMimirAgentArgs = {
     memory: BaseChatMemory
     taskCompleteCommandName: string,
     talkToUserTool: StructuredTool,
-    tools: StructuredTool[]
+    plugins: MimirAgentPlugin[]
 }
 export function createDefaultMimirAgent(args: DefaultMimirAgentArgs) {
 
-    const formatManager = new ResponseFieldMapper(atts);
+    const pluginAttributes = args.plugins.map(plugin => plugin.attributes()).flat();
+    const formatManager = new ResponseFieldMapper([...atts, ...pluginAttributes]);
 
+    const internalPlugins = args.plugins.map(plugin =>  {
+        return {
+            getInputs: plugin.getInputs,
+            readResponse: async (response: MimirAIMessage) => {
+                await plugin.readResponse(response, formatManager);
+            }
+        } as InternalAgentPlugin
+    });
+
+    const tools = args.plugins.map(plugin => plugin.tools()).flat();
     const toolsSystemMessage = new SystemMessagePromptTemplate(
         new PromptTemplate({
             template: SUFFIX,
             inputVariables: [],
             partialVariables: {
-                toolList: createToolSchemasString([...args.tools, args.talkToUserTool]),
-                tool_names: [...args.tools, args.talkToUserTool].map((tool) => tool.name).join(", "),
+                toolList: createToolSchemasString([...tools, args.talkToUserTool]),
+                tool_names: [...tools, args.talkToUserTool].map((tool) => tool.name).join(", "),
                 json_instructions: JSON_INSTRUCTIONS,
             },
         })
@@ -228,6 +240,7 @@ export function createDefaultMimirAgent(args: DefaultMimirAgentArgs) {
     const systemMessages = [
         SystemMessagePromptTemplate.fromTemplate(PREFIX_JOB(args.name, "an Assistant")),
         SystemMessagePromptTemplate.fromTemplate(formatManager.createFieldInstructions()),
+        ...args.plugins.map(plugin => plugin.systemMessages()).flat(),
         toolsSystemMessage,
     ];
 
@@ -242,6 +255,8 @@ export function createDefaultMimirAgent(args: DefaultMimirAgentArgs) {
         },
         aiMessageSerializer: new DefaultAiMessageSerializer(),
         humanMessageSerializer: new DefaultHumanMessageSerializerImp(),
+        plugins: internalPlugins,
+        
     });
 
     return agent;

@@ -8,7 +8,6 @@ import { PlainTextMessageSerializer } from '../parser/plain-text-parser/index.js
 import { WindowedConversationSummaryMemory } from '../memory/windowed-memory/index.js';
 import { ScratchPadManager } from '../utils/scratch-pad.js';
 import { CreateHelper, EndTool, TalkToHelper, TalkToUserTool } from '../tools/core.js';
-import { MimirChatConversationalAgent } from '../agent/index.js';
 import { SteppedAgentExecutor } from '../executor/index.js';
 import { ChatMemoryChain } from '../memory/transactional-memory-chain.js';
 
@@ -18,6 +17,7 @@ import { Agent } from '../schema.js';
 
 import { createOpenAiFunctionAgent } from '../agent/nfunction.js';
 import { createDefaultMimirAgent } from '../agent/default-agent.js';
+import { LangchainToolWrapper } from '../index.js';
 export type CreateAgentOptions = {
     profession: string,
     description: string,
@@ -103,7 +103,7 @@ export class AgentManager {
         //     name: shortName,
         //     taskCompleteCommandName: taskCompleteCommandName,
         //     talkToUserCommandName: talkToUserTool.name,
-        //     tools
+        //     plugins: tools.map(tool => new LangchainToolWrapper(tool)),
         // });
         
         const agent = createDefaultMimirAgent({
@@ -112,7 +112,7 @@ export class AgentManager {
             name: shortName,
             taskCompleteCommandName: taskCompleteCommandName,
             talkToUserTool: talkToUserTool,
-            tools
+            plugins: tools.map(tool => new LangchainToolWrapper(tool)),
         });
         // const agent = Gpt4FunctionAgent.fromLLMAndTools(model, tools, {
         //     systemMessage: PREFIX_JOB(shortName, config.profession),
