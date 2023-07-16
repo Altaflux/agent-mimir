@@ -17,6 +17,7 @@ export type AgentDefinition = {
         chatModel: BaseChatModel;
         summaryModel: BaseChatModel;
         taskModel?: BaseLanguageModel;
+        constitution?: string;
         chatHistory?: {
             maxChatHistoryWindow?: number,
             maxTaskHistoryWindow?: number,
@@ -65,6 +66,7 @@ export const run = async () => {
                     thinkingModel: agentDefinition.definition.taskModel ?? agentDefinition.definition.chatModel,
                     chatHistory: agentDefinition.definition.chatHistory,
                     communicationWhitelist: agentDefinition.definition.communicationWhitelist,
+                    constitution: agentDefinition.definition.constitution
                 })
             }
             console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.definition.profession}" and description "${agentDefinition.description}"`));

@@ -18,6 +18,7 @@ import { Agent } from '../schema.js';
 import { createOpenAiFunctionAgent } from '../agent/nfunction.js';
 import { createDefaultMimirAgent } from '../agent/default-agent.js';
 import { LangchainToolWrapper } from '../index.js';
+import { DEFAULT_CONSTITUTION } from '../agent/prompt.js';
 export type CreateAgentOptions = {
     profession: string,
     description: string,
@@ -26,6 +27,7 @@ export type CreateAgentOptions = {
     summaryModel?: BaseChatModel,
     thinkingModel?: BaseLanguageModel,
     allowAgentCreation?: boolean,
+    constitution?: string,
     communicationWhitelist?: boolean | string[],
     chatHistory?: {
         maxChatHistoryWindow?: number,
@@ -97,23 +99,26 @@ export class AgentManager {
            // messageSerializer: messageSerializer,
         });
         const talkToUserTool = new TalkToUserTool();
-        // const agent = createOpenAiFunctionAgent({
-        //     llm: model,
-        //     memory: innerMemory,
-        //     name: shortName,
-        //     taskCompleteCommandName: taskCompleteCommandName,
-        //     talkToUserCommandName: talkToUserTool.name,
-        //     plugins: tools.map(tool => new LangchainToolWrapper(tool)),
-        // });
-        
-        const agent = createDefaultMimirAgent({
+        const agent = createOpenAiFunctionAgent({
             llm: model,
             memory: innerMemory,
             name: shortName,
             taskCompleteCommandName: taskCompleteCommandName,
-            talkToUserTool: talkToUserTool,
+            talkToUserCommandName: talkToUserTool.name,
             plugins: tools.map(tool => new LangchainToolWrapper(tool)),
+            constitution: config.constitution ?? DEFAULT_CONSTITUTION,
         });
+        
+        // const agent = createDefaultMimirAgent({
+        //     llm: model,
+        //     memory: innerMemory,
+        //     name: shortName,
+        //     taskCompleteCommandName: taskCompleteCommandName,
+        //     talkToUserTool: talkToUserTool,
+        //     plugins: tools.map(tool => new LangchainToolWrapper(tool)),
+        //     constitution: config.constitution ?? DEFAULT_CONSTITUTION,
+        // });
+
         // const agent = Gpt4FunctionAgent.fromLLMAndTools(model, tools, {
         //     systemMessage: PREFIX_JOB(shortName, config.profession),
         //     taskCompleteCommandName: taskCompleteCommandName,

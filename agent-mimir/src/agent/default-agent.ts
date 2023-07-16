@@ -11,27 +11,8 @@ import { BaseChatMemory } from "langchain/memory";
 import { StructuredTool } from "langchain/tools";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { JsonSchema7ObjectType } from "zod-to-json-schema/src/parsers/object.js";
-import {  MimirAgentPlugin } from "../index.js";
-
-const PREFIX_JOB = (name: string, jobDescription: string) => {
-    return `Your name is ${name}, a large language model. Carefully heed the user's instructions. I want you to act as ${jobDescription}.
-
-PERFORMANCE EVALUATION:
-
-1. Continuously review and analyze your plan and commands to ensure you are performing to the best of your abilities. 
-2. Constructively self-criticize your big-picture behavior constantly.
-3. Reflect on past decisions and strategies to refine your approach.
-4. Do not procrastinate. Try to complete the task and don't simply respond that you will do the task. If you are unsure of what to do, ask the user for help.
-5. Do not simulate that you are working.
-6. Talk to the user the least amount possible. Only to present the answer to any request or task.
-
-
-When working on a task you have to choose between this two options: 
-- Use your own knowledge, capabilities, and skills to complete the task.
-- If you cannot accomplish the task with your own knowledge or capabilities use a command.
-
-`;
-};
+import { MimirAgentPlugin } from "../index.js";
+import { IDENTIFICATION } from "./prompt.js";
 
 
 const JSON_INSTRUCTIONS = `You must format your inputs to these functions to match their "JSON schema" definitions below.
@@ -47,7 +28,7 @@ You can use the following functions to look up information that may be helpful i
 
 {json_instructions}
 
-The functions with their JSON schemas you can use are:
+The functions and the JSON schemas of their argument you can use are:
 {toolList}
 
 `;
@@ -210,19 +191,24 @@ export type DefaultMimirAgentArgs = {
     taskCompleteCommandName: string,
     talkToUserTool: StructuredTool,
     plugins: MimirAgentPlugin[]
+    constitution: string,
 }
 export function createDefaultMimirAgent(args: DefaultMimirAgentArgs) {
 
     const pluginAttributes = args.plugins.map(plugin => plugin.attributes()).flat();
     const formatManager = new ResponseFieldMapper([...atts, ...pluginAttributes]);
 
-    const internalPlugins = args.plugins.map(plugin =>  {
-        return {
+    const internalPlugins = args.plugins.map(plugin => {
+        const agentPlugin: InternalAgentPlugin = {
             getInputs: plugin.getInputs,
             readResponse: async (response: MimirAIMessage) => {
                 await plugin.readResponse(response, formatManager);
+            },
+            clear: async () => {
+                await plugin.clear();
             }
-        } as InternalAgentPlugin
+        }
+        return agentPlugin;
     });
 
     const tools = args.plugins.map(plugin => plugin.tools()).flat();
@@ -238,7 +224,8 @@ export function createDefaultMimirAgent(args: DefaultMimirAgentArgs) {
         })
     );
     const systemMessages = [
-        SystemMessagePromptTemplate.fromTemplate(PREFIX_JOB(args.name, "an Assistant")),
+        SystemMessagePromptTemplate.fromTemplate(IDENTIFICATION(args.name, "an Assistant")),
+        SystemMessagePromptTemplate.fromTemplate(args.constitution),
         SystemMessagePromptTemplate.fromTemplate(formatManager.createFieldInstructions()),
         ...args.plugins.map(plugin => plugin.systemMessages()).flat(),
         toolsSystemMessage,
@@ -256,7 +243,7 @@ export function createDefaultMimirAgent(args: DefaultMimirAgentArgs) {
         aiMessageSerializer: new DefaultAiMessageSerializer(),
         humanMessageSerializer: new DefaultHumanMessageSerializerImp(),
         plugins: internalPlugins,
-        
+
     });
 
     return agent;

@@ -66,6 +66,11 @@ export class Gpt4FunctionAgent extends BaseSingleActionAgent {
         _returnValues: AgentFinish["returnValues"],
         _steps: AgentStep[]
     ): Promise<AgentFinish["returnValues"]> {
+
+        if (_returnValues.complete){
+            await Promise.all(this.plugins.map(async plugin => await plugin.clear()));
+            await this.memory.clear()
+        }
         //This has to match the input of the Finish Tool.
         return {
             complete: _returnValues.complete ?? false,
@@ -95,11 +100,6 @@ export class Gpt4FunctionAgent extends BaseSingleActionAgent {
         });
 
         this.plugins.forEach(plugin => plugin.readResponse(agentResponse));
-
-
-        if (agentResponse.functionCall?.name === this.finishToolName()) {
-            await this.memory.clear()
-        }
 
         const out = await this.outputParser.parse(JSON.stringify(agentResponse), callbackManager);
         return {
@@ -153,10 +153,8 @@ export class Gpt4FunctionAgent extends BaseSingleActionAgent {
     }
 
     static createPrompt(args: CreatePromptArgs) {
-        // const pluginsSystemMessages = args.plugins?.map(plugin => plugin.systemMessages()).flatMap(e => e) ?? [];
         const messages = [
             ...args.systemMessage,
-           // ...pluginsSystemMessages,
             SystemMessagePromptTemplate.fromTemplate(`The current time is: {currentTime}`),
             new MessagesPlaceholder("chat_history"),
             new MessagesPlaceholder("history"),
@@ -235,6 +233,7 @@ export type CreatePromptArgs = {
 export type InternalAgentPlugin = {
     getInputs: () => Promise<Record<string, any>>,
     readResponse: (aiMessage: MimirAIMessage) => Promise<void>,
+    clear: () => Promise<void>,
 }
 
 export type MimirAIMessage = {

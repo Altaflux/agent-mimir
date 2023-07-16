@@ -23,6 +23,9 @@ export abstract class MimirAgentPlugin {
     async readResponse(aiMessage: MimirAIMessage, responseFieldMapper: ResponseFieldMapper): Promise<void> {
     }
 
+    async clear(): Promise<void> {
+    }
+
     async getInputs(): Promise<Record<string, any>> {
         return {};
     }

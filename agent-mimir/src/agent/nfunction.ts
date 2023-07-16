@@ -9,6 +9,7 @@ import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.j
 import { AgentActionOutputParser } from "langchain/agents";
 import { BaseChatMemory } from "langchain/memory";
 import { MimirAgentPlugin } from "../index.js";
+import { IDENTIFICATION } from "./prompt.js";
 
 
 const PREFIX_JOB = (name: string, jobDescription: string) => {
@@ -169,7 +170,7 @@ export type OpenAIFunctionMimirAgentArgs = {
     memory: BaseChatMemory
     taskCompleteCommandName: string,
     talkToUserCommandName?: string,
-    // tools: StructuredTool[],
+    constitution: string,
     plugins: MimirAgentPlugin[]
 }
 export function createOpenAiFunctionAgent(args: OpenAIFunctionMimirAgentArgs) {
@@ -178,18 +179,23 @@ export function createOpenAiFunctionAgent(args: OpenAIFunctionMimirAgentArgs) {
     const formatManager = new ResponseFieldMapper([...atts, ...pluginAttributes]);
 
     const systemMessages = [
-        SystemMessagePromptTemplate.fromTemplate(PREFIX_JOB(args.name, "an Assistant")),
+        SystemMessagePromptTemplate.fromTemplate(IDENTIFICATION(args.name, "an Assistant")),
+        SystemMessagePromptTemplate.fromTemplate(args.constitution),
         SystemMessagePromptTemplate.fromTemplate(formatManager.createFieldInstructions()),
         ...args.plugins.map(plugin => plugin.systemMessages()).flat(),
     ];
 
     const internalPlugins = args.plugins.map(plugin =>  {
-        return {
+        const agentPlugin: InternalAgentPlugin = {
             getInputs: plugin.getInputs,
             readResponse: async (response: MimirAIMessage) => {
                 await plugin.readResponse(response, formatManager);
+            },
+            clear: async () => {
+                await plugin.clear();
             }
-        } as InternalAgentPlugin
+        }
+        return agentPlugin;
     });
 
     const agent = Gpt4FunctionAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGenerator, {
