@@ -4,7 +4,6 @@ import { uniqueNamesGenerator, names } from 'unique-names-generator';
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 
 import { Tool } from "langchain/tools";
-import { PlainTextMessageSerializer } from '../parser/plain-text-parser/index.js';
 import { WindowedConversationSummaryMemory } from '../memory/windowed-memory/index.js';
 import { ScratchPadManager } from '../utils/scratch-pad.js';
 import { CreateHelper, EndTool, TalkToHelper, TalkToUserTool } from '../tools/core.js';
@@ -56,14 +55,13 @@ export class AgentManager {
         const model = config.model;
         const thinkingModel = config.thinkingModel ?? config.model;
 
-        const messageSerializer = new PlainTextMessageSerializer();
+
         const summarizingModel = config.summaryModel ?? config.model;
         const innerMemory = new WindowedConversationSummaryMemory(summarizingModel, {
             returnMessages: true,
             memoryKey: "history",
             inputKey: "inputToSave",
             maxWindowSize: config.chatHistory?.maxTaskHistoryWindow ?? 6,
-           // messageSerializer: messageSerializer,
         });
 
         const scratchPad = new ScratchPadManager(10);

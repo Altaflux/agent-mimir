@@ -3,7 +3,7 @@ import { CallbackManager } from "langchain/callbacks";
 import { AgentAction, AgentFinish, AgentStep, BaseChatMessage, ChainValues } from "langchain/schema";
 import { BaseChatMemory, BufferMemory, getInputValue } from "langchain/memory";
 import { ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
-import { AiMessageSerializer, HumanMessageSerializer } from "./../parser/plain-text-parser/index.js";
+import { AiMessageSerializer, HumanMessageSerializer } from "../memory/serializers.js";
 import { TrimmingMemory } from "./../memory/trimming-memory/index.js";
 import { LLMChain } from "langchain/chains";
 import { BaseLLMOutputParser, BaseOutputParser } from "langchain/schema/output_parser";

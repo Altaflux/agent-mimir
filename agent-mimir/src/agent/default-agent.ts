@@ -2,7 +2,7 @@ import { BaseLanguageModel } from "langchain/base_language";
 import { BaseLLMOutputParser } from "langchain/schema/output_parser";
 import { MimirAgent, InternalAgentPlugin, MimirAIMessage, NextMessage } from "./base-agent.js";
 import { AIChatMessage, AgentAction, AgentFinish, BaseChatMessage, ChatGeneration, Generation, HumanChatMessage } from "langchain/schema";
-import { AiMessageSerializer, DefaultHumanMessageSerializerImp } from "../parser/plain-text-parser/index.js";
+import { AiMessageSerializer, DefaultHumanMessageSerializerImp } from "../memory/serializers.js";
 import { PromptTemplate, SystemMessagePromptTemplate, renderTemplate } from "langchain/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 

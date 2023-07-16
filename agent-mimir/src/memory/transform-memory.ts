@@ -1,8 +1,9 @@
 import { BaseChatMemory, BaseMemory } from "langchain/memory";
 import { InputValues, BaseChatMessage } from "langchain/schema";
-import { AiMessageSerializer, HumanMessageSerializer } from "../parser/plain-text-parser/index.js";
+
 
 import { MimirAIMessage } from "../agent/base-agent.js";
+import { AiMessageSerializer, HumanMessageSerializer } from "./serializers.js";
 
 
 export class TransformationalMemory extends BaseMemory {
