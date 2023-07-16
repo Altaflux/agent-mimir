@@ -1,7 +1,7 @@
 import { BaseLanguageModel } from "langchain/base_language";
 import { BaseLLMOutputParser } from "langchain/schema/output_parser";
 import { MimirAgent, InternalAgentPlugin, MimirAIMessage, NextMessage } from "./base-agent.js";
-import { AIChatMessage, AgentAction, AgentFinish, BaseChatMessage, ChatGeneration, Generation, HumanChatMessage } from "langchain/schema";
+import { AIChatMessage, AgentAction, AgentFinish, BaseMessage, ChatGeneration, Generation, HumanMessage } from "langchain/schema";
 import { AiMessageSerializer, DefaultHumanMessageSerializerImp } from "../memory/serializers.js";
 import { PromptTemplate, SystemMessagePromptTemplate, renderTemplate } from "langchain/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
@@ -102,22 +102,22 @@ class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
 
 }
 
-const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseChatMessage, messageToSave: BaseChatMessage, }> = async (nextMessage: NextMessage) => {
+const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMessage, messageToSave: BaseMessage, }> = async (nextMessage: NextMessage) => {
     if (nextMessage.type === "USER_MESSAGE") {
         const renderedHumanMessage = renderTemplate(USER_INPUT, "f-string", {
             input: nextMessage.message,
         });
         return {
-            message: new HumanChatMessage(renderedHumanMessage),
-            messageToSave: new HumanChatMessage(nextMessage.message),
+            message: new HumanMessage(renderedHumanMessage),
+            messageToSave: new HumanMessage(nextMessage.message),
         };
     } else {
         const renderedHumanMessage = renderTemplate(TEMPLATE_TOOL_RESPONSE, "f-string", {
             observation: nextMessage.message,
         });
         return {
-            message: new HumanChatMessage(renderedHumanMessage),
-            messageToSave: new HumanChatMessage(nextMessage.message),
+            message: new HumanMessage(renderedHumanMessage),
+            messageToSave: new HumanMessage(nextMessage.message),
         };
     }
 

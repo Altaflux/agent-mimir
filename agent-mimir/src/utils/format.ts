@@ -1,4 +1,4 @@
-import { AIChatMessage, BaseChatMessage, ChatMessage, FunctionChatMessage, HumanChatMessage, StoredMessage, SystemChatMessage } from "langchain/schema";
+import { AIMessage, BaseMessage, ChatMessage, FunctionMessage, HumanMessage, StoredMessage, SystemMessage } from "langchain/schema";
 
 export function createBulletedList(arr: string[]) {
     let listString = '';
@@ -11,21 +11,21 @@ export function createBulletedList(arr: string[]) {
 
 export function mapStoredMessagesToChatMessages(
     messages: StoredMessage[]
-): BaseChatMessage[] {
+): BaseMessage[] {
     return messages.map((message) => {
         const storedMessage = message;
         switch (storedMessage.type) {
             case "human":
-                return new HumanChatMessage(storedMessage.data.content);
+                return new HumanMessage(storedMessage.data.content);
             case "ai":
-                return new AIChatMessage(
+                return new AIMessage(
                     storedMessage.data.content,
                     storedMessage.data.additional_kwargs
                 );
             case "function":
-                return new FunctionChatMessage(storedMessage.data.content, storedMessage.data.name!);
+                return new FunctionMessage(storedMessage.data.content, storedMessage.data.name!);
             case "system":
-                return new SystemChatMessage(storedMessage.data.content);
+                return new SystemMessage(storedMessage.data.content);
             case "chat":
                 if (storedMessage.data?.additional_kwargs?.role === undefined) {
                     throw new Error("Role must be defined for chat messages");

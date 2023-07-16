@@ -1,6 +1,6 @@
 import { AgentActionOutputParser, BaseSingleActionAgent } from "langchain/agents";
 import { CallbackManager } from "langchain/callbacks";
-import { AgentAction, AgentFinish, AgentStep, BaseChatMessage, ChainValues } from "langchain/schema";
+import { AgentAction, AgentFinish, AgentStep, BaseMessage, ChainValues } from "langchain/schema";
 import { BaseChatMemory, BufferMemory, getInputValue } from "langchain/memory";
 import { ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
 import { AiMessageSerializer, HumanMessageSerializer } from "../memory/serializers.js";
@@ -49,14 +49,14 @@ export class MimirAgent extends BaseSingleActionAgent {
     llmChain: LLMChain<MimirAIMessage>;
     defaultInputs?: Record<string, any>;
     plugins: InternalAgentPlugin[];
-    messageGenerator: (arg: NextMessage) => Promise<{ message: BaseChatMessage, messageToSave: BaseChatMessage, }>;
+    messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: BaseMessage, }>;
 
     constructor(
         memory: BaseChatMemory,
         taskCompleteCommandName: string,
         input: MimirChatConversationalAgentInput,
         outputParser: BaseOutputParser<AgentAction | AgentFinish>,
-        messageGenerator: (arg: NextMessage) => Promise<{ message: BaseChatMessage, messageToSave: BaseChatMessage, }>,
+        messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: BaseMessage, }>,
         plugins?: InternalAgentPlugin[],
         defaultInputs?: Record<string, any>,
     ) {
@@ -180,7 +180,7 @@ export class MimirAgent extends BaseSingleActionAgent {
     public static fromLLMAndTools(
         llm: BaseLanguageModel,
         mimirOutputParser: BaseLLMOutputParser<MimirAIMessage>,
-        messageGenerator: (arg: NextMessage) => Promise<{ message: BaseChatMessage, messageToSave: BaseChatMessage, }>,
+        messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: BaseMessage, }>,
         args: CreatePromptArgs,
     ) {
 

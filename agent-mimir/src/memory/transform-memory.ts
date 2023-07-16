@@ -1,5 +1,5 @@
 import { BaseChatMemory, BaseMemory } from "langchain/memory";
-import { InputValues, BaseChatMessage } from "langchain/schema";
+import { InputValues, BaseMessage } from "langchain/schema";
 
 
 import { MimirAIMessage } from "../agent/base-agent.js";
@@ -26,7 +26,7 @@ export class TransformationalMemory extends BaseMemory {
             console.log(e);
         }
         try {
-            const formattedOutput = (await getInputValue(inputValues, this.innerMemory.inputKey)) as BaseChatMessage;
+            const formattedOutput = (await getInputValue(inputValues, this.innerMemory.inputKey)) as BaseMessage;
             input = await this.humanMessageSerializer?.serialize(formattedOutput) ?? output;
         } catch (e) {
             console.log(e);
@@ -48,7 +48,7 @@ export class TransformationalMemory extends BaseMemory {
             throw new Error("TransformationalMemory only supports one memory key");
         }
         const outKey = this.innerMemory.memoryKeys[0];
-        const messageHistory = getInputValue(result, outKey) as BaseChatMessage[];
+        const messageHistory = getInputValue(result, outKey) as BaseMessage[];
         const formattedMessageHistory = await Promise.all(messageHistory.map(async (message) => {
             if (message._getType() === "ai") {
                return await this.aiMessageSerializer.deserialize(message.text)

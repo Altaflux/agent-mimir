@@ -1,7 +1,7 @@
 import { BaseLanguageModel } from "langchain/base_language";
 import { BaseLLMOutputParser } from "langchain/schema/output_parser";
 import { MimirAgent, InternalAgentPlugin, MimirAIMessage, NextMessage } from "./base-agent.js";
-import { AIChatMessage, AgentAction, AgentFinish, BaseChatMessage, ChatGeneration, FunctionChatMessage, Generation, HumanChatMessage } from "langchain/schema";
+import { AIMessage, AgentAction, AgentFinish, BaseMessage, ChatGeneration, FunctionMessage, Generation, HumanMessage } from "langchain/schema";
 
 import { SystemMessagePromptTemplate } from "langchain/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
@@ -70,8 +70,8 @@ class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
 
 }
 
-const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseChatMessage, messageToSave: BaseChatMessage, }> = async (nextMessage: NextMessage) => {
-    const message = nextMessage.type === "USER_MESSAGE" ? new HumanChatMessage(nextMessage.message) : new FunctionChatMessage(nextMessage.message, nextMessage.tool!);
+const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMessage, messageToSave: BaseMessage, }> = async (nextMessage: NextMessage) => {
+    const message = nextMessage.type === "USER_MESSAGE" ? new HumanMessage(nextMessage.message) : new FunctionMessage(nextMessage.message, nextMessage.tool!);
     return {
         message: message,
         messageToSave: message,
@@ -91,10 +91,10 @@ export class FunctionCallAiMessageSerializer extends AiMessageSerializer {
                 arguments: output.functionCall?.arguments
             },
         } : {};
-        const message = new AIChatMessage(output.text ?? "", {
+        const message = new AIMessage(output.text ?? "", {
             ...functionCall
         });
-        const serializedMessage = message.toJSON();
+        const serializedMessage = message.toDict();
         return JSON.stringify(serializedMessage);
     }
 }

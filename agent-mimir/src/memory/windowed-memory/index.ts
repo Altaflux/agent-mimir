@@ -2,7 +2,7 @@ import { BaseLanguageModel } from "langchain/base_language";
 
 import { BaseChatMemory, BaseChatMemoryInput, getBufferString, getInputValue, } from "langchain/memory";
 import { BasePromptTemplate } from "langchain/prompts";
-import { BaseChatMessage, InputValues, SystemChatMessage } from "langchain/schema";
+import { BaseMessage, InputValues, SystemChatMessage } from "langchain/schema";
 import { SUMMARY_PROMPT } from "./prompt.js";
 import { LLMChain } from "langchain/chains";
 
@@ -16,7 +16,7 @@ export type WindowedConversationSummaryMemoryInput = BaseChatMemoryInput & {
     prompt?: BasePromptTemplate;
     maxWindowSize?: number;
     messageSerializer?: AIMessageSerializer;
-    summaryChatMessageClass?: new (content: string) => BaseChatMessage;
+    summaryChatMessageClass?: new (content: string) => BaseMessage;
 };
 
 export class WindowedConversationSummaryMemory extends BaseChatMemory {
@@ -34,7 +34,7 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
 
     private maxWindowSize = 6;
 
-    summaryChatMessageClass: new (content: string) => BaseChatMessage =
+    summaryChatMessageClass: new (content: string) => BaseMessage =
         SystemChatMessage;
 
     messageSerializer?: AIMessageSerializer;
@@ -68,7 +68,7 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
     }
 
     async predictNewSummary(
-        messages: BaseChatMessage[],
+        messages: BaseMessage[],
         existingSummary: string
     ): Promise<string> {
         const newLines = getBufferString(messages, this.humanPrefix, this.aiPrefix);
@@ -119,7 +119,7 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
 
         const messages = await this.chatHistory.getMessages();
         if (messages.length > this.maxWindowSize * 2) {
-            const newMessagesToSummarize: BaseChatMessage[] = [];
+            const newMessagesToSummarize: BaseMessage[] = [];
             while (messages.length > this.maxWindowSize) {
                 newMessagesToSummarize.push(messages.shift()!);
                 newMessagesToSummarize.push(messages.shift()!);
