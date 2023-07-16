@@ -1,7 +1,7 @@
 import { BaseLanguageModel } from "langchain/base_language";
 import { BaseLLMOutputParser } from "langchain/schema/output_parser";
 import { Gpt4FunctionAgent, InternalAgentPlugin, MimirAIMessage, NextMessage } from "./base-agent.js";
-import { AIChatMessage, AgentAction, AgentFinish, BaseChatMessage, ChatGeneration, FunctionChatMessage, Generation, HumanChatMessage } from "langchain/schema";
+import { AIChatMessage, AgentAction, AgentFinish, BaseChatMessage, ChatGeneration, Generation, HumanChatMessage } from "langchain/schema";
 import { AiMessageSerializer, DefaultHumanMessageSerializerImp } from "../parser/plain-text-parser/index.js";
 import { PromptTemplate, SystemMessagePromptTemplate, renderTemplate } from "langchain/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
@@ -186,6 +186,7 @@ const atts: AttributeDescriptor[] = [
 
 export type DefaultMimirAgentArgs = {
     name: string,
+    description: string,
     llm: BaseLanguageModel,
     memory: BaseChatMemory
     taskCompleteCommandName: string,
@@ -224,7 +225,7 @@ export function createDefaultMimirAgent(args: DefaultMimirAgentArgs) {
         })
     );
     const systemMessages = [
-        SystemMessagePromptTemplate.fromTemplate(IDENTIFICATION(args.name, "an Assistant")),
+        SystemMessagePromptTemplate.fromTemplate(IDENTIFICATION(args.name, args.description)),
         SystemMessagePromptTemplate.fromTemplate(args.constitution),
         SystemMessagePromptTemplate.fromTemplate(formatManager.createFieldInstructions()),
         ...args.plugins.map(plugin => plugin.systemMessages()).flat(),

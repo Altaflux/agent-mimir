@@ -2,7 +2,7 @@ import { BaseLanguageModel } from "langchain/base_language";
 import { BaseLLMOutputParser } from "langchain/schema/output_parser";
 import { Gpt4FunctionAgent, InternalAgentPlugin, MimirAIMessage, NextMessage } from "./base-agent.js";
 import { AIChatMessage, AgentAction, AgentFinish, BaseChatMessage, ChatGeneration, FunctionChatMessage, Generation, HumanChatMessage } from "langchain/schema";
-import { AiMessageSerializer, HumanMessageSerializer, DefaultHumanMessageSerializerImp } from "../parser/plain-text-parser/index.js";
+import { AiMessageSerializer, DefaultHumanMessageSerializerImp } from "../parser/plain-text-parser/index.js";
 import { SystemMessagePromptTemplate } from "langchain/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
@@ -10,28 +10,6 @@ import { AgentActionOutputParser } from "langchain/agents";
 import { BaseChatMemory } from "langchain/memory";
 import { MimirAgentPlugin } from "../index.js";
 import { IDENTIFICATION } from "./prompt.js";
-
-
-const PREFIX_JOB = (name: string, jobDescription: string) => {
-    return `Your name is ${name}, a large language model. Carefully heed the user's instructions. I want you to act as ${jobDescription}.
-
-PERFORMANCE EVALUATION:
-
-1. Continuously review and analyze your plan and commands to ensure you are performing to the best of your abilities. 
-2. Constructively self-criticize your big-picture behavior constantly.
-3. Reflect on past decisions and strategies to refine your approach.
-4. Do not procrastinate. Try to complete the task and don't simply respond that you will do the task. If you are unsure of what to do, ask the user for help.
-5. Do not simulate that you are working.
-6. Talk to the user the least amount possible. Only to present the answer to any request or task.
-
-
-When working on a task you have to choose between this two options: 
-- Use your own knowledge, capabilities, and skills to complete the task.
-- If you cannot accomplish the task with your own knowledge or capabilities use a command.
-
-`;
-};
-
 
 
 type AIMessageType = {
@@ -53,7 +31,6 @@ export class ChatConversationalAgentOutputParser extends AgentActionOutputParser
             out = await this.responseThing.readInstructionsFromResponse(out1.text);
         }
 
-        //TODO HACK!
         if (this.talkToUserTool && !out1.functionCall?.name) {
             const messageToUser = out.messageToUser && out.messageToUser.length > 1 ? out.messageToUser : input;
             out1.functionCall = {
@@ -79,7 +56,7 @@ class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
     async parseResult(generations: Generation[] | ChatGeneration[]): Promise<MimirAIMessage> {
         const generation = generations[0] as ChatGeneration;
         const functionCall: any = generation.message?.additional_kwargs?.function_call
-        const mimirMessage =  {
+        const mimirMessage = {
             functionCall: functionCall ? {
                 name: functionCall?.name,
                 arguments: (functionCall?.arguments),
@@ -166,6 +143,7 @@ const atts: AttributeDescriptor[] = [
 
 export type OpenAIFunctionMimirAgentArgs = {
     name: string,
+    description: string,
     llm: BaseLanguageModel,
     memory: BaseChatMemory
     taskCompleteCommandName: string,
@@ -179,13 +157,13 @@ export function createOpenAiFunctionAgent(args: OpenAIFunctionMimirAgentArgs) {
     const formatManager = new ResponseFieldMapper([...atts, ...pluginAttributes]);
 
     const systemMessages = [
-        SystemMessagePromptTemplate.fromTemplate(IDENTIFICATION(args.name, "an Assistant")),
+        SystemMessagePromptTemplate.fromTemplate(IDENTIFICATION(args.name, args.description)),
         SystemMessagePromptTemplate.fromTemplate(args.constitution),
         SystemMessagePromptTemplate.fromTemplate(formatManager.createFieldInstructions()),
         ...args.plugins.map(plugin => plugin.systemMessages()).flat(),
     ];
 
-    const internalPlugins = args.plugins.map(plugin =>  {
+    const internalPlugins = args.plugins.map(plugin => {
         const agentPlugin: InternalAgentPlugin = {
             getInputs: plugin.getInputs,
             readResponse: async (response: MimirAIMessage) => {
