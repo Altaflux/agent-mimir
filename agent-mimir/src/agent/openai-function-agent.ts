@@ -9,7 +9,7 @@ import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.j
 import { AgentActionOutputParser } from "langchain/agents";
 import { BaseChatMemory } from "langchain/memory";
 import { MimirAgentPlugin } from "../index.js";
-import { IDENTIFICATION } from "./prompt.js";
+import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { AiMessageSerializer, DefaultHumanMessageSerializerImp } from "../memory/serializers.js";
 
 
@@ -98,43 +98,7 @@ export class FunctionCallAiMessageSerializer extends AiMessageSerializer {
         return JSON.stringify(serializedMessage);
     }
 }
-const atts: AttributeDescriptor[] = [
-    {
-        name: "Thoughts",
-        description: "string \\ Any observation or thought about the task",
-        variableName: "thoughts",
-        example: "I can come up with an innovative solution to this problem."
-    },
-    {
-        name: "Reasoning",
-        description: "string \\ Reasoning for the plan",
-        variableName: "reasoning",
-        example: "I have introduced an unexpected twist, and now I need to continue with the plan."
-    },
-    {
-        name: "Plan",
-        description: "\\ An JSON array of strings representing the text of the plan of pending tasks needed to complete the user's request. This field is obligatory but can be empty.",
-        variableName: "plan",
-        example: `["Think of a better solution to the problem", "Ask the user for his opinion on the solution", "Work on the solution", "Present the answer to the user"]`
-    },
-    {
-        name: "Current Plan Step",
-        description: "\\ An JSON array of strings representing the text of the plan of pending tasks needed to complete the user's request. This field is obligatory but can be empty.",
-        variableName: "currentPlanStep",
-        example: "Think of a better solution to the problem"
-    },
-    {
-        name: "Goal Given By User",
-        description: "string \\ What is the main goal the user has tasked you with. If the user has made a change in your task then please update this field to reflect the change.",
-        variableName: "goalGivenByUser",
-        example: "Find a solution to the problem."
-    },
-    {
-        name: "Save To ScratchPad",
-        description: "string, \\ Any important piece of information you may be able to use later. This field is optional. ",
-        variableName: "scratchPad",
-        example: "The plot of the story is about a young kid going on an adventure to find his lost dog."
-    },
+const OPENAI_FUNCTION_AGENT_ATTRIBUTES: AttributeDescriptor[] = [
     {
         name: "Message To User",
         description: "\\ Any message you want to send to the user. Useful when you want to present the answer to the request. Use it when you think that you are stuck or want to present the anwser to the user. This field must not be set at the same time as calling a function. ",
@@ -155,7 +119,7 @@ export type OpenAIFunctionMimirAgentArgs = {
 export function createOpenAiFunctionAgent(args: OpenAIFunctionMimirAgentArgs) {
 
     const pluginAttributes = args.plugins.map(plugin => plugin.attributes()).flat();
-    const formatManager = new ResponseFieldMapper([...atts, ...pluginAttributes]);
+    const formatManager = new ResponseFieldMapper([...DEFAULT_ATTRIBUTES, ...pluginAttributes, ...OPENAI_FUNCTION_AGENT_ATTRIBUTES]);
 
     const systemMessages = [
         SystemMessagePromptTemplate.fromTemplate(IDENTIFICATION(args.name, args.description)),

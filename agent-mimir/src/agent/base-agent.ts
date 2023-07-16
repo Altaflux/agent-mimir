@@ -26,6 +26,19 @@ export type MimirChatConversationalAgentInput = {
 };
 
 
+export type InternalAgentPlugin = {
+    getInputs: () => Promise<Record<string, any>>,
+    readResponse: (aiMessage: MimirAIMessage) => Promise<void>,
+    clear: () => Promise<void>,
+}
+
+export type MimirAIMessage = {
+    functionCall?: {
+        name: string,
+        arguments: string
+    },
+    text?: string,
+}
 
 export class MimirAgent extends BaseSingleActionAgent {
 
@@ -229,17 +242,3 @@ export type CreatePromptArgs = {
 
 };
 
-
-export type InternalAgentPlugin = {
-    getInputs: () => Promise<Record<string, any>>,
-    readResponse: (aiMessage: MimirAIMessage) => Promise<void>,
-    clear: () => Promise<void>,
-}
-
-export type MimirAIMessage = {
-    functionCall?: {
-        name: string,
-        arguments: string
-    },
-    text?: string,
-}

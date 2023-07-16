@@ -12,7 +12,7 @@ import { StructuredTool } from "langchain/tools";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { JsonSchema7ObjectType } from "zod-to-json-schema/src/parsers/object.js";
 import { MimirAgentPlugin } from "../index.js";
-import { IDENTIFICATION } from "./prompt.js";
+import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 
 
 const JSON_INSTRUCTIONS = `You must format your inputs to these functions to match their "JSON schema" definitions below.
@@ -132,46 +132,11 @@ export class DefaultAiMessageSerializer extends AiMessageSerializer {
         return JSON.stringify(serializedMessage);
     }
 }
-const atts: AttributeDescriptor[] = [
-    {
-        name: "Thoughts",
-        description: "string \\ Any observation or thought about the task",
-        variableName: "thoughts",
-        example: "I can come up with an innovative solution to this problem."
-    },
-    {
-        name: "Reasoning",
-        description: "string \\ Reasoning for the plan",
-        variableName: "reasoning",
-        example: "I have introduced an unexpected twist, and now I need to continue with the plan."
-    },
-    {
-        name: "Plan",
-        description: "\\ An JSON array of strings representing the text of the plan of pending tasks needed to complete the user's request. This field is obligatory but can be empty.",
-        variableName: "plan",
-        example: `["Think of a better solution to the problem", "Ask the user for his opinion on the solution", "Work on the solution", "Present the answer to the user"]`
-    },
-    {
-        name: "Current Plan Step",
-        description: "\\ An JSON array of strings representing the text of the plan of pending tasks needed to complete the user's request. This field is obligatory but can be empty.",
-        variableName: "currentPlanStep",
-        example: "Think of a better solution to the problem"
-    },
-    {
-        name: "Goal Given By User",
-        description: "string \\ What is the main goal the user has tasked you with. If the user has made a change in your task then please update this field to reflect the change.",
-        variableName: "goalGivenByUser",
-        example: "Find a solution to the problem."
-    },
-    {
-        name: "Save To ScratchPad",
-        description: "string, \\ Any important piece of information you may be able to use later. This field is optional. ",
-        variableName: "scratchPad",
-        example: "The plot of the story is about a young kid going on an adventure to find his lost dog."
-    },
+const PLAIN_TEXT_AGENT_ATTRIBUTES: AttributeDescriptor[] = [
+
     {
         name: "Function Name",
-        description: "\\ The function to run. This field is obligatory.",
+        description: "\\ The name of the function to run. This field is obligatory.",
         example: "someFunction",
         variableName: "functionName",
     },
@@ -194,10 +159,10 @@ export type DefaultMimirAgentArgs = {
     plugins: MimirAgentPlugin[]
     constitution: string,
 }
-export function createDefaultMimirAgent(args: DefaultMimirAgentArgs) {
+export function createPlainTextMimirAgent(args: DefaultMimirAgentArgs) {
 
     const pluginAttributes = args.plugins.map(plugin => plugin.attributes()).flat();
-    const formatManager = new ResponseFieldMapper([...atts, ...pluginAttributes]);
+    const formatManager = new ResponseFieldMapper([...DEFAULT_ATTRIBUTES, ...pluginAttributes, ...PLAIN_TEXT_AGENT_ATTRIBUTES]);
 
     const internalPlugins = args.plugins.map(plugin => {
         const agentPlugin: InternalAgentPlugin = {

@@ -1,3 +1,4 @@
+import { AttributeDescriptor } from "./instruction-mapper.js";
 
 export const IDENTIFICATION = (name: string, jobDescription: string) => {
     return `Your name is ${name}, a large language model. Carefully heed the user's instructions. I want you to act as ${jobDescription}.\n\n`; 
@@ -18,3 +19,36 @@ When working on a task you have to choose between this two options:
 - If you cannot accomplish the task with your own knowledge or capabilities use the function you think will help solve your task.
 
 `;
+
+export const DEFAULT_ATTRIBUTES: AttributeDescriptor[] = [
+    {
+        name: "Thoughts",
+        description: "string \\ Any observation or thought about the task",
+        variableName: "thoughts",
+        example: "I can come up with an innovative solution to this problem."
+    },
+    {
+        name: "Reasoning",
+        description: "string \\ Reasoning for the plan",
+        variableName: "reasoning",
+        example: "I have introduced an unexpected twist, and now I need to continue with the plan."
+    },
+    {
+        name: "Plan",
+        description: "\\ A JSON array of strings representing the text of the plan of pending tasks needed to complete the user's request. This field is obligatory but can be empty.",
+        variableName: "plan",
+        example: `["Think of a better solution to the problem", "Ask the user for his opinion on the solution", "Work on the solution", "Present the answer to the user"]`
+    },
+    {
+        name: "Current Plan Step",
+        description: "\\ An JSON array of strings representing the text of the plan of pending tasks needed to complete the user's request. This field is obligatory but can be empty.",
+        variableName: "currentPlanStep",
+        example: "Think of a better solution to the problem"
+    },
+    {
+        name: "Goal Given By User",
+        description: "string \\ What is the main goal the user has tasked you with. If the user has made a change in your task then please update this field to reflect the change.",
+        variableName: "goalGivenByUser",
+        example: "Find a solution to the problem."
+    }
+]

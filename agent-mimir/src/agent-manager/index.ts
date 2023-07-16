@@ -14,8 +14,8 @@ import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
 import { Agent } from '../schema.js';
 
-import { createOpenAiFunctionAgent } from '../agent/nfunction.js';
-import { createDefaultMimirAgent } from '../agent/default-agent.js';
+import { createOpenAiFunctionAgent } from '../agent/openai-function-agent.js';
+import { createPlainTextMimirAgent } from '../agent/plain-text-agent.js';
 import { LangchainToolWrapper } from '../index.js';
 import { DEFAULT_CONSTITUTION } from '../agent/prompt.js';
 export type CreateAgentOptions = {
@@ -119,18 +119,6 @@ export class AgentManager {
         //     constitution: config.constitution ?? DEFAULT_CONSTITUTION,
         // });
 
-        // const agent = Gpt4FunctionAgent.fromLLMAndTools(model, tools, {
-        //     systemMessage: PREFIX_JOB(shortName, config.profession),
-        //     taskCompleteCommandName: taskCompleteCommandName,
-        //     memory: innerMemory,
-        //     name: shortName,
-        //     embedding: embeddings,
-        //     scratchPad: scratchPad,
-        //     talkToUserTool: talkToUserTool,
-        //     helper: this,
-        //     messageSerializer: messageSerializer,
-        //     communicationWhitelist: communicationWhitelist
-        // });
 
         let executor = SteppedAgentExecutor.fromAgentAndTools({
             agentName: shortName,
