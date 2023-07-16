@@ -1,6 +1,6 @@
 import { BaseLanguageModel } from "langchain/base_language";
 import { BaseLLMOutputParser } from "langchain/schema/output_parser";
-import { Gpt4FunctionAgent, InternalAgentPlugin, MimirAIMessage, NextMessage } from "./base-agent.js";
+import { MimirAgent, InternalAgentPlugin, MimirAIMessage, NextMessage } from "./base-agent.js";
 import { AIChatMessage, AgentAction, AgentFinish, BaseChatMessage, ChatGeneration, FunctionChatMessage, Generation, HumanChatMessage } from "langchain/schema";
 import { AiMessageSerializer, DefaultHumanMessageSerializerImp } from "../parser/plain-text-parser/index.js";
 import { SystemMessagePromptTemplate } from "langchain/prompts";
@@ -176,7 +176,7 @@ export function createOpenAiFunctionAgent(args: OpenAIFunctionMimirAgentArgs) {
         return agentPlugin;
     });
 
-    const agent = Gpt4FunctionAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGenerator, {
+    const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGenerator, {
         systemMessage: systemMessages,
         outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName, args.talkToUserCommandName),
         taskCompleteCommandName: args.taskCompleteCommandName,

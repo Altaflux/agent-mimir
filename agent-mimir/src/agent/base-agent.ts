@@ -27,7 +27,7 @@ export type MimirChatConversationalAgentInput = {
 
 
 
-export class Gpt4FunctionAgent extends BaseSingleActionAgent {
+export class MimirAgent extends BaseSingleActionAgent {
 
     outputParser: BaseOutputParser<AgentAction | AgentFinish>;
     taskCompleteCommandName: string
@@ -175,7 +175,7 @@ export class Gpt4FunctionAgent extends BaseSingleActionAgent {
 
         const { outputParser } = args ?? {};
 
-        const prompt = Gpt4FunctionAgent.createPrompt(args);
+        const prompt = MimirAgent.createPrompt(args);
         const innerMemory = new TrimmingMemory(args?.memory ?? new BufferMemory({ returnMessages: true, memoryKey: "history", inputKey: "realInput" }), {
             startCollectionFilter: (messagePack) => {
                 const message = getInputValue(messagePack.output, innerMemory.outputKey);
@@ -187,7 +187,7 @@ export class Gpt4FunctionAgent extends BaseSingleActionAgent {
         const transformMemory = new TransformationalMemory(innerMemory, args.aiMessageSerializer, args.humanMessageSerializer);
         const chain = new LLMChain({ prompt, llm, memory: transformMemory, outputParser: mimirOutputParser });
 
-        return new Gpt4FunctionAgent(
+        return new MimirAgent(
             innerMemory,
             taskCompleteCommandName,
             {
