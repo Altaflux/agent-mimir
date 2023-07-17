@@ -11,7 +11,7 @@ import { BaseChatMemory } from "langchain/memory";
 import { StructuredTool } from "langchain/tools";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { JsonSchema7ObjectType } from "zod-to-json-schema/src/parsers/object.js";
-import { MimirAgentPlugin } from "../index.js";
+import { AgentContext, MimirAgentPlugin } from "../index.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 
 
@@ -168,9 +168,9 @@ export function createPlainTextMimirAgent(args: DefaultMimirAgentArgs) {
 
     const internalPlugins = args.plugins.map(plugin => {
         const agentPlugin: InternalAgentPlugin = {
-            getInputs: () => plugin.getInputs(),
-            readResponse: async (response: MimirAIMessage) => {
-                await plugin.readResponse(response, formatManager);
+            getInputs: (context) => plugin.getInputs(context),
+            readResponse: async (context: AgentContext, response: MimirAIMessage) => {
+                await plugin.readResponse(context, response, formatManager);
             },
             clear: async () => {
                 await plugin.clear();
@@ -178,7 +178,7 @@ export function createPlainTextMimirAgent(args: DefaultMimirAgentArgs) {
         }
         return agentPlugin;
     });
-
+    
     const tools = args.plugins.map(plugin => plugin.tools()).flat();
     const toolsSystemMessage = new SystemMessagePromptTemplate(
         new PromptTemplate({
@@ -211,7 +211,7 @@ export function createPlainTextMimirAgent(args: DefaultMimirAgentArgs) {
         aiMessageSerializer: new DefaultAiMessageSerializer(),
         humanMessageSerializer: new DefaultHumanMessageSerializerImp(),
         plugins: internalPlugins,
-
+        name: args.name
     });
 
     return agent;

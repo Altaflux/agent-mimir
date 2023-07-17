@@ -8,7 +8,7 @@ import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.j
 
 import { AgentActionOutputParser } from "langchain/agents";
 import { BaseChatMemory } from "langchain/memory";
-import { MimirAgentPlugin } from "../index.js";
+import { AgentContext, MimirAgentPlugin } from "../index.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { AiMessageSerializer, DefaultHumanMessageSerializerImp } from "../memory/serializers.js";
 
@@ -134,10 +134,11 @@ export function createOpenAiFunctionAgent(args: OpenAIFunctionMimirAgentArgs) {
     ];
 
     const internalPlugins = args.plugins.map(plugin => {
+      
         const agentPlugin: InternalAgentPlugin = {
-            getInputs: () => plugin.getInputs(),
-            readResponse: async (response: MimirAIMessage) => {
-                await plugin.readResponse(response, formatManager);
+            getInputs: (context) => plugin.getInputs(context),
+            readResponse: async (context: AgentContext, response: MimirAIMessage) => {
+                await plugin.readResponse(context, response, formatManager);
             },
             clear: async () => {
                 await plugin.clear();
@@ -157,6 +158,7 @@ export function createOpenAiFunctionAgent(args: OpenAIFunctionMimirAgentArgs) {
         aiMessageSerializer: new FunctionCallAiMessageSerializer(),
         humanMessageSerializer: new DefaultHumanMessageSerializerImp(),
         plugins: internalPlugins,
+        name: args.name,
     });
 
     return agent;

@@ -5,8 +5,8 @@ import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 
 import { Tool } from "langchain/tools";
 import { WindowedConversationSummaryMemory } from '../memory/windowed-memory/index.js';
-import { ScratchPadManager, ScratchPadPlugin } from '../utils/scratch-pad.js';
-import { CreateHelper, EndTool, TalkToHelper, TalkToUserTool } from '../tools/core.js';
+import { ScratchPadPlugin } from '../agent/plugins/scratch-pad.js';
+import { EndTool, TalkToUserTool } from '../tools/core.js';
 import { SteppedAgentExecutor } from '../executor/index.js';
 import { ChatMemoryChain } from '../memory/transactional-memory-chain.js';
 
@@ -18,6 +18,8 @@ import { createOpenAiFunctionAgent } from '../agent/openai-function-agent.js';
 import { createPlainTextMimirAgent } from '../agent/plain-text-agent.js';
 import { LangchainToolWrapper } from '../index.js';
 import { DEFAULT_CONSTITUTION } from '../agent/prompt.js';
+import { TimePlugin } from '../agent/plugins/time.js';
+import { HelpersPlugin } from '../agent/plugins/helpers.js';
 export type CreateAgentOptions = {
     profession: string,
     description: string,
@@ -43,7 +45,7 @@ export class AgentManager {
         this.map.set(config.name, config);
         return this.map.get(config.name)!;
     }
-    
+
     public async createAgent(config: CreateAgentOptions): Promise<Agent> {
 
 
@@ -64,27 +66,34 @@ export class AgentManager {
             maxWindowSize: config.chatHistory?.maxTaskHistoryWindow ?? 6,
         });
 
-        const scratchPad = new ScratchPadManager(10);
+
         const taskCompleteCommandName = "taskComplete";
         const controlTools = [new EndTool(taskCompleteCommandName)]
 
-        const agentCommunicationTools = [];
-        if (config.communicationWhitelist) {
-            agentCommunicationTools.push(new TalkToHelper(this));
-            if (config.allowAgentCreation) {
-                agentCommunicationTools.push(new CreateHelper(this, config.model));
-            }
-
-        }
+        const agentCommunicationPlugin = [];
         const canCommunicateWithAgents = config.communicationWhitelist ?? false;
         let communicationWhitelist = undefined;
         if (Array.isArray(canCommunicateWithAgents)) {
             communicationWhitelist = canCommunicateWithAgents
         }
+
+        if (config.communicationWhitelist) {
+            const helpersPlugin = new HelpersPlugin({
+                name: shortName,
+                helperSingleton: this,
+                model: model,
+                communicationWhitelist: communicationWhitelist ?? null,
+                allowAgentCreation: config.allowAgentCreation ?? false,
+            });
+
+            agentCommunicationPlugin.push(helpersPlugin);
+        }
+
+
         const tools = [
             ...controlTools,
             ...(config.tools ?? []),
-            ...agentCommunicationTools
+
         ];
 
 
@@ -95,29 +104,34 @@ export class AgentManager {
             outputKey: "output",
             maxWindowSize: config.chatHistory?.maxChatHistoryWindow ?? 6
         });
-        const scratchPadPlugin = new ScratchPadPlugin(new ScratchPadManager(10));
+
+        const scratchPadPlugin = new ScratchPadPlugin(10);
+        const timePlugin = new TimePlugin();
+        const defaultPlugins = [scratchPadPlugin, timePlugin, ...agentCommunicationPlugin];
+
+
         const talkToUserTool = new TalkToUserTool();
-        const agent = createOpenAiFunctionAgent({
-            llm: model,
-            memory: innerMemory,
-            name: shortName,
-            description: config.description,
-            taskCompleteCommandName: taskCompleteCommandName,
-            talkToUserCommandName: talkToUserTool.name,
-            plugins: [...tools.map(tool => new LangchainToolWrapper(tool)), scratchPadPlugin],
-            constitution: config.constitution ?? DEFAULT_CONSTITUTION,
-        });
-        
-        // const agent = createPlainTextMimirAgent({
+        // const agent = createOpenAiFunctionAgent({
         //     llm: model,
         //     memory: innerMemory,
         //     name: shortName,
         //     description: config.description,
         //     taskCompleteCommandName: taskCompleteCommandName,
-        //     talkToUserTool: talkToUserTool,
-        //     plugins: [...tools.map(tool => new LangchainToolWrapper(tool)), scratchPadPlugin],
+        //     talkToUserCommandName: talkToUserTool.name,
+        //     plugins: [...tools.map(tool => new LangchainToolWrapper(tool)), ...defaultPlugins],
         //     constitution: config.constitution ?? DEFAULT_CONSTITUTION,
         // });
+
+        const agent = createPlainTextMimirAgent({
+            llm: model,
+            memory: innerMemory,
+            name: shortName,
+            description: config.description,
+            taskCompleteCommandName: taskCompleteCommandName,
+            talkToUserTool: talkToUserTool,
+            plugins: [...tools.map(tool => new LangchainToolWrapper(tool)), ...defaultPlugins],
+            constitution: config.constitution ?? DEFAULT_CONSTITUTION,
+        });
 
 
         let executor = SteppedAgentExecutor.fromAgentAndTools({
@@ -136,7 +150,7 @@ export class AgentManager {
                 completeTransactionTrigger: (message) => {
                     return message.output.complete;
                 },
-                messageFilter: (message) =>{
+                messageFilter: (message) => {
                     const foo = (!message.output.toolStep)
                     return foo;
                 }

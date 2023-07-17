@@ -8,8 +8,9 @@ import { TrimmingMemory } from "./../memory/trimming-memory/index.js";
 import { LLMChain } from "langchain/chains";
 import { BaseLLMOutputParser, BaseOutputParser } from "langchain/schema/output_parser";
 import { BaseLanguageModel } from "langchain/base_language";
-import { HumanChatMessage } from "langchain/schema";
+import { HumanMessage } from "langchain/schema";
 import { TransformationalMemory } from "./../memory/transform-memory.js";
+import { AgentContext } from "../schema.js";
 
 
 const BAD_MESSAGE_TEXT = `I could not understand that your response, please rememeber to use the correct response format.`;
@@ -27,8 +28,8 @@ export type MimirChatConversationalAgentInput = {
 
 
 export type InternalAgentPlugin = {
-    getInputs: () => Promise<Record<string, any>>,
-    readResponse: (aiMessage: MimirAIMessage) => Promise<void>,
+    getInputs: (context: AgentContext) => Promise<Record<string, any>>,
+    readResponse: (context: AgentContext, aiMessage: MimirAIMessage) => Promise<void>,
     clear: () => Promise<void>,
 }
 
@@ -49,6 +50,7 @@ export class MimirAgent extends BaseSingleActionAgent {
     llmChain: LLMChain<MimirAIMessage>;
     defaultInputs?: Record<string, any>;
     plugins: InternalAgentPlugin[];
+    name: string;
     messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: BaseMessage, }>;
 
     constructor(
@@ -57,6 +59,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         input: MimirChatConversationalAgentInput,
         outputParser: BaseOutputParser<AgentAction | AgentFinish>,
         messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: BaseMessage, }>,
+        name: string,
         plugins?: InternalAgentPlugin[],
         defaultInputs?: Record<string, any>,
     ) {
@@ -68,6 +71,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         this.messageGenerator = messageGenerator;
         this.defaultInputs = defaultInputs;
         this.plugins = plugins ?? [];
+        this.name = name;
 
     }
 
@@ -97,22 +101,25 @@ export class MimirAgent extends BaseSingleActionAgent {
         callbackManager?: CallbackManager,
     ): Promise<AgentAction | AgentFinish> {
 
+        
+        const context: AgentContext = {
+            name: this.name
+        }
         const nextMessage = this.getMessageForAI(steps, inputs);
         const { message, messageToSave } = await this.messageGenerator(nextMessage);
 
-        const pluginInputs = (await Promise.all(this.plugins.map(async plugin => await plugin.getInputs())))
+        const pluginInputs = (await Promise.all(this.plugins.map(async plugin => await plugin.getInputs(context))))
             .reduce((acc, val) => ({ ...acc, ...val }), {})
 
         const agentResponse = await this.executePlanWithRetry({
             ...this.defaultInputs,
             ...pluginInputs,
             ...inputs,
-            currentTime: new Date().toISOString(),
             realInput: message,
             inputToSave: messageToSave
         });
 
-        this.plugins.forEach(plugin => plugin.readResponse(agentResponse));
+        this.plugins.forEach(plugin => plugin.readResponse(context, agentResponse));
 
         const out = await this.outputParser.parse(JSON.stringify(agentResponse), callbackManager);
         return {
@@ -132,7 +139,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         let agentResponse: MimirAIMessage | undefined;
         while (attempts < retries) {
             if (attempts >= 1) {
-                const errMessage = new HumanChatMessage(BAD_MESSAGE_TEXT);
+                const errMessage = new HumanMessage(BAD_MESSAGE_TEXT);
                 agentResponse = await this.llmChain.predict({
                     ...inputs,
                     realInput: errMessage,
@@ -168,7 +175,6 @@ export class MimirAgent extends BaseSingleActionAgent {
     static createPrompt(args: CreatePromptArgs) {
         const messages = [
             ...args.systemMessage,
-            SystemMessagePromptTemplate.fromTemplate(`The current time is: {currentTime}`),
             new MessagesPlaceholder("chat_history"),
             new MessagesPlaceholder("history"),
             new MessagesPlaceholder("realInput")
@@ -209,6 +215,7 @@ export class MimirAgent extends BaseSingleActionAgent {
             },
             outputParser,
             messageGenerator,
+            args.name,
             args.plugins,
             args.defaultInputs
         );
@@ -220,10 +227,6 @@ export type CreatePromptArgs = {
 
     systemMessage: (SystemMessagePromptTemplate | MessagesPlaceholder)[];
 
-    humanMessage?: string;
-
-    inputVariables?: string[];
-
     outputParser: AgentActionOutputParser;
 
     taskCompleteCommandName: string,
@@ -232,13 +235,13 @@ export type CreatePromptArgs = {
 
     defaultInputs?: Record<string, any>,
 
-    communicationWhitelist?: string[] | null;
-
     aiMessageSerializer: AiMessageSerializer;
 
     humanMessageSerializer: HumanMessageSerializer;
 
     plugins: InternalAgentPlugin[];
+
+    name: string;
 
 };
 

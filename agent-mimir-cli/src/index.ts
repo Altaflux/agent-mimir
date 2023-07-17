@@ -24,6 +24,7 @@ export type AgentDefinition = {
         }
         tools?: Tool[];
         communicationWhitelist?: string[] | boolean;
+        allowAgentCreation?: boolean;
     },
 
 }
@@ -66,6 +67,7 @@ export const run = async () => {
                     thinkingModel: agentDefinition.definition.taskModel ?? agentDefinition.definition.chatModel,
                     chatHistory: agentDefinition.definition.chatHistory,
                     communicationWhitelist: agentDefinition.definition.communicationWhitelist,
+                    allowAgentCreation: agentDefinition.definition.allowAgentCreation,
                     constitution: agentDefinition.definition.constitution
                 })
             }

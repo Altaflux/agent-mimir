@@ -1,15 +1,15 @@
 
 import pkg from 'ring-buffer-ts';
-import { MimirAgentPlugin } from '../index.js';
-import { AttributeDescriptor, ResponseFieldMapper } from '../agent/instruction-mapper.js';
+import { AgentContext, MimirAgentPlugin } from '../../index.js';
+import { AttributeDescriptor, ResponseFieldMapper } from '../instruction-mapper.js';
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from 'langchain/prompts';
-import { MimirAIMessage } from '../agent/base-agent.js';
+import { MimirAIMessage } from '../base-agent.js';
 const { RingBuffer } = pkg;
 
-export class ScratchPadManager {
+class ScratchPadManager {
 
     private scratchPad: any;
- 
+
     constructor(size: number) {
         this.scratchPad = new RingBuffer(size);
     }
@@ -18,7 +18,7 @@ export class ScratchPadManager {
         this.scratchPad.clear();
     }
 
-    async storeMessage( value: string) {
+    async storeMessage(value: string) {
         this.scratchPad.add({ value });
     }
 
@@ -32,10 +32,10 @@ export class ScratchPadManager {
 
 export class ScratchPadPlugin extends MimirAgentPlugin {
     private scratchPadManager: ScratchPadManager;
-    
-    constructor(scratchPadManager: ScratchPadManager) {
+
+    constructor(size: number) {
         super();
-        this.scratchPadManager = scratchPadManager;
+        this.scratchPadManager = new ScratchPadManager(size);
     }
 
     attributes(): AttributeDescriptor[] {
@@ -50,7 +50,7 @@ export class ScratchPadPlugin extends MimirAgentPlugin {
         ];
     }
 
-    async readResponse(aiMessage: MimirAIMessage, responseFieldMapper: ResponseFieldMapper<any>): Promise<void> {
+    async readResponse(context: AgentContext, aiMessage: MimirAIMessage, responseFieldMapper: ResponseFieldMapper<any>): Promise<void> {
         const message = await responseFieldMapper.readInstructionsFromResponse(aiMessage.text ?? "");
         if (message.saveToScratchPad && message.saveToScratchPad.length > 1) {
             await this.scratchPadManager.storeMessage(message.saveToScratchPad);

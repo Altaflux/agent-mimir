@@ -37,13 +37,13 @@ export abstract class MimirAgentPlugin {
         return [];
     }
 
-    async readResponse(aiMessage: MimirAIMessage, responseFieldMapper: ResponseFieldMapper): Promise<void> {
+    async readResponse(context: AgentContext, aiMessage: MimirAIMessage, responseFieldMapper: ResponseFieldMapper): Promise<void> {
     }
 
     async clear(): Promise<void> {
     }
 
-    async getInputs(): Promise<Record<string, any>> {
+    async getInputs(context: AgentContext): Promise<Record<string, any>> {
         return {};
     }
 
@@ -55,6 +55,10 @@ export abstract class MimirAgentPlugin {
         return [];
     }
 }
+
+export type AgentContext = {
+    name: string,
+};
 
 export class LangchainToolWrapper extends MimirAgentPlugin {
     constructor(private tool: StructuredTool) {
