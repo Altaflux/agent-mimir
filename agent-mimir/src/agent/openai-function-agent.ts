@@ -130,7 +130,7 @@ export function createOpenAiFunctionAgent(args: OpenAIFunctionMimirAgentArgs) {
 
     const internalPlugins = args.plugins.map(plugin => {
         const agentPlugin: InternalAgentPlugin = {
-            getInputs: plugin.getInputs,
+            getInputs: () => plugin.getInputs(),
             readResponse: async (response: MimirAIMessage) => {
                 await plugin.readResponse(response, formatManager);
             },

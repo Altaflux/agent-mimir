@@ -1,7 +1,7 @@
 import { BaseLanguageModel } from "langchain/base_language";
 import { BaseLLMOutputParser } from "langchain/schema/output_parser";
 import { MimirAgent, InternalAgentPlugin, MimirAIMessage, NextMessage } from "./base-agent.js";
-import { AIChatMessage, AgentAction, AgentFinish, BaseMessage, ChatGeneration, Generation, HumanMessage } from "langchain/schema";
+import { AIMessage, AgentAction, AgentFinish, BaseMessage, ChatGeneration, Generation, HumanMessage } from "langchain/schema";
 import { AiMessageSerializer, DefaultHumanMessageSerializerImp } from "../memory/serializers.js";
 import { PromptTemplate, SystemMessagePromptTemplate, renderTemplate } from "langchain/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
@@ -127,8 +127,8 @@ export class DefaultAiMessageSerializer extends AiMessageSerializer {
 
     async serialize(aiMessage: any): Promise<string> {
         const output = aiMessage as MimirAIMessage;
-        const message = new AIChatMessage(output.text ?? "");
-        const serializedMessage = message.toJSON();
+        const message = new AIMessage(output.text ?? "");
+        const serializedMessage = message.toDict();
         return JSON.stringify(serializedMessage);
     }
 }
@@ -166,7 +166,7 @@ export function createPlainTextMimirAgent(args: DefaultMimirAgentArgs) {
 
     const internalPlugins = args.plugins.map(plugin => {
         const agentPlugin: InternalAgentPlugin = {
-            getInputs: plugin.getInputs,
+            getInputs: () => plugin.getInputs(),
             readResponse: async (response: MimirAIMessage) => {
                 await plugin.readResponse(response, formatManager);
             },

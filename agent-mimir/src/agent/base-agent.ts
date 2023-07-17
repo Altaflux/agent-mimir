@@ -80,7 +80,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         _steps: AgentStep[]
     ): Promise<AgentFinish["returnValues"]> {
 
-        if (_returnValues.complete){
+        if (_returnValues.complete) {
             await Promise.all(this.plugins.map(async plugin => await plugin.clear()));
             await this.memory.clear()
         }
@@ -218,7 +218,7 @@ export class MimirAgent extends BaseSingleActionAgent {
 
 export type CreatePromptArgs = {
 
-    systemMessage: SystemMessagePromptTemplate[];
+    systemMessage: (SystemMessagePromptTemplate | MessagesPlaceholder)[];
 
     humanMessage?: string;
 

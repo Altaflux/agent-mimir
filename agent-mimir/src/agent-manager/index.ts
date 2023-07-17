@@ -5,7 +5,7 @@ import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 
 import { Tool } from "langchain/tools";
 import { WindowedConversationSummaryMemory } from '../memory/windowed-memory/index.js';
-import { ScratchPadManager } from '../utils/scratch-pad.js';
+import { ScratchPadManager, ScratchPadPlugin } from '../utils/scratch-pad.js';
 import { CreateHelper, EndTool, TalkToHelper, TalkToUserTool } from '../tools/core.js';
 import { SteppedAgentExecutor } from '../executor/index.js';
 import { ChatMemoryChain } from '../memory/transactional-memory-chain.js';
@@ -93,31 +93,31 @@ export class AgentManager {
             memoryKey: "chat_history",
             inputKey: "input",
             outputKey: "output",
-            maxWindowSize: config.chatHistory?.maxChatHistoryWindow ?? 6,
-           // messageSerializer: messageSerializer,
+            maxWindowSize: config.chatHistory?.maxChatHistoryWindow ?? 6
         });
+        const scratchPadPlugin = new ScratchPadPlugin(new ScratchPadManager(10));
         const talkToUserTool = new TalkToUserTool();
-        const agent = createOpenAiFunctionAgent({
-            llm: model,
-            memory: innerMemory,
-            name: shortName,
-            description: config.description,
-            taskCompleteCommandName: taskCompleteCommandName,
-            talkToUserCommandName: talkToUserTool.name,
-            plugins: tools.map(tool => new LangchainToolWrapper(tool)),
-            constitution: config.constitution ?? DEFAULT_CONSTITUTION,
-        });
-        
-        // const agent = createDefaultMimirAgent({
+        // const agent = createOpenAiFunctionAgent({
         //     llm: model,
         //     memory: innerMemory,
         //     name: shortName,
         //     description: config.description,
         //     taskCompleteCommandName: taskCompleteCommandName,
-        //     talkToUserTool: talkToUserTool,
-        //     plugins: tools.map(tool => new LangchainToolWrapper(tool)),
+        //     talkToUserCommandName: talkToUserTool.name,
+        //     plugins: [...tools.map(tool => new LangchainToolWrapper(tool)), scratchPadPlugin],
         //     constitution: config.constitution ?? DEFAULT_CONSTITUTION,
         // });
+        
+        const agent = createPlainTextMimirAgent({
+            llm: model,
+            memory: innerMemory,
+            name: shortName,
+            description: config.description,
+            taskCompleteCommandName: taskCompleteCommandName,
+            talkToUserTool: talkToUserTool,
+            plugins: [...tools.map(tool => new LangchainToolWrapper(tool)), scratchPadPlugin],
+            constitution: config.constitution ?? DEFAULT_CONSTITUTION,
+        });
 
 
         let executor = SteppedAgentExecutor.fromAgentAndTools({
