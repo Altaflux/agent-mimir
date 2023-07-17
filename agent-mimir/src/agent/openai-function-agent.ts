@@ -119,6 +119,10 @@ export type OpenAIFunctionMimirAgentArgs = {
 }
 export function createOpenAiFunctionAgent(args: OpenAIFunctionMimirAgentArgs) {
 
+    if (args.llm._modelType() !== "base_chat_model" || args.llm._llmType() !== "openai") {
+        throw new Error("This agent requires an OpenAI chat model");
+    }
+
     const pluginAttributes = args.plugins.map(plugin => plugin.attributes()).flat();
     const formatManager = new ResponseFieldMapper([...DEFAULT_ATTRIBUTES, ...pluginAttributes, ...OPENAI_FUNCTION_AGENT_ATTRIBUTES]);
 

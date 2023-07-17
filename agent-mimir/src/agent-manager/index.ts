@@ -97,27 +97,27 @@ export class AgentManager {
         });
         const scratchPadPlugin = new ScratchPadPlugin(new ScratchPadManager(10));
         const talkToUserTool = new TalkToUserTool();
-        // const agent = createOpenAiFunctionAgent({
-        //     llm: model,
-        //     memory: innerMemory,
-        //     name: shortName,
-        //     description: config.description,
-        //     taskCompleteCommandName: taskCompleteCommandName,
-        //     talkToUserCommandName: talkToUserTool.name,
-        //     plugins: [...tools.map(tool => new LangchainToolWrapper(tool)), scratchPadPlugin],
-        //     constitution: config.constitution ?? DEFAULT_CONSTITUTION,
-        // });
-        
-        const agent = createPlainTextMimirAgent({
+        const agent = createOpenAiFunctionAgent({
             llm: model,
             memory: innerMemory,
             name: shortName,
             description: config.description,
             taskCompleteCommandName: taskCompleteCommandName,
-            talkToUserTool: talkToUserTool,
+            talkToUserCommandName: talkToUserTool.name,
             plugins: [...tools.map(tool => new LangchainToolWrapper(tool)), scratchPadPlugin],
             constitution: config.constitution ?? DEFAULT_CONSTITUTION,
         });
+        
+        // const agent = createPlainTextMimirAgent({
+        //     llm: model,
+        //     memory: innerMemory,
+        //     name: shortName,
+        //     description: config.description,
+        //     taskCompleteCommandName: taskCompleteCommandName,
+        //     talkToUserTool: talkToUserTool,
+        //     plugins: [...tools.map(tool => new LangchainToolWrapper(tool)), scratchPadPlugin],
+        //     constitution: config.constitution ?? DEFAULT_CONSTITUTION,
+        // });
 
 
         let executor = SteppedAgentExecutor.fromAgentAndTools({
