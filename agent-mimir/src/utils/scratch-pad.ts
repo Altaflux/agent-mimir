@@ -42,9 +42,10 @@ export class ScratchPadPlugin extends MimirAgentPlugin {
         return [
             {
                 name: "Save To ScratchPad",
-                description: "\\ Any important piece of information you may be able to use later. This field is optional. ",
+                description: "Any important piece of information you may be able to use later. This field is optional. ",
                 variableName: "saveToScratchPad",
-                example: "The plot of the story is about a young kid going on an adventure to find his lost dog."
+                example: "The plot of the story is about a young kid going on an adventure to find his lost dog.",
+                attributeType: "String",
             },
         ];
     }

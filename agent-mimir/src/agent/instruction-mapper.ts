@@ -6,6 +6,7 @@ When responding to me please, please output a response in the following format:
 
 export type AttributeDescriptor = {
     name: string,
+    attributeType: string,
     variableName: string,
     description: string,
     example?: string,
@@ -17,7 +18,7 @@ export class ResponseFieldMapper<T = any> {
 
     createFieldInstructions(): string {
         const fields = this.attributeSetters.map((attributeSetter) => {
-            return `-${attributeSetter.name}: ${attributeSetter.description}`
+            return `-${attributeSetter.name}: (Type:${attributeSetter.attributeType}) \\ ${attributeSetter.description}`
         }).join('\n');
 
         const examples = this.attributeSetters

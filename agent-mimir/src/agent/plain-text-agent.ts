@@ -136,15 +136,17 @@ const PLAIN_TEXT_AGENT_ATTRIBUTES: AttributeDescriptor[] = [
 
     {
         name: "Function Name",
-        description: "\\ The name of the function to run. This field is obligatory.",
+        description: "The name of the function to run. This field is obligatory.",
         example: "someFunction",
         variableName: "functionName",
+        attributeType: "string",
     },
     {
-        name: "Arguments",
-        description: "\\ function's JSON argument goes here. This field is obligatory.",
+        name: "Function Argument",
+        description: "Function's JSON argument goes here. This field is obligatory.",
         example: "{" + JSON.stringify({ someInput: "someValue" }) + "}",
         variableName: "functionArguments",
+        attributeType: "JSON",
     },
 ]
 

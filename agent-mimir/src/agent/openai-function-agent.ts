@@ -101,8 +101,9 @@ export class FunctionCallAiMessageSerializer extends AiMessageSerializer {
 const OPENAI_FUNCTION_AGENT_ATTRIBUTES: AttributeDescriptor[] = [
     {
         name: "Message To User",
-        description: "\\ Any message you want to send to the user. Useful when you want to present the answer to the request. Use it when you think that you are stuck or want to present the anwser to the user. This field must not be set at the same time as calling a function. ",
-        variableName: "messageToUser"
+        description: "Any message you want to send to the user. Useful when you want to present the answer to the request. Use it when you think that you are stuck or want to present the anwser to the user. This field must not be set at the same time as calling a function. ",
+        variableName: "messageToUser",
+        attributeType: "string",
     },
 ]
 
