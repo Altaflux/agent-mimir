@@ -1,9 +1,10 @@
 import { BaseChain } from "langchain/chains";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
-import { BaseOutputParser } from "langchain/schema/output_parser";
-import { MimirAIMessage } from "./agent/base-agent.js";
+import { MimirAIMessage, NextMessage } from "./agent/base-agent.js";
 import { AttributeDescriptor, ResponseFieldMapper } from "./agent/instruction-mapper.js";
 import { StructuredTool } from "langchain/tools";
+import { BaseLanguageModel } from "langchain/base_language";
+import { BaseChatMemory } from "langchain/memory";
 
 export type AIMessageType = {
     thoughts?: string,
@@ -17,19 +18,18 @@ export type AIMessageType = {
     messageToUser?: string,
 }
 
-export abstract class AIMessageSerializer extends BaseOutputParser<string> {
-    abstract serialize(message: AIMessageType): Promise<string>;
-    abstract deserialize(text: string): Promise<AIMessageType>;
-
-    async parse(text: string): Promise<string> {
-        return JSON.stringify(await this.deserialize(text));
-    }
-}
-
-
 export type Agent = { name: string, description: string, agent: BaseChain }
 
-
+export type MimirAgentArgs = {
+    name: string,
+    description: string,
+    llm: BaseLanguageModel,
+    memory: BaseChatMemory
+    taskCompleteCommandName: string,
+    talkToUserTool: StructuredTool,
+    plugins: MimirAgentPlugin[]
+    constitution: string,
+}
 
 export abstract class MimirAgentPlugin {
 
@@ -58,6 +58,7 @@ export abstract class MimirAgentPlugin {
 
 export type AgentContext = {
     name: string,
+    input: NextMessage,
 };
 
 export class LangchainToolWrapper extends MimirAgentPlugin {

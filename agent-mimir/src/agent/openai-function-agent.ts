@@ -1,4 +1,3 @@
-import { BaseLanguageModel } from "langchain/base_language";
 import { BaseLLMOutputParser } from "langchain/schema/output_parser";
 import { MimirAgent, InternalAgentPlugin, MimirAIMessage, NextMessage } from "./base-agent.js";
 import { AIMessage, AgentAction, AgentFinish, BaseMessage, ChatGeneration, FunctionMessage, Generation, HumanMessage } from "langchain/schema";
@@ -7,8 +6,7 @@ import { SystemMessagePromptTemplate } from "langchain/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
 import { AgentActionOutputParser } from "langchain/agents";
-import { BaseChatMemory } from "langchain/memory";
-import { AgentContext, MimirAgentPlugin } from "../index.js";
+import { AgentContext, MimirAgentArgs } from "../index.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { AiMessageSerializer, DefaultHumanMessageSerializerImp } from "../memory/serializers.js";
 
@@ -78,9 +76,6 @@ const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMes
     };
 };
 
-
-
-
 export class FunctionCallAiMessageSerializer extends AiMessageSerializer {
 
     async serialize(aiMessage: any): Promise<string> {
@@ -107,17 +102,8 @@ const OPENAI_FUNCTION_AGENT_ATTRIBUTES: AttributeDescriptor[] = [
     },
 ]
 
-export type OpenAIFunctionMimirAgentArgs = {
-    name: string,
-    description: string,
-    llm: BaseLanguageModel,
-    memory: BaseChatMemory
-    taskCompleteCommandName: string,
-    talkToUserCommandName?: string,
-    constitution: string,
-    plugins: MimirAgentPlugin[]
-}
-export function createOpenAiFunctionAgent(args: OpenAIFunctionMimirAgentArgs) {
+
+export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
 
     if (args.llm._modelType() !== "base_chat_model" || args.llm._llmType() !== "openai") {
         throw new Error("This agent requires an OpenAI chat model");
@@ -149,7 +135,7 @@ export function createOpenAiFunctionAgent(args: OpenAIFunctionMimirAgentArgs) {
 
     const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGenerator, {
         systemMessage: systemMessages,
-        outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName, args.talkToUserCommandName),
+        outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName, args.talkToUserTool.name),
         taskCompleteCommandName: args.taskCompleteCommandName,
         memory: args.memory,
         defaultInputs: {

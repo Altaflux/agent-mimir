@@ -102,10 +102,12 @@ export class MimirAgent extends BaseSingleActionAgent {
     ): Promise<AgentAction | AgentFinish> {
 
         
-        const context: AgentContext = {
-            name: this.name
-        }
+ 
         const nextMessage = this.getMessageForAI(steps, inputs);
+        const context: AgentContext = {
+            name: this.name,
+            input: nextMessage,
+        }
         const { message, messageToSave } = await this.messageGenerator(nextMessage);
 
         const pluginInputs = (await Promise.all(this.plugins.map(async plugin => await plugin.getInputs(context))))

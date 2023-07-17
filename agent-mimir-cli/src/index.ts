@@ -1,4 +1,4 @@
-import { AgentManager } from "agent-mimir";
+import { AgentManager, MimirAgentTypes } from "agent-mimir";
 import chalk from "chalk";
 import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
@@ -14,6 +14,7 @@ export type AgentDefinition = {
     chain?: BaseChain;
     definition?: {
         profession: string;
+        agentType?: MimirAgentTypes;
         chatModel: BaseChatModel;
         summaryModel: BaseChatModel;
         taskModel?: BaseLanguageModel;
@@ -68,7 +69,8 @@ export const run = async () => {
                     chatHistory: agentDefinition.definition.chatHistory,
                     communicationWhitelist: agentDefinition.definition.communicationWhitelist,
                     allowAgentCreation: agentDefinition.definition.allowAgentCreation,
-                    constitution: agentDefinition.definition.constitution
+                    constitution: agentDefinition.definition.constitution,
+                    agentType: agentDefinition.definition.agentType
                 })
             }
             console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.definition.profession}" and description "${agentDefinition.description}"`));

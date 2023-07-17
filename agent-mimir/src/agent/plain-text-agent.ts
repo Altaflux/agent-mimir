@@ -1,4 +1,3 @@
-import { BaseLanguageModel } from "langchain/base_language";
 import { BaseLLMOutputParser } from "langchain/schema/output_parser";
 import { MimirAgent, InternalAgentPlugin, MimirAIMessage, NextMessage } from "./base-agent.js";
 import { AIMessage, AgentAction, AgentFinish, BaseMessage, ChatGeneration, Generation, HumanMessage } from "langchain/schema";
@@ -7,11 +6,10 @@ import { PromptTemplate, SystemMessagePromptTemplate, renderTemplate } from "lan
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
 import { AgentActionOutputParser } from "langchain/agents";
-import { BaseChatMemory } from "langchain/memory";
 import { StructuredTool } from "langchain/tools";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { JsonSchema7ObjectType } from "zod-to-json-schema/src/parsers/object.js";
-import { AgentContext, MimirAgentPlugin } from "../index.js";
+import { AgentContext, MimirAgentArgs } from "../index.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 
 
@@ -151,17 +149,8 @@ const PLAIN_TEXT_AGENT_ATTRIBUTES: AttributeDescriptor[] = [
 ]
 
 
-export type DefaultMimirAgentArgs = {
-    name: string,
-    description: string,
-    llm: BaseLanguageModel,
-    memory: BaseChatMemory
-    taskCompleteCommandName: string,
-    talkToUserTool: StructuredTool,
-    plugins: MimirAgentPlugin[]
-    constitution: string,
-}
-export function createPlainTextMimirAgent(args: DefaultMimirAgentArgs) {
+
+export function createPlainTextMimirAgent(args: MimirAgentArgs) {
 
     const pluginAttributes = args.plugins.map(plugin => plugin.attributes()).flat();
     const formatManager = new ResponseFieldMapper([...DEFAULT_ATTRIBUTES, ...pluginAttributes, ...PLAIN_TEXT_AGENT_ATTRIBUTES]);
@@ -178,7 +167,7 @@ export function createPlainTextMimirAgent(args: DefaultMimirAgentArgs) {
         }
         return agentPlugin;
     });
-    
+
     const tools = args.plugins.map(plugin => plugin.tools()).flat();
     const toolsSystemMessage = new SystemMessagePromptTemplate(
         new PromptTemplate({

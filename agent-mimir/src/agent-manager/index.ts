@@ -14,15 +14,17 @@ import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
 import { Agent } from '../schema.js';
 
-import { createOpenAiFunctionAgent } from '../agent/openai-function-agent.js';
-import { createPlainTextMimirAgent } from '../agent/plain-text-agent.js';
+import { initializeAgent } from '../agent/index.js'
 import { LangchainToolWrapper } from '../index.js';
 import { DEFAULT_CONSTITUTION } from '../agent/prompt.js';
 import { TimePlugin } from '../agent/plugins/time.js';
 import { HelpersPlugin } from '../agent/plugins/helpers.js';
+import { MimirAgentTypes } from '../agent/index.js';
+
 export type CreateAgentOptions = {
     profession: string,
     description: string,
+    agentType?: MimirAgentTypes,
     name?: string,
     model: BaseChatModel,
     summaryModel?: BaseChatModel,
@@ -111,18 +113,8 @@ export class AgentManager {
 
 
         const talkToUserTool = new TalkToUserTool();
-        // const agent = createOpenAiFunctionAgent({
-        //     llm: model,
-        //     memory: innerMemory,
-        //     name: shortName,
-        //     description: config.description,
-        //     taskCompleteCommandName: taskCompleteCommandName,
-        //     talkToUserCommandName: talkToUserTool.name,
-        //     plugins: [...tools.map(tool => new LangchainToolWrapper(tool)), ...defaultPlugins],
-        //     constitution: config.constitution ?? DEFAULT_CONSTITUTION,
-        // });
 
-        const agent = createPlainTextMimirAgent({
+        const agent = initializeAgent(config.agentType ?? "plain-text-agent", {
             llm: model,
             memory: innerMemory,
             name: shortName,
@@ -132,7 +124,6 @@ export class AgentManager {
             plugins: [...tools.map(tool => new LangchainToolWrapper(tool)), ...defaultPlugins],
             constitution: config.constitution ?? DEFAULT_CONSTITUTION,
         });
-
 
         let executor = SteppedAgentExecutor.fromAgentAndTools({
             agentName: shortName,

@@ -2,12 +2,9 @@ import { BaseLanguageModel } from "langchain/base_language";
 
 import { BaseChatMemory, BaseChatMemoryInput, getBufferString, getInputValue, } from "langchain/memory";
 import { BasePromptTemplate } from "langchain/prompts";
-import { BaseMessage, InputValues, SystemChatMessage } from "langchain/schema";
+import { BaseMessage, InputValues, SystemMessage } from "langchain/schema";
 import { SUMMARY_PROMPT } from "./prompt.js";
 import { LLMChain } from "langchain/chains";
-
-
-import { AIMessageSerializer, AIMessageType } from "../../schema.js";
 
 export type WindowedConversationSummaryMemoryInput = BaseChatMemoryInput & {
     memoryKey?: string;
@@ -15,7 +12,6 @@ export type WindowedConversationSummaryMemoryInput = BaseChatMemoryInput & {
     aiPrefix?: string;
     prompt?: BasePromptTemplate;
     maxWindowSize?: number;
-    messageSerializer?: AIMessageSerializer;
     summaryChatMessageClass?: new (content: string) => BaseMessage;
 };
 
@@ -35,9 +31,7 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
     private maxWindowSize = 6;
 
     summaryChatMessageClass: new (content: string) => BaseMessage =
-        SystemChatMessage;
-
-    messageSerializer?: AIMessageSerializer;
+        SystemMessage;
 
     constructor(llm: BaseLanguageModel, fields?: WindowedConversationSummaryMemoryInput) {
         const {
@@ -60,7 +54,7 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
         this.prompt = prompt ?? this.prompt;
         this.summaryChatMessageClass =
             summaryChatMessageClass ?? this.summaryChatMessageClass;
-        this.messageSerializer = fields?.messageSerializer;
+
     }
 
     get memoryKeys(): string[] {
@@ -100,13 +94,7 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
         outputValues: Record<string, any>
     ): Promise<void> {
         let output = await getInputValue(outputValues, this.outputKey);
-        let input = `${await getInputValue(inputValues, this.inputKey)}`;
-        try {
-            const formattedOutput = (await getInputValue(outputValues, this.outputKey)) as AIMessageType;
-            output = await this.messageSerializer?.serialize(formattedOutput) ?? output;
-        } catch (e) {
-             console.log(e);
-        }
+        let input = await getInputValue(inputValues, this.inputKey);
 
         const outputKey = this.outputKey ?? "output";
         const inputKey = this.inputKey ?? "input";
