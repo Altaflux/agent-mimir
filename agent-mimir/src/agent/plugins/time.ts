@@ -10,7 +10,6 @@ export class TimePlugin extends MimirAgentPlugin {
         ];
     }
 
-    
     async getInputs(): Promise<Record<string, any>> {
         return {
             currentTime: new Date().toISOString(),

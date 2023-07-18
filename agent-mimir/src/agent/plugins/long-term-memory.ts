@@ -6,8 +6,10 @@ import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prom
 import { MimirAIMessage } from "../base-agent.js";
 import { ResponseFieldMapper } from "../instruction-mapper.js";
 
-export class LongTermMemoryManager {
+class LongTermMemoryManager {
+
     private memory: MemoryVectorStore;
+
     constructor(embeddings: Embeddings) {
         this.memory = new MemoryVectorStore(embeddings)
     }
@@ -31,6 +33,7 @@ export class LongTermMemoryManager {
         return messageFromAILog;
     }
 }
+
 export class LongTermMemoryPlugin extends MimirAgentPlugin {
 
     private longTermMemoryManager: LongTermMemoryManager;

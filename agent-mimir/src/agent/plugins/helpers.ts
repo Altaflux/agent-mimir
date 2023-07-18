@@ -60,7 +60,9 @@ export type HelperPluginConfig = {
     model: BaseChatModel,
     allowAgentCreation: boolean,
 }
+
 export class HelpersPlugin extends MimirAgentPlugin {
+
     private helperSingleton: AgentManager;
     private communicationWhitelist: string[] | null;
     private model: BaseChatModel;
