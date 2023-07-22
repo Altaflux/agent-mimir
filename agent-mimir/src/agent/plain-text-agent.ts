@@ -1,7 +1,7 @@
 import { BaseLLMOutputParser } from "langchain/schema/output_parser";
 import { MimirAgent, InternalAgentPlugin, MimirAIMessage, NextMessage } from "./base-agent.js";
 import { AIMessage, AgentAction, AgentFinish, BaseMessage, ChatGeneration, Generation, HumanMessage } from "langchain/schema";
-import { AiMessageSerializer, DefaultHumanMessageSerializerImp } from "../memory/serializers.js";
+import { AiMessageSerializer, DefaultHumanMessageSerializerImp } from "../memory/transform-memory.js";
 import { PromptTemplate, SystemMessagePromptTemplate, renderTemplate } from "langchain/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
@@ -9,7 +9,7 @@ import { AgentActionOutputParser } from "langchain/agents";
 import { StructuredTool } from "langchain/tools";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { JsonSchema7ObjectType } from "zod-to-json-schema/src/parsers/object.js";
-import { AgentContext, MimirAgentArgs } from "../index.js";
+import { AgentContext, MimirAgentArgs } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 
 

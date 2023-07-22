@@ -6,9 +6,9 @@ import { SystemMessagePromptTemplate } from "langchain/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
 import { AgentActionOutputParser } from "langchain/agents";
-import { AgentContext, MimirAgentArgs } from "../index.js";
+import { AgentContext, MimirAgentArgs } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
-import { AiMessageSerializer, DefaultHumanMessageSerializerImp } from "../memory/serializers.js";
+import { AiMessageSerializer, DefaultHumanMessageSerializerImp } from "../memory/transform-memory.js";
 
 
 type AIMessageType = {

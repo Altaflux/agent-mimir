@@ -1,10 +1,10 @@
 
 import { Embeddings } from "langchain/embeddings";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
-import { AgentContext, MimirAgentPlugin } from "../../schema.js";
+import { AgentContext, MimirAgentPlugin } from "../schema.js";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
-import { MimirAIMessage } from "../base-agent.js";
-import { ResponseFieldMapper } from "../instruction-mapper.js";
+import { MimirAIMessage } from "../agent/base-agent.js";
+import { ResponseFieldMapper } from "../agent/instruction-mapper.js";
 
 class LongTermMemoryManager {
 

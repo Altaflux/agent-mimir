@@ -5,20 +5,20 @@ import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 
 import { Tool } from "langchain/tools";
 import { WindowedConversationSummaryMemory } from '../memory/windowed-memory/index.js';
-import { ScratchPadPlugin } from '../agent/plugins/scratch-pad.js';
+import { ScratchPadPlugin } from '../plugins/scratch-pad.js';
 import { EndTool, TalkToUserTool } from '../tools/core.js';
 import { SteppedAgentExecutor } from '../executor/index.js';
 import { ChatMemoryChain } from '../memory/transactional-memory-chain.js';
 
 import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
-import { Agent } from '../schema.js';
+import { Agent, MimirAgentPlugin } from '../schema.js';
 
 import { initializeAgent } from '../agent/index.js'
-import { LangchainToolWrapper } from '../index.js';
+import { LangchainToolWrapper } from '../schema.js';
 import { DEFAULT_CONSTITUTION } from '../agent/prompt.js';
-import { TimePlugin } from '../agent/plugins/time.js';
-import { HelpersPlugin } from '../agent/plugins/helpers.js';
+import { TimePlugin } from '../plugins/time.js';
+import { HelpersPlugin } from '../plugins/helpers.js';
 import { MimirAgentTypes } from '../agent/index.js';
 
 export type CreateAgentOptions = {
@@ -27,6 +27,7 @@ export type CreateAgentOptions = {
     agentType?: MimirAgentTypes,
     name?: string,
     model: BaseChatModel,
+    plugins?: MimirAgentPlugin[],
     summaryModel?: BaseChatModel,
     thinkingModel?: BaseLanguageModel,
     allowAgentCreation?: boolean,
@@ -109,7 +110,7 @@ export class AgentManager {
 
         const scratchPadPlugin = new ScratchPadPlugin(10);
         const timePlugin = new TimePlugin();
-        const defaultPlugins = [scratchPadPlugin, timePlugin, ...agentCommunicationPlugin];
+        const defaultPlugins = [scratchPadPlugin, timePlugin, ...agentCommunicationPlugin, ...config.plugins ?? []] as MimirAgentPlugin[];
 
 
         const talkToUserTool = new TalkToUserTool();

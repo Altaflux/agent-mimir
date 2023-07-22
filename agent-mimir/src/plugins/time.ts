@@ -1,5 +1,5 @@
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
-import { MimirAgentPlugin } from "../../schema.js";
+import { MimirAgentPlugin } from "../schema.js";
 
 
 export class TimePlugin extends MimirAgentPlugin {

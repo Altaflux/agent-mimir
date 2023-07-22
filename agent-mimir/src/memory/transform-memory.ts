@@ -1,9 +1,37 @@
 import { BaseChatMemory, BaseMemory } from "langchain/memory";
 import { InputValues, BaseMessage } from "langchain/schema";
 
-
 import { MimirAIMessage } from "../agent/base-agent.js";
-import { AiMessageSerializer, HumanMessageSerializer } from "./serializers.js";
+
+import { StoredMessage } from "langchain/schema";
+import { mapStoredMessagesToChatMessages } from "../utils/format.js";
+
+export abstract class HumanMessageSerializer {
+    abstract serialize(message: BaseMessage): Promise<string>;
+    async deserialize(text: string): Promise<BaseMessage> {
+        const message = JSON.parse(text) as StoredMessage;
+        const chatMessage = mapStoredMessagesToChatMessages([message])[0];
+        return chatMessage;
+    };
+}
+
+export class DefaultHumanMessageSerializerImp extends HumanMessageSerializer {
+    async serialize(message: BaseMessage): Promise<string> {
+        const serializedMessage = message.toDict();
+        return JSON.stringify(serializedMessage);
+    }
+}
+
+export abstract class AiMessageSerializer {
+    abstract serialize(message: any): Promise<string>;
+
+    async deserialize(message: string): Promise<BaseMessage> {
+        const storedMessage = JSON.parse(message) as StoredMessage;
+        const chatMessage = mapStoredMessagesToChatMessages([storedMessage])[0];
+        return chatMessage;
+    };
+}
+
 
 
 export class TransformationalMemory extends BaseMemory {
@@ -18,7 +46,7 @@ export class TransformationalMemory extends BaseMemory {
     async saveContext(inputValues: InputValues, outputValues: Record<string, any>): Promise<void> {
 
         let output = await getInputValue(outputValues, this.innerMemory.outputKey);
-        let input = await getInputValue(inputValues, this.innerMemory.inputKey); 
+        let input = await getInputValue(inputValues, this.innerMemory.inputKey);
         try {
             const formattedOutput = (await getInputValue(outputValues, this.innerMemory.outputKey)) as MimirAIMessage;
             output = await this.aiMessageSerializer?.serialize(formattedOutput) ?? output;
@@ -44,18 +72,18 @@ export class TransformationalMemory extends BaseMemory {
 
     async loadMemoryVariables(_values: InputValues): Promise<Record<string, any>> {
         const result = await this.innerMemory.loadMemoryVariables(_values);
-        if (this.innerMemory.memoryKeys.length > 1){
+        if (this.innerMemory.memoryKeys.length > 1) {
             throw new Error("TransformationalMemory only supports one memory key");
         }
         const outKey = this.innerMemory.memoryKeys[0];
         const messageHistory = getInputValue(result, outKey) as BaseMessage[];
         const formattedMessageHistory = await Promise.all(messageHistory.map(async (message) => {
             if (message._getType() === "ai") {
-               return await this.aiMessageSerializer.deserialize(message.text)
+                return await this.aiMessageSerializer.deserialize(message.content)
             }
             if (message._getType() === "human") {
-                return await this.humanMessageSerializer.deserialize(message.text)
-             }
+                return await this.humanMessageSerializer.deserialize(message.content)
+            }
             return message;
         }));
         return {
