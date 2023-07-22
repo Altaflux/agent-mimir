@@ -1,23 +1,27 @@
 import { BaseChain, SerializedBaseChain } from "langchain/chains";
 
-import { BaseMemory } from "langchain/memory";
+import { BaseChatMemory } from "langchain/memory";
 import { ChainValues, InputValues } from "langchain/schema";
 
 type OutputValues = Record<string, any>;
-
+type ChainMessage = {
+    type: "human" | "ai",
+    value: Record<string, any>;
+}
 export type MessagePair = { input: InputValues, output: OutputValues };
 export class ChatMemoryChain extends BaseChain {
 
-    chatMemory: BaseMemory;
+    chatMemory: BaseChatMemory;
     chain: BaseChain;
     messageFilter?: (message: MessagePair) => boolean;
     completeTransactionTrigger: (message: MessagePair) => boolean;
-    userConversation: MessagePair[] = [];
+  
+    pendingMessages: ChainMessage[] = [];
     pendingInput?: InputValues;
 
     constructor(
         chain: BaseChain,
-        chatMemory: BaseMemory,
+        chatMemory: BaseChatMemory,
         args: {
             completeTransactionTrigger: (message: MessagePair) => boolean,
             messageFilter?: (message: MessagePair) => boolean,
@@ -46,16 +50,28 @@ export class ChatMemoryChain extends BaseChain {
             }
         }
         const result = await this.chain.call(fullValues);
+        if (values[this.chatMemory.inputKey!] !== undefined) {
+            this.pendingMessages.push({
+                type: "human",
+                value: fullValues,
+            });
+        }
+
         const messagePair = { input: fullValues, output: result };
         if (this.messageFilter ? this.messageFilter(messagePair) : true) {
-            this.userConversation.push(messagePair);
+            this.pendingMessages.push({
+                type: "ai",
+                value: result,
+            });
         }
 
         if (this.completeTransactionTrigger(messagePair)) {
-            for await (const conversationPiece of this.userConversation) {
-                await this.chatMemory.saveContext(conversationPiece.input, conversationPiece.output);
+            for  (let i = 0; i < this.pendingMessages.length; i += 2) {
+                const hummanMessage = this.pendingMessages[i];
+                const aiMessage = this.pendingMessages[i + 1];
+                await this.chatMemory.saveContext(hummanMessage.value, aiMessage.value);
             }
-            this.userConversation = [];
+            this.pendingMessages = [];
         }
         return result;
     }

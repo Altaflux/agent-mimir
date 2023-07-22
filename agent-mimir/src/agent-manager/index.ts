@@ -2,29 +2,36 @@
 import { uniqueNamesGenerator, names } from 'unique-names-generator';
 
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
-import { BaseChain } from "langchain/chains";
 
 import { Tool } from "langchain/tools";
-import { PlainTextMessageSerializer } from '../parser/plain-text-parser/index.js';
 import { WindowedConversationSummaryMemory } from '../memory/windowed-memory/index.js';
-import { ScratchPadManager } from '../utils/scratch-pad.js';
-import { CreateHelper, EndTool, TalkToHelper, TalkToUserTool } from '../tools/core.js';
-import { MimirChatConversationalAgent } from '../agent/index.js';
+import { ScratchPadPlugin } from '../plugins/scratch-pad.js';
+import { EndTool, TalkToUserTool } from '../tools/core.js';
 import { SteppedAgentExecutor } from '../executor/index.js';
 import { ChatMemoryChain } from '../memory/transactional-memory-chain.js';
-import { PREFIX_JOB } from '../agent/prompt.js';
+
 import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
-import { Agent } from '../schema.js';
+import { Agent, MimirAgentPlugin } from '../schema.js';
+
+import { initializeAgent } from '../agent/index.js'
+import { LangchainToolWrapper } from '../schema.js';
+import { DEFAULT_CONSTITUTION } from '../agent/prompt.js';
+import { TimePlugin } from '../plugins/time.js';
+import { HelpersPlugin } from '../plugins/helpers.js';
+import { MimirAgentTypes } from '../agent/index.js';
 
 export type CreateAgentOptions = {
     profession: string,
     description: string,
+    agentType?: MimirAgentTypes,
     name?: string,
     model: BaseChatModel,
+    plugins?: MimirAgentPlugin[],
     summaryModel?: BaseChatModel,
     thinkingModel?: BaseLanguageModel,
     allowAgentCreation?: boolean,
+    constitution?: string,
     communicationWhitelist?: boolean | string[],
     chatHistory?: {
         maxChatHistoryWindow?: number,
@@ -41,7 +48,7 @@ export class AgentManager {
         this.map.set(config.name, config);
         return this.map.get(config.name)!;
     }
-    
+
     public async createAgent(config: CreateAgentOptions): Promise<Agent> {
 
 
@@ -53,37 +60,43 @@ export class AgentManager {
         const model = config.model;
         const thinkingModel = config.thinkingModel ?? config.model;
 
-        const messageSerializer = new PlainTextMessageSerializer();
+
         const summarizingModel = config.summaryModel ?? config.model;
         const innerMemory = new WindowedConversationSummaryMemory(summarizingModel, {
             returnMessages: true,
             memoryKey: "history",
             inputKey: "inputToSave",
             maxWindowSize: config.chatHistory?.maxTaskHistoryWindow ?? 6,
-            messageSerializer: messageSerializer,
         });
 
-        const scratchPad = new ScratchPadManager(10);
+
         const taskCompleteCommandName = "taskComplete";
-        const controlTools = [new EndTool(taskCompleteCommandName), new TalkToUserTool()]
+        const controlTools = [new EndTool(taskCompleteCommandName)]
 
-        const agentCommunicationTools = [];
-        if (config.communicationWhitelist) {
-            agentCommunicationTools.push(new TalkToHelper(this));
-            if (config.allowAgentCreation) {
-                agentCommunicationTools.push(new CreateHelper(this, config.model));
-            }
-
-        }
+        const agentCommunicationPlugin = [];
         const canCommunicateWithAgents = config.communicationWhitelist ?? false;
         let communicationWhitelist = undefined;
         if (Array.isArray(canCommunicateWithAgents)) {
             communicationWhitelist = canCommunicateWithAgents
         }
+
+        if (config.communicationWhitelist) {
+            const helpersPlugin = new HelpersPlugin({
+                name: shortName,
+                helperSingleton: this,
+                model: model,
+                communicationWhitelist: communicationWhitelist ?? null,
+                allowAgentCreation: config.allowAgentCreation ?? false,
+            });
+
+            agentCommunicationPlugin.push(helpersPlugin);
+        }
+
+
         const tools = [
             ...controlTools,
             ...(config.tools ?? []),
-            ...agentCommunicationTools
+
         ];
 
 
@@ -92,27 +105,32 @@ export class AgentManager {
             memoryKey: "chat_history",
             inputKey: "input",
             outputKey: "output",
-            maxWindowSize: config.chatHistory?.maxChatHistoryWindow ?? 6,
-            messageSerializer: messageSerializer,
+            maxWindowSize: config.chatHistory?.maxChatHistoryWindow ?? 6
         });
 
-        const agent = MimirChatConversationalAgent.fromLLMAndTools(model, tools, {
-            systemMessage: PREFIX_JOB(shortName, config.profession),
-            taskCompleteCommandName: taskCompleteCommandName,
+        const scratchPadPlugin = new ScratchPadPlugin(10);
+        const timePlugin = new TimePlugin();
+        const defaultPlugins = [scratchPadPlugin, timePlugin, ...agentCommunicationPlugin, ...config.plugins ?? []] as MimirAgentPlugin[];
+
+
+        const talkToUserTool = new TalkToUserTool();
+
+        const agent = initializeAgent(config.agentType ?? "plain-text-agent", {
+            llm: model,
             memory: innerMemory,
             name: shortName,
-            embedding: embeddings,
-            scratchPad: scratchPad,
-            helper: this,
-            messageSerializer: messageSerializer,
-            communicationWhitelist: communicationWhitelist
+            description: config.description,
+            taskCompleteCommandName: taskCompleteCommandName,
+            talkToUserTool: talkToUserTool,
+            plugins: [...tools.map(tool => new LangchainToolWrapper(tool)), ...defaultPlugins],
+            constitution: config.constitution ?? DEFAULT_CONSTITUTION,
         });
 
         let executor = SteppedAgentExecutor.fromAgentAndTools({
             agentName: shortName,
             memory: memory,
             agent: agent,
-            tools,
+            tools: [...tools, talkToUserTool],
             verbose: false,
             alwaysAllowTools: ['talkToUser'],
         });
@@ -121,8 +139,13 @@ export class AgentManager {
             executor,
             memory,
             {
-                completeTransactionTrigger: (message) => message.output.complete,
-                messageFilter: (message) => (!message.output.toolResponse && message.input.input !== undefined)
+                completeTransactionTrigger: (message) => {
+                    return message.output.complete;
+                },
+                messageFilter: (message) => {
+                    const foo = (!message.output.toolStep)
+                    return foo;
+                }
             }
         );
 

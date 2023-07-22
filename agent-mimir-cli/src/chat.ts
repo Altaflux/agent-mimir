@@ -1,7 +1,7 @@
 import { ChainValues } from "langchain/schema";
 
 import chalk from 'chalk';
-import { Agent } from "agent-mimir";
+import { Agent } from "agent-mimir/schema";
 import readline from 'readline';
 
 
