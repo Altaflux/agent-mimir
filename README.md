@@ -68,6 +68,7 @@ module.exports = async function() {
                 description: 'An assistant', //A description of the agent and how to talk to it.
                 definition: {
                     chatModel: chatModel, //The main chat LLM used for conversation and memory.
+                    agentType: 'plain-text-agent', //Use "plain-text-agent" for general LLM, you can use "openai-function-agent" if your chat model is gpt-4-0613 or gpt-3.5-turbo-0613 for improved reliability. 
                     summaryModel: taskModel, //The model used when summarizing conversations.
                     taskModel: taskModel, //The model used for brainstorming steps.
                     profession: 'an Assistant', //The profession assigned to the agent.
