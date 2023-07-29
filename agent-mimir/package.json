@@ -1,36 +1,35 @@
 {
     "name": "agent-mimir",
-    "version": "0.0.5",
+    "version": "0.1.0",
     "description": "",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
-    
     "type": "module",
     "exports": {
         "./schema": {
             "types": "./dist/schema.d.ts",
             "import": "./dist/schema.js"
-          },
-          "./agent": {
+        },
+        "./agent": {
             "types": "./dist/agent/index.d.ts",
             "import": "./dist/agent/index.js"
-          },
-          "./agent-manager": {
+        },
+        "./agent-manager": {
             "types": "./dist/agent-manager/index.d.ts",
             "import": "./dist/agent-manager/index.js"
-          },
-          "./memory/trimming-memory": {
+        },
+        "./memory/trimming-memory": {
             "types": "./dist/memory/trimming-memory/index.d.ts",
             "import": "./dist/memory/trimming-memory/index.js"
-          },
-          "./memory/windowed-memory": {
+        },
+        "./memory/windowed-memory": {
             "types": "./dist/memory/windowed-memory/index.d.ts",
             "import": "./dist/memory/windowed-memory/index.js"
-          },
-          "./memory/transform-memory": {
+        },
+        "./memory/transform-memory": {
             "types": "./dist/memory/transform-memory.d.ts",
             "import": "./dist/memory/transform-memory.js"
-          }
+        }
     },
     "scripts": {
         "build": "rimraf ./dist && npm run build:esm ",
