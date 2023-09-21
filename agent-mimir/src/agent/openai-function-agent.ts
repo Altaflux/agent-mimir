@@ -51,7 +51,7 @@ export class ChatConversationalAgentOutputParser extends AgentActionOutputParser
 }
 
 
-class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
+export class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
     async parseResult(generations: Generation[] | ChatGeneration[]): Promise<MimirAIMessage> {
         const generation = generations[0] as ChatGeneration;
         const functionCall: any = generation.message?.additional_kwargs?.function_call
@@ -65,7 +65,6 @@ class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
         return mimirMessage;
     }
     lc_namespace: string[] = [];
-
 }
 
 const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMessage, messageToSave: BaseMessage, }> = async (nextMessage: NextMessage) => {
@@ -135,7 +134,7 @@ export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
 
     const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGenerator, {
         systemMessage: systemMessages,
-        outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName, args.talkToUserTool.name),
+        outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName, args.talkToUserTool?.name),
         taskCompleteCommandName: args.taskCompleteCommandName,
         memory: args.memory,
         defaultInputs: {

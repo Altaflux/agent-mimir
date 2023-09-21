@@ -105,8 +105,8 @@ export class MimirAgent extends BaseSingleActionAgent {
  
         const nextMessage = this.getMessageForAI(steps, inputs);
         const context: AgentContext = {
-            name: this.name,
             input: nextMessage,
+            memory: this.memory,
         }
         const { message, messageToSave } = await this.messageGenerator(nextMessage);
 

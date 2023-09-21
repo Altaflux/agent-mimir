@@ -39,3 +39,35 @@ export function mapStoredMessagesToChatMessages(
         }
     });
 }
+
+export function getBufferString2(
+    messages: BaseMessage[],
+    humanPrefix = "Human",
+    aiPrefix = "AI"
+  ): string {
+    const string_messages: string[] = [];
+    for (const m of messages) {
+      let role: string;
+      if (m._getType() === "human") {
+        role = humanPrefix;
+      } else if (m._getType() === "ai") {
+        role = aiPrefix;
+      } else if (m._getType() === "system") {
+        role = "System";
+      } else if (m._getType() === "function") {
+        role = "Function";
+      } else if (m._getType() === "generic") {
+        role = (m as ChatMessage).role;
+      } else {
+        throw new Error(`Got unsupported message type: ${m}`);
+      }
+      const nameStr = m.name ? `${m.name}, ` : "";
+      try {
+        string_messages.push(`${role}: ${nameStr}${JSON.parse(m.content).data?.content}`);
+      }catch(e){
+     //   console.log(e);
+        string_messages.push(`${role}: ${nameStr} ${m.content}`);
+      }
+    }
+    return string_messages.join("\n");
+  }

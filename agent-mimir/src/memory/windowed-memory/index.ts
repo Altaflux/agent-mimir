@@ -1,10 +1,11 @@
 import { BaseLanguageModel } from "langchain/base_language";
 
-import { BaseChatMemory, BaseChatMemoryInput, getBufferString, getInputValue, } from "langchain/memory";
+import { BaseChatMemory, BaseChatMemoryInput, getInputValue, } from "langchain/memory";
 import { BasePromptTemplate } from "langchain/prompts";
 import { BaseMessage, InputValues, SystemMessage } from "langchain/schema";
 import { SUMMARY_PROMPT } from "./prompt.js";
 import { LLMChain } from "langchain/chains";
+import { getBufferString2 } from "../../utils/format.js";
 
 export type WindowedConversationSummaryMemoryInput = BaseChatMemoryInput & {
     memoryKey?: string;
@@ -13,6 +14,7 @@ export type WindowedConversationSummaryMemoryInput = BaseChatMemoryInput & {
     prompt?: BasePromptTemplate;
     maxWindowSize?: number;
     summaryChatMessageClass?: new (content: string) => BaseMessage;
+    compactionCallback?: MemoryCompactionCallback;
 };
 
 export class WindowedConversationSummaryMemory extends BaseChatMemory {
@@ -30,8 +32,9 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
 
     private maxWindowSize = 6;
 
-    summaryChatMessageClass: new (content: string) => BaseMessage =
-        SystemMessage;
+    summaryChatMessageClass: new (content: string) => BaseMessage = SystemMessage;
+
+    compactionCallback: MemoryCompactionCallback;
 
     constructor(llm: BaseLanguageModel, fields?: WindowedConversationSummaryMemoryInput) {
         const {
@@ -51,10 +54,11 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
         this.humanPrefix = humanPrefix ?? this.humanPrefix;
         this.aiPrefix = aiPrefix ?? this.aiPrefix;
         this.llm = llm
+        this.maxWindowSize = fields?.maxWindowSize ?? this.maxWindowSize;
         this.prompt = prompt ?? this.prompt;
         this.summaryChatMessageClass =
             summaryChatMessageClass ?? this.summaryChatMessageClass;
-
+        this.compactionCallback = fields?.compactionCallback ?? (async () => {});
     }
 
     get memoryKeys(): string[] {
@@ -62,30 +66,30 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
     }
 
     async predictNewSummary(
-        messages: BaseMessage[],
+        newLines: BaseMessage[],
         existingSummary: string
     ): Promise<string> {
-        const newLines = getBufferString(messages, this.humanPrefix, this.aiPrefix);
+        const messages = getBufferString2(newLines, this.humanPrefix, this.aiPrefix); //Aqui los mensajes son JSON tambien, solo veo los de AI y Human
         const chain = new LLMChain({ llm: this.llm, prompt: this.prompt });
         return await chain.predict({
             summary: existingSummary,
-            new_lines: newLines,
+            new_lines: messages,
         });
     }
 
     async loadMemoryVariables(_: InputValues): Promise<Record<string, any>> {
+        const summaryText = `The following is a summary of the conversation so far. Use this summary to help you remember what has been said so far: ${this.buffer}`
         const messages = await this.chatHistory.getMessages();
         if (this.returnMessages) {
-
             const result = {
                 [this.memoryKey]:
                     this.buffer.length > 0 ?
-                        [new this.summaryChatMessageClass(this.buffer), ...messages]
+                        [new this.summaryChatMessageClass(summaryText), ...messages]
                         : [...messages],
             };
             return result;
         }
-        const result = { [this.memoryKey]: this.buffer + getBufferString(messages) };
+        const result = { [this.memoryKey]: this.buffer + getBufferString2(messages) };
         return result;
     }
 
@@ -104,7 +108,7 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
             [outputKey]: output,
         });
 
-
+//Creo que aqui puede que haya mensajes que no se estan utilizando para el buffer, puede hacer que al sistema le falte contexto.
         const messages = await this.chatHistory.getMessages();
         if (messages.length > this.maxWindowSize * 2) {
             const newMessagesToSummarize: BaseMessage[] = [];
@@ -112,8 +116,8 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
                 newMessagesToSummarize.push(messages.shift()!);
                 newMessagesToSummarize.push(messages.shift()!);
             }
+            await this.compactionCallback(newMessagesToSummarize, this.buffer);
             this.buffer = await this.predictNewSummary(newMessagesToSummarize, this.buffer);
-
         }
     }
 
@@ -122,3 +126,5 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
         this.buffer = "";
     }
 }
+
+export type MemoryCompactionCallback = (newMessage: BaseMessage[], currentBuffer: string) => Promise<void>;

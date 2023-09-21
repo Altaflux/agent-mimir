@@ -169,13 +169,14 @@ export function createPlainTextMimirAgent(args: MimirAgentArgs) {
     });
 
     const tools = args.plugins.map(plugin => plugin.tools()).flat();
+    const talkToUserTools = args.talkToUserTool ? [args.talkToUserTool] : [];
     const toolsSystemMessage = new SystemMessagePromptTemplate(
         new PromptTemplate({
             template: SUFFIX,
             inputVariables: [],
             partialVariables: {
-                toolList: createToolSchemasString([...tools, args.talkToUserTool]),
-                tool_names: [...tools, args.talkToUserTool].map((tool) => tool.name).join(", "),
+                toolList: createToolSchemasString([...tools, ...talkToUserTools]),
+                tool_names: [...tools, ...talkToUserTools].map((tool) => tool.name).join(", "),
                 json_instructions: JSON_INSTRUCTIONS,
             },
         })
