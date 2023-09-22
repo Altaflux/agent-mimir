@@ -5,7 +5,7 @@ import { BasePromptTemplate } from "langchain/prompts";
 import { BaseMessage, InputValues, SystemMessage } from "langchain/schema";
 import { SUMMARY_PROMPT } from "./prompt.js";
 import { LLMChain } from "langchain/chains";
-import { getBufferString2 } from "../../utils/format.js";
+import { getBufferStringOrig } from "../../utils/format.js";
 
 export type WindowedConversationSummaryMemoryInput = BaseChatMemoryInput & {
     memoryKey?: string;
@@ -69,7 +69,7 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
         newLines: BaseMessage[],
         existingSummary: string
     ): Promise<string> {
-        const messages = getBufferString2(newLines, this.humanPrefix, this.aiPrefix); //Aqui los mensajes son JSON tambien, solo veo los de AI y Human
+        const messages = getBufferStringOrig(newLines, this.humanPrefix, this.aiPrefix); //Aqui los mensajes son JSON tambien, solo veo los de AI y Human
         const chain = new LLMChain({ llm: this.llm, prompt: this.prompt });
         return await chain.predict({
             summary: existingSummary,
@@ -89,7 +89,7 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
             };
             return result;
         }
-        const result = { [this.memoryKey]: this.buffer + getBufferString2(messages) };
+        const result = { [this.memoryKey]: this.buffer + getBufferStringOrig(messages) };
         return result;
     }
 

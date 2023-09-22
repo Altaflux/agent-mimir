@@ -1,7 +1,7 @@
 import { BaseLLMOutputParser } from "langchain/schema/output_parser";
 import { MimirAgent, InternalAgentPlugin, MimirAIMessage, NextMessage } from "./base-agent.js";
 import { AIMessage, AgentAction, AgentFinish, BaseMessage, ChatGeneration, Generation, HumanMessage } from "langchain/schema";
-import { AiMessageSerializer, DefaultHumanMessageSerializerImp } from "../memory/transform-memory.js";
+import { AiMessageSerializer, HumanMessageSerializer } from "../memory/transform-memory.js";
 import { PromptTemplate, SystemMessagePromptTemplate, renderTemplate } from "langchain/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
@@ -9,7 +9,7 @@ import { AgentActionOutputParser } from "langchain/agents";
 import { StructuredTool } from "langchain/tools";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { JsonSchema7ObjectType } from "zod-to-json-schema/src/parsers/object.js";
-import { AgentContext, MimirAgentArgs } from "../schema.js";
+import { AgentContext, MimirAgentArgs, MimirHumanReplyMessage } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 
 
@@ -100,14 +100,17 @@ class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
 
 }
 
-const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMessage, messageToSave: BaseMessage, }> = async (nextMessage: NextMessage) => {
+const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage) => {
     if (nextMessage.type === "USER_MESSAGE") {
         const renderedHumanMessage = renderTemplate(USER_INPUT, "f-string", {
             input: nextMessage.message,
         });
         return {
             message: new HumanMessage(renderedHumanMessage),
-            messageToSave: new HumanMessage(nextMessage.message),
+            messageToSave: {
+                type: "USER_MESSAGE",
+                message: nextMessage.message,
+            },
         };
     } else {
         const renderedHumanMessage = renderTemplate(TEMPLATE_TOOL_RESPONSE, "f-string", {
@@ -115,21 +118,26 @@ const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMes
         });
         return {
             message: new HumanMessage(renderedHumanMessage),
-            messageToSave: new HumanMessage(nextMessage.message),
+            messageToSave: {
+                type: "USER_MESSAGE",
+                message: nextMessage.message,
+            },
         };
     }
 
 };
 
 export class DefaultAiMessageSerializer extends AiMessageSerializer {
-
-    async serialize(aiMessage: any): Promise<string> {
-        const output = aiMessage as MimirAIMessage;
-        const message = new AIMessage(output.text ?? "");
-        const serializedMessage = message.toDict();
-        return JSON.stringify(serializedMessage);
+    async deserialize(mimirMessage: MimirAIMessage): Promise<BaseMessage> {
+        return new AIMessage(mimirMessage.text ?? "");
     }
 }
+export class PlainTextHumanMessageSerializer  extends HumanMessageSerializer{
+    async deserialize(message: MimirHumanReplyMessage): Promise<BaseMessage> {
+        return new HumanMessage(message.message!);
+    }
+}
+
 const PLAIN_TEXT_AGENT_ATTRIBUTES: AttributeDescriptor[] = [
 
     {
@@ -199,7 +207,7 @@ export function createPlainTextMimirAgent(args: MimirAgentArgs) {
 
         },
         aiMessageSerializer: new DefaultAiMessageSerializer(),
-        humanMessageSerializer: new DefaultHumanMessageSerializerImp(),
+        humanMessageSerializer: new PlainTextHumanMessageSerializer(),
         plugins: internalPlugins,
         name: args.name
     });

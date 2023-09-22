@@ -5,7 +5,7 @@ import { AgentContext, MimirAgentPlugin } from "../../schema.js";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
 import { TagMemoryManager } from "./index.js";
 import { z } from "zod";
-import { getBufferString2 } from "../../utils/format.js";
+import { formatForCompaction } from "../../utils/format.js";
 
 export class ManualTagMemoryPlugin extends MimirAgentPlugin {
 
@@ -84,7 +84,7 @@ export class AutomaticTagMemoryPlugin extends MimirAgentPlugin {
         }
         const memoryVariables = await context.memory.loadMemoryVariables({});
         const messages = memoryVariables[context.memory.memoryKeys[0] ?? ""];//Aqui content es un JSON
-        const formattedMessages = context.memory.returnMessages ? getBufferString2(messages as BaseMessage[], "AI", "Human") : messages as string;
+        const formattedMessages = context.memory.returnMessages ? formatForCompaction(messages as BaseMessage[], "AI", "Human") : messages as string;
         const memories = await this.manager.getMemories(formattedMessages, context.input.message);
         return {
             recalledMemories: memories

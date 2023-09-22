@@ -8,6 +8,8 @@ import { LLMChain } from "langchain/chains";
 import { formatForCompaction, getBufferString2 } from "../../utils/format.js";
 import { MemoryCompactionCallback } from "../windowed-memory/index.js";
 import { COMPACT_PROMPT } from "./prompt.js";
+import { MimirHumanReplyMessage } from "../../schema.js";
+import { MimirAIMessage } from "../../agent/base-agent.js";
 
 export type WindowedConversationSummaryMemoryInput = BaseChatMemoryInput & {
     memoryKey?: string;
@@ -130,9 +132,16 @@ async function messageCompact(messages: BaseMessage[], llm: BaseLanguageModel) {
     const newMessages = rawMessages.map(
         (message) => {
             if (message.name === "Human") {
-                return new HumanMessage(JSON.stringify(new HumanMessage(message.message).toDict()));
+                const humanMessage: MimirHumanReplyMessage = {
+                    type: "USER_MESSAGE",
+                    message: message.message,
+                }
+                return new HumanMessage(JSON.stringify(humanMessage));
             } else {
-                return new AIMessage(JSON.stringify(new AIMessage(message.message).toDict()));
+                const aiMessage: MimirAIMessage = {
+                    text: message.message,
+                }
+                return new AIMessage(JSON.stringify(aiMessage));
             }
 
         }

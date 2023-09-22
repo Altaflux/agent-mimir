@@ -72,6 +72,33 @@ export function getBufferString2(
     return string_messages.join("\n");
   }
 
+  export function getBufferStringOrig(
+    messages: BaseMessage[],
+    humanPrefix = "Human",
+    aiPrefix = "AI"
+  ): string {
+    const string_messages: string[] = [];
+    for (const m of messages) {
+      let role: string;
+      if (m._getType() === "human") {
+        role = humanPrefix;
+      } else if (m._getType() === "ai") {
+        role = aiPrefix;
+      } else if (m._getType() === "system") {
+        role = "System";
+      } else if (m._getType() === "function") {
+        role = "Function";
+      } else if (m._getType() === "generic") {
+        role = (m as ChatMessage).role;
+      } else {
+        throw new Error(`Got unsupported message type: ${m}`);
+      }
+      const nameStr = m.name ? `${m.name}, ` : "";
+      string_messages.push(`${role}: ${nameStr} ${m.content}`);
+    }
+    return string_messages.join("\n");
+  }
+
   export function formatForCompaction(
     messages: BaseMessage[],
     humanPrefix = "Human",
@@ -82,7 +109,7 @@ export function getBufferString2(
       let role: string;
       if (m._getType() === "human") {
         role = humanPrefix;
-        string_messages.push(`${role}: ${JSON.parse(m.content).data?.content}`);
+        string_messages.push(`${role}: ${JSON.parse(m.content).message}`);
       } else if (m._getType() === "ai") {
         role = aiPrefix;
         let functionInvokationMessage = "";
@@ -91,7 +118,7 @@ export function getBufferString2(
           const args = m.additional_kwargs?.function_call.arguments;
           functionInvokationMessage = `I want to call function: ${functionName} with arguments: ${args}`;
         }
-        string_messages.push(`${role}: ${JSON.parse(m.content).data?.content}\n ${functionInvokationMessage}`);
+        string_messages.push(`${role}: ${JSON.parse(m.content).text}\n ${functionInvokationMessage}`);
       } else if (m._getType() === "system") {
         role = "System";
       } else if (m._getType() === "function") {

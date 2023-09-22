@@ -75,3 +75,13 @@ export class LangchainToolWrapper extends MimirAgentPlugin {
         return [this.tool];
     }
 }
+
+
+export type MimirHumanReplyMessage = {
+    type : "USER_MESSAGE" | "FUNCTION_REPLY",
+    message?: string,
+    functionReply?: {
+        name: string,
+        arguments: string,
+    },
+}
