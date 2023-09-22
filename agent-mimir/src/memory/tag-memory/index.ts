@@ -10,7 +10,7 @@ import { AIMessageLLMOutputParser } from "../../agent/openai-function-agent.js";
 import { MimirAIMessage } from "../../agent/base-agent.js";
 import { LLMChain } from "langchain/chains";
 import { BaseMessage } from "langchain/schema";
-import { getBufferString2 } from "../../utils/format.js";
+import { formatForCompaction } from "../../utils/format.js";
 
 export class TagMemoryManager {
 
@@ -33,7 +33,7 @@ export class TagMemoryManager {
             outputParser: new AIMessageLLMOutputParser()
         });
 
-        const messages = getBufferString2(newMessages, "Human", "AI"); //Aqui los mensajes son JSON tambien, solo veo los de AI y Human
+        const messages = formatForCompaction(newMessages, "Human", "AI"); //Aqui los mensajes son JSON tambien, solo veo los de AI y Human
         const functionResponse = await chain.predict({ summary: currentBuffer, new_lines: messages, tools: [new TagTool()] });
         const functionArguments: z.input<TagTool["schema"]> = JSON.parse(functionResponse.functionCall?.arguments ?? "");
 

@@ -1,4 +1,6 @@
 import { AIMessage, BaseMessage, ChatMessage, FunctionMessage, HumanMessage, StoredMessage, SystemMessage } from "langchain/schema";
+import { MimirHumanReplyMessage } from "../schema.js";
+import { MimirAIMessage } from "../agent/base-agent.js";
 
 export function createBulletedList(arr: string[]) {
     let listString = '';
@@ -109,7 +111,8 @@ export function getBufferString2(
       let role: string;
       if (m._getType() === "human") {
         role = humanPrefix;
-        string_messages.push(`${role}: ${JSON.parse(m.content).message}`);
+        const humanReply = JSON.parse(m.content) as MimirHumanReplyMessage;
+        string_messages.push(`${role}: ${humanReply.message}`);
       } else if (m._getType() === "ai") {
         role = aiPrefix;
         let functionInvokationMessage = "";
@@ -118,7 +121,8 @@ export function getBufferString2(
           const args = m.additional_kwargs?.function_call.arguments;
           functionInvokationMessage = `I want to call function: ${functionName} with arguments: ${args}`;
         }
-        string_messages.push(`${role}: ${JSON.parse(m.content).text}\n ${functionInvokationMessage}`);
+        const mimirAiMessage = JSON.parse(m.content) as MimirAIMessage;
+        string_messages.push(`${role}: ${mimirAiMessage.text}\n ${functionInvokationMessage}`);
       } else if (m._getType() === "system") {
         role = "System";
       } else if (m._getType() === "function") {

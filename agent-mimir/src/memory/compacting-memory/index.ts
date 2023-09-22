@@ -5,7 +5,7 @@ import { BasePromptTemplate } from "langchain/prompts";
 import { AIMessage, BaseMessage, HumanMessage, InputValues, SystemMessage } from "langchain/schema";
 
 import { LLMChain } from "langchain/chains";
-import { formatForCompaction, getBufferString2 } from "../../utils/format.js";
+import { formatForCompaction } from "../../utils/format.js";
 import { MemoryCompactionCallback } from "../windowed-memory/index.js";
 import { COMPACT_PROMPT } from "./prompt.js";
 import { MimirHumanReplyMessage } from "../../schema.js";
@@ -68,8 +68,6 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
         return [this.memoryKey]
     }
 
- 
-
     async loadMemoryVariables(_: InputValues): Promise<Record<string, any>> {
 
         const messages = await this.chatHistory.getMessages();
@@ -79,7 +77,7 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
             };
             return result;
         }
-        const result = { [this.memoryKey]: getBufferString2(this.compactedMessages) + getBufferString2(messages) };
+        const result = { [this.memoryKey]: formatForCompaction(this.compactedMessages) + formatForCompaction(messages) };
         return result;
     }
 
