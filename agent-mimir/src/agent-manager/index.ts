@@ -22,6 +22,7 @@ import { HelpersPlugin } from '../plugins/helpers.js';
 import { MimirAgentTypes } from '../agent/index.js';
 import { TagMemoryManager } from '../memory/tag-memory/index.js';
 import { AutomaticTagMemoryPlugin } from '../memory/tag-memory/manual.js';
+import { CompactingConversationSummaryMemory } from '../memory/compacting-memory/index.js';
 
 export type CreateAgentOptions = {
     profession: string,
@@ -116,7 +117,7 @@ export class AgentManager {
 
         const allPlugins = [...tools.map(tool => new LangchainToolWrapper(tool)), ...defaultPlugins];
 
-        const innerMemory = new WindowedConversationSummaryMemory(summarizingModel, {
+        const innerMemory = new CompactingConversationSummaryMemory(summarizingModel, {
             returnMessages: true,
             memoryKey: "history",
             inputKey: "inputToSave",

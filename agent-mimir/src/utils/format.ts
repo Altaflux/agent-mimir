@@ -71,3 +71,49 @@ export function getBufferString2(
     }
     return string_messages.join("\n");
   }
+
+  export function formatForCompaction(
+    messages: BaseMessage[],
+    humanPrefix = "Human",
+    aiPrefix = "AI"
+  ): string {
+    const string_messages: string[] = [];
+    for (const m of messages) {
+      let role: string;
+      if (m._getType() === "human") {
+        role = humanPrefix;
+        string_messages.push(`${role}: ${JSON.parse(m.content).data?.content}`);
+      } else if (m._getType() === "ai") {
+        role = aiPrefix;
+        let functionInvokationMessage = "";
+        if (m.additional_kwargs?.function_call){
+          const functionName = m.additional_kwargs?.function_call.name;
+          const args = m.additional_kwargs?.function_call.arguments;
+          functionInvokationMessage = `I want to call function: ${functionName} with arguments: ${args}`;
+        }
+        string_messages.push(`${role}: ${JSON.parse(m.content).data?.content}\n ${functionInvokationMessage}`);
+      } else if (m._getType() === "system") {
+        role = "System";
+      } else if (m._getType() === "function") {
+        role = humanPrefix;
+        string_messages.push(`${role}: The tool responded the following = ${JSON.parse(m.content).data?.content}`);
+      } else if (m._getType() === "generic") {
+        role = (m as ChatMessage).role;
+      } else {
+        throw new Error(`Got unsupported message type: ${m}`);
+      }
+    }
+    return string_messages.join("\n");
+  }
+
+
+  // const generation = generations[0] as ChatGeneration;
+  // const functionCall: any = generation.message?.additional_kwargs?.function_call
+  // const mimirMessage = {
+  //     functionCall: functionCall ? {
+  //         name: functionCall?.name,
+  //         arguments: (functionCall?.arguments),
+  //     } : undefined,
+  //     text: generation.text,
+  // }
+  // return mimirMessage;
