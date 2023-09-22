@@ -1,18 +1,15 @@
 import { BaseChatMemory, BaseMemory } from "langchain/memory";
-import { InputValues, BaseMessage, HumanMessage } from "langchain/schema";
+import { InputValues, BaseMessage } from "langchain/schema";
 
 import { MimirAIMessage } from "../agent/base-agent.js";
-
-import { StoredMessage } from "langchain/schema";
-import { mapStoredMessagesToChatMessages } from "../utils/format.js";
 import { MimirHumanReplyMessage } from "../schema.js";
 
 export abstract class HumanMessageSerializer {
-    abstract deserialize(message: MimirHumanReplyMessage): Promise<BaseMessage> ;
+    abstract deserialize(message: MimirHumanReplyMessage): Promise<BaseMessage>;
 }
 
 export abstract class AiMessageSerializer {
-    abstract deserialize(message: MimirAIMessage): Promise<BaseMessage> ;
+    abstract deserialize(message: MimirAIMessage): Promise<BaseMessage>;
 }
 
 
@@ -28,20 +25,8 @@ export class TransformationalMemory extends BaseMemory {
     }
     async saveContext(inputValues: InputValues, outputValues: Record<string, any>): Promise<void> {
 
-        let output = await getInputValue(outputValues, this.innerMemory.outputKey);
-        let input = await getInputValue(inputValues, this.innerMemory.inputKey);
-        try {
-            const formattedOutput = (await getInputValue(outputValues, this.innerMemory.outputKey)) as MimirAIMessage;
-            output = JSON.stringify(formattedOutput);
-        } catch (e) {
-            console.log(e);
-        }
-        try {
-            const formattedOutput = (await getInputValue(inputValues, this.innerMemory.inputKey)) as MimirHumanReplyMessage;
-            input = JSON.stringify(formattedOutput);
-        } catch (e) {
-            console.log(e);
-        }
+        let output = JSON.stringify((await getInputValue(outputValues, this.innerMemory.outputKey)) as MimirAIMessage);
+        let input = JSON.stringify((await getInputValue(inputValues, this.innerMemory.inputKey)) as MimirHumanReplyMessage);
 
         const outputKey = this.innerMemory.outputKey ?? "output";
         const inputKey = this.innerMemory.inputKey ?? "input";
