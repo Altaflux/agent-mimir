@@ -6,9 +6,8 @@ import { AIMessage, BaseMessage, HumanMessage, InputValues, SystemMessage } from
 
 import { LLMChain } from "langchain/chains";
 import { messagesToString } from "../../utils/format.js";
-import { MemoryCompactionCallback } from "../windowed-memory/index.js";
 import { COMPACT_PROMPT } from "./prompt.js";
-import { MimirHumanReplyMessage } from "../../schema.js";
+import { MemoryCompactionCallback, MimirHumanReplyMessage } from "../../schema.js";
 import { MimirAIMessage } from "../../agent/base-agent.js";
 
 export type WindowedConversationSummaryMemoryInput = BaseChatMemoryInput & {

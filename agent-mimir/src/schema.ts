@@ -85,3 +85,5 @@ export type MimirHumanReplyMessage = {
         arguments: string,
     },
 }
+
+export type MemoryCompactionCallback = (newMessage: BaseMessage[], previousConversation: BaseMessage[]) => Promise<void>;

@@ -20,8 +20,8 @@ import { DEFAULT_CONSTITUTION } from '../agent/prompt.js';
 import { TimePlugin } from '../plugins/time.js';
 import { HelpersPlugin } from '../plugins/helpers.js';
 import { MimirAgentTypes } from '../agent/index.js';
-import { TagMemoryManager } from '../memory/tag-memory/index.js';
-import { AutomaticTagMemoryPlugin } from '../memory/tag-memory/plugins.js';
+import { TagMemoryManager } from '../plugins/tag-memory/index.js';
+import { AutomaticTagMemoryPlugin } from '../plugins/tag-memory/plugins.js';
 import { CompactingConversationSummaryMemory } from '../memory/compacting-memory/index.js';
 
 export type CreateAgentOptions = {
