@@ -3,8 +3,8 @@
 import { PromptTemplate } from "langchain/prompts";
 
 
-const _TAG_EXTRACTION_TEMPLATE = `The following is a previous conversation we had you and I (you are AI and I am the Human). From the following new lines of conversation, extract relevant and important information. 
-Focus on extracting information from the new lines of conversation that is relevant to the new lines of conversation and use the current summary for context.
+const _TAG_EXTRACTION_TEMPLATE = `The following is a previous conversation we had you and I (you are AI and I am the Human). From the following new lines of conversation, extract relevant and important facts. 
+Focus on extracting facts from the new lines of conversation that is relevant to the new lines of conversation and use the current summary for context.
 
 Current summary:
 {summary}
@@ -22,7 +22,7 @@ export const TAG_EXTRACTION_PROMPT = /*#__PURE__*/ new PromptTemplate({
 
 
 const _TAG_FINDER_PROMPT_TEMPLATE = `The following is a previous conversation we had you and I (you are AI and I am the Human), find tags that are relevant to the new lines of the conversation. Use the current summary for context.
-If there is no relevant information related to the new lines of conversations return an empty array response to the "selectRelevantTags" function.
+If there is no relevant facts related to the new lines of conversations return an empty array response to the "selectRelevantTags" function.
 
 Here is the list of tags you can choose from: {memoryTags}
 

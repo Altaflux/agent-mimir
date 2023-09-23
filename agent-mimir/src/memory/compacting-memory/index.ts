@@ -96,7 +96,6 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
             [outputKey]: output,
         });
 
-        //Creo que aqui puede que haya mensajes que no se estan utilizando para el buffer, puede hacer que al sistema le falte contexto.
         const newMessages = await this.chatHistory.getMessages();
         const totalMessages = [...this.compactedMessages, ...newMessages];
         if (totalMessages.length > this.maxWindowSize * 2) {
@@ -113,8 +112,7 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
             }
             const leftOverNewerMessages = [...totalMessages];
             this.chatHistory = new ChatMessageHistory(leftOverNewerMessages);
-            //This callback must only be called for messagges that have never been summarized before.
-            // await this.compactionCallback(newMessagesToSummarize, this.buffer);
+
             await this.compactionCallback(newMessagesToCompact, this.compactedMessages);
             this.compactedMessages = await messageCompact(newMessagesToSummarize, this.llm);
         }

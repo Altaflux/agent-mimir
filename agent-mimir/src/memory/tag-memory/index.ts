@@ -33,13 +33,13 @@ export class TagMemoryManager {
             outputParser: new AIMessageLLMOutputParser()
         });
 
-        const messagesAsString = messagesToString(newMessages, "Human", "AI"); //Aqui los mensajes son JSON tambien, solo veo los de AI y Human
-        const previousConversationAsString = messagesToString(previousConversation, "Human", "AI"); //Aqui los mensajes son JSON tambien, solo veo los de AI y Human
+        const messagesAsString = messagesToString(newMessages, "Human", "AI");
+        const previousConversationAsString = messagesToString(previousConversation, "Human", "AI");
         const functionResponse = await chain.predict({ summary: previousConversationAsString, new_lines: messagesAsString, tools: [new TagTool()] });
         const functionArguments: z.input<TagTool["schema"]> = JSON.parse(functionResponse.functionCall?.arguments ?? "");
 
-        for (const relevantInformation of functionArguments.relevantInformation) {
-            for (const information of relevantInformation.information) {
+        for (const relevantInformation of functionArguments.relevantFacts) {
+            for (const information of relevantInformation.fact) {
                 await this.addTag([relevantInformation.topic], `${information}`);
             }
         }
@@ -82,7 +82,11 @@ export class TagMemoryManager {
             await this.vectorStore?.addDocuments([document]);
             const previousMemories = this.relevantInformation.get(tag);
             if (previousMemories) {
-                this.relevantInformation.set(tag, [...previousMemories, information]);
+                const memories = [...previousMemories, information];
+                if (memories.length > 5) {
+                    memories.shift();
+                }
+                this.relevantInformation.set(tag, memories);
             } else {
                 this.relevantInformation.set(tag, [information]);
             }
@@ -121,10 +125,10 @@ class TagTool extends StructuredTool {
     }
 
     schema = z.object({
-        relevantInformation: z.array(z.object({
-            information: z.array(z.string().describe("A well detailed and complete summary of an aspect of the topic.")).describe("A list of the relevant information about the topic."),
-            topic: z.string().describe("The topic of the information."),
-            context: z.string().describe("Context describing the source of this information."),
+        relevantFacts: z.array(z.object({
+            fact: z.array(z.string().describe("A well detailed and complete summary of a fact of the topic.")).describe("A list of the relevant facts about the topic."),
+            topic: z.string().describe("The main topic of the facts."),
+            //  context: z.string().describe("Context describing the source of this fact."),
 
         })).describe("A list of the relevant information to the main subject of the conversation."),
     });
@@ -135,8 +139,8 @@ class TagTool extends StructuredTool {
         return "Success!";
     }
 
-    name: string = "recordRelevantInformation";
-    description: string = "Use to respond the list of relevant information to the user. Input should be a list of the relevant information to the main subject of the conversation. ";
+    name: string = "recordRelevantFacts";
+    description: string = "Use to respond the list of relevant facts. Input should be a list of the relevant facts to the main subject of the conversation. ";
 }
 class TagFinderTool extends StructuredTool {
 
