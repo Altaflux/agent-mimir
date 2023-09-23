@@ -1,4 +1,3 @@
-
 import { BaseMessage } from "langchain/schema";
 import { StructuredTool } from "langchain/tools";
 import { AgentContext, MimirAgentPlugin } from "../../schema.js";
@@ -14,7 +13,7 @@ export class ManualTagMemoryPlugin extends MimirAgentPlugin {
     }
 
     async memoryCompactionCallback(newLines: BaseMessage[], previousConversation: BaseMessage[]): Promise<void> {
-        await this.manager.getCallback(newLines, previousConversation);
+        await this.manager.extractConversationInformation(newLines, previousConversation);
     }
 
     systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
@@ -25,12 +24,11 @@ export class ManualTagMemoryPlugin extends MimirAgentPlugin {
 
     async getInputs(_: AgentContext): Promise<Record<string, any>> {
         return {
-            memoryTags: (await this.manager.getTags()).map(tag => `"${tag}"`).join(", ")
+            memoryTags: this.manager.getAllTags().map(tag => `"${tag}"`).join(", ")
         };
     }
 
     tools(): StructuredTool[] {
-
         return [new TagRetrieverTool(this.manager)];
     }
 
@@ -48,16 +46,15 @@ class TagRetrieverTool extends StructuredTool {
     });
 
     protected async _call(arg: z.input<this["schema"]>): Promise<string> {
-
-        const memoriesByTag = await Promise.all(arg.relevantInformation.map(async (tag) => {
-            const memories = await this.manager.remember(tag);
-            return memories.join(`Context for memories: ${tag}\n-${memories.join("\n-")}}`);
+        const memoriesByTag = await Promise.all(arg.relevantInformation.slice(0, 3).map(async (tag) => {
+            const memories = await  this.manager.rememberTagFacts(tag);
+            return `Topic or context: ${tag}\n-${memories.join("\n-")}`
         }));
         return `You remember the following information: ${memoriesByTag.join("\n\n")}`;
     }
 
     name: string = "recallMemories";
-    description: string = "Use to request a list of relevant information. Input should be a list of memory tags.";
+    description: string = "Use to request a list of relevant topics. Input should be a list of memory tags.";
 
 }
 
@@ -69,7 +66,7 @@ export class AutomaticTagMemoryPlugin extends MimirAgentPlugin {
     }
 
     async memoryCompactionCallback(newLines: BaseMessage[], previousConversation: BaseMessage[]): Promise<void> {
-        await this.manager.getCallback(newLines, previousConversation);
+        await this.manager.extractConversationInformation(newLines, previousConversation);
     }
 
     systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
@@ -83,9 +80,16 @@ export class AutomaticTagMemoryPlugin extends MimirAgentPlugin {
             throw new Error("No memory found in agent.");
         }
         const memoryVariables = await context.memory.loadMemoryVariables({});
-        const messages = memoryVariables[context.memory.memoryKeys[0] ?? ""];//Aqui content es un JSON
+        const messages = memoryVariables[context.memory.memoryKeys[0] ?? ""];
         const formattedMessages = context.memory.returnMessages ? messagesToString(messages as BaseMessage[], "AI", "Human") : messages as string;
-        const memories = await this.manager.getMemories(formattedMessages, context.input.message);
+        const relevantTags = (await this.manager.findRelevantTags(formattedMessages, context.input.message)).slice(0, 3);
+
+        const memoriesByTag = await Promise.all(relevantTags.map(async (tag) => {
+            const memories = await this.manager.rememberTagFacts(tag);
+            return `Topic or context: ${tag}\n-${memories.join("\n-")}`
+        }));
+
+        const memories = memoriesByTag.join("\n\n");
         return {
             recalledMemories: memories
         };

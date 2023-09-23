@@ -105,15 +105,17 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
                 const humanMessage = totalMessages.shift()!;
                 const aiMessage = totalMessages.shift()!;
                 newMessagesToSummarize.push(humanMessage, aiMessage);
-           
-                if (newMessagesToSummarize.length > this.compactedMessages.length * 2) {
+
+                if (newMessagesToSummarize.length > this.compactedMessages.length) {
                     newMessagesToCompact.push(humanMessage, aiMessage);
                 }
             }
             const leftOverNewerMessages = [...totalMessages];
             this.chatHistory = new ChatMessageHistory(leftOverNewerMessages);
 
-            await this.compactionCallback(newMessagesToCompact, this.compactedMessages);
+            if (newMessagesToCompact.length > 0) {
+                await this.compactionCallback(newMessagesToCompact, this.compactedMessages);
+            }
             this.compactedMessages = await messageCompact(newMessagesToSummarize, this.llm);
         }
     }
