@@ -9,8 +9,8 @@ The document is a representation of the contents of a website.
 The title of the website is "{title}".
 
 The result should be in Markdown format.
-Prioritize keeping content related to what I intend to find in the site: "{focus}".
-Remove content that is not related to what I intend to find.
+Prioritize keeping details related to what I intend to find in the site: "{focus}".
+Remove details that is not related to what I intend to find.
 
 Include any relevant html inputs, buttons, and link elements (always including all attributes and text). Do not rewrite or simplify the html elements!
 

@@ -6,9 +6,9 @@ import { SystemMessagePromptTemplate } from "langchain/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
 import { AgentActionOutputParser } from "langchain/agents";
-import { AgentContext, MimirAgentArgs } from "../schema.js";
+import { AgentContext, MimirAgentArgs, MimirHumanReplyMessage } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
-import { AiMessageSerializer, DefaultHumanMessageSerializerImp } from "../memory/transform-memory.js";
+import { AiMessageSerializer, HumanMessageSerializer } from "../memory/transform-memory.js";
 
 
 type AIMessageType = {
@@ -17,7 +17,7 @@ type AIMessageType = {
 }
 export class ChatConversationalAgentOutputParser extends AgentActionOutputParser {
 
-    constructor(private responseThing: ResponseFieldMapper<AIMessageType>, private finishToolName: string, private talkToUserTool: string | undefined) {
+    constructor(private responseFieldMapper: ResponseFieldMapper<AIMessageType>, private finishToolName: string, private talkToUserTool: string | undefined) {
         super();
     }
 
@@ -27,7 +27,7 @@ export class ChatConversationalAgentOutputParser extends AgentActionOutputParser
         const out1 = JSON.parse(input) as MimirAIMessage;
         let out = {} as AIMessageType;
         if (out1.text && out1.text.length !== 0) {
-            out = await this.responseThing.readInstructionsFromResponse(out1.text);
+            out = await this.responseFieldMapper.readInstructionsFromResponse(out1.text);
         }
 
         if (this.talkToUserTool && !out1.functionCall?.name) {
@@ -51,7 +51,7 @@ export class ChatConversationalAgentOutputParser extends AgentActionOutputParser
 }
 
 
-class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
+export class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
     async parseResult(generations: Generation[] | ChatGeneration[]): Promise<MimirAIMessage> {
         const generation = generations[0] as ChatGeneration;
         const functionCall: any = generation.message?.additional_kwargs?.function_call
@@ -65,21 +65,30 @@ class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
         return mimirMessage;
     }
     lc_namespace: string[] = [];
-
 }
 
-const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMessage, messageToSave: BaseMessage, }> = async (nextMessage: NextMessage) => {
+const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage) => {
+    const messages = nextMessage.type === "USER_MESSAGE" ? ({
+        type: "USER_MESSAGE",
+        message: nextMessage.message,
+    } as MimirHumanReplyMessage) : {
+        type: "FUNCTION_REPLY",
+        functionReply: {
+            name: nextMessage.tool!,
+            arguments: nextMessage.message,
+        }
+    } as MimirHumanReplyMessage;
+
     const message = nextMessage.type === "USER_MESSAGE" ? new HumanMessage(nextMessage.message) : new FunctionMessage(nextMessage.message, nextMessage.tool!);
     return {
         message: message,
-        messageToSave: message,
+        messageToSave: messages,
     };
 };
 
 export class FunctionCallAiMessageSerializer extends AiMessageSerializer {
-
-    async serialize(aiMessage: any): Promise<string> {
-        const output = aiMessage;
+    async deserialize(aiMessage: MimirAIMessage): Promise<BaseMessage> {
+        const output = aiMessage as MimirAIMessage;
         const functionCall = output.functionCall ? {
             function_call: {
                 name: output.functionCall?.name,
@@ -89,10 +98,20 @@ export class FunctionCallAiMessageSerializer extends AiMessageSerializer {
         const message = new AIMessage(output.text ?? "", {
             ...functionCall
         });
-        const serializedMessage = message.toDict();
-        return JSON.stringify(serializedMessage);
+        return message;
     }
 }
+
+export class PlainTextHumanMessageSerializer  extends HumanMessageSerializer{
+    async deserialize(message: MimirHumanReplyMessage): Promise<BaseMessage> {
+        if (message.type === "FUNCTION_REPLY"){
+            return new FunctionMessage(message.functionReply?.arguments!, message.functionReply!.name);
+        }
+        return new HumanMessage(message.message!);
+    }
+}
+
+
 const OPENAI_FUNCTION_AGENT_ATTRIBUTES: AttributeDescriptor[] = [
     {
         name: "Message To User",
@@ -135,14 +154,14 @@ export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
 
     const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGenerator, {
         systemMessage: systemMessages,
-        outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName, args.talkToUserTool.name),
+        outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName, args.talkToUserTool?.name),
         taskCompleteCommandName: args.taskCompleteCommandName,
         memory: args.memory,
         defaultInputs: {
             tools: args.plugins.map(plugin => plugin.tools()).flat(),
         },
         aiMessageSerializer: new FunctionCallAiMessageSerializer(),
-        humanMessageSerializer: new DefaultHumanMessageSerializerImp(),
+        humanMessageSerializer: new PlainTextHumanMessageSerializer(),
         plugins: internalPlugins,
         name: args.name,
     });

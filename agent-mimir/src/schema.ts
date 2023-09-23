@@ -5,6 +5,7 @@ import { AttributeDescriptor, ResponseFieldMapper } from "./agent/instruction-ma
 import { StructuredTool } from "langchain/tools";
 import { BaseLanguageModel } from "langchain/base_language";
 import { BaseChatMemory } from "langchain/memory";
+import { BaseMessage } from "langchain/schema";
 
 export type AIMessageType = {
     thoughts?: string,
@@ -24,9 +25,9 @@ export type MimirAgentArgs = {
     name: string,
     description: string,
     llm: BaseLanguageModel,
-    memory: BaseChatMemory
+    memory?: BaseChatMemory
     taskCompleteCommandName: string,
-    talkToUserTool: StructuredTool,
+    talkToUserTool?: StructuredTool,
     plugins: MimirAgentPlugin[]
     constitution: string,
 }
@@ -54,11 +55,15 @@ export abstract class MimirAgentPlugin {
     tools(): StructuredTool[] {
         return [];
     }
+
+    async memoryCompactionCallback(newLines: BaseMessage[], previousConversation: BaseMessage[]): Promise<void> {
+        
+    }
 }
 
 export type AgentContext = {
-    name: string,
     input: NextMessage,
+    memory?: BaseChatMemory,
 };
 
 export class LangchainToolWrapper extends MimirAgentPlugin {
@@ -70,3 +75,15 @@ export class LangchainToolWrapper extends MimirAgentPlugin {
         return [this.tool];
     }
 }
+
+
+export type MimirHumanReplyMessage = {
+    type : "USER_MESSAGE" | "FUNCTION_REPLY",
+    message?: string,
+    functionReply?: {
+        name: string,
+        arguments: string,
+    },
+}
+
+export type MemoryCompactionCallback = (newMessage: BaseMessage[], previousConversation: BaseMessage[]) => Promise<void>;

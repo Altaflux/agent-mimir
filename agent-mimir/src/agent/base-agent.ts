@@ -10,7 +10,7 @@ import { BaseLLMOutputParser, BaseOutputParser } from "langchain/schema/output_p
 import { BaseLanguageModel } from "langchain/base_language";
 import { HumanMessage } from "langchain/schema";
 import { TransformationalMemory } from "./../memory/transform-memory.js";
-import { AgentContext } from "../schema.js";
+import { AgentContext, MimirHumanReplyMessage } from "../schema.js";
 
 
 const BAD_MESSAGE_TEXT = `I could not understand that your response, please rememeber to use the correct response format.`;
@@ -51,14 +51,14 @@ export class MimirAgent extends BaseSingleActionAgent {
     defaultInputs?: Record<string, any>;
     plugins: InternalAgentPlugin[];
     name: string;
-    messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: BaseMessage, }>;
+    messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>;
 
     constructor(
         memory: BaseChatMemory,
         taskCompleteCommandName: string,
         input: MimirChatConversationalAgentInput,
         outputParser: BaseOutputParser<AgentAction | AgentFinish>,
-        messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: BaseMessage, }>,
+        messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
         name: string,
         plugins?: InternalAgentPlugin[],
         defaultInputs?: Record<string, any>,
@@ -105,8 +105,8 @@ export class MimirAgent extends BaseSingleActionAgent {
  
         const nextMessage = this.getMessageForAI(steps, inputs);
         const context: AgentContext = {
-            name: this.name,
             input: nextMessage,
+            memory: this.memory,
         }
         const { message, messageToSave } = await this.messageGenerator(nextMessage);
 
@@ -188,7 +188,7 @@ export class MimirAgent extends BaseSingleActionAgent {
     public static fromLLMAndTools(
         llm: BaseLanguageModel,
         mimirOutputParser: BaseLLMOutputParser<MimirAIMessage>,
-        messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: BaseMessage, }>,
+        messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
         args: CreatePromptArgs,
     ) {
 

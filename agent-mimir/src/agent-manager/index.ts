@@ -20,6 +20,9 @@ import { DEFAULT_CONSTITUTION } from '../agent/prompt.js';
 import { TimePlugin } from '../plugins/time.js';
 import { HelpersPlugin } from '../plugins/helpers.js';
 import { MimirAgentTypes } from '../agent/index.js';
+import { TagMemoryManager } from '../plugins/tag-memory/index.js';
+import { AutomaticTagMemoryPlugin } from '../plugins/tag-memory/plugins.js';
+import { CompactingConversationSummaryMemory } from '../memory/compacting-memory/index.js';
 
 export type CreateAgentOptions = {
     profession: string,
@@ -62,12 +65,8 @@ export class AgentManager {
 
 
         const summarizingModel = config.summaryModel ?? config.model;
-        const innerMemory = new WindowedConversationSummaryMemory(summarizingModel, {
-            returnMessages: true,
-            memoryKey: "history",
-            inputKey: "inputToSave",
-            maxWindowSize: config.chatHistory?.maxTaskHistoryWindow ?? 6,
-        });
+        const tagManager = new TagMemoryManager(embeddings, config.summaryModel ?? config.model);
+        const tagPlugin = new AutomaticTagMemoryPlugin(tagManager);
 
 
         const taskCompleteCommandName = "taskComplete";
@@ -110,10 +109,26 @@ export class AgentManager {
 
         const scratchPadPlugin = new ScratchPadPlugin(10);
         const timePlugin = new TimePlugin();
-        const defaultPlugins = [scratchPadPlugin, timePlugin, ...agentCommunicationPlugin, ...config.plugins ?? []] as MimirAgentPlugin[];
+        const defaultPlugins = [scratchPadPlugin, timePlugin, tagPlugin, ...agentCommunicationPlugin, ...config.plugins ?? []] as MimirAgentPlugin[];
+        //const defaultPlugins = [scratchPadPlugin, timePlugin,  ...agentCommunicationPlugin, ...config.plugins ?? []] as MimirAgentPlugin[];
 
 
         const talkToUserTool = new TalkToUserTool();
+
+        const allPlugins = [...tools.map(tool => new LangchainToolWrapper(tool)), ...defaultPlugins];
+
+        const innerMemory = new CompactingConversationSummaryMemory(summarizingModel, {
+            returnMessages: true,
+            memoryKey: "history",
+            inputKey: "inputToSave",
+            maxWindowSize: config.chatHistory?.maxTaskHistoryWindow ?? 6,
+            compactionCallback: async (newLines, previousConversation) => {
+                for (const plugin of allPlugins) {
+                    await plugin.memoryCompactionCallback(newLines, previousConversation);
+                }
+            }
+        });
+
 
         const agent = initializeAgent(config.agentType ?? "plain-text-agent", {
             llm: model,
@@ -122,7 +137,7 @@ export class AgentManager {
             description: config.description,
             taskCompleteCommandName: taskCompleteCommandName,
             talkToUserTool: talkToUserTool,
-            plugins: [...tools.map(tool => new LangchainToolWrapper(tool)), ...defaultPlugins],
+            plugins: allPlugins,
             constitution: config.constitution ?? DEFAULT_CONSTITUTION,
         });
 
