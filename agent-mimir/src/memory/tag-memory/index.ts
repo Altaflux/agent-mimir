@@ -10,7 +10,7 @@ import { AIMessageLLMOutputParser } from "../../agent/openai-function-agent.js";
 import { MimirAIMessage } from "../../agent/base-agent.js";
 import { LLMChain } from "langchain/chains";
 import { BaseMessage } from "langchain/schema";
-import { formatForCompaction } from "../../utils/format.js";
+import { messagesToString } from "../../utils/format.js";
 
 export class TagMemoryManager {
 
@@ -25,16 +25,17 @@ export class TagMemoryManager {
     }
 
 
-    async getCallback(newMessages: BaseMessage[], currentBuffer: string): Promise<void> {
-     
+    async getCallback(newMessages: BaseMessage[], previousConversation: BaseMessage[]): Promise<void> {
+
         const chain: LLMChain<MimirAIMessage> = new LLMChain({
             llm: this.model,
             prompt: TAG_EXTRACTION_PROMPT,
             outputParser: new AIMessageLLMOutputParser()
         });
 
-        const messages = formatForCompaction(newMessages, "Human", "AI"); //Aqui los mensajes son JSON tambien, solo veo los de AI y Human
-        const functionResponse = await chain.predict({ summary: currentBuffer, new_lines: messages, tools: [new TagTool()] });
+        const messagesAsString = messagesToString(newMessages, "Human", "AI"); //Aqui los mensajes son JSON tambien, solo veo los de AI y Human
+        const previousConversationAsString = messagesToString(previousConversation, "Human", "AI"); //Aqui los mensajes son JSON tambien, solo veo los de AI y Human
+        const functionResponse = await chain.predict({ summary: previousConversationAsString, new_lines: messagesAsString, tools: [new TagTool()] });
         const functionArguments: z.input<TagTool["schema"]> = JSON.parse(functionResponse.functionCall?.arguments ?? "");
 
         for (const relevantInformation of functionArguments.relevantInformation) {
@@ -44,29 +45,7 @@ export class TagMemoryManager {
         }
     }
 
-    // async getMemories2(currentBuffer: string, newMessages: string) {
-    //     const chain: LLMChain<MimirAIMessage> = new LLMChain({
-    //         llm: this.model,
-    //         prompt: TAG_FINDER_PROMPT,
-    //         outputParser: new AIMessageLLMOutputParser()
-    //     });
-    //     const tagTool = new TagFinderTool(this);
-    //     const tags = await this.getTags();
-    //     if (tags.length === 0) {
-    //         return "";
-    //     }
-    //     const functionResponse = await chain.predict({
-    //         summary: currentBuffer,
-    //         new_lines: newMessages,
-    //         tools: [tagTool],
-    //         memoryTags: tags.map(s => `"${s}"`).join(",")
-    //     });
-    //     const functionArguments: z.input<TagFinderTool["schema"]> = JSON.parse(functionResponse.functionCall?.arguments ?? "");
-    //     const memories = await this.remember(functionArguments.tagList);
-
-    //     return memories.join("\n\n");
-    // }
-  async getMemories(currentBuffer: string, newMessages: string) {
+    async getMemories(currentBuffer: string, newMessages: string) {
         const chain: LLMChain<MimirAIMessage> = new LLMChain({
             llm: this.model,
             prompt: TAG_FINDER_PROMPT,
@@ -146,7 +125,7 @@ class TagTool extends StructuredTool {
             information: z.array(z.string().describe("A well detailed and complete summary of an aspect of the topic.")).describe("A list of the relevant information about the topic."),
             topic: z.string().describe("The topic of the information."),
             context: z.string().describe("Context describing the source of this information."),
-            
+
         })).describe("A list of the relevant information to the main subject of the conversation."),
     });
 

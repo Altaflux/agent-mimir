@@ -30,6 +30,10 @@
           "./memory/transform-memory": {
             "types": "./dist/memory/transform-memory.d.ts",
             "import": "./dist/memory/transform-memory.js"
+          },
+          "./utils/format": {
+            "types": "./dist/utils/format.d.ts",
+            "import": "./dist/utils/format.js"
           }
     },
     "scripts": {

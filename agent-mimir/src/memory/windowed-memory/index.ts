@@ -2,10 +2,10 @@ import { BaseLanguageModel } from "langchain/base_language";
 
 import { BaseChatMemory, BaseChatMemoryInput, getInputValue, } from "langchain/memory";
 import { BasePromptTemplate } from "langchain/prompts";
-import { BaseMessage, InputValues, SystemMessage } from "langchain/schema";
+import { AIMessage, BaseMessage, InputValues, SystemMessage } from "langchain/schema";
 import { SUMMARY_PROMPT } from "./prompt.js";
 import { LLMChain } from "langchain/chains";
-import { getBufferStringOrig } from "../../utils/format.js";
+import { messagesToString } from "../../utils/format.js";
 
 export type WindowedConversationSummaryMemoryInput = BaseChatMemoryInput & {
     memoryKey?: string;
@@ -58,7 +58,7 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
         this.prompt = prompt ?? this.prompt;
         this.summaryChatMessageClass =
             summaryChatMessageClass ?? this.summaryChatMessageClass;
-        this.compactionCallback = fields?.compactionCallback ?? (async () => {});
+        this.compactionCallback = fields?.compactionCallback ?? (async () => { });
     }
 
     get memoryKeys(): string[] {
@@ -69,7 +69,7 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
         newLines: BaseMessage[],
         existingSummary: string
     ): Promise<string> {
-        const messages = getBufferStringOrig(newLines, this.humanPrefix, this.aiPrefix); //Aqui los mensajes son JSON tambien, solo veo los de AI y Human
+        const messages = messagesToString(newLines, this.humanPrefix, this.aiPrefix); //Aqui los mensajes son JSON tambien, solo veo los de AI y Human
         const chain = new LLMChain({ llm: this.llm, prompt: this.prompt });
         return await chain.predict({
             summary: existingSummary,
@@ -89,7 +89,7 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
             };
             return result;
         }
-        const result = { [this.memoryKey]: this.buffer + getBufferStringOrig(messages) };
+        const result = { [this.memoryKey]: this.buffer + messagesToString(messages) };
         return result;
     }
 
@@ -108,7 +108,6 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
             [outputKey]: output,
         });
 
-//Creo que aqui puede que haya mensajes que no se estan utilizando para el buffer, puede hacer que al sistema le falte contexto.
         const messages = await this.chatHistory.getMessages();
         if (messages.length > this.maxWindowSize * 2) {
             const newMessagesToSummarize: BaseMessage[] = [];
@@ -116,7 +115,7 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
                 newMessagesToSummarize.push(messages.shift()!);
                 newMessagesToSummarize.push(messages.shift()!);
             }
-            await this.compactionCallback(newMessagesToSummarize, this.buffer);
+            await this.compactionCallback(newMessagesToSummarize, [new AIMessage(this.buffer)]);
             this.buffer = await this.predictNewSummary(newMessagesToSummarize, this.buffer);
         }
     }
@@ -127,4 +126,4 @@ export class WindowedConversationSummaryMemory extends BaseChatMemory {
     }
 }
 
-export type MemoryCompactionCallback = (newMessage: BaseMessage[], currentBuffer: string) => Promise<void>;
+export type MemoryCompactionCallback = (newMessage: BaseMessage[], previousConversation: BaseMessage[]) => Promise<void>;

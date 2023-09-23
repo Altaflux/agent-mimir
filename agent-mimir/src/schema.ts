@@ -56,7 +56,7 @@ export abstract class MimirAgentPlugin {
         return [];
     }
 
-    async memoryCompactionCallback(newLines: BaseMessage[], previousConversation: string): Promise<void> {
+    async memoryCompactionCallback(newLines: BaseMessage[], previousConversation: BaseMessage[]): Promise<void> {
         
     }
 }

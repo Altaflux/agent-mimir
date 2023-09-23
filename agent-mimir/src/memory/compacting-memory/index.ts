@@ -5,7 +5,7 @@ import { BasePromptTemplate } from "langchain/prompts";
 import { AIMessage, BaseMessage, HumanMessage, InputValues, SystemMessage } from "langchain/schema";
 
 import { LLMChain } from "langchain/chains";
-import { formatForCompaction } from "../../utils/format.js";
+import { messagesToString } from "../../utils/format.js";
 import { MemoryCompactionCallback } from "../windowed-memory/index.js";
 import { COMPACT_PROMPT } from "./prompt.js";
 import { MimirHumanReplyMessage } from "../../schema.js";
@@ -77,7 +77,7 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
             };
             return result;
         }
-        const result = { [this.memoryKey]: formatForCompaction(this.compactedMessages) + formatForCompaction(messages) };
+        const result = { [this.memoryKey]: messagesToString(this.compactedMessages) + messagesToString(messages) };
         return result;
     }
 
@@ -101,14 +101,21 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
         const totalMessages = [...this.compactedMessages, ...newMessages];
         if (totalMessages.length > this.maxWindowSize * 2) {
             const newMessagesToSummarize: BaseMessage[] = [];
+            const newMessagesToCompact: BaseMessage[] = []
             while (totalMessages.length > this.maxWindowSize) {
-                newMessagesToSummarize.push(totalMessages.shift()!);
-                newMessagesToSummarize.push(totalMessages.shift()!);
+                const humanMessage = totalMessages.shift()!;
+                const aiMessage = totalMessages.shift()!;
+                newMessagesToSummarize.push(humanMessage, aiMessage);
+           
+                if (newMessagesToSummarize.length > this.compactedMessages.length * 2) {
+                    newMessagesToCompact.push(humanMessage, aiMessage);
+                }
             }
             const leftOverNewerMessages = [...totalMessages];
             this.chatHistory = new ChatMessageHistory(leftOverNewerMessages);
             //This callback must only be called for messagges that have never been summarized before.
             // await this.compactionCallback(newMessagesToSummarize, this.buffer);
+            await this.compactionCallback(newMessagesToCompact, this.compactedMessages);
             this.compactedMessages = await messageCompact(newMessagesToSummarize, this.llm);
         }
     }
@@ -120,7 +127,7 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
 }
 
 async function messageCompact(messages: BaseMessage[], llm: BaseLanguageModel) {
-    const formattedMessages = formatForCompaction(messages);
+    const formattedMessages = messagesToString(messages);
 
     const chain = new LLMChain({ llm: llm, prompt: COMPACT_PROMPT! });
     const compactedConversation = await chain.predict({
