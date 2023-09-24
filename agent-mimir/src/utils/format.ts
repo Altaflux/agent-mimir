@@ -17,12 +17,13 @@ export function messagesToString(
     } else if (m._getType() === "ai") {
       role = aiPrefix;
       let functionInvokationMessage = "";
-      if (m.additional_kwargs?.function_call) {
-        const functionName = m.additional_kwargs?.function_call.name;
-        const args = m.additional_kwargs?.function_call.arguments;
+      const mimirAiMessage = JSON.parse(m.content) as MimirAIMessage;
+      if (mimirAiMessage.functionCall) {
+        const functionName = mimirAiMessage.functionCall?.name;
+        const args = mimirAiMessage.functionCall?.arguments;
         functionInvokationMessage = `I want to call function: ${functionName} with arguments: ${args}`;
       }
-      const mimirAiMessage = JSON.parse(m.content) as MimirAIMessage;
+    
       string_messages.push(`${role}: ${mimirAiMessage.text}\n ${functionInvokationMessage}`);
     } else if (m._getType() === "system") {
       role = "System";

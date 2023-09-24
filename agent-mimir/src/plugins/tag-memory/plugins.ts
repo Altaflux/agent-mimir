@@ -81,6 +81,11 @@ export class AutomaticTagMemoryPlugin extends MimirAgentPlugin {
         }
         const memoryVariables = await context.memory.loadMemoryVariables({});
         const messages = memoryVariables[context.memory.memoryKeys[0] ?? ""];
+        if (this.manager.getAllTags().length === 0) {
+            return {
+                recalledMemories: "No memories yet.",
+            };
+        }
         const formattedMessages = context.memory.returnMessages ? messagesToString(messages as BaseMessage[], "AI", "Human") : messages as string;
         const relevantTags = (await this.manager.findRelevantTags(formattedMessages, context.input.message)).slice(0, 3);
 

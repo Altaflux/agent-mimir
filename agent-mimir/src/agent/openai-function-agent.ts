@@ -102,9 +102,9 @@ export class FunctionCallAiMessageSerializer extends AiMessageSerializer {
     }
 }
 
-export class PlainTextHumanMessageSerializer  extends HumanMessageSerializer{
+export class PlainTextHumanMessageSerializer extends HumanMessageSerializer {
     async deserialize(message: MimirHumanReplyMessage): Promise<BaseMessage> {
-        if (message.type === "FUNCTION_REPLY"){
+        if (message.type === "FUNCTION_REPLY") {
             return new FunctionMessage(message.functionReply?.arguments!, message.functionReply!.name);
         }
         return new HumanMessage(message.message!);
@@ -139,7 +139,7 @@ export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
     ];
 
     const internalPlugins = args.plugins.map(plugin => {
-      
+
         const agentPlugin: InternalAgentPlugin = {
             getInputs: (context) => plugin.getInputs(context),
             readResponse: async (context: AgentContext, response: MimirAIMessage) => {
