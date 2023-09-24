@@ -1,8 +1,7 @@
 import { BaseLanguageModel } from "langchain/base_language";
 
 import { BaseChatMemory, BaseChatMemoryInput, ChatMessageHistory, getInputValue, } from "langchain/memory";
-import { BasePromptTemplate } from "langchain/prompts";
-import { AIMessage, BaseMessage, HumanMessage, InputValues, SystemMessage } from "langchain/schema";
+import { AIMessage, BaseMessage, HumanMessage, InputValues } from "langchain/schema";
 
 import { LLMChain } from "langchain/chains";
 import { messagesToString } from "../../utils/format.js";
@@ -14,9 +13,7 @@ export type WindowedConversationSummaryMemoryInput = BaseChatMemoryInput & {
     memoryKey?: string;
     humanPrefix?: string;
     aiPrefix?: string;
-    prompt?: BasePromptTemplate;
     maxWindowSize?: number;
-    summaryChatMessageClass?: new (content: string) => BaseMessage;
     compactionCallback?: MemoryCompactionCallback;
 };
 
@@ -35,8 +32,6 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
 
     private maxWindowSize = 6;
 
-    summaryChatMessageClass: new (content: string) => BaseMessage = SystemMessage;
-
     compactionCallback: MemoryCompactionCallback;
 
     constructor(llm: BaseLanguageModel, fields?: WindowedConversationSummaryMemoryInput) {
@@ -47,8 +42,6 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
             chatHistory,
             humanPrefix,
             aiPrefix,
-            prompt,
-            summaryChatMessageClass,
         } = fields ?? {};
 
         super({ returnMessages, inputKey, outputKey, chatHistory });
@@ -58,8 +51,6 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
         this.aiPrefix = aiPrefix ?? this.aiPrefix;
         this.llm = llm
         this.maxWindowSize = fields?.maxWindowSize ?? this.maxWindowSize;
-        this.summaryChatMessageClass =
-            summaryChatMessageClass ?? this.summaryChatMessageClass;
         this.compactionCallback = fields?.compactionCallback ?? (async () => { });
     }
 
@@ -110,6 +101,7 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
                 }
             }
             const leftOverNewerMessages = [...totalMessages];
+          
             this.chatHistory = new ChatMessageHistory(leftOverNewerMessages);
 
             if (newMessagesToCompact.length > 0) {
