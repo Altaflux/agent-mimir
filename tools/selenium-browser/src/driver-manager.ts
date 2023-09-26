@@ -17,6 +17,7 @@ import { Options as FireFoxOptions } from 'selenium-webdriver/firefox';
 import { Options as EdgeOptions } from 'selenium-webdriver/edge.js';
 import exitHook from 'async-exit-hook';
 import { IS_RELEVANT_PROMPT } from "./prompt/relevance-prompt.js";
+import { updateBinary } from "webdriver-manager/dist/lib/cmds/update.js";
 
 export type SeleniumDriverOptions = {
     browserName?: 'chrome' | 'firefox' | 'edge';

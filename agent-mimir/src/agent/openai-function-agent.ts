@@ -8,7 +8,7 @@ import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.j
 import { AgentActionOutputParser } from "langchain/agents";
 import { AgentContext, MimirAgentArgs, MimirHumanReplyMessage } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
-import { AiMessageSerializer, HumanMessageSerializer } from "../memory/transform-memory.js";
+import { AiMessageSerializer, HumanMessageSerializer, TransformationalChatMessageHistory } from "../memory/transform-memory.js";
 
 
 type AIMessageType = {
@@ -152,16 +152,17 @@ export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
         return agentPlugin;
     });
 
+    const chatHistory = new TransformationalChatMessageHistory(args.chatMemory, new FunctionCallAiMessageSerializer(), new PlainTextHumanMessageSerializer());
+    const finalMemory = args.memoryBuilder(chatHistory);
+
     const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGenerator, {
         systemMessage: systemMessages,
         outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName, args.talkToUserTool?.name),
         taskCompleteCommandName: args.taskCompleteCommandName,
-        memory: args.memory,
+        memory: finalMemory,
         defaultInputs: {
             tools: args.plugins.map(plugin => plugin.tools()).flat(),
         },
-        aiMessageSerializer: new FunctionCallAiMessageSerializer(),
-        humanMessageSerializer: new PlainTextHumanMessageSerializer(),
         plugins: internalPlugins,
         name: args.name,
     });

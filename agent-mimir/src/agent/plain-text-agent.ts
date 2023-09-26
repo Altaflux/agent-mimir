@@ -1,7 +1,7 @@
 import { BaseLLMOutputParser } from "langchain/schema/output_parser";
 import { MimirAgent, InternalAgentPlugin, MimirAIMessage, NextMessage } from "./base-agent.js";
 import { AIMessage, AgentAction, AgentFinish, BaseMessage, ChatGeneration, Generation, HumanMessage } from "langchain/schema";
-import { AiMessageSerializer, HumanMessageSerializer } from "../memory/transform-memory.js";
+import { AiMessageSerializer, HumanMessageSerializer, TransformationalChatMessageHistory } from "../memory/transform-memory.js";
 import { PromptTemplate, SystemMessagePromptTemplate, renderTemplate } from "langchain/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
@@ -197,17 +197,17 @@ export function createPlainTextMimirAgent(args: MimirAgentArgs) {
         toolsSystemMessage,
     ];
 
+    const chatHistory = new TransformationalChatMessageHistory(args.chatMemory,  new DefaultAiMessageSerializer(), new PlainTextHumanMessageSerializer());
+    const finalMemory = args.memoryBuilder(chatHistory);
 
     const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(formatManager), messageGenerator, {
         systemMessage: systemMessages,
         outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName),
         taskCompleteCommandName: args.taskCompleteCommandName,
-        memory: args.memory,
+        memory: finalMemory,
         defaultInputs: {
 
         },
-        aiMessageSerializer: new DefaultAiMessageSerializer(),
-        humanMessageSerializer: new PlainTextHumanMessageSerializer(),
         plugins: internalPlugins,
         name: args.name
     });

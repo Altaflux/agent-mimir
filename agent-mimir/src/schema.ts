@@ -5,7 +5,7 @@ import { AttributeDescriptor, ResponseFieldMapper } from "./agent/instruction-ma
 import { StructuredTool } from "langchain/tools";
 import { BaseLanguageModel } from "langchain/base_language";
 import { BaseChatMemory } from "langchain/memory";
-import { BaseMessage } from "langchain/schema";
+import { BaseChatMessageHistory, BaseMessage } from "langchain/schema";
 
 export type AIMessageType = {
     thoughts?: string,
@@ -25,11 +25,12 @@ export type MimirAgentArgs = {
     name: string,
     description: string,
     llm: BaseLanguageModel,
-    memory?: BaseChatMemory
+    chatMemory: BaseChatMessageHistory
     taskCompleteCommandName: string,
     talkToUserTool?: StructuredTool,
     plugins: MimirAgentPlugin[]
     constitution: string,
+    memoryBuilder: (messageHistory: BaseChatMessageHistory) => BaseChatMemory,
 }
 
 export abstract class MimirAgentPlugin {

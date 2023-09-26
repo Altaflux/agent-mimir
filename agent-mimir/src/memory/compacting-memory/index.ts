@@ -1,13 +1,12 @@
 import { BaseLanguageModel } from "langchain/base_language";
 
-import { BaseChatMemory, BaseChatMemoryInput, ChatMessageHistory, getInputValue, } from "langchain/memory";
+import { BaseChatMemory, BaseChatMemoryInput, getInputValue, } from "langchain/memory";
 import { AIMessage, BaseMessage, HumanMessage, InputValues } from "langchain/schema";
 
 import { LLMChain } from "langchain/chains";
 import { messagesToString } from "../../utils/format.js";
 import { COMPACT_PROMPT } from "./prompt.js";
-import { MemoryCompactionCallback, MimirHumanReplyMessage } from "../../schema.js";
-import { MimirAIMessage } from "../../agent/base-agent.js";
+import { MemoryCompactionCallback } from "../../schema.js";
 
 export type WindowedConversationSummaryMemoryInput = BaseChatMemoryInput & {
     memoryKey?: string;
@@ -101,8 +100,11 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
                 }
             }
             const leftOverNewerMessages = [...totalMessages];
-          
-            this.chatHistory = new ChatMessageHistory(leftOverNewerMessages);
+
+            await this.chatHistory.clear();
+            for (const leftOverNewerMessage of leftOverNewerMessages) {
+                await this.chatHistory.addMessage(leftOverNewerMessage);
+            }
 
             if (newMessagesToCompact.length > 0) {
                 await this.compactionCallback(newMessagesToCompact, this.compactedMessages);
@@ -120,7 +122,7 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
 async function messageCompact(messages: BaseMessage[], llm: BaseLanguageModel) {
     const formattedMessages = messagesToString(messages);
 
-    const chain = new LLMChain({ llm: llm, prompt: COMPACT_PROMPT! });
+    const chain = new LLMChain({ llm: llm, prompt: COMPACT_PROMPT });
     const compactedConversation = await chain.predict({
         conversation: formattedMessages,
     });
@@ -128,16 +130,9 @@ async function messageCompact(messages: BaseMessage[], llm: BaseLanguageModel) {
     const newMessages = rawMessages.map(
         (message) => {
             if (message.name === "Human") {
-                const humanMessage: MimirHumanReplyMessage = {
-                    type: "USER_MESSAGE",
-                    message: message.message,
-                }
-                return new HumanMessage(JSON.stringify(humanMessage));
+                return new HumanMessage(message.message);
             } else {
-                const aiMessage: MimirAIMessage = {
-                    text: message.message,
-                }
-                return new AIMessage(JSON.stringify(aiMessage));
+                return new AIMessage(message.message);
             }
 
         }

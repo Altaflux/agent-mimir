@@ -1,6 +1,4 @@
 import { BaseMessage, ChatMessage } from "langchain/schema";
-import { MimirHumanReplyMessage } from "../schema.js";
-import { MimirAIMessage } from "../agent/base-agent.js";
 
 export function messagesToString(
   messages: BaseMessage[],
@@ -12,27 +10,25 @@ export function messagesToString(
     let role: string;
     if (m._getType() === "human") {
       role = humanPrefix;
-      const humanReply = JSON.parse(m.content) as MimirHumanReplyMessage;
-      string_messages.push(`${role}: ${humanReply.message}`);
+      string_messages.push(`${role}: ${m.content}`);
     } else if (m._getType() === "ai") {
       role = aiPrefix;
       let functionInvokationMessage = "";
-      const mimirAiMessage = JSON.parse(m.content) as MimirAIMessage;
-      if (mimirAiMessage.functionCall) {
-        const functionName = mimirAiMessage.functionCall?.name;
-        const args = mimirAiMessage.functionCall?.arguments;
+      if (m.additional_kwargs?.function_call){
+        const functionName = m.additional_kwargs.function_call?.name;
+        const args = m.additional_kwargs.function_call?.arguments;
         functionInvokationMessage = `I want to call function: ${functionName} with arguments: ${args}`;
       }
-    
-      string_messages.push(`${role}: ${mimirAiMessage.text}\n ${functionInvokationMessage}`);
+      string_messages.push(`${role}: ${m.content}\n ${functionInvokationMessage}`);
     } else if (m._getType() === "system") {
-      role = "System";
+      role = humanPrefix;
+      string_messages.push(`${role}: ${m.content}`);
     } else if (m._getType() === "function") {
       role = humanPrefix;
-      const functionReply = JSON.parse(m.content) as MimirHumanReplyMessage;
-      string_messages.push(`${role}: The "${functionReply.functionReply?.name}" tool responded the following: ${functionReply.functionReply?.arguments}`);
+      string_messages.push(`${role}: The "${m.name}" tool responded the following: ${m.content}`);
     } else if (m._getType() === "generic") {
-      role = (m as ChatMessage).role;
+      role = humanPrefix;
+      string_messages.push(`${role}: ${m.content}`);
     } else {
       throw new Error(`Got unsupported message type: ${m}`);
     }

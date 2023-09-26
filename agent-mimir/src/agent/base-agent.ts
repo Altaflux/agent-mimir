@@ -1,15 +1,13 @@
 import { AgentActionOutputParser, BaseSingleActionAgent } from "langchain/agents";
 import { CallbackManager } from "langchain/callbacks";
 import { AgentAction, AgentFinish, AgentStep, BaseMessage, ChainValues } from "langchain/schema";
-import { BaseChatMemory, BufferMemory, getInputValue } from "langchain/memory";
+import { BaseChatMemory,  getInputValue } from "langchain/memory";
 import { ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
-import { AiMessageSerializer, HumanMessageSerializer } from "../memory/transform-memory.js";
 import { TrimmingMemory } from "./../memory/trimming-memory/index.js";
 import { LLMChain } from "langchain/chains";
 import { BaseLLMOutputParser, BaseOutputParser } from "langchain/schema/output_parser";
 import { BaseLanguageModel } from "langchain/base_language";
 import { HumanMessage } from "langchain/schema";
-import { TransformationalMemory } from "./../memory/transform-memory.js";
 import { AgentContext, MimirHumanReplyMessage } from "../schema.js";
 
 
@@ -101,8 +99,6 @@ export class MimirAgent extends BaseSingleActionAgent {
         callbackManager?: CallbackManager,
     ): Promise<AgentAction | AgentFinish> {
 
-        
- 
         const nextMessage = this.getMessageForAI(steps, inputs);
         const context: AgentContext = {
             input: nextMessage,
@@ -195,18 +191,15 @@ export class MimirAgent extends BaseSingleActionAgent {
         const taskCompleteCommandName = args?.taskCompleteCommandName ?? "taskComplete";
 
         const { outputParser } = args ?? {};
-
         const prompt = MimirAgent.createPrompt(args);
-        const innerMemory = new TrimmingMemory(args?.memory ?? new BufferMemory({ returnMessages: true, memoryKey: "history", inputKey: "realInput" }), {
+        const innerMemory = new TrimmingMemory(args.memory, {
             startCollectionFilter: (messagePack) => {
                 const message = getInputValue(messagePack.output, innerMemory.outputKey);
                 const aiMessage = message as MimirAIMessage;
                 return (aiMessage.functionCall?.name ?? "") === "PARSING_ERROR";
             }
         });
-
-        const transformMemory = new TransformationalMemory(innerMemory, args.aiMessageSerializer, args.humanMessageSerializer);
-        const chain = new LLMChain({ prompt, llm, memory: transformMemory, outputParser: mimirOutputParser });
+        const chain = new LLMChain({ prompt, llm, memory: innerMemory, outputParser: mimirOutputParser });
 
         return new MimirAgent(
             innerMemory,
@@ -233,13 +226,9 @@ export type CreatePromptArgs = {
 
     taskCompleteCommandName: string,
 
-    memory?: BaseChatMemory,
-
     defaultInputs?: Record<string, any>,
 
-    aiMessageSerializer: AiMessageSerializer;
-
-    humanMessageSerializer: HumanMessageSerializer;
+    memory: BaseChatMemory;
 
     plugins: InternalAgentPlugin[];
 

@@ -23,6 +23,7 @@ import { MimirAgentTypes } from '../agent/index.js';
 import { TagMemoryManager } from '../plugins/tag-memory/index.js';
 import { AutomaticTagMemoryPlugin } from '../plugins/tag-memory/plugins.js';
 import { CompactingConversationSummaryMemory } from '../memory/compacting-memory/index.js';
+import { ChatMessageHistory } from 'langchain/memory';
 
 export type CreateAgentOptions = {
     profession: string,
@@ -132,13 +133,29 @@ export class AgentManager {
 
         const agent = initializeAgent(config.agentType ?? "plain-text-agent", {
             llm: model,
-            memory: innerMemory,
+            //memory: innerMemory,
+            chatMemory: new ChatMessageHistory(),
             name: shortName,
             description: config.description,
             taskCompleteCommandName: taskCompleteCommandName,
             talkToUserTool: talkToUserTool,
             plugins: allPlugins,
             constitution: config.constitution ?? DEFAULT_CONSTITUTION,
+            memoryBuilder: (memory) => {
+                const innerMemory2 = new CompactingConversationSummaryMemory(summarizingModel, {
+                    chatHistory: memory,
+                    returnMessages: true,
+                    memoryKey: "history",
+                    inputKey: "inputToSave",
+                    maxWindowSize: config.chatHistory?.maxTaskHistoryWindow ?? 6,
+                    compactionCallback: async (newLines, previousConversation) => {
+                        for (const plugin of allPlugins) {
+                            await plugin.memoryCompactionCallback(newLines, previousConversation);
+                        }
+                    }
+                });
+                return innerMemory2;
+            }
         });
 
         let executor = SteppedAgentExecutor.fromAgentAndTools({
