@@ -1,7 +1,7 @@
 import { AgentActionOutputParser, BaseSingleActionAgent } from "langchain/agents";
 import { CallbackManager } from "langchain/callbacks";
 import { AgentAction, AgentFinish, AgentStep, BaseMessage, ChainValues } from "langchain/schema";
-import { BaseChatMemory,  getInputValue } from "langchain/memory";
+import { BaseChatMemory, getInputValue } from "langchain/memory";
 import { ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
 import { TrimmingMemory } from "./../memory/trimming-memory/index.js";
 import { LLMChain } from "langchain/chains";

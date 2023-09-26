@@ -18,8 +18,7 @@ export type WindowedConversationSummaryMemoryInput = BaseChatMemoryInput & {
 
 export class CompactingConversationSummaryMemory extends BaseChatMemory {
 
-
-    compactedMessages: BaseMessage[] = [];
+    compactedMessagesCount: number = 0;
 
     memoryKey = "history";
 
@@ -62,11 +61,11 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
         const messages = await this.chatHistory.getMessages();
         if (this.returnMessages) {
             const result = {
-                [this.memoryKey]: [...this.compactedMessages, ...messages],
+                [this.memoryKey]: messages,
             };
             return result;
         }
-        const result = { [this.memoryKey]: messagesToString(this.compactedMessages) + messagesToString(messages) };
+        const result = { [this.memoryKey]: messagesToString(messages) };
         return result;
     }
 
@@ -86,7 +85,7 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
         });
 
         const newMessages = await this.chatHistory.getMessages();
-        const totalMessages = [...this.compactedMessages, ...newMessages];
+        const totalMessages = newMessages;
         if (totalMessages.length > this.maxWindowSize * 2) {
             const newMessagesToSummarize: BaseMessage[] = [];
             const newMessagesToCompact: BaseMessage[] = []
@@ -95,27 +94,28 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
                 const aiMessage = totalMessages.shift()!;
                 newMessagesToSummarize.push(humanMessage, aiMessage);
 
-                if (newMessagesToSummarize.length > this.compactedMessages.length) {
+                if (newMessagesToSummarize.length > this.compactedMessagesCount) {
                     newMessagesToCompact.push(humanMessage, aiMessage);
                 }
             }
             const leftOverNewerMessages = [...totalMessages];
 
+            if (newMessagesToCompact.length > 0) {
+                await this.compactionCallback(newMessagesToCompact, newMessages.slice(0, this.compactedMessagesCount));
+            }
+            const compactedMessages = await messageCompact(newMessagesToSummarize, this.llm);
             await this.chatHistory.clear();
-            for (const leftOverNewerMessage of leftOverNewerMessages) {
+            for (const leftOverNewerMessage of [...compactedMessages, ...leftOverNewerMessages]) {
                 await this.chatHistory.addMessage(leftOverNewerMessage);
             }
+            this.compactedMessagesCount = newMessagesToCompact.length;
 
-            if (newMessagesToCompact.length > 0) {
-                await this.compactionCallback(newMessagesToCompact, this.compactedMessages);
-            }
-            this.compactedMessages = await messageCompact(newMessagesToSummarize, this.llm);
         }
     }
 
     async clear() {
         await super.clear();
-        this.compactedMessages = [];
+        this.compactedMessagesCount = 0;
     }
 }
 
@@ -134,7 +134,6 @@ async function messageCompact(messages: BaseMessage[], llm: BaseLanguageModel) {
             } else {
                 return new AIMessage(message.message);
             }
-
         }
     );
     return newMessages;
