@@ -25,7 +25,7 @@ export class WebBrowserTool extends StructuredTool {
         }
         await this.toolManager.navigateToUrl(formattedBaseUrl);
         const driver = await this.toolManager.getDriver();
-        const result = await this.toolManager.obtainSummaryOfPage(keywords.join(","), searchDescription, runManager);
+        const result = await this.toolManager.obtainSummaryOfPage(keywords.join(" "), searchDescription, runManager);
         return `You are currently in page: ${await driver.getTitle()}\n ${result}`;
     }
     name = "navigate-to-website";
@@ -59,13 +59,14 @@ export class ClickWebSiteLinkOrButton extends StructuredTool {
             return "Button or link not found for id: " + id;
         }
         const byExpression = By.xpath(clickableElement.xpath);
+        await driver!.executeScript(`window.scrollTo({top: arguments[0], behavior: 'instant'});`, clickableElement.location.top);
         const elementFound = await driver!.findElement(byExpression);
         if (elementFound) {
             try {
                 await driver.actions().move({ origin: elementFound }).click().perform();
                 await new Promise(res => setTimeout(res, 500));
                 await this.toolManager.refreshPageState();
-                const result = await this.toolManager.obtainSummaryOfPage(keywords.join(","), searchDescription, runManager);
+                const result = await this.toolManager.obtainSummaryOfPage(keywords.join(" "), searchDescription, runManager);
                 return `You are currently in page: ${await driver.getTitle()}\n ${result}`;
             } catch (e) {
                 return "Click failed for id: " + id;
@@ -103,6 +104,7 @@ export class PassValueToInput extends StructuredTool {
             return "Button or link not found for id: " + inputs.id;
         }
         const byExpression = By.xpath(clickableElement.xpath);
+        await driver!.executeScript(`window.scrollTo({top: arguments[0], behavior: 'instant'});`, clickableElement.location.top);
         const elementFound = await driver!.findElement(byExpression);
         if (elementFound) {
             await driver.actions().move({ origin: elementFound }).clear();
@@ -133,7 +135,7 @@ export class AskSiteQuestion extends StructuredTool {
             return "You are not in any website at the moment, navigate into one using: navigate-to-website";
         }
         const { keywords, searchDescription } = inputs;
-        const result = await this.toolManager.obtainSummaryOfPage(keywords.join(','), searchDescription, runManager);
+        const result = await this.toolManager.obtainSummaryOfPage(keywords.join(' '), searchDescription, runManager);
         return result;
     }
     name = "look-information-on-current-website";

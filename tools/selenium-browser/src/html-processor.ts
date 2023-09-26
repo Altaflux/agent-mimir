@@ -5,11 +5,13 @@ import { By, WebDriver } from 'selenium-webdriver';
 const selectableElements = ['input', 'select', 'textarea'];
 const clickableElements = ['a', 'button', 'link'];
 const interactableElements = [...selectableElements, ...clickableElements];
-const persistableElements = ['img',...interactableElements, (element: Element) => {
+const persistableElements = ['img', ...interactableElements, (element: Element) => {
     return (element.childNodes.length > 0 &&
-        element.childNodes[0].nodeType === element.TEXT_NODE && 
+        element.childNodes[0].nodeType === element.TEXT_NODE &&
         element.childNodes[0].textContent?.trim() !== '')
 }];
+
+export type RelevantElement = "input" | "clickable" | "text";
 
 export type RelevantElements = {
     id: string;
@@ -53,81 +55,91 @@ function convertPicturesToImages(doc: Element) {
     return doc;
 }
 
-
-function findAllRelevantElements(doc: Element) {
+async function findAllRelevantElements(doc: Element, driver: WebDriver) {
     const allElements = doc.querySelectorAll('*');
 
-    return Array.from(allElements)
+    const htmlElementInformation = await Promise.all(Array.from(allElements)
         .filter((e) => isRelevantElement(e))
-        .map((element) => {
+        .map(async (element) => {
             const tag = element.tagName.toLowerCase();
             const type = (selectableElements.includes(tag) ? 'input' : interactableElements.includes(tag) ? 'clickable' : 'text') as RelevantElement;
-            return {
-                id: element.getAttribute('x-interactableId')!,
-                xpath: getXPath(element),
-                element: element,
-                type: type,
-            }
-        });
-
-}
-
-async function removeInvisibleElements(element: Element, driver: WebDriver, relevants: RelevantElements[]) {
-
-    for (const relevant of relevants) {
-        const byExpression = By.xpath(relevant.xpath);
-        let foundElement;
-        try {
-            foundElement = await driver!.findElement(byExpression);
-        } catch (e) {
-            continue;
-        }
-
-        try {
-            const isElementInteractable: boolean = await driver.executeScript(`
+            const xpath = getXPath(element);
+            const byExpression = By.xpath(xpath);
+            let location = {
+                top: 0,
+                left: 0,
+                isViewable: true,
+            };
+            try {
+                const webDriverElement = await driver!.findElement(byExpression);
+                location = await driver.executeScript(`
                 window.document.documentElement.style.setProperty("scroll-behavior", "auto", "important");
-
                 function isElementUnderOverlay(element) {
                     const rect = element.getBoundingClientRect();
                     const topElement = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
                     return topElement !== element && !element.contains(topElement);
                 }
-
+                
                 function isElementClickable(element) {
                     const styles = getComputedStyle(element);
                     return styles.pointerEvents !== 'none';
                 }
-
+                
+                function getOffset(el) {
+                    const rect = el.getBoundingClientRect();
+                    return {
+                      left: rect.left + window.scrollX,
+                      top: rect.top + window.scrollY
+                    };
+                }
                 let element = arguments[0];
                 element.scrollIntoView({ behavior: "instant", block: "center", inline: "nearest" });
-                return !isElementUnderOverlay(element) && isElementClickable(element);`, foundElement);
+                const rect = getOffset(element);
+                return {
+                    top: rect.top,
+                    left: rect.left,
+                    isViewable: !isElementUnderOverlay(element) && isElementClickable(element)
+                };
+                `, webDriverElement);
+            } catch (e) {
 
-            if (!isElementInteractable) {
-                let elementToRemove = element.querySelector(`[x-interactableId="${relevant.id}"]`);
+            }
+            return {
+                id: element.getAttribute('x-interactableId')!,
+                xpath: getXPath(element),
+                element: element,
+                type: type,
+                location: location,
+            }
+        }));
+        for (const foundElement  of htmlElementInformation) {
+            if (!foundElement.location.isViewable) {
+                let elementToRemove = foundElement.element.querySelector(`[x-interactableId="${foundElement.id}"]`);
                 if (elementToRemove) {
                     elementToRemove.remove();
                 }
             }
-        } catch (e) {
-            continue;
         }
-    }
+    return htmlElementInformation.filter((e) => e.location.isViewable);
+
 }
-export type RelevantElement = "input" | "clickable" | "text";
+
 
 
 export type InteractableElement = {
     id: string;
     xpath: string;
     type: RelevantElement;
+    location: {
+        top: number;
+        left: number;
+    }
 }
 export async function extractHtml(html: string, driver: WebDriver) {
     const ogDoc = new JSDOM(html).window.document;
     let cleanHtml = convertPicturesToImages(ogDoc.body);
     cleanHtml = addRandomIdToElements(ogDoc.body);
-    let allRelevantElements = findAllRelevantElements(cleanHtml);
-
-    await removeInvisibleElements(cleanHtml, driver, allRelevantElements);
+    let allRelevantElements = await findAllRelevantElements(cleanHtml, driver);
 
     let interactables = allRelevantElements
         .filter((relevant) => interactableElements.includes(relevant.element.tagName.toLowerCase()))
@@ -136,6 +148,7 @@ export async function extractHtml(html: string, driver: WebDriver) {
                 id: entries.element.getAttribute('x-interactableId')!,
                 xpath: entries.xpath,
                 type: entries.type,
+                location: entries.location,
             } as InteractableElement
         });
 

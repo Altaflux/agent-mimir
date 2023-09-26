@@ -28,15 +28,18 @@ export type SeleniumDriverOptions = {
 export type WebBrowserOptions = {
     browserConfig: SeleniumDriverOptions
     maximumChunkSize?: number
+    doRelevanceCheck?: boolean
     numberOfRelevantDocuments?: number | 'all'
 }
+
+const EMPTY_DOCUMENT_TAG = "(Empty the following piece is the beginning of the website)";
 
 export class WebDriverManager {
 
     driver?: ThenableWebDriver;
     maximumChunkSize: number
     numberOfRelevantDocuments: number | 'all'
-
+    relevanceCheck: boolean = false;
     vectorStore?: VectorStore;
     documents: VectorDocument[] = [];
     currentPage?: Document;
@@ -45,6 +48,7 @@ export class WebDriverManager {
     constructor(private config: WebBrowserOptions, private model: BaseLanguageModel, private embeddings: Embeddings) {
         this.maximumChunkSize = config.maximumChunkSize || 3000;
         this.numberOfRelevantDocuments = config.numberOfRelevantDocuments || 2;
+        this.relevanceCheck = config.doRelevanceCheck || false;
 
         exitHook(async (callback) => {
             await this.driver?.quit();
@@ -80,7 +84,11 @@ export class WebDriverManager {
 
         const siteMarkdown = htmlToMarkdown(this.currentPage!);
 
-        const textSplitter = new RecursiveCharacterTextSplitter({ chunkSize: this.maximumChunkSize, chunkOverlap: 200 });
+        const textSplitter = RecursiveCharacterTextSplitter.fromLanguage("markdown", {
+            chunkSize: this.maximumChunkSize, 
+            chunkOverlap: 300,
+        });
+
         const texts = await textSplitter.splitText(siteMarkdown);
         const documents = texts.map((pageContent, index) => new VectorDocument({ pageContent: pageContent, metadata: { pageNumber: index } }));
 
@@ -113,7 +121,7 @@ export class WebDriverManager {
             .sort((doc1, doc2) => doc1.metadata.pageNumber - doc2.metadata.pageNumber)
             , question, runManager);
 
-        if (!await this.isPageRelevant(summarizedPageView, question, runManager)) {
+        if (this.relevanceCheck && !await this.isPageRelevant(summarizedPageView, question, runManager)) {
             return await this.combineDocuments(results
                 .sort((doc1, doc2) => doc1.metadata.pageNumber - doc2.metadata.pageNumber)
                 , "Important information on the site.", runManager);
@@ -144,10 +152,18 @@ export class WebDriverManager {
         const title = await this.driver!.getTitle();
         return (await documents.map((doc) => Promise.resolve(doc))
             .reduce(async (prev, current) => {
-                const llmChain = new LLMChain({ prompt: COMBINE_PROMPT, llm: this.model, verbose: false });
                 const previousDocument = await prev;
                 const currentDocument = await current;
-
+                if ((previousDocument.pageContent.length + currentDocument.pageContent.length) < this.maximumChunkSize) {
+                    if (previousDocument.pageContent === EMPTY_DOCUMENT_TAG) {
+                        return currentDocument;
+                    }
+                    return new VectorDocument({
+                        pageContent: previousDocument.pageContent + "\n\n" + currentDocument.pageContent,
+                        metadata: [],
+                    });
+                }
+                const llmChain = new LLMChain({ prompt: COMBINE_PROMPT, llm: this.model, verbose: false });
                 const result = ((await llmChain.call({
                     title: title,
                     document1: previousDocument.pageContent,
@@ -162,7 +178,7 @@ export class WebDriverManager {
                     pageContent: result,
                     metadata: [],
                 });
-            }, Promise.resolve(new VectorDocument({ pageContent: "(Empty the following piece is the beginning of the website)", metadata: { pageNumber: 0 } })))).pageContent;
+            }, Promise.resolve(new VectorDocument({ pageContent: EMPTY_DOCUMENT_TAG, metadata: { pageNumber: 0 } })))).pageContent;
     }
 }
 
