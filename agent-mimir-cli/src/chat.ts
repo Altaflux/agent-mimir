@@ -3,6 +3,7 @@ import { ChainValues } from "langchain/schema";
 import chalk from 'chalk';
 import { Agent } from "agent-mimir/schema";
 import readline from 'readline';
+import { Retry } from "./utils.js";
 
 
 export async function chatWithAgent(continuousMode: boolean, assistant: Agent) {
@@ -23,9 +24,9 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent) {
       })]);
 
       if (answers.message.toLowerCase() === "y" || answers.message === "") {
-        aiResponse = (await executor.call({ continuousMode, continue: true }))
+        aiResponse = await Retry(() => executor.call({ continuousMode, continue: true }));
       } else {
-        aiResponse = (await executor.call({ continuousMode, input: answers.message }))
+        aiResponse = await Retry(() => executor.call({ continuousMode, input: answers.message }));
       }
     } else {
 

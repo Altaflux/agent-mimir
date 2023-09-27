@@ -44,6 +44,7 @@ export class WebDriverManager {
     documents: VectorDocument[] = [];
     currentPage?: Document;
     interactableElements: Map<string, InteractableElement> = new Map();
+    currentPageView?: string;
 
     constructor(private config: WebBrowserOptions, private model: BaseLanguageModel, private embeddings: Embeddings) {
         this.maximumChunkSize = config.maximumChunkSize || 3000;
@@ -126,6 +127,8 @@ export class WebDriverManager {
                 .sort((doc1, doc2) => doc1.metadata.pageNumber - doc2.metadata.pageNumber)
                 , "Important information on the site.", runManager);
         }
+        ///Save the current view of the browser.
+        this.currentPageView = summarizedPageView;
         return summarizedPageView;
     }
 

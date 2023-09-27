@@ -37,6 +37,7 @@ export type MimirAIMessage = {
         arguments: string
     },
     text?: string,
+    error?: boolean,
 }
 
 export class MimirAgent extends BaseSingleActionAgent {
@@ -196,7 +197,7 @@ export class MimirAgent extends BaseSingleActionAgent {
             startCollectionFilter: (messagePack) => {
                 const message = getInputValue(messagePack.output, innerMemory.outputKey);
                 const aiMessage = message as MimirAIMessage;
-                return (aiMessage.functionCall?.name ?? "") === "PARSING_ERROR";
+                return aiMessage.error === true;
             }
         });
         const chain = new LLMChain({ prompt, llm, memory: innerMemory, outputParser: mimirOutputParser });

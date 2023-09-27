@@ -56,24 +56,25 @@ export class ClickWebSiteLinkOrButton extends StructuredTool {
         const clickableElement = this.toolManager.interactableElements.get(elementId);
 
         if (!clickableElement) {
-            return "Button or link not found for id: " + id;
+            return `Button or link not found for id: ${id}.\n The current page is: ${await driver.getTitle()}\n ${this.toolManager.currentPageView}`;
         }
         const byExpression = By.xpath(clickableElement.xpath);
-        await driver!.executeScript(`window.scrollTo({top: arguments[0], behavior: 'instant'});`, clickableElement.location.top);
         const elementFound = await driver!.findElement(byExpression);
         if (elementFound) {
             try {
-                await driver.actions().move({ origin: elementFound }).click().perform();
+                await driver!.executeScript(`window.scrollTo({top: arguments[0], behavior: 'instant'});`, clickableElement.location.top);
+                await driver.actions().move({ origin: elementFound }).perform();
+                console.log(`!!!!!!!!!Clicking on element: ${await driver!.executeScript(`return arguments[0].outerHTML`,elementFound)}`);
+                await driver!.executeScript(`arguments[0].click()`,elementFound);
                 await new Promise(res => setTimeout(res, 500));
                 await this.toolManager.refreshPageState();
                 const result = await this.toolManager.obtainSummaryOfPage(keywords.join(" "), searchDescription, runManager);
                 return `You are currently in page: ${await driver.getTitle()}\n ${result}`;
             } catch (e) {
-                return "Click failed for id: " + id;
+                return `Click failed for id: ${id}.\n The current page is: ${await driver.getTitle()}\n ${this.toolManager.currentPageView}`;
             }
-
         } else {
-            return "Button or link not found for id: " + id;
+            return `Button or link not found for id: ${id}.\n The current page is: ${await driver.getTitle()}\n ${this.toolManager.currentPageView}`;
         }
     }
     name = "click-website-link-or-button";
