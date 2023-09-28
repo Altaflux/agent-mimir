@@ -64,7 +64,6 @@ export class ClickWebSiteLinkOrButton extends StructuredTool {
             try {
                 await driver!.executeScript(`window.scrollTo({top: arguments[0], behavior: 'instant'});`, clickableElement.location.top);
                 await driver.actions().move({ origin: elementFound }).perform();
-                console.log(`!!!!!!!!!Clicking on element: ${await driver!.executeScript(`return arguments[0].outerHTML`,elementFound)}`);
                 await driver!.executeScript(`arguments[0].click()`,elementFound);
                 await new Promise(res => setTimeout(res, 500));
                 await this.toolManager.refreshPageState();

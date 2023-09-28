@@ -2,17 +2,21 @@ import { BaseLanguageModel } from "langchain/base_language";
 
 import { BaseChatMemory, BaseChatMemoryInput, getInputValue, } from "langchain/memory";
 import { AIMessage, BaseMessage, HumanMessage, InputValues } from "langchain/schema";
-
+import { encode } from "gpt-3-encoder"
 import { LLMChain } from "langchain/chains";
 import { messagesToString } from "../../utils/format.js";
 import { COMPACT_PROMPT } from "./prompt.js";
 import { MemoryCompactionCallback } from "../../schema.js";
+import { Embeddings } from "langchain/embeddings";
 
 export type WindowedConversationSummaryMemoryInput = BaseChatMemoryInput & {
     memoryKey?: string;
     humanPrefix?: string;
     aiPrefix?: string;
     maxWindowSize?: number;
+    embeddings: Embeddings;
+    tokenLimit?: number;
+    conversationTokenThreshold?: number;
     compactionCallback?: MemoryCompactionCallback;
 };
 
@@ -26,13 +30,19 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
 
     aiPrefix = "AI";
 
+    tokenLimit = 4000;
+
+    conversationTokenThreshold = 100;
+
     llm: BaseLanguageModel;
+
+    embeddings: Embeddings
 
     private maxWindowSize = 6;
 
     compactionCallback: MemoryCompactionCallback;
 
-    constructor(llm: BaseLanguageModel, fields?: WindowedConversationSummaryMemoryInput) {
+    constructor(llm: BaseLanguageModel, fields: WindowedConversationSummaryMemoryInput) {
         const {
             returnMessages,
             inputKey,
@@ -49,7 +59,9 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
         this.aiPrefix = aiPrefix ?? this.aiPrefix;
         this.llm = llm
         this.maxWindowSize = fields?.maxWindowSize ?? this.maxWindowSize;
+        this.embeddings = fields.embeddings;
         this.compactionCallback = fields?.compactionCallback ?? (async () => { });
+        this.tokenLimit = fields?.tokenLimit ?? this.tokenLimit;
     }
 
     get memoryKeys(): string[] {
@@ -76,6 +88,9 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
         let output = await getInputValue(outputValues, this.outputKey);
         let input = await getInputValue(inputValues, this.inputKey);
 
+
+        await this.compactIfNeeded();
+
         const outputKey = this.outputKey ?? "output";
         const inputKey = this.inputKey ?? "input";
         await super.saveContext({
@@ -84,12 +99,20 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
             [outputKey]: output,
         });
 
+    }
+
+    async compactIfNeeded() {
         const newMessages = await this.chatHistory.getMessages();
-        const totalMessages = newMessages;
-        if (totalMessages.length > this.maxWindowSize * 2) {
+        const totalMessages = [...newMessages];
+
+        const tokenEncode = (messages: BaseMessage[]) => encode(messages.map(e => e.content).join("\n"));
+
+        if (tokenEncode(totalMessages).length > this.tokenLimit) {
             const newMessagesToSummarize: BaseMessage[] = [];
-            const newMessagesToCompact: BaseMessage[] = []
-            while (totalMessages.length > this.maxWindowSize) {
+            const newMessagesToCompact: BaseMessage[] = [];
+
+            const maxNumberOfSummarizableMessages = totalMessages.length * (this.conversationTokenThreshold / 100.0);
+            while (newMessagesToSummarize.length < maxNumberOfSummarizableMessages && totalMessages.length !== 0) {
                 const humanMessage = totalMessages.shift()!;
                 const aiMessage = totalMessages.shift()!;
                 newMessagesToSummarize.push(humanMessage, aiMessage);
@@ -109,7 +132,6 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
                 await this.chatHistory.addMessage(leftOverNewerMessage);
             }
             this.compactedMessagesCount = newMessagesToCompact.length;
-
         }
     }
 

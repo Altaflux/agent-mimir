@@ -118,22 +118,9 @@ export class AgentManager {
 
         const allPlugins = [...tools.map(tool => new LangchainToolWrapper(tool)), ...defaultPlugins];
 
-        const innerMemory = new CompactingConversationSummaryMemory(summarizingModel, {
-            returnMessages: true,
-            memoryKey: "history",
-            inputKey: "inputToSave",
-            maxWindowSize: config.chatHistory?.maxTaskHistoryWindow ?? 6,
-            compactionCallback: async (newLines, previousConversation) => {
-                for (const plugin of allPlugins) {
-                    await plugin.memoryCompactionCallback(newLines, previousConversation);
-                }
-            }
-        });
-
 
         const agent = initializeAgent(config.agentType ?? "plain-text-agent", {
             llm: model,
-            //memory: innerMemory,
             chatMemory: new ChatMessageHistory(),
             name: shortName,
             description: config.description,
@@ -147,6 +134,7 @@ export class AgentManager {
                     returnMessages: true,
                     memoryKey: "history",
                     inputKey: "inputToSave",
+                    embeddings: embeddings,
                     maxWindowSize: config.chatHistory?.maxTaskHistoryWindow ?? 6,
                     compactionCallback: async (newLines, previousConversation) => {
                         for (const plugin of allPlugins) {
@@ -175,8 +163,7 @@ export class AgentManager {
                     return message.output.complete;
                 },
                 messageFilter: (message) => {
-                    const foo = (!message.output.toolStep)
-                    return foo;
+                    return (!message.output.toolStep);
                 }
             }
         );

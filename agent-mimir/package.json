@@ -1,61 +1,62 @@
 {
-    "name": "agent-mimir",
-    "version": "0.1.0",
-    "description": "",
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "type": "module",
-    "exports": {
-        "./schema": {
-            "types": "./dist/schema.d.ts",
-            "import": "./dist/schema.js"
-          },
-          "./agent": {
-            "types": "./dist/agent/index.d.ts",
-            "import": "./dist/agent/index.js"
-          },
-          "./agent-manager": {
-            "types": "./dist/agent-manager/index.d.ts",
-            "import": "./dist/agent-manager/index.js"
-          },
-          "./memory/trimming-memory": {
-            "types": "./dist/memory/trimming-memory/index.d.ts",
-            "import": "./dist/memory/trimming-memory/index.js"
-          },
-          "./memory/windowed-memory": {
-            "types": "./dist/memory/windowed-memory/index.d.ts",
-            "import": "./dist/memory/windowed-memory/index.js"
-          },
-          "./memory/transform-memory": {
-            "types": "./dist/memory/transform-memory.d.ts",
-            "import": "./dist/memory/transform-memory.js"
-          },
-          "./utils/format": {
-            "types": "./dist/utils/format.d.ts",
-            "import": "./dist/utils/format.js"
-          }
+  "name": "agent-mimir",
+  "version": "0.1.0",
+  "description": "",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    "./schema": {
+      "types": "./dist/schema.d.ts",
+      "import": "./dist/schema.js"
     },
-    "scripts": {
-        "build": "rimraf ./dist && npm run build:esm ",
-        "build:esm": "tsc --outDir dist/ ",
-        "build:cjs": "tsc --outDir dist-cjs/ -p tsconfig.cjs.json",
-        "release": "npm run build && release-it --only-version "
+    "./agent": {
+      "types": "./dist/agent/index.d.ts",
+      "import": "./dist/agent/index.js"
     },
-    "keywords": [],
-    "author": "",
-    "license": "ISC",
-    "devDependencies": {
-        "@types/debug": "^4.1.7",
-        "@types/inquirer": "^9.0.3",
-        "@types/node": "^18.15.10",
-        "nodemon": "^2.0.22",
-        "rimraf": "^4.4.1",
-        "ts-node": "^10.9.1",
-        "typescript": "^5.0.2"
+    "./agent-manager": {
+      "types": "./dist/agent-manager/index.d.ts",
+      "import": "./dist/agent-manager/index.js"
     },
-    "dependencies": {
-        "jsonrepair": "^3.0.2",
-        "ring-buffer-ts": "^1.2.0",
-        "unique-names-generator": "^4.7.1"
+    "./memory/trimming-memory": {
+      "types": "./dist/memory/trimming-memory/index.d.ts",
+      "import": "./dist/memory/trimming-memory/index.js"
+    },
+    "./memory/windowed-memory": {
+      "types": "./dist/memory/windowed-memory/index.d.ts",
+      "import": "./dist/memory/windowed-memory/index.js"
+    },
+    "./memory/transform-memory": {
+      "types": "./dist/memory/transform-memory.d.ts",
+      "import": "./dist/memory/transform-memory.js"
+    },
+    "./utils/format": {
+      "types": "./dist/utils/format.d.ts",
+      "import": "./dist/utils/format.js"
     }
+  },
+  "scripts": {
+    "build": "rimraf ./dist && npm run build:esm ",
+    "build:esm": "tsc --outDir dist/ ",
+    "build:cjs": "tsc --outDir dist-cjs/ -p tsconfig.cjs.json",
+    "release": "npm run build && release-it --only-version "
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/debug": "^4.1.7",
+    "@types/inquirer": "^9.0.3",
+    "@types/node": "^18.15.10",
+    "nodemon": "^2.0.22",
+    "rimraf": "^4.4.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.2"
+  },
+  "dependencies": {
+    "jsonrepair": "^3.0.2",
+    "ring-buffer-ts": "^1.2.0",
+    "unique-names-generator": "^4.7.1",
+    "gpt-3-encoder": "v1.1.4"
+  }
 }
