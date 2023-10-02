@@ -1,5 +1,3 @@
-// eslint-disable-next-line tree-shaking/no-side-effects-in-initialization
-
 import { PromptTemplate } from "langchain/prompts";
 
 const _DEFAULT_SUMMARIZER_TEMPLATE = `Copy the following conversation between two individuals. 

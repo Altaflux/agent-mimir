@@ -12,7 +12,7 @@
   ],
   "compilerOptions": {
     "target": "ES2021",
-    "module": "ESNext",                     
+    "module": "NodeNext",                         
     "lib": [
       "ES2021",
       "ES2022.Object",

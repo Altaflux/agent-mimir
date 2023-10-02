@@ -56,14 +56,12 @@ export class AgentManager {
     public async createAgent(config: CreateAgentOptions): Promise<Agent> {
 
 
-        const shortName = config.name ?? uniqueNamesGenerator({
+    const shortName = config.name ?? uniqueNamesGenerator({
             dictionaries: [names, names],
             length: 2
         });
         const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.AGENT_OPENAI_API_KEY });
         const model = config.model;
-        const thinkingModel = config.thinkingModel ?? config.model;
-
 
         const summarizingModel = config.summaryModel ?? config.model;
         const tagManager = new TagMemoryManager(embeddings, config.summaryModel ?? config.model);
@@ -121,16 +119,16 @@ export class AgentManager {
 
         const agent = initializeAgent(config.agentType ?? "plain-text-agent", {
             llm: model,
-            chatMemory: new ChatMessageHistory(),
             name: shortName,
             description: config.description,
             taskCompleteCommandName: taskCompleteCommandName,
             talkToUserTool: talkToUserTool,
             plugins: allPlugins,
             constitution: config.constitution ?? DEFAULT_CONSTITUTION,
-            memoryBuilder: (memory) => {
-                const innerMemory2 = new CompactingConversationSummaryMemory(summarizingModel, {
-                    chatHistory: memory,
+            chatMemory: new ChatMessageHistory(),
+            memoryBuilder: (chatMessageHistory) => {
+                const memory = new CompactingConversationSummaryMemory(summarizingModel, {
+                    chatHistory: chatMessageHistory,
                     returnMessages: true,
                     memoryKey: "history",
                     inputKey: "inputToSave",
@@ -142,7 +140,7 @@ export class AgentManager {
                         }
                     }
                 });
-                return innerMemory2;
+                return memory;
             }
         });
 
