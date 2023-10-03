@@ -19,7 +19,6 @@
     
   },
   "peerDependencies": {
-    "langchain": "*",
     "agent-mimir": "*"
   }
 }
