@@ -148,7 +148,7 @@ export class AgentManager {
             agentName: shortName,
             memory: memory,
             agent: agent,
-            tools: [...tools, talkToUserTool],
+            tools: [...allPlugins.map((plugin)=> plugin.tools()).flat(), talkToUserTool],
             verbose: false,
             alwaysAllowTools: ['talkToUser'],
         });
