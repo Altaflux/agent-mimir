@@ -2,9 +2,10 @@
   "name": "agent-mimir",
   "version": "0.1.1",
   "description": "",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "exports": {
     "./schema": {
       "types": "./dist/schema.d.ts",

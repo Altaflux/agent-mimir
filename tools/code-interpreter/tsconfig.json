@@ -7,9 +7,9 @@
     "declaration": true,
     "sourceMap": true,
     "inlineSourceMap": false,
-    "moduleResolution": "node",
+    "moduleResolution": "nodenext",
     "rootDir": "src",
-    "module": "commonjs", /* Specify what module code is generated. */
+    "module": "NodeNext", /* Specify what module code is generated. */
     "outDir": "dist",
     "lib": [
       "ES2021",
