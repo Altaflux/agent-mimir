@@ -19,6 +19,6 @@
   },
   "peerDependencies": {
     "langchain": "*",
-    "agent-mimir": "0.1.0"
+    "agent-mimir": "*"
   }
 }
