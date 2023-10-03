@@ -16,9 +16,9 @@
     "typescript": "^5.0.4"
   },
   "dependencies": {
-    
+    "agent-mimir": "*"
   },
   "peerDependencies": {
-    "agent-mimir": "*"
+
   }
 }
