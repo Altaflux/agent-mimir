@@ -1,5 +1,5 @@
 import { StructuredTool } from "langchain/tools";
-import { MimirAgentPlugin } from "agent-mimir/schema";
+//import { MimirAgentPlugin } from "agent-mimir/schema";
 import { CallbackManagerForToolRun } from "langchain/dist/callbacks";
 import { z } from "zod";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
