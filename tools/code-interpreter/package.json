@@ -1,0 +1,24 @@
+{
+  "name": "@agent-mimir/code-interpreter",
+  "description": "Javascript code runner tool for langchain",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "rimraf dist/ && tsc -p tsconfig.json "
+  },
+  "author": "Altaflux",
+  "keywords": [
+    "langchain"
+  ],
+  "devDependencies": {
+    "@types/node": "^18.16.3",
+    "rimraf": "^5.0.0",
+    "typescript": "^5.0.4"
+  },
+  "dependencies": {
+    
+  },
+  "peerDependencies": {
+    "langchain": "*",
+    "agent-mimir": "0.1.0"
+  }
+}

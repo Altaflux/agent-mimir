@@ -9,7 +9,7 @@
   "keywords": [
     "langchain"
   ],
-    "devDependencies": {
+  "devDependencies": {
     "@types/async-exit-hook": "^2.0.0",
     "@types/jsdom": "^21.1.1",
     "@types/node": "^18.16.3",
