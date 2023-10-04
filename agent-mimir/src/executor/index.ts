@@ -23,7 +23,7 @@ export class SteppedAgentExecutor extends BaseChain {
     agent: BaseSingleActionAgent;
 
     tools: this["agent"]["ToolType"][];
-    
+
     agentName: string;
 
     returnIntermediateSteps = false;
@@ -73,9 +73,9 @@ export class SteppedAgentExecutor extends BaseChain {
             : `${action.tool} is not a valid tool, try another one.`;
 
         if (process.env.MIMIR_LOG_TOOL_RESPONSE) {
-            console.log('\x1b[32m%s\x1b[0m',`Executed command: "${action.tool}" with input: "${JSON.stringify(action.toolInput)}". Tool response:\n${observation}`)
+            console.log('\x1b[32m%s\x1b[0m', `Executed command: "${action.tool}" with input: "${JSON.stringify(action.toolInput)}". Tool response:\n${observation}`)
         }
-      
+
         steps.push({ action, observation });
 
         if (tool?.returnDirect) {
@@ -124,9 +124,9 @@ export class SteppedAgentExecutor extends BaseChain {
 
                 const action = await this.agent.plan(steps, inputs);
                 if (process.env.MIMIR_LOG_AI_RESPONSE) {
-                    console.log('\x1b[34m',`"${this.agentName}" responded with: "${action.log}".`)
+                    console.log('\x1b[34m', `"${this.agentName}" responded with: "${action.log}".`)
                 }
-              
+
                 if ("returnValues" in action) {
                     return {
                         workPending: false,
@@ -140,7 +140,7 @@ export class SteppedAgentExecutor extends BaseChain {
                         storeInMem: false,
                         workPending: true,
                         chainValues: await getOutput({
-                            returnValues: { [this.agent.returnValues[0]]: `Agent: "${this.agentName}" is requesting permission to use tool: "${action.tool}" with input: "${JSON.stringify(action.toolInput)}"` , toolStep: true },
+                            returnValues: { [this.agent.returnValues[0]]: `Agent: "${this.agentName}" is requesting permission to use tool: "${action.tool}" with input:\n"${JSON.stringify(action.toolInput, null, 2)}"`, toolStep: true },
                             log: action.log,
                         })
                     };

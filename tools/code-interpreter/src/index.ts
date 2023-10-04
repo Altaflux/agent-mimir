@@ -7,6 +7,8 @@ import { exec } from 'child_process';
 import os from 'os';
 import { promises as fs } from 'fs';
 import path from "path";
+
+
 export type CodeInterpreterArgs = {
     inputDirectory: string;
     outputDirectory: string;
@@ -16,7 +18,7 @@ const PROMPT = `
 Code Interpreter Functions Instructions:
 {interpreterInputFiles}
 
-If you need to return files to the human when using the code-interpreter, please save it to the directory path saved in the global python variable named "outputDirectory".
+If you need to return files to the human when using the code-interpreter, please save it to the directory path saved in the environment variable named "OUTPUT_DIRECTORY".
 End of Code Interpreter Functions Instructions.
 
 `;
@@ -48,7 +50,7 @@ export class CodeInterpreterPlugin extends MimirAgentPlugin {
             .map((fileName: string) => `- "${fileName}"`)
             .join("\n");
         return {
-            interpreterInputFiles: `The human has given you access to the following files for you to use with the code interpreter functions. The files can be found inside a directory path saved in the global python variable named "inputDirectory". :\n${bulletedFiles}\n`,
+            interpreterInputFiles: `The human has given you access to the following files for you to use with the code interpreter functions. The files can be found inside a directory path saved in the environment variable named "INPUT_DIRECTORY". :\n${bulletedFiles}\n`,
         };
     }
 
@@ -73,19 +75,21 @@ class PythonCodeInterpreter extends StructuredTool {
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<string> {
         const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'python-code-interpreter-'));
 
-        const scriptPath = `${tempDir}/script.py`
+        const scriptPath = path.join(tempDir, 'script.py');
         await fs.mkdir(this.inputDirectory, { recursive: true });
         await fs.mkdir(this.outputDirectory, { recursive: true });
-        const codeToRun = `
-inputDirectory = "${this.inputDirectory}"
-outputDirectory = "${this.outputDirectory}"
-${arg.code}`;
-        await fs.writeFile(scriptPath, codeToRun);
+        await fs.writeFile(scriptPath, arg.code);
+
         try {
             const pyenv = await executeShellCommand(`cd ${tempDir} && py -m venv .`);
+            await fs.appendFile(path.join(tempDir, 'Scripts', 'activate.bat'), `\nSET INPUT_DIRECTORY=${this.inputDirectory}\nSET OUTPUT_DIRECTORY=${this.outputDirectory}\n`);
+            await fs.appendFile(path.join(tempDir, 'Scripts', 'activate'), `\nexport INPUT_DIRECTORY=${this.inputDirectory}\nexport OUTPUT_DIRECTORY=${this.outputDirectory}\n`);
+            await fs.appendFile(path.join(tempDir, 'Scripts', 'Activate.ps1'), `\n$Env:INPUT_DIRECTORY = "${this.inputDirectory}"\n$Env:OUTPUT_DIRECTORY = "${this.outputDirectory}"\n`)
+
+            
             const libraryList = arg.libraries?.join(" ");
-            const pyInstall = await executeShellCommand(`cd ${tempDir}${path.sep}Scripts && activate && py -m pip install ${libraryList}`);
-            const result = await executeShellCommand(`python ${scriptPath}`);
+            const pyInstall = await executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && activate && py -m pip install ${libraryList}`);
+            const result = await executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && activate && py ${scriptPath}`);
             return result.length > 0 ? result : "The script ran successfully.";
         } catch (e) {
             return "Failed to execute the script." + e;
@@ -94,7 +98,7 @@ ${arg.code}`;
         }
     }
     name = "pythonCodeInterpreter";
-    description = "Code Interpreter to run a Python 3 script in the human's computer. The input must be the content of the script to execute. The result of this function is the output of the console so you can use print statements to return information to you if needed.";
+    description = "Code Interpreter to run a Python 3 script in the human's computer. The input must be the content of the script to execute. The result of this function is the output of the console so you can use print statements to return information to yourself if needed.";
 }
 
 
