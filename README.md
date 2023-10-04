@@ -31,33 +31,34 @@ You must have installed NodeJS version 18 or above.
 To start the chat run the command `npm run start`
 It is important to tell the agent every time it has completed a task the phrase `task complete`. This will erease its task's memory. This is useful to keep the number of tokens small.
 
-## Customizing Agents
+## Customizing Agents Configuration
 
 By default Mimir will create an agent with no tools and Chat GPT-3.5. You can configure a custom agent by creating a directory called `mimir-config` with the configuration file `mimir-cfg.js`, use `mimir-config.example` as a reference. By configuring an agent you can change its language model to any other model supported by LangchainJS
 
 ```javascript
 
 const ChatOpenAI = require('langchain/chat_models/openai').ChatOpenAI;
-const WebBrowserToolKit = require('@agent-mimir/selenium-browser').WebBrowserToolKit;
 const OpenAIEmbeddings = require('langchain/embeddings/openai').OpenAIEmbeddings;
-const Serper = require('langchain/tools').Serper;
 
 //Configure your language models, tools and embeddings
 const taskModel = new ChatOpenAI({
     openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
-    temperature: 0.9,
+    temperature: 0.0,
 });
 const embeddings = new OpenAIEmbeddings({
     openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
 });
 const chatModel = new ChatOpenAI({
     openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
-    temperature: 0.9,
+    temperature: 0.0,
     modelName: 'gpt-4'
 });
 
-
+const Serper = (await import('@agent-mimir/serper-search')).Serper;
+const WebBrowserToolKit = (await import('@agent-mimir/selenium-browser')).WebBrowserToolKit;
+const CodeInterpreterPlugin = (await import('@agent-mimir/code-interpreter')).CodeInterpreterPlugin;
 const webToolKit = new WebBrowserToolKit({ browserConfig: { browserName: "chrome" } }, taskModel, embeddings);
+
 module.exports = async function() {
     return {
         //If continuousMode is set to true the agent will not ask you before executing a tool. Disable at your own risk.
@@ -77,6 +78,12 @@ module.exports = async function() {
                         maxChatHistoryWindow: 6, //Maximum size of the conversational chat before summarizing. 4 by default
                         maxTaskHistoryWindow: 6, //Maximum size of the task chat before summarizing. 4 by default
                     },
+                    plugins: [
+                            new CodeInterpreterPlugin({
+                                inputDirectory: "C:\\AI\\interpreter\\in",
+                                outputDirectory: "C:\\AI\\interpreter\\out"
+                            }),
+                    ],
                     tools: [ //Tools available to the agent.
                         ...webToolKit.tools,
                         new Serper(process.env.SERPER_API_KEY)
@@ -108,8 +115,47 @@ Take a look at LangchainJS documentation for how to use their tools: https://js.
 
 Here is a list of useful and easy to install tools you can try:
 
+### Code Interpreter Plugin:
+The Code Interpreter plugin allows the agent to run Python 3 scripts directly in your machine. The interpreter can access resources inside your computer. The interpreter will automatically install any dependencies the script requires to run.
 
-### Web Browser Plugin:
+You can configure an input and output directory that the agent can use to receive files that need processing as well as output files back to the user.
+
+`package.json`
+```json
+{
+    "name": "agent-mimir-deps",
+    "private": false,
+    "scripts": {},
+    "dependencies": {
+        "@agent-mimir/code-interpreter": "*"
+    }
+}
+```
+`mimir-cfg.js`
+```javascript
+
+    const model = new ChatOpenAI({
+        openAIApiKey: process.env.OPENAI_API_KEY,
+        temperature: 0.0,
+    });
+    const embeddings = new OpenAIEmbeddings({
+        openAIApiKey: process.env.OPENAI_API_KEY,
+    });
+
+    const CodeInterpreterPlugin = (await import('@agent-mimir/code-interpreter')).CodeInterpreterPlugin;
+
+    //Add to plugins:
+    plugins: [
+            new CodeInterpreterPlugin({
+                inputDirectory: "C:\\AI\\interpreter\\in",
+                outputDirectory: "C:\\AI\\interpreter\\out"
+            }),
+        ],
+```
+
+### Web Browser Toolset:
+The Web Browser plugin allows the agent to fully navigate thru any website, giving it the ability to read and interact with the website.
+
 `package.json`
 ```json
 {
@@ -123,11 +169,10 @@ Here is a list of useful and easy to install tools you can try:
 ```
 `mimir-cfg.js`
 ```javascript
-
-    const WebBrowserToolKit = require('@agent-mimir/selenium-browser').WebBrowserToolKit;
+    const WebBrowserToolKit = (await import('@agent-mimir/selenium-browser')).WebBrowserToolKit;
     const model = new ChatOpenAI({
         openAIApiKey: process.env.OPENAI_API_KEY,
-        temperature: 0.9,
+        temperature: 0.0,
     });
     const embeddings = new OpenAIEmbeddings({
         openAIApiKey: process.env.OPENAI_API_KEY,
@@ -145,7 +190,7 @@ Here is a list of useful and easy to install tools you can try:
 
 `mimir-cfg.js`
 ```javascript
-const Serper = require('langchain/tools').Serper;
+const Serper = (await import('@agent-mimir/serper-search')).Serper;
 
 //Add to agents tool:
     tools: [
@@ -157,8 +202,7 @@ const Serper = require('langchain/tools').Serper;
 
 `mimir-cfg.js`
 ```javascript
-const Calculator = require('langchain/tools/calculator').Calculator;
-
+const Calculator = (await import('langchain/tools/calculator')).Calculator;
 //Add to agents tool:
     tools: [
             new Calculator()

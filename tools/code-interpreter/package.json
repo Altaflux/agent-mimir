@@ -1,6 +1,6 @@
 {
   "name": "@agent-mimir/code-interpreter",
-  "description": "Javascript code runner tool for langchain",
+  "description": "Python code interpreter tool for langchain",
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
