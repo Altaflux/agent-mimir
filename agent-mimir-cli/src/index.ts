@@ -68,7 +68,6 @@ export const run = async () => {
                     tools: agentDefinition.definition.tools ?? [],
                     model: agentDefinition.definition.chatModel,
                     summaryModel: agentDefinition.definition.summaryModel,
-                    thinkingModel: agentDefinition.definition.taskModel ?? agentDefinition.definition.chatModel,
                     chatHistory: agentDefinition.definition.chatHistory,
                     communicationWhitelist: agentDefinition.definition.communicationWhitelist,
                     allowAgentCreation: agentDefinition.definition.allowAgentCreation,

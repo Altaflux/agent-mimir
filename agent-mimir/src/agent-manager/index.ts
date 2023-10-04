@@ -33,7 +33,6 @@ export type CreateAgentOptions = {
     model: BaseChatModel,
     plugins?: MimirAgentPlugin[],
     summaryModel?: BaseChatModel,
-    thinkingModel?: BaseLanguageModel,
     allowAgentCreation?: boolean,
     constitution?: string,
     communicationWhitelist?: boolean | string[],

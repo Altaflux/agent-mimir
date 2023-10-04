@@ -41,9 +41,10 @@ const ChatOpenAI = require('langchain/chat_models/openai').ChatOpenAI;
 const OpenAIEmbeddings = require('langchain/embeddings/openai').OpenAIEmbeddings;
 
 //Configure your language models, tools and embeddings
-const taskModel = new ChatOpenAI({
+const summaryModel = new ChatOpenAI({
     openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
     temperature: 0.0,
+    modelName: 'gpt-3.5-turbo-16k-0613',
 });
 const embeddings = new OpenAIEmbeddings({
     openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
@@ -51,7 +52,7 @@ const embeddings = new OpenAIEmbeddings({
 const chatModel = new ChatOpenAI({
     openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
     temperature: 0.0,
-    modelName: 'gpt-4'
+    modelName: 'gpt-4-0613'
 });
 
 const Serper = (await import('@agent-mimir/serper-search')).Serper;
@@ -69,9 +70,8 @@ module.exports = async function() {
                 description: 'An assistant', //A description of the agent and how to talk to it.
                 definition: {
                     chatModel: chatModel, //The main chat LLM used for conversation and memory.
-                    agentType: 'plain-text-agent', //Use "plain-text-agent" for general LLM, you can use "openai-function-agent" if your chat model is gpt-4-0613 or gpt-3.5-turbo-0613 for improved reliability. 
-                    summaryModel: taskModel, //The model used when summarizing conversations.
-                    taskModel: taskModel, //The model used for brainstorming steps.
+                    agentType: 'openai-function-agent', //Use "plain-text-agent" for general LLM, you can use "openai-function-agent" if your chat model is gpt-4-0613 or gpt-3.5-turbo-0613 for improved reliability. 
+                    summaryModel: summaryModel, //The model used when summarizing conversations.
                     profession: 'an Assistant', //The profession assigned to the agent.
                     communicationWhitelist: ['MR_CHEF'], //The list of agents it is allowed to talk to.
                     chatHistory: {
