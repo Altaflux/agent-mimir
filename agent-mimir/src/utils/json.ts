@@ -1,12 +1,8 @@
 
 import { jsonrepair } from 'jsonrepair'
 
-function callJsonRepair(input: string) {
-    try {
-        return jsonrepair(input);
-    } catch (e) {
-        return input;
-    }
+export function callJsonRepair(input: string) {
+    return (jsonrepair(input));
 }
 
 export async function simpleParseJson(input: string) {

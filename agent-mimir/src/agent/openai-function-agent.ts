@@ -9,6 +9,7 @@ import { AgentActionOutputParser } from "langchain/agents";
 import { AgentContext, MimirAgentArgs, MimirHumanReplyMessage } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { AiMessageSerializer, HumanMessageSerializer, TransformationalChatMessageHistory } from "../memory/transform-memory.js";
+import { callJsonRepair } from "../utils/json.js";
 
 
 type AIMessageType = {
@@ -37,7 +38,13 @@ export class ChatConversationalAgentOutputParser extends AgentActionOutputParser
                 arguments: JSON.stringify({ messageToUser: messageToUser })
             };
         }
-        const action = { tool: out1.functionCall!.name, toolInput: JSON.parse(out1.functionCall!.arguments), log: input }
+        let toolInput = '';
+        try {
+            toolInput = JSON.parse(out1.functionCall!.arguments);
+        } catch (e) {
+            toolInput = JSON.parse(callJsonRepair(out1.functionCall!.arguments));
+        }
+        const action = { tool: out1.functionCall!.name, toolInput: toolInput, log: input }
         if (action.tool === this.finishToolName) {
             return { returnValues: { output: action.toolInput, complete: true }, log: action.log };
         }
