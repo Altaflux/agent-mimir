@@ -33,7 +33,7 @@ It is important to tell the agent every time it has completed a task the phrase 
 
 ## Customizing Agents Configuration
 
-By default Mimir will create an agent with no tools and Chat GPT-3.5. You can configure a custom agent by creating a directory called `mimir-config` with the configuration file `mimir-cfg.js`, use `mimir-config.example` as a reference. By configuring an agent you can change its language model to any other model supported by LangchainJS
+By default Mimir will create an agent with no tools and Chat GPT-4. You can configure a custom agent by creating a directory called `mimir-config` with the configuration file `mimir-cfg.js`, use `mimir-config.example` as a reference. By configuring an agent you can change its language model to any other model supported by LangchainJS
 
 ```javascript
 
