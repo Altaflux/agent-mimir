@@ -3,7 +3,7 @@ import { MimirAgentPlugin } from "agent-mimir/schema";
 import { CallbackManagerForToolRun } from "langchain/callbacks";
 import { z } from "zod";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
-import { exec, spawn } from 'child_process';
+import { exec } from 'child_process';
 import os from 'os';
 import { promises as fs } from 'fs';
 import path from "path";
@@ -38,7 +38,7 @@ export class CodeInterpreterPlugin extends MimirAgentPlugin {
     }
 
     async getInputs(): Promise<Record<string, any>> {
-        const files = await fs.readdir("C:/AI/interpreter/in");
+        const files = await fs.readdir(this.args.inputDirectory);
         if (files.length === 0) {
             return {
                 interpreterInputFiles: "",
