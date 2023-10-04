@@ -102,7 +102,7 @@ class PythonCodeInterpreter extends StructuredTool {
         }
     }
     name = "pythonCodeInterpreter";
-    description = "Code Interpreter to run a Python 3 script in the human's computer. The input must be the content of the script to execute. The result of this function is the output of the console so you can use print statements to return information to yourself if needed.";
+    description = "Code Interpreter to run a Python 3 script in the human's computer. The input must be the content of the script to execute. The result of this function is the output of the console so you can use print statements to return information to yourself about the results.";
 }
 
 async function executeShellCommand(command: string) {
@@ -131,5 +131,4 @@ async function executeShellCommand(command: string) {
             })
         });
     });
-
 }
