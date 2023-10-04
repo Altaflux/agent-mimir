@@ -3,7 +3,7 @@ import { MimirAgentPlugin } from "agent-mimir/schema";
 import { CallbackManagerForToolRun } from "langchain/callbacks";
 import { z } from "zod";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
-import { exec } from 'child_process';
+import { spawn } from 'child_process';
 import os from 'os';
 import { promises as fs } from 'fs';
 import path from "path";
@@ -14,7 +14,7 @@ export type CodeInterpreterArgs = {
     outputDirectory: string;
 }
 
-const PROMPT = `
+const CODE_INTERPRETER_PROMPT = `
 Code Interpreter Functions Instructions:
 {interpreterInputFiles}
 
@@ -35,7 +35,7 @@ export class CodeInterpreterPlugin extends MimirAgentPlugin {
 
     systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
         return [
-            SystemMessagePromptTemplate.fromTemplate(PROMPT),
+            SystemMessagePromptTemplate.fromTemplate(CODE_INTERPRETER_PROMPT),
         ];
     }
 
@@ -86,10 +86,12 @@ class PythonCodeInterpreter extends StructuredTool {
             await fs.appendFile(path.join(tempDir, 'Scripts', 'activate'), `\nexport INPUT_DIRECTORY=${this.inputDirectory}\nexport OUTPUT_DIRECTORY=${this.outputDirectory}\n`);
             await fs.appendFile(path.join(tempDir, 'Scripts', 'Activate.ps1'), `\n$Env:INPUT_DIRECTORY = "${this.inputDirectory}"\n$Env:OUTPUT_DIRECTORY = "${this.outputDirectory}"\n`)
 
-            
-            const libraryList = arg.libraries?.join(" ");
-            const pyInstall = await executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && activate && py -m pip install ${libraryList}`);
-            const result = await executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && activate && py ${scriptPath}`);
+            const activeScriptCall = process.platform === "win32" ? `activate` : `./activate`;
+            if (arg?.libraries?.length !== 0) {
+                const libraryList = arg.libraries?.join(" ");
+                const pyInstall = await executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && py -m pip install ${libraryList}`);
+            }
+            const result = await executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && py ${scriptPath}`);
             return result.length > 0 ? result : "The script ran successfully.";
         } catch (e) {
             return "Failed to execute the script." + e;
@@ -101,20 +103,25 @@ class PythonCodeInterpreter extends StructuredTool {
     description = "Code Interpreter to run a Python 3 script in the human's computer. The input must be the content of the script to execute. The result of this function is the output of the console so you can use print statements to return information to yourself if needed.";
 }
 
-
-
 async function executeShellCommand(command: string) {
-    const result = await new Promise<string>((resolve, reject) => {
-        exec(`${command}`, {}, (error, stdout, stderr) => {
-            if (error) {
-                resolve(error.message)
-            } else if (stderr) {
-                resolve(stdout);
-            } else {
-                resolve(stdout);
-            }
-        })
+    return await new Promise<string>((resolve, reject) => {
+        let output = '';
+        const ls = spawn(command, [], { shell: true });
+        ls.stdout.on("data", data => {
+            output += data;
+        });
+
+        ls.stderr.on("data", data => {
+            output += data;
+        });
+
+        ls.on('error', (error) => {
+            output += error.message;
+        });
+
+        ls.on("close", code => {
+            resolve(`${output}\nScript terminated with exit code ${code}`)
+        });
     });
 
-    return result;
 }
