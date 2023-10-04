@@ -92,11 +92,13 @@ class PythonCodeInterpreter extends StructuredTool {
                 const pyInstall = await executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && py -m pip install ${libraryList}`);
             }
             const result = await executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && py ${scriptPath}`);
-            return result.length > 0 ? result : "The script ran successfully.";
+            const files = await fs.readdir(this.outputDirectory);
+            const fileList = files.length === 0 ? "" : `The following files were created in the output directory: ${files.map((fileName: string) => `"${fileName}"`).join(" ")}`;
+            return `Exit Code: ${result.exitCode} \n${fileList} \nScript Output:\n${result.output}`
         } catch (e) {
             return "Failed to execute the script." + e;
         } finally {
-            await fs.unlink(scriptPath);
+            await fs.rm(tempDir, { recursive: true, force: true });
         }
     }
     name = "pythonCodeInterpreter";
@@ -104,7 +106,10 @@ class PythonCodeInterpreter extends StructuredTool {
 }
 
 async function executeShellCommand(command: string) {
-    return await new Promise<string>((resolve, reject) => {
+    return await new Promise<{
+        exitCode: number,
+        output: string,
+    }>((resolve, reject) => {
         let output = '';
         const ls = spawn(command, [], { shell: true });
         ls.stdout.on("data", data => {
@@ -120,7 +125,10 @@ async function executeShellCommand(command: string) {
         });
 
         ls.on("close", code => {
-            resolve(`${output}\nScript terminated with exit code ${code}`)
+            resolve({
+                exitCode: code ?? 0,
+                output: output,
+            })
         });
     });
 
