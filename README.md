@@ -55,12 +55,15 @@ const chatModel = new ChatOpenAI({
     modelName: 'gpt-4-0613'
 });
 
-const Serper = (await import('@agent-mimir/serper-search')).Serper;
-const WebBrowserToolKit = (await import('@agent-mimir/selenium-browser')).WebBrowserToolKit;
-const CodeInterpreterPlugin = (await import('@agent-mimir/code-interpreter')).CodeInterpreterPlugin;
-const webToolKit = new WebBrowserToolKit({ browserConfig: { browserName: "chrome" } }, taskModel, embeddings);
 
 module.exports = async function() {
+    
+    //Plugins and tools can be loaded as follows:
+    const Serper = (await import('@agent-mimir/serper-search')).Serper;
+    const WebBrowserToolKit = (await import('@agent-mimir/selenium-browser')).WebBrowserToolKit;
+    const CodeInterpreterPlugin = (await import('@agent-mimir/code-interpreter')).CodeInterpreterPlugin;
+    const webToolKit = new WebBrowserToolKit({ browserConfig: { browserName: "chrome" } }, taskModel, embeddings);
+
     return {
         //If continuousMode is set to true the agent will not ask you before executing a tool. Disable at your own risk.
         continuousMode: false,
@@ -142,15 +145,17 @@ You can configure an input and output directory that the agent can use to receiv
         openAIApiKey: process.env.OPENAI_API_KEY,
     });
 
-    const CodeInterpreterPlugin = (await import('@agent-mimir/code-interpreter')).CodeInterpreterPlugin;
-
-    //Add to plugins:
-    plugins: [
-            new CodeInterpreterPlugin({
-                inputDirectory: "C:\\AI\\interpreter\\in",
-                outputDirectory: "C:\\AI\\interpreter\\out"
-            }),
-        ],
+    module.exports = async function() {
+        const CodeInterpreterPlugin = (await import('@agent-mimir/code-interpreter')).CodeInterpreterPlugin;
+        //...
+        //Add to plugins:
+        plugins: [
+                new CodeInterpreterPlugin({
+                    inputDirectory: "C:\\AI\\interpreter\\in",
+                    outputDirectory: "C:\\AI\\interpreter\\out"
+                }),
+            ],
+    }
 ```
 
 ### Web Browser Toolset:
@@ -169,7 +174,7 @@ The Web Browser plugin allows the agent to fully navigate thru any website, givi
 ```
 `mimir-cfg.js`
 ```javascript
-    const WebBrowserToolKit = (await import('@agent-mimir/selenium-browser')).WebBrowserToolKit;
+    
     const model = new ChatOpenAI({
         openAIApiKey: process.env.OPENAI_API_KEY,
         temperature: 0.0,
@@ -178,35 +183,40 @@ The Web Browser plugin allows the agent to fully navigate thru any website, givi
         openAIApiKey: process.env.OPENAI_API_KEY,
     });
 
-    const webToolKit = new WebBrowserToolKit({ browserConfig: { browserName: "chrome" } }, model, embeddings);
-
-    //Add to agents tool:
-    tools: [
-            ...webToolKit.tools,
-        ],
+    module.exports = async function() {
+        const WebBrowserToolKit = (await import('@agent-mimir/selenium-browser')).WebBrowserToolKit;
+        const webToolKit = new WebBrowserToolKit({ browserConfig: { browserName: "chrome" } }, model, embeddings);
+        //...
+        tools: [
+                ...webToolKit.tools,
+            ],
+    }
 ```
 
 ### Search Plugin:
 
 `mimir-cfg.js`
 ```javascript
-const Serper = (await import('@agent-mimir/serper-search')).Serper;
-
-//Add to agents tool:
-    tools: [
-            new Serper(process.env.SERPER_API_KEY) // https://serper.dev.
-        ],
+    module.exports = async function() {
+        const Serper = (await import('@agent-mimir/serper-search')).Serper;
+        //...
+        tools: [
+                new Serper(process.env.SERPER_API_KEY) // https://serper.dev.
+            ],
+    }
 ```
 
 ### Calculator Plugin:
 
 `mimir-cfg.js`
 ```javascript
-const Calculator = (await import('langchain/tools/calculator')).Calculator;
-//Add to agents tool:
-    tools: [
-            new Calculator()
-        ],
+    module.exports = async function() {
+        const Calculator = (await import('langchain/tools/calculator')).Calculator;
+        //...
+        tools: [
+                new Calculator()
+            ],
+    }
 ```
 
 Take a look at the `tool-examples` directory  for other tools.
