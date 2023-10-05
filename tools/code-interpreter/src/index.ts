@@ -9,37 +9,41 @@ import { promises as fs } from 'fs';
 import path from "path";
 
 
+
 export type CodeInterpreterArgs = {
-    inputDirectory: string;
-    outputDirectory: string;
+    inputDirectory?: string;
+    outputDirectory?: string;
 }
 
-const CODE_INTERPRETER_PROMPT = `
+const CODE_INTERPRETER_PROMPT = function (args: CodeInterpreterArgs) {
+    return `
 Code Interpreter Functions Instructions:
 {interpreterInputFiles}
 
-If you need to return files to the human when using the code-interpreter, please save it to the directory path saved in the environment variable named "OUTPUT_DIRECTORY".
+${args.outputDirectory ? `If you need to return files to the human when using the code-interpreter, please save it to the directory path in the environment variable named "OUTPUT_DIRECTORY".` : ""}
 End of Code Interpreter Functions Instructions.
 
-`;
+`
+};
 
-export type CodeInterpreterConfig = {
-    inputDirectory: string;
-    outputDirectory: string;
-}
 export class CodeInterpreterPlugin extends MimirAgentPlugin {
 
-    constructor(private args: CodeInterpreterConfig) {
+    constructor(private args: CodeInterpreterArgs) {
         super();
     }
 
     systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
         return [
-            SystemMessagePromptTemplate.fromTemplate(CODE_INTERPRETER_PROMPT),
+            SystemMessagePromptTemplate.fromTemplate(CODE_INTERPRETER_PROMPT(this.args)),
         ];
     }
 
     async getInputs(): Promise<Record<string, any>> {
+        if (!this.args.inputDirectory) {
+            return {
+                interpreterInputFiles: "",
+            };
+        }
         const files = await fs.readdir(this.args.inputDirectory);
         if (files.length === 0) {
             return {
@@ -50,7 +54,7 @@ export class CodeInterpreterPlugin extends MimirAgentPlugin {
             .map((fileName: string) => `- "${fileName}"`)
             .join("\n");
         return {
-            interpreterInputFiles: `The human has given you access to the following files for you to use with the code interpreter functions. The files can be found inside a directory path saved in the environment variable named "INPUT_DIRECTORY". :\n${bulletedFiles}\n`,
+            interpreterInputFiles: `The human has given you access to the following files for you to use with the code interpreter functions. The files can be found inside a directory path in the environment variable named "INPUT_DIRECTORY". :\n${bulletedFiles}\n`,
         };
     }
 
@@ -68,7 +72,7 @@ class PythonCodeInterpreter extends StructuredTool {
         code: z.string().describe("The python script code to run."),
     });
 
-    constructor(private inputDirectory: string, private outputDirectory: string) {
+    constructor(private inputDirectory?: string, private outputDirectory?: string) {
         super()
     }
 
@@ -76,8 +80,12 @@ class PythonCodeInterpreter extends StructuredTool {
         const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'python-code-interpreter-'));
 
         const scriptPath = path.join(tempDir, 'script.py');
-        await fs.mkdir(this.inputDirectory, { recursive: true });
-        await fs.mkdir(this.outputDirectory, { recursive: true });
+        if (this.inputDirectory) {
+            await fs.mkdir(this.inputDirectory, { recursive: true });
+        }
+        if (this.outputDirectory) {
+            await fs.mkdir(this.outputDirectory, { recursive: true });
+        }
         await fs.writeFile(scriptPath, arg.code);
 
         try {
@@ -107,8 +115,13 @@ class PythonCodeInterpreter extends StructuredTool {
             }
 
             const result = await executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && py ${scriptPath}`);
-            const files = await fs.readdir(this.outputDirectory);
-            const fileList = files.length === 0 ? "" : `The following files were created in the output directory: ${files.map((fileName: string) => `"${fileName}"`).join(" ")}`;
+
+            let fileList = "";
+            if (this.outputDirectory) {
+                const files = await fs.readdir(this.outputDirectory);
+                fileList = files.length === 0 ? "" : `The following files were created in the output directory: ${files.map((fileName: string) => `"${fileName}"`).join(" ")}`;
+            }
+
             return `Exit Code: ${result.exitCode} \n${fileList} \nScript Output:\n${result.output}`
         } catch (e) {
             return "Failed to execute the script." + e;
