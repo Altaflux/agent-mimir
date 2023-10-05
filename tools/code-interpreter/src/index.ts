@@ -87,10 +87,25 @@ class PythonCodeInterpreter extends StructuredTool {
             await fs.appendFile(path.join(tempDir, 'Scripts', 'Activate.ps1'), `\n$Env:INPUT_DIRECTORY = "${this.inputDirectory}"\n$Env:OUTPUT_DIRECTORY = "${this.outputDirectory}"\n`)
 
             const activeScriptCall = process.platform === "win32" ? `activate` : `./activate`;
+
             if (arg?.libraries?.length !== 0) {
-                const libraryList = arg.libraries?.join(" ");
-                const pyInstall = await executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && py -m pip install ${libraryList}`);
+                const libraryInstallationResult = await arg?.libraries?.map(async (libraryName: string) => {
+                    return await executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && py -m pip install ${libraryName}`);
+                }).reduce(async (previousPromise, nextPromise) => {
+                    const library1 = await previousPromise;
+                    const library2 = await nextPromise;
+                    const output = (library1.exitCode !== 0 ? library1.output : '') + (library2.exitCode !== 0 ? library2.output : '');
+                    const exitCode = library1.exitCode !== 0 ? library1.exitCode : library2.exitCode;
+                    return {
+                        exitCode: exitCode,
+                        output: output,
+                    };
+                }, Promise.resolve({ exitCode: 0, output: "" }));
+                if (libraryInstallationResult?.exitCode !== 0) {
+                    console.warn(`Failed to install libraries:\n ${libraryInstallationResult?.output}`);
+                }
             }
+
             const result = await executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && py ${scriptPath}`);
             const files = await fs.readdir(this.outputDirectory);
             const fileList = files.length === 0 ? "" : `The following files were created in the output directory: ${files.map((fileName: string) => `"${fileName}"`).join(" ")}`;
@@ -104,6 +119,8 @@ class PythonCodeInterpreter extends StructuredTool {
     name = "pythonCodeInterpreter";
     description = "Code Interpreter to run a Python 3 script in the human's computer. The input must be the content of the script to execute. The result of this function is the output of the console so you can use print statements to return information to yourself about the results.";
 }
+
+
 
 async function executeShellCommand(command: string) {
     return await new Promise<{

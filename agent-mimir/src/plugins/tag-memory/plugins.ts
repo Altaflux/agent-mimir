@@ -5,6 +5,8 @@ import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prom
 import { TagMemoryManager } from "./index.js";
 import { z } from "zod";
 import { messagesToString } from "../../utils/format.js";
+import { Embeddings } from "langchain/embeddings";
+import { BaseChatModel } from "langchain/chat_models";
 
 export class ManualTagMemoryPlugin extends MimirAgentPlugin {
 
@@ -61,12 +63,16 @@ class TagRetrieverTool extends StructuredTool {
 
 
 export class AutomaticTagMemoryPlugin extends MimirAgentPlugin {
-    constructor(private manager: TagMemoryManager) {
+
+    private tagManager: TagMemoryManager;
+
+    constructor(embeddings: Embeddings, model: BaseChatModel) {
         super();
+        this.tagManager = new TagMemoryManager(embeddings, model);
     }
 
     async memoryCompactionCallback(newLines: BaseMessage[], previousConversation: BaseMessage[]): Promise<void> {
-        await this.manager.extractConversationInformation(newLines, previousConversation);
+        await this.tagManager.extractConversationInformation(newLines, previousConversation);
     }
 
     systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
@@ -81,16 +87,16 @@ export class AutomaticTagMemoryPlugin extends MimirAgentPlugin {
         }
         const memoryVariables = await context.memory.loadMemoryVariables({});
         const messages = memoryVariables[context.memory.memoryKeys[0] ?? ""];
-        if (this.manager.getAllTags().length === 0) {
+        if (this.tagManager.getAllTags().length === 0) {
             return {
                 recalledMemories: "No memories yet.",
             };
         }
         const formattedMessages = context.memory.returnMessages ? messagesToString(messages as BaseMessage[], "AI", "Human") : messages as string;
-        const relevantTags = (await this.manager.findRelevantTags(formattedMessages, context.input.message)).slice(0, 3);
+        const relevantTags = (await this.tagManager.findRelevantTags(formattedMessages, context.input.message)).slice(0, 3);
 
         const memoriesByTag = await Promise.all(relevantTags.map(async (tag) => {
-            const memories = await this.manager.rememberTagFacts(tag);
+            const memories = await this.tagManager.rememberTagFacts(tag);
             return `Topic or context: ${tag}\n-${memories.join("\n-")}`
         }));
 

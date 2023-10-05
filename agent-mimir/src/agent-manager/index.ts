@@ -5,13 +5,11 @@ import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 
 import { Tool } from "langchain/tools";
 import { WindowedConversationSummaryMemory } from '../memory/windowed-memory/index.js';
-import { ScratchPadPlugin } from '../plugins/scratch-pad.js';
 import { EndTool, TalkToUserTool } from '../tools/core.js';
 import { SteppedAgentExecutor } from '../executor/index.js';
 import { ChatMemoryChain } from '../memory/transactional-memory-chain.js';
 
 import { BaseChatModel } from 'langchain/chat_models';
-import { BaseLanguageModel } from "langchain/base_language";
 import { Agent, MimirAgentPlugin } from '../schema.js';
 
 import { initializeAgent } from '../agent/index.js'
@@ -20,7 +18,6 @@ import { DEFAULT_CONSTITUTION } from '../agent/prompt.js';
 import { TimePlugin } from '../plugins/time.js';
 import { HelpersPlugin } from '../plugins/helpers.js';
 import { MimirAgentTypes } from '../agent/index.js';
-import { TagMemoryManager } from '../plugins/tag-memory/index.js';
 import { AutomaticTagMemoryPlugin } from '../plugins/tag-memory/plugins.js';
 import { CompactingConversationSummaryMemory } from '../memory/compacting-memory/index.js';
 import { ChatMessageHistory } from 'langchain/memory';
@@ -55,7 +52,7 @@ export class AgentManager {
     public async createAgent(config: CreateAgentOptions): Promise<Agent> {
 
 
-    const shortName = config.name ?? uniqueNamesGenerator({
+        const shortName = config.name ?? uniqueNamesGenerator({
             dictionaries: [names, names],
             length: 2
         });
@@ -63,8 +60,8 @@ export class AgentManager {
         const model = config.model;
 
         const summarizingModel = config.summaryModel ?? config.model;
-        const tagManager = new TagMemoryManager(embeddings, config.summaryModel ?? config.model);
-        const tagPlugin = new AutomaticTagMemoryPlugin(tagManager);
+
+        const tagPlugin = new AutomaticTagMemoryPlugin(embeddings, config.summaryModel ?? config.model);
 
 
         const taskCompleteCommandName = "taskComplete";
@@ -105,11 +102,8 @@ export class AgentManager {
             maxWindowSize: config.chatHistory?.maxChatHistoryWindow ?? 6
         });
 
-        const scratchPadPlugin = new ScratchPadPlugin(10);
         const timePlugin = new TimePlugin();
-        const defaultPlugins = [scratchPadPlugin, timePlugin, tagPlugin, ...agentCommunicationPlugin, ...config.plugins ?? []] as MimirAgentPlugin[];
-        //const defaultPlugins = [scratchPadPlugin, timePlugin,  ...agentCommunicationPlugin, ...config.plugins ?? []] as MimirAgentPlugin[];
-
+        const defaultPlugins = [timePlugin, tagPlugin, ...agentCommunicationPlugin, ...config.plugins ?? []] as MimirAgentPlugin[];
 
         const talkToUserTool = new TalkToUserTool();
 
@@ -147,7 +141,7 @@ export class AgentManager {
             agentName: shortName,
             memory: memory,
             agent: agent,
-            tools: [...allPlugins.map((plugin)=> plugin.tools()).flat(), talkToUserTool],
+            tools: [...allPlugins.map((plugin) => plugin.tools()).flat(), talkToUserTool],
             verbose: false,
             alwaysAllowTools: ['talkToUser'],
         });

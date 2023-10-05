@@ -1,7 +1,7 @@
 import { AttributeDescriptor } from "./instruction-mapper.js";
 
 export const IDENTIFICATION = (name: string, jobDescription: string) => {
-    return `Your name is ${name}, a large language model. Carefully heed the user's instructions. I want you to act as ${jobDescription}.\n\n`; 
+    return `You are a helpful assistant, an AI large language model. Carefully heed the user's instructions. I want you to act as ${jobDescription}.\n\n`; 
 }
 export const DEFAULT_CONSTITUTION = `
 PERFORMANCE EVALUATION:
