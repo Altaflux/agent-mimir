@@ -3,7 +3,7 @@
   "description": "Serper search tool for langchain",
   "main": "dist/index.js",
   "scripts": {
-    "build": "rimraf dist/ && tsc -p tsconfig.json "
+    "build": "tsc -p tsconfig.json "
   },
   "author": "Altaflux",
   "keywords": [

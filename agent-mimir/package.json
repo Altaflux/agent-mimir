@@ -37,7 +37,7 @@
     }
   },
   "scripts": {
-    "build": "rimraf ./dist && npm run build:esm ",
+    "build": "npm run build:esm ",
     "build:esm": "tsc --outDir dist/ ",
     "build:cjs": "tsc --outDir dist-cjs/ -p tsconfig.cjs.json",
     "release": "npm run build && release-it --only-version "
