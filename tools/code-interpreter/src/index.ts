@@ -20,7 +20,7 @@ const CODE_INTERPRETER_PROMPT = function (args: CodeInterpreterArgs) {
 Code Interpreter Functions Instructions:
 {interpreterInputFiles}
 
-${args.outputDirectory ? `If you need to return files to the human when using the code-interpreter, please save it to the directory path in the environment variable named "OUTPUT_DIRECTORY".` : ""}
+${args.outputDirectory ? `If you are given the task to create a file or they ask you to save it then save the files inside the directory who's path is stored in the OS environment variable named "OUTPUT_DIRECTORY" like \"os.getenv('OUTPUT_DIRECTORY')\".` : ""}
 End of Code Interpreter Functions Instructions.
 
 `
@@ -54,7 +54,7 @@ export class CodeInterpreterPlugin extends MimirAgentPlugin {
             .map((fileName: string) => `- "${fileName}"`)
             .join("\n");
         return {
-            interpreterInputFiles: `The human has given you access to the following files for you to use with the code interpreter functions. The files can be found inside a directory path in the environment variable named "INPUT_DIRECTORY". :\n${bulletedFiles}\n`,
+            interpreterInputFiles: `You have been given access to the following files for you to use with the code interpreter functions. The files can be found inside a directory path stored in the OS environment variable named "INPUT_DIRECTORY" accessible like \"os.getenv('INPUT_DIRECTORY')\". :\n${bulletedFiles}\n`,
         };
     }
 
@@ -68,12 +68,18 @@ export class CodeInterpreterPlugin extends MimirAgentPlugin {
 class PythonCodeInterpreter extends StructuredTool {
 
     schema = z.object({
-        libraries: z.array(z.string()).optional().describe("The list of external libraries to download which are required by the script."),
+        externalLibraries: z.array(z.string()).optional().describe("The list of external libraries to download which are required by the script."),
         code: z.string().describe("The python script code to run."),
     });
+    description: string;
 
     constructor(private inputDirectory?: string, private outputDirectory?: string) {
         super()
+
+        this.description = `Code Interpreter to run a Python 3 script in the human's ${process.platform} computer. 
+The input must be the content of the script to execute. The result of this function is the output of the console so you can use print statements to return information to yourself about the results. 
+If you are given the task to create a file or they ask you to save it then save the files inside the directory who's path is stored in the OS environment variable named "OUTPUT_DIRECTORY" accessible like \"os.getenv('OUTPUT_DIRECTORY')\". ` ;
+
     }
 
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<string> {
@@ -85,40 +91,49 @@ class PythonCodeInterpreter extends StructuredTool {
         }
         if (this.outputDirectory) {
             await fs.mkdir(this.outputDirectory, { recursive: true });
+
         }
         await fs.writeFile(scriptPath, arg.code);
 
         try {
+            console.debug(`Creating python virtual environment in ${tempDir} ...`);
             const pyenv = await executeShellCommand(`cd ${tempDir} && py -m venv .`);
+            if (pyenv.exitCode !== 0) {
+                throw new Error(`Failed to create python virtual environment: ${pyenv.output}`);
+            }
             await fs.appendFile(path.join(tempDir, 'Scripts', 'activate.bat'), `\nSET INPUT_DIRECTORY=${this.inputDirectory}\nSET OUTPUT_DIRECTORY=${this.outputDirectory}\n`);
             await fs.appendFile(path.join(tempDir, 'Scripts', 'activate'), `\nexport INPUT_DIRECTORY=${this.inputDirectory}\nexport OUTPUT_DIRECTORY=${this.outputDirectory}\n`);
             await fs.appendFile(path.join(tempDir, 'Scripts', 'Activate.ps1'), `\n$Env:INPUT_DIRECTORY = "${this.inputDirectory}"\n$Env:OUTPUT_DIRECTORY = "${this.outputDirectory}"\n`)
 
             const activeScriptCall = process.platform === "win32" ? `activate` : `./activate`;
 
-            if (arg?.libraries?.length !== 0) {
-                const libraryInstallationResult = await arg?.libraries?.map(async (libraryName: string) => {
-                    return await executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && py -m pip install ${libraryName}`);
-                }).reduce(async (previousPromise, nextPromise) => {
-                    const library1 = await previousPromise;
-                    const library2 = await nextPromise;
-                    const output = (library1.exitCode !== 0 ? library1.output : '') + (library2.exitCode !== 0 ? library2.output : '');
-                    const exitCode = library1.exitCode !== 0 ? library1.exitCode : library2.exitCode;
-                    return {
-                        exitCode: exitCode,
-                        output: output,
-                    };
-                }, Promise.resolve({ exitCode: 0, output: "" }));
-                if (libraryInstallationResult?.exitCode !== 0) {
-                    console.warn(`Failed to install libraries:\n ${libraryInstallationResult?.output}`);
+            const beforeExecutionOutputFileList = this.outputDirectory ? await fs.readdir(this.outputDirectory) : [];
+
+            let libraryInstallationResult = {
+                exitCode: 0,
+                output: "",
+            }
+            for (const libraryName of arg?.externalLibraries ?? []) {
+                console.debug(`Installing library ${libraryName}...`);
+                const installationResult = await executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && py -m pip install ${libraryName}`);
+                if (installationResult.exitCode !== 0) {
+                    libraryInstallationResult = {
+                        exitCode: installationResult.exitCode,
+                        output: installationResult.output + '\n------\n' + libraryInstallationResult.output,
+                    }
                 }
+            }
+            if (libraryInstallationResult?.exitCode !== 0) {
+                console.warn(`Failed to install libraries:\n ${libraryInstallationResult?.output}`);
             }
 
             const result = await executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && py ${scriptPath}`);
 
             let fileList = "";
             if (this.outputDirectory) {
-                const files = await fs.readdir(this.outputDirectory);
+                const files = (await fs.readdir(this.outputDirectory))
+                    .filter(item => !beforeExecutionOutputFileList.includes(item));
+
                 fileList = files.length === 0 ? "" : `The following files were created in the output directory: ${files.map((fileName: string) => `"${fileName}"`).join(" ")}`;
             }
 
@@ -130,7 +145,7 @@ class PythonCodeInterpreter extends StructuredTool {
         }
     }
     name = "pythonCodeInterpreter";
-    description = "Code Interpreter to run a Python 3 script in the human's computer. The input must be the content of the script to execute. The result of this function is the output of the console so you can use print statements to return information to yourself about the results.";
+
 }
 
 
