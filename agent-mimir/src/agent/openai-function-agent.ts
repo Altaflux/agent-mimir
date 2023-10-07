@@ -32,7 +32,7 @@ export class ChatConversationalAgentOutputParser extends AgentActionOutputParser
         }
 
         if (this.talkToUserTool && !out1.functionCall?.name) {
-            const messageToUser = out.messageToUser && out.messageToUser.length > 1 ? out.messageToUser : input;
+            const messageToUser = out.messageToUser && out.messageToUser.length > 1 ? out.messageToUser : out1.text;
             out1.functionCall = {
                 name: this.talkToUserTool,
                 arguments: JSON.stringify({ messageToUser: messageToUser })
