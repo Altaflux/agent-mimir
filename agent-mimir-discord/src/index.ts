@@ -122,7 +122,7 @@ export const run = async () => {
         if (msg.author.bot) return;
         const response = await mainAgent.agent.call({ continuousMode: true, input: msg.content });
         await msg.reply(response.output);
-        console.log(response.output);
+        //console.log(response.output);
     });
     client.on('interactionCreate', async interaction => {
         if (!interaction.isChatInputCommand()) return;

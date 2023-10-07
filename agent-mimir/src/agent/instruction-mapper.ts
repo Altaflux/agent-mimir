@@ -18,13 +18,13 @@ export class ResponseFieldMapper<T = any> {
 
     createFieldInstructions(): string {
         const fields = this.attributeSetters.map((attributeSetter) => {
-            return `-${attributeSetter.name}: (Type: ${attributeSetter.attributeType} ) \\ ${attributeSetter.description}`
+            return `- ${attributeSetter.name}: (Type: ${attributeSetter.attributeType} ) \\ ${attributeSetter.description}`
         }).join('\n');
 
         const examples = this.attributeSetters
             .filter((attributeSetter) => attributeSetter.example)
             .map((attributeSetter) => {
-                return `-${attributeSetter.name}: ${attributeSetter.example}`
+                return `- ${attributeSetter.name}: ${attributeSetter.example}`
             }).join('\n');
 
         const results = `${responseHeader}\n${fields}\n\nExample Response:\n--------------------\n${examples}`;
@@ -35,7 +35,7 @@ export class ResponseFieldMapper<T = any> {
         const responseParts = this.attributeSetters.map((attributeSetter) => `-${attributeSetter.name}`).join('|');
         const mappings = this.attributeSetters.map((attributeSetter) => {
             return {
-                regex: new RegExp(`(?<=-${attributeSetter.name}:\\s)([\\s\\S]*?)` + '(?=\\s' + responseParts + "|$)"),
+                regex: new RegExp(`(?<=- ${attributeSetter.name}:\\s)([\\s\\S]*?)` + '(?=\\s' + responseParts + "|$)"),
                 variableName: attributeSetter.variableName,
             }
         });
