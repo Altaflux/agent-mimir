@@ -22,8 +22,6 @@ export type WindowedConversationSummaryMemoryInput = BaseChatMemoryInput & {
 
 export class CompactingConversationSummaryMemory extends BaseChatMemory {
 
-    compactedMessagesCount: number = 0;
-
     memoryKey = "history";
 
     humanPrefix = "Human";
@@ -32,7 +30,7 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
 
     tokenLimit = 4000;
 
-    conversationTokenThreshold = 100;
+    conversationTokenThreshold = 75;
 
     llm: BaseLanguageModel;
 
@@ -104,7 +102,7 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
     async compactIfNeeded() {
         const newMessages = await this.chatHistory.getMessages();
         const totalMessages = [...newMessages];
-
+        const numberOfAlreadyCompactedMessages = totalMessages.filter(e => e.additional_kwargs["compacted"]).length;
         const tokenEncode = (messages: BaseMessage[]) => encode(messages.map(e => e.content).join("\n"));
 
         if (tokenEncode(totalMessages).length > this.tokenLimit) {
@@ -117,27 +115,25 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
                 const aiMessage = totalMessages.shift()!;
                 newMessagesToSummarize.push(humanMessage, aiMessage);
 
-                if (newMessagesToSummarize.length > this.compactedMessagesCount) {
+                if (newMessagesToSummarize.length > numberOfAlreadyCompactedMessages) {
                     newMessagesToCompact.push(humanMessage, aiMessage);
                 }
             }
             const leftOverNewerMessages = [...totalMessages];
 
             if (newMessagesToCompact.length > 0) {
-                await this.compactionCallback(newMessagesToCompact, newMessages.slice(0, this.compactedMessagesCount));
+                await this.compactionCallback(newMessagesToCompact, newMessages.slice(0, numberOfAlreadyCompactedMessages));
             }
             const compactedMessages = await messageCompact(newMessagesToSummarize, this.llm);
             await this.chatHistory.clear();
             for (const leftOverNewerMessage of [...compactedMessages, ...leftOverNewerMessages]) {
                 await this.chatHistory.addMessage(leftOverNewerMessage);
             }
-            this.compactedMessagesCount = newMessagesToCompact.length;
         }
     }
 
     async clear() {
         await super.clear();
-        this.compactedMessagesCount = 0;
     }
 }
 
@@ -152,9 +148,13 @@ async function messageCompact(messages: BaseMessage[], llm: BaseLanguageModel) {
     const newMessages = rawMessages.map(
         (message) => {
             if (message.name === "Human") {
-                return new HumanMessage(message.message);
+                return new HumanMessage(message.message, {
+                    compacted: true,
+                });
             } else {
-                return new AIMessage(message.message);
+                return new AIMessage(message.message, {
+                    compacted: true,
+                });
             }
         }
     );
