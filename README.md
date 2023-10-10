@@ -61,7 +61,7 @@ module.exports = async function() {
     //Plugins and tools can be loaded as follows:
     const Serper = (await import('@agent-mimir/serper-search')).Serper;
     const WebBrowserToolKit = (await import('@agent-mimir/selenium-browser')).WebBrowserToolKit;
-    const CodeInterpreterPlugin = (await import('@agent-mimir/code-interpreter')).CodeInterpreterPlugin;
+    const CodeInterpreterPluginFactory = (await import('@agent-mimir/code-interpreter')).CodeInterpreterPluginFactory;
     const webToolKit = new WebBrowserToolKit({ browserConfig: { browserName: "chrome" } }, taskModel, embeddings);
 
     return {
@@ -82,10 +82,7 @@ module.exports = async function() {
                         maxTaskHistoryWindow: 6, //Maximum size of the task chat before summarizing. 6 by default
                     },
                     plugins: [
-                            new CodeInterpreterPlugin({
-                                inputDirectory: "C:\\AI\\interpreter\\in",
-                                outputDirectory: "C:\\AI\\interpreter\\out"
-                            }),
+                            new CodeInterpreterPlugin(),
                     ],
                     tools: [ //Tools available to the agent.
                         ...webToolKit.tools,
@@ -146,14 +143,11 @@ You can optionally configure an input and output directory that the agent can us
     });
 
     module.exports = async function() {
-        const CodeInterpreterPlugin = (await import('@agent-mimir/code-interpreter')).CodeInterpreterPlugin;
+        const CodeInterpreterPluginFactory = (await import('@agent-mimir/code-interpreter')).CodeInterpreterPluginFactory;
         //...
         //Add to plugins:
         plugins: [
-                new CodeInterpreterPlugin({
-                    inputDirectory: "C:\\AI\\interpreter\\in",
-                    outputDirectory: "C:\\AI\\interpreter\\out"
-                }),
+                new CodeInterpreterPlugin(),
             ],
     }
 ```

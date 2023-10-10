@@ -8,7 +8,7 @@ import { LLMChain } from "langchain/chains";
 import { BaseLLMOutputParser, BaseOutputParser } from "langchain/schema/output_parser";
 import { BaseLanguageModel } from "langchain/base_language";
 import { HumanMessage } from "langchain/schema";
-import { AgentContext, MimirHumanReplyMessage } from "../schema.js";
+import { AgentContext, FILES_TO_SEND_FIELD, MimirHumanReplyMessage, WorkspaceManager } from "../schema.js";
 
 
 const BAD_MESSAGE_TEXT = `I could not understand that your response, please rememeber to use the correct response format.`;
@@ -50,6 +50,7 @@ export class MimirAgent extends BaseSingleActionAgent {
     defaultInputs?: Record<string, any>;
     plugins: InternalAgentPlugin[];
     name: string;
+    workspaceManager: WorkspaceManager;
     messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>;
 
     constructor(
@@ -59,6 +60,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         outputParser: BaseOutputParser<AgentAction | AgentFinish>,
         messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
         name: string,
+        workspaceManager: WorkspaceManager,
         plugins?: InternalAgentPlugin[],
         defaultInputs?: Record<string, any>,
     ) {
@@ -71,6 +73,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         this.defaultInputs = defaultInputs;
         this.plugins = plugins ?? [];
         this.name = name;
+        this.workspaceManager = workspaceManager;
 
     }
 
@@ -99,6 +102,13 @@ export class MimirAgent extends BaseSingleActionAgent {
         inputs: ChainValues,
         callbackManager?: CallbackManager,
     ): Promise<AgentAction | AgentFinish> {
+
+        //TODO Verify this is correct
+        if (inputs[FILES_TO_SEND_FIELD] && inputs[FILES_TO_SEND_FIELD] instanceof Array){
+            for (const file of inputs[FILES_TO_SEND_FIELD]){
+                await this.workspaceManager.loadFileToWorkspace(file.fileName, file.url);
+            }
+        }
 
         const nextMessage = this.getMessageForAI(steps, inputs);
         const context: AgentContext = {
@@ -212,6 +222,7 @@ export class MimirAgent extends BaseSingleActionAgent {
             outputParser,
             messageGenerator,
             args.name,
+            args.workspaceManager,
             args.plugins,
             args.defaultInputs
         );
@@ -234,6 +245,8 @@ export type CreatePromptArgs = {
     plugins: InternalAgentPlugin[];
 
     name: string;
+
+    workspaceManager: WorkspaceManager;
 
 };
 

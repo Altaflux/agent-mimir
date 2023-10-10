@@ -10,7 +10,7 @@ import { SteppedAgentExecutor } from '../executor/index.js';
 import { ChatMemoryChain } from '../memory/transactional-memory-chain.js';
 
 import { BaseChatModel } from 'langchain/chat_models';
-import { Agent, MimirAgentPlugin } from '../schema.js';
+import { Agent, MimirAgentPlugin,  MimirPluginFactory, WorkspaceManagerFactory } from '../schema.js';
 
 import { initializeAgent } from '../agent/index.js'
 import { LangchainToolWrapper } from '../schema.js';
@@ -21,6 +21,8 @@ import { MimirAgentTypes } from '../agent/index.js';
 import { AutomaticTagMemoryPlugin } from '../plugins/tag-memory/plugins.js';
 import { CompactingConversationSummaryMemory } from '../memory/compacting-memory/index.js';
 import { ChatMessageHistory } from 'langchain/memory';
+import path from "path";
+
 
 export type CreateAgentOptions = {
     profession: string,
@@ -28,7 +30,7 @@ export type CreateAgentOptions = {
     agentType?: MimirAgentTypes,
     name?: string,
     model: BaseChatModel,
-    plugins?: MimirAgentPlugin[],
+    plugins?: MimirPluginFactory[],
     summaryModel?: BaseChatModel,
     allowAgentCreation?: boolean,
     constitution?: string,
@@ -38,11 +40,17 @@ export type CreateAgentOptions = {
         maxTaskHistoryWindow?: number,
     }
     tools?: Tool[],
+    
+}
+
+export type ManagerConfig = {
+
+    workspaceManagerFactory: WorkspaceManagerFactory
 }
 export class AgentManager {
 
     private map: Map<string, Agent> = new Map();
-    public constructor() { }
+    public constructor(private managerConfig: ManagerConfig) { }
 
     public async createAgentFromChain(config: Agent): Promise<Agent> {
         this.map.set(config.name, config);
@@ -56,6 +64,7 @@ export class AgentManager {
             dictionaries: [names, names],
             length: 2
         });
+
         const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.AGENT_OPENAI_API_KEY });
         const model = config.model;
 
@@ -103,7 +112,10 @@ export class AgentManager {
         });
 
         const timePlugin = new TimePlugin();
-        const defaultPlugins = [timePlugin, tagPlugin, ...agentCommunicationPlugin, ...config.plugins ?? []] as MimirAgentPlugin[];
+
+        const workspace = await this.managerConfig.workspaceManagerFactory(shortName);
+        const configurablePlugins = config.plugins?.map(plugin => plugin.create({ workingDirectory: workspace.workingDirectory, agentName: shortName }));
+        const defaultPlugins = [timePlugin, tagPlugin, ...agentCommunicationPlugin, ...configurablePlugins ?? []] as MimirAgentPlugin[];
 
         const talkToUserTool = new TalkToUserTool();
 
@@ -116,6 +128,7 @@ export class AgentManager {
             description: config.description,
             taskCompleteCommandName: taskCompleteCommandName,
             talkToUserTool: talkToUserTool,
+            workspaceManager: workspace,
             plugins: allPlugins,
             constitution: config.constitution ?? DEFAULT_CONSTITUTION,
             chatMemory: new ChatMessageHistory(),
@@ -159,6 +172,10 @@ export class AgentManager {
             }
         );
 
+        for (const plugin of allPlugins) {
+            await plugin.init();
+        }
+
         this.map.set(shortName, { name: shortName, description: config.description, agent: chatMemoryChain });
         return this.map.get(shortName)!;
     }
@@ -170,6 +187,6 @@ export class AgentManager {
 
     public getAllAgents(): Agent[] {
         return Array.from(this.map.values())
-
     }
+
 }

@@ -1,13 +1,14 @@
 import { MimirAgentTypes } from "agent-mimir/agent";
 import { AgentManager } from "agent-mimir/agent-manager"
-import { MimirAgentPlugin } from "agent-mimir/schema";
+import { MimirPluginFactory, WorkspaceManager } from "agent-mimir/schema";
 import chalk from "chalk";
 import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
 import { Tool } from "langchain/tools";
 import { BaseChain } from "langchain/chains";
 import { chatWithAgent } from "./chat.js";
-import fs from "fs";
+import { promises as fs } from 'fs';
+import os from 'os';
 import path from "path";
 
 export type AgentDefinition = {
@@ -21,7 +22,7 @@ export type AgentDefinition = {
         summaryModel: BaseChatModel;
         taskModel?: BaseLanguageModel;
         constitution?: string;
-        plugins?: MimirAgentPlugin[];
+        plugins?: MimirPluginFactory[];
         chatHistory?: {
             maxChatHistoryWindow?: number,
             maxTaskHistoryWindow?: number,
@@ -36,11 +37,11 @@ type AgentMimirConfig = {
     agents: Record<string, AgentDefinition>;
     continuousMode?: boolean;
 }
-
 const getConfig = async () => {
     if (process.env.MIMIR_CFG_PATH) {
         let cfgFile = path.join(process.env.MIMIR_CFG_PATH, 'mimir-cfg.js');
-        if (fs.existsSync(cfgFile)) {
+        const configFileExists = await fs.access(cfgFile, fs.constants.F_OK).then(() => true).catch(() => false);
+        if (configFileExists) {
             console.log(chalk.green(`Loading configuration file`));
             const configFunction: Promise<AgentMimirConfig> | AgentMimirConfig = (await import(`file://${cfgFile}`)).default()
             return await Promise.resolve(configFunction);
@@ -50,10 +51,37 @@ const getConfig = async () => {
     return (await import("./default-config.js")).default();
 };
 
+
+class FileSystemWorkspaceManager implements WorkspaceManager {
+
+    workingDirectory: string;
+
+    constructor(workDirectory: string) {
+      
+        this.workingDirectory = workDirectory;
+    }
+
+    async listFiles(): Promise<string[]> {
+        const files = await fs.readdir(this.workingDirectory);
+        return files;
+    }
+    async loadFileToWorkspace(fileName: string, url: string): Promise<void> {
+        const destination = path.join(this.workingDirectory, fileName);
+        await fs.copyFile(url, destination);
+        console.debug(`Copied file ${url} to ${destination}`);
+    }
+}
 export const run = async () => {
 
     const agentConfig: AgentMimirConfig = await getConfig();
-    const agentManager = new AgentManager();
+  
+    const agentManager = new AgentManager({
+        workspaceManagerFactory: async (agent) => {
+            const tempDir = path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-cli-')), "workspace");
+            await fs.mkdir(tempDir, { recursive: true });
+            return new FileSystemWorkspaceManager(tempDir)!;
+        }
+    });
     const continousMode = agentConfig.continuousMode ?? false;
 
     const agents = await Promise.all(Object.entries(agentConfig.agents).map(async ([agentName, agentDefinition]) => {

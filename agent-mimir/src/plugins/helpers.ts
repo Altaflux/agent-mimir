@@ -6,15 +6,13 @@ import { z } from "zod";
 import { AgentContext, MimirAgentPlugin } from "../schema.js";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
 
-
-
 export class TalkToHelper extends StructuredTool {
 
     schema = z.object({
         helperName: z.string().describe("The name of the helper you want to talk to and the message you want to send them."),
         message: z.string().describe("The message to the helper, be as detailed as possible."),
     })
-    constructor(private helperSingleton: AgentManager) {
+    constructor(private helperSingleton: AgentManager, private agentName:string) {
         super();
     }
     protected async _call(arg: z.input<this["schema"]>): Promise<string> {
@@ -98,7 +96,7 @@ export class HelpersPlugin extends MimirAgentPlugin {
 
 
     tools(): StructuredTool[] {
-        let tools: StructuredTool[] = [new TalkToHelper(this.helperSingleton)];
+        let tools: StructuredTool[] = [new TalkToHelper(this.helperSingleton, this.name)];
         if (this.allowAgentCreation) {
             tools.push(new CreateHelper(this.helperSingleton, this.model));
         }

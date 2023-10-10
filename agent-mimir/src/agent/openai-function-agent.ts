@@ -170,6 +170,7 @@ export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
         defaultInputs: {
             tools: args.plugins.map(plugin => plugin.tools()).flat(),
         },
+        workspaceManager: args.workspaceManager,
         plugins: internalPlugins,
         name: args.name,
     });
