@@ -1,5 +1,6 @@
 import { StructuredTool } from "langchain/tools";
 import { z } from "zod";
+import { AgentUserMessage } from "../schema.js";
 
 export class TalkToUserTool extends StructuredTool {
     schema = z.object({
@@ -10,7 +11,11 @@ export class TalkToUserTool extends StructuredTool {
     returnDirect: boolean = true;
 
     protected async _call(arg: z.input<this["schema"]>): Promise<string> {
-        return JSON.stringify(arg);
+        const result: AgentUserMessage = {
+            message: arg.messageToSend,
+            sharedFiles: arg.workspaceFilesToShare || [],
+        }
+        return JSON.stringify(result);
     }
 
     name: string = "respondBack";
@@ -32,6 +37,10 @@ export class EndTool extends StructuredTool {
     }
 
     protected async _call(arg: z.input<this["schema"]>): Promise<string> {
-        return arg.messageToSend;
+        const result: AgentUserMessage = {
+            message: arg.messageToSend,
+            sharedFiles: [],
+        }
+        return JSON.stringify(result);
     }
 }

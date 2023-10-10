@@ -176,7 +176,7 @@ export class AgentManager {
             await plugin.init();
         }
 
-        this.map.set(shortName, { name: shortName, description: config.description, agent: chatMemoryChain });
+        this.map.set(shortName, { name: shortName, description: config.description, agent: chatMemoryChain, workspace: workspace });
         return this.map.get(shortName)!;
     }
 

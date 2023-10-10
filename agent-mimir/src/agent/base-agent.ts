@@ -92,7 +92,8 @@ export class MimirAgent extends BaseSingleActionAgent {
         //This has to match the input of the Finish Tool.
         return {
             complete: _returnValues.complete ?? false,
-            output: _returnValues.output.messageToSend ?? _returnValues.output,
+            //TODO VERIFY IF THIS IS CORRECT
+            output: _returnValues.output.message ?? _returnValues.output,
         };
     }
 
@@ -102,7 +103,6 @@ export class MimirAgent extends BaseSingleActionAgent {
         callbackManager?: CallbackManager,
     ): Promise<AgentAction | AgentFinish> {
 
-        //TODO Verify this is correct
         if (inputs[FILES_TO_SEND_FIELD] && inputs[FILES_TO_SEND_FIELD] instanceof Array){
             for (const file of inputs[FILES_TO_SEND_FIELD]){
                 await this.workspaceManager.loadFileToWorkspace(file.fileName, file.url);

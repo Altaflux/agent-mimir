@@ -57,7 +57,7 @@ class FileSystemWorkspaceManager implements WorkspaceManager {
     workingDirectory: string;
 
     constructor(workDirectory: string) {
-      
+
         this.workingDirectory = workDirectory;
     }
 
@@ -70,11 +70,15 @@ class FileSystemWorkspaceManager implements WorkspaceManager {
         await fs.copyFile(url, destination);
         console.debug(`Copied file ${url} to ${destination}`);
     }
+    async getUrlForFile(fileName: string): Promise<string> {
+        const file = path.join(this.workingDirectory, fileName);
+        return file;
+    }
 }
 export const run = async () => {
 
     const agentConfig: AgentMimirConfig = await getConfig();
-  
+
     const agentManager = new AgentManager({
         workspaceManagerFactory: async (agent) => {
             const tempDir = path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-cli-')), "workspace");

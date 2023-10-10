@@ -56,6 +56,11 @@ class FileSystemWorkspaceManager implements WorkspaceManager {
         await fs.copyFile(url, path.join(this.workingDirectory, destination));
         console.debug(`Copied file ${url} to ${destination}`);
     }
+
+    async getUrlForFile(fileName: string): Promise<string> {
+        const file = path.join(this.workingDirectory, fileName);
+        return file;
+    }
 }
 const getConfig = async () => {
     if (process.env.MIMIR_CFG_PATH) {

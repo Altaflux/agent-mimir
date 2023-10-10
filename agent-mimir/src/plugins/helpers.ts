@@ -3,7 +3,7 @@ import { StructuredTool } from "langchain/tools";
 import { AgentManager } from "../agent-manager/index.js";
 import { BaseChatModel } from "langchain/chat_models";
 import { z } from "zod";
-import { AgentContext, MimirAgentPlugin } from "../schema.js";
+import { AgentContext, AgentUserMessage, MimirAgentPlugin } from "../schema.js";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
 
 export class TalkToHelper extends StructuredTool {
@@ -12,7 +12,7 @@ export class TalkToHelper extends StructuredTool {
         helperName: z.string().describe("The name of the helper you want to talk to and the message you want to send them."),
         message: z.string().describe("The message to the helper, be as detailed as possible."),
     })
-    constructor(private helperSingleton: AgentManager, private agentName:string) {
+    constructor(private helperSingleton: AgentManager, private agentName: string) {
         super();
     }
     protected async _call(arg: z.input<this["schema"]>): Promise<string> {
@@ -21,8 +21,17 @@ export class TalkToHelper extends StructuredTool {
         if (!helper) {
             return `There is no helper named ${helperName}, create one with the \`createHelper\` tool.`
         }
-        const response = (await helper.agent.call({ input: message }))
-        return `Response from ${helper.name}: ${response.output}`;
+        const response = (await helper.agent.call({ input: message }));
+        const agentUserMessage: AgentUserMessage = JSON.parse(response.output);
+
+        for (const file of agentUserMessage.sharedFiles ?? []) {
+            const fileUrl = await helper.workspace.getUrlForFile(file);
+            const self = this.helperSingleton.getAgent(this.agentName);
+            await self?.workspace.loadFileToWorkspace(file, fileUrl);
+            console.debug(`Loaded file ${file} from ${fileUrl} into ${self?.workspace.workingDirectory}`);
+        }
+
+        return `Response from ${helper.name}: ${agentUserMessage.message}`;
     }
     name: string = "talkToHelper";
     description: string = `Talk to a helper. If a helper responds that it will do a task ask them again to complete the task. `;

@@ -26,12 +26,14 @@ export type Agent = {
     name: string, 
     description: string, 
     agent: BaseChain,
+    workspace: WorkspaceManager,
 };
 
 
 export type WorkspaceManager = {
     listFiles(): Promise<string[]>,
     loadFileToWorkspace(fileName: string,url: string): Promise<void>,
+    getUrlForFile(fileName: string): Promise<string>,
     workingDirectory: string,
 }
 
@@ -117,3 +119,8 @@ export type MimirHumanReplyMessage = {
 }
 
 export type MemoryCompactionCallback = (newMessage: BaseMessage[], previousConversation: BaseMessage[]) => Promise<void>;
+
+export type AgentUserMessage = {
+    message: string,
+    sharedFiles?: string[],
+}
