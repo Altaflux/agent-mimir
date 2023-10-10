@@ -74,7 +74,6 @@ export class MimirAgent extends BaseSingleActionAgent {
         this.plugins = plugins ?? [];
         this.name = name;
         this.workspaceManager = workspaceManager;
-
     }
 
     get inputKeys(): string[] {
@@ -93,7 +92,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         //This has to match the input of the Finish Tool.
         return {
             complete: _returnValues.complete ?? false,
-            output: _returnValues.output.messageToUser ?? _returnValues.output,
+            output: _returnValues.output.messageToSend ?? _returnValues.output,
         };
     }
 

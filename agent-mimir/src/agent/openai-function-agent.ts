@@ -14,7 +14,7 @@ import { callJsonRepair } from "../utils/json.js";
 
 type AIMessageType = {
 
-    messageToUser?: string,
+    messageToSend?: string,
 }
 export class ChatConversationalAgentOutputParser extends AgentActionOutputParser {
 
@@ -26,18 +26,7 @@ export class ChatConversationalAgentOutputParser extends AgentActionOutputParser
 
     async parse(input: string): Promise<AgentAction | AgentFinish> {
         const out1 = JSON.parse(input) as MimirAIMessage;
-        let out = {} as AIMessageType;
-        if (out1.text && out1.text.length !== 0) {
-            out = await this.responseFieldMapper.readInstructionsFromResponse(out1.text);
-        }
 
-        if (this.talkToUserTool && !out1.functionCall?.name) {
-            const messageToUser = out.messageToUser && out.messageToUser.length > 1 ? out.messageToUser : out1.text;
-            out1.functionCall = {
-                name: this.talkToUserTool,
-                arguments: JSON.stringify({ messageToUser: messageToUser })
-            };
-        }
         let toolInput = '';
         try {
             toolInput = JSON.parse(out1.functionCall!.arguments);
@@ -120,12 +109,12 @@ export class PlainTextHumanMessageSerializer extends HumanMessageSerializer {
 
 
 const OPENAI_FUNCTION_AGENT_ATTRIBUTES: AttributeDescriptor[] = [
-    {
-        name: "Message To User",
-        description: "Any message you want to send to the user. Useful when you want to present the answer to the request. Use it when you think that you are stuck or want to present the anwser to the user. This field must not be set at the same time as calling a function. ",
-        variableName: "messageToUser",
-        attributeType: "string",
-    },
+    // {
+    //     name: "Message To User",
+    //     description: "Any message you want to send to the user. Useful when you want to present the answer to the request. Use it when you think that you are stuck or want to present the anwser to the user. This field must not be set at the same time as calling a function. ",
+    //     variableName: "messageToSend",
+    //     attributeType: "string",
+    // },
 ]
 
 
@@ -144,6 +133,7 @@ export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
         SystemMessagePromptTemplate.fromTemplate(formatManager.createFieldInstructions()),
         ...args.plugins.map(plugin => plugin.systemMessages()).flat(),
     ];
+    const talkToUserTools = args.talkToUserTool ? [args.talkToUserTool] : [];
 
     const internalPlugins = args.plugins.map(plugin => {
 
@@ -168,7 +158,7 @@ export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
         taskCompleteCommandName: args.taskCompleteCommandName,
         memory: finalMemory,
         defaultInputs: {
-            tools: args.plugins.map(plugin => plugin.tools()).flat(),
+            tools: [...args.plugins.map(plugin => plugin.tools()).flat(), ...talkToUserTools],
         },
         workspaceManager: args.workspaceManager,
         plugins: internalPlugins,

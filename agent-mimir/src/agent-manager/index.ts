@@ -156,7 +156,7 @@ export class AgentManager {
             agent: agent,
             tools: [...allPlugins.map((plugin) => plugin.tools()).flat(), talkToUserTool],
             verbose: false,
-            alwaysAllowTools: ['talkToUser'],
+            alwaysAllowTools: ['respondBack'],
         });
 
         const chatMemoryChain = new ChatMemoryChain(
