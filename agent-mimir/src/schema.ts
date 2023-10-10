@@ -33,7 +33,8 @@ export type Agent = {
 export type WorkspaceManager = {
     listFiles(): Promise<string[]>,
     loadFileToWorkspace(fileName: string,url: string): Promise<void>,
-    getUrlForFile(fileName: string): Promise<string>,
+    clearWorkspace(): Promise<void>,
+    getUrlForFile(fileName: string): Promise<string |undefined>,
     workingDirectory: string,
 }
 
@@ -122,5 +123,8 @@ export type MemoryCompactionCallback = (newMessage: BaseMessage[], previousConve
 
 export type AgentUserMessage = {
     message: string,
-    sharedFiles?: string[],
+    sharedFiles?: {
+        url: string,
+        fileName: string,
+    }[],
 }

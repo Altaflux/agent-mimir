@@ -8,7 +8,7 @@ import { LLMChain } from "langchain/chains";
 import { BaseLLMOutputParser, BaseOutputParser } from "langchain/schema/output_parser";
 import { BaseLanguageModel } from "langchain/base_language";
 import { HumanMessage } from "langchain/schema";
-import { AgentContext, FILES_TO_SEND_FIELD, MimirHumanReplyMessage, WorkspaceManager } from "../schema.js";
+import { AgentContext, AgentUserMessage, FILES_TO_SEND_FIELD, MimirHumanReplyMessage, WorkspaceManager } from "../schema.js";
 
 
 const BAD_MESSAGE_TEXT = `I could not understand that your response, please rememeber to use the correct response format.`;
@@ -87,13 +87,21 @@ export class MimirAgent extends BaseSingleActionAgent {
 
         if (_returnValues.complete) {
             await Promise.all(this.plugins.map(async plugin => await plugin.clear()));
+            await this.workspaceManager.clearWorkspace();
             await this.memory.clear()
+            //NOTE Output has to be of type AgentUserMessage.
+            //TODO This function is aware of the input of the FinalTool, it should not be.
+            return {
+                complete: true,
+                output: JSON.stringify({
+                    message: _returnValues.output.messageToSend,
+                    sharedFiles: [],
+                } as AgentUserMessage),
+            }
         }
-        //This has to match the input of the Finish Tool.
         return {
-            complete: _returnValues.complete ?? false,
-            //TODO VERIFY IF THIS IS CORRECT
-            output: _returnValues.output.message ?? _returnValues.output,
+            complete: false,
+            output: _returnValues.output,
         };
     }
 
@@ -103,8 +111,8 @@ export class MimirAgent extends BaseSingleActionAgent {
         callbackManager?: CallbackManager,
     ): Promise<AgentAction | AgentFinish> {
 
-        if (inputs[FILES_TO_SEND_FIELD] && inputs[FILES_TO_SEND_FIELD] instanceof Array){
-            for (const file of inputs[FILES_TO_SEND_FIELD]){
+        if (inputs[FILES_TO_SEND_FIELD] && inputs[FILES_TO_SEND_FIELD] instanceof Array) {
+            for (const file of inputs[FILES_TO_SEND_FIELD]) {
                 await this.workspaceManager.loadFileToWorkspace(file.fileName, file.url);
             }
         }

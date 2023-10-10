@@ -1,19 +1,27 @@
 import { StructuredTool } from "langchain/tools";
 import { z } from "zod";
-import { AgentUserMessage } from "../schema.js";
+import { AgentUserMessage, WorkspaceManager } from "../schema.js";
 
 export class TalkToUserTool extends StructuredTool {
+
+    constructor(private workspace: WorkspaceManager) {
+        super();
+    }
+
     schema = z.object({
         messageToSend: z.string().describe("The message in plain text you want to tell me."),
-        workspaceFilesToShare: z.array(z.string()).optional().describe("The list of files of your working directory you want to share with the me. Share files you want to send me or I have requested. ."),
+        workspaceFilesToShare: z.array(z.string()).optional().describe("The list of files of your working directory you want to share with the me. Share files you want to send me or I have requested."),
     })
 
     returnDirect: boolean = true;
 
     protected async _call(arg: z.input<this["schema"]>): Promise<string> {
+        const files = await Promise.all((arg.workspaceFilesToShare || [])
+            .map(async (file) => ({ fileName: file, url: (await this.workspace.getUrlForFile(file))! })));
+            
         const result: AgentUserMessage = {
             message: arg.messageToSend,
-            sharedFiles: arg.workspaceFilesToShare || [],
+            sharedFiles: files,
         }
         return JSON.stringify(result);
     }

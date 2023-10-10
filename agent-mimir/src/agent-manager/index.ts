@@ -117,7 +117,7 @@ export class AgentManager {
         const configurablePlugins = config.plugins?.map(plugin => plugin.create({ workingDirectory: workspace.workingDirectory, agentName: shortName }));
         const defaultPlugins = [timePlugin, tagPlugin, ...agentCommunicationPlugin, ...configurablePlugins ?? []] as MimirAgentPlugin[];
 
-        const talkToUserTool = new TalkToUserTool();
+        const talkToUserTool = new TalkToUserTool(workspace);
 
         const allPlugins = [...tools.map(tool => new LangchainToolWrapper(tool)), ...defaultPlugins];
 

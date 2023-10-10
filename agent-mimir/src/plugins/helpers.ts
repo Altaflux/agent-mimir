@@ -11,6 +11,7 @@ export class TalkToHelper extends StructuredTool {
     schema = z.object({
         helperName: z.string().describe("The name of the helper you want to talk to and the message you want to send them."),
         message: z.string().describe("The message to the helper, be as detailed as possible."),
+        workspaceFilesToShare: z.array(z.string()).optional().describe("The list of files of your working directory you want to share with the helper."),
     })
     constructor(private helperSingleton: AgentManager, private agentName: string) {
         super();
@@ -18,17 +19,22 @@ export class TalkToHelper extends StructuredTool {
     protected async _call(arg: z.input<this["schema"]>): Promise<string> {
         const { helperName, message } = arg;
         const helper = this.helperSingleton.getAgent(helperName);
+        const self = this.helperSingleton.getAgent(this.agentName);
         if (!helper) {
             return `There is no helper named ${helperName}, create one with the \`createHelper\` tool.`
         }
-        const response = (await helper.agent.call({ input: message }));
+        const filesToSend = (arg.workspaceFilesToShare ?? [])
+            .map((file) => {
+                return self!.workspace.getUrlForFile(file);
+            })
+            .filter(value => value !== undefined)
+            .map((file) => file!);
+        const response = (await helper.agent.call({ input: message, filesToSend: filesToSend }));
         const agentUserMessage: AgentUserMessage = JSON.parse(response.output);
 
         for (const file of agentUserMessage.sharedFiles ?? []) {
-            const fileUrl = await helper.workspace.getUrlForFile(file);
-            const self = this.helperSingleton.getAgent(this.agentName);
-            await self?.workspace.loadFileToWorkspace(file, fileUrl);
-            console.debug(`Loaded file ${file} from ${fileUrl} into ${self?.workspace.workingDirectory}`);
+            await self?.workspace.loadFileToWorkspace(file.fileName, file.url);
+            console.debug(`Loaded file ${file.fileName} from ${file.url} into ${self?.workspace.workingDirectory}`);
         }
 
         return `Response from ${helper.name}: ${agentUserMessage.message}`;

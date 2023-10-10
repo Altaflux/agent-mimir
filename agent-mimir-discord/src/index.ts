@@ -47,6 +47,13 @@ class FileSystemWorkspaceManager implements WorkspaceManager {
         this.workingDirectory = workDirectory;
     }
 
+    async clearWorkspace(): Promise<void> {
+        const files = await fs.readdir(this.workingDirectory);
+        for (const file of files) {
+            await fs.unlink(path.join(this.workingDirectory, file));
+        }
+    }
+
     async listFiles(): Promise<string[]> {
         const files = await fs.readdir(this.workingDirectory);
         return files;
@@ -111,20 +118,8 @@ export const run = async () => {
             }
             console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.definition.profession}" and description "${agentDefinition.description}"`));
             return newAgent;
-        } else if (agentDefinition.chain) {
-            const newAgent = {
-                mainAgent: agentDefinition.mainAgent,
-                name: agentName,
-                agent: await agentManager.createAgentFromChain({
-                    name: agentName,
-                    description: agentDefinition.description,
-                    agent: agentDefinition.chain
-                })
-            }
-            console.log(chalk.green(`Created agent "${agentName}" with description "${agentDefinition.description}"`));
-            return newAgent;
         } else {
-            throw new Error(`Agent "${agentName}" has no definition or chain`);
+            throw new Error(`Agent "${agentName}" has no definition.`);
         }
 
     }));
