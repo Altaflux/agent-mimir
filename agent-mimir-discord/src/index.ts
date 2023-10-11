@@ -1,16 +1,20 @@
 import { MimirAgentTypes } from "agent-mimir/agent";
 import { AgentManager } from "agent-mimir/agent-manager"
-import { MimirAgentPlugin } from "agent-mimir/schema";
+import { AgentUserMessage, FILES_TO_SEND_FIELD, MimirPluginFactory, WorkspaceManager } from "agent-mimir/schema";
 import chalk from "chalk";
 import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
 import { Tool } from "langchain/tools";
 import { BaseChain } from "langchain/chains";
 import { chatWithAgent } from "./chat.js";
-import fs from "fs";
+import { promises as fs } from 'fs';
+import normalFs from 'fs';
+import os from 'os';
 import path from "path";
-import { Client, GatewayIntentBits, Partials } from 'discord.js';
+import { ChannelType, Client, GatewayIntentBits, MessageType, Partials } from 'discord.js';
 import { REST, Routes } from 'discord.js';
+import { Readable } from "stream";
+import { finished } from "stream/promises";
 export type AgentDefinition = {
     mainAgent?: boolean;
     description: string;
@@ -22,7 +26,7 @@ export type AgentDefinition = {
         summaryModel: BaseChatModel;
         taskModel?: BaseLanguageModel;
         constitution?: string;
-        plugins?: MimirAgentPlugin[];
+        plugins?: MimirPluginFactory[];
         chatHistory?: {
             maxChatHistoryWindow?: number,
             maxTaskHistoryWindow?: number,
@@ -38,10 +42,41 @@ type AgentMimirConfig = {
     continuousMode?: boolean;
 }
 
+class FileSystemWorkspaceManager implements WorkspaceManager {
+
+    workingDirectory: string;
+
+    constructor(workDirectory: string) {
+        this.workingDirectory = workDirectory;
+    }
+
+    async clearWorkspace(): Promise<void> {
+        const files = await fs.readdir(this.workingDirectory);
+        for (const file of files) {
+            await fs.unlink(path.join(this.workingDirectory, file));
+        }
+    }
+
+    async listFiles(): Promise<string[]> {
+        const files = await fs.readdir(this.workingDirectory);
+        return files;
+    }
+    async loadFileToWorkspace(fileName: string, url: string): Promise<void> {
+        const destination = path.join(this.workingDirectory, fileName);
+        await fs.copyFile(url, destination);
+        console.debug(`Copied file ${url} to ${destination}`);
+    }
+
+    async getUrlForFile(fileName: string): Promise<string> {
+        const file = path.join(this.workingDirectory, fileName);
+        return file;
+    }
+}
 const getConfig = async () => {
     if (process.env.MIMIR_CFG_PATH) {
         let cfgFile = path.join(process.env.MIMIR_CFG_PATH, 'mimir-cfg.js');
-        if (fs.existsSync(cfgFile)) {
+        const configFileExists = await fs.access(cfgFile, fs.constants.F_OK).then(() => true).catch(() => false);
+        if (configFileExists) {
             console.log(chalk.green(`Loading configuration file`));
             const configFunction: Promise<AgentMimirConfig> | AgentMimirConfig = (await import(`file://${cfgFile}`)).default()
             return await Promise.resolve(configFunction);
@@ -51,10 +86,25 @@ const getConfig = async () => {
     return (await import("./default-config.js")).default();
 };
 
+async function downloadFile(filename: string, link: string) {
+    const response = await fetch(link);
+    const body = Readable.fromWeb(response.body as any);
+    const destination = path.join(os.tmpdir(), filename);
+    const download_write_stream = normalFs.createWriteStream(destination);
+    await finished(body.pipe(download_write_stream));
+    return destination
+}
 export const run = async () => {
 
     const agentConfig: AgentMimirConfig = await getConfig();
-    const agentManager = new AgentManager();
+
+    const agentManager = new AgentManager({
+        workspaceManagerFactory: async (agent) => {
+            const tempDir = path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-cli-')), "workspace");
+            await fs.mkdir(tempDir, { recursive: true });
+            return new FileSystemWorkspaceManager(tempDir);
+        }
+    });
     const continousMode = agentConfig.continuousMode ?? false;
 
     const agents = await Promise.all(Object.entries(agentConfig.agents).map(async ([agentName, agentDefinition]) => {
@@ -79,20 +129,8 @@ export const run = async () => {
             }
             console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.definition.profession}" and description "${agentDefinition.description}"`));
             return newAgent;
-        } else if (agentDefinition.chain) {
-            const newAgent = {
-                mainAgent: agentDefinition.mainAgent,
-                name: agentName,
-                agent: await agentManager.createAgentFromChain({
-                    name: agentName,
-                    description: agentDefinition.description,
-                    agent: agentDefinition.chain
-                })
-            }
-            console.log(chalk.green(`Created agent "${agentName}" with description "${agentDefinition.description}"`));
-            return newAgent;
         } else {
-            throw new Error(`Agent "${agentName}" has no definition or chain`);
+            throw new Error(`Agent "${agentName}" has no definition.`);
         }
 
     }));
@@ -115,18 +153,36 @@ export const run = async () => {
     client.on('ready', () => {
         console.log(`Logged in as ${client!.user!.tag}!`);
     });
-    client.on('message', msg => {
-        console.log(msg.content);
-    });
+
     client.on('messageCreate', async msg => {
         if (msg.author.bot) return;
-        const response = await mainAgent.agent.call({ continuousMode: true, input: msg.content });
-        await msg.reply(response.output);
-        //console.log(response.output);
+        // const foo = msg.type !== MessageType.Reply && msg.reference
+        if (msg.channel.type !== ChannelType.DM && !msg.mentions.has(client.user!)) {
+            return;
+        }
+        await msg.channel.sendTyping();
+        const typing = setInterval(() => msg.channel.sendTyping(), 5000);
+        const loadedFiles = await Promise.all(msg.attachments.map(async (attachment) => {
+            const response = await downloadFile(attachment.name, attachment.url);
+            return {
+                fileName: attachment.name,
+                url: response
+            }
+        }));
+
+        const messageToAi = msg.cleanContent.replaceAll(`@${client.user!.username}`, "").trim();
+      
+        const response: AgentUserMessage = JSON.parse((await mainAgent.agent.call({ continuousMode: true, input: messageToAi, [FILES_TO_SEND_FIELD]: loadedFiles })).output);
+        clearInterval(typing);
+        await msg.reply({
+            content: response.message,
+            files: (response.sharedFiles ?? []).map(f => f.url)
+        });
+
     });
     client.on('interactionCreate', async interaction => {
         if (!interaction.isChatInputCommand()) return;
-    
+
         if (interaction.commandName === 'ping') {
             await interaction.reply('Pong!');
         }

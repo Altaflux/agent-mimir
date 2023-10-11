@@ -7,6 +7,7 @@ import { BaseLanguageModel } from "langchain/base_language";
 import { BaseChatMemory } from "langchain/memory";
 import { BaseChatMessageHistory, BaseMessage } from "langchain/schema";
 
+
 export type AIMessageType = {
     thoughts?: string,
     reasoning?: string,
@@ -19,7 +20,25 @@ export type AIMessageType = {
     messageToUser?: string,
 }
 
-export type Agent = { name: string, description: string, agent: BaseChain }
+export const FILES_TO_SEND_FIELD = "filesToSend";
+
+export type Agent = { 
+    name: string, 
+    description: string, 
+    agent: BaseChain,
+    workspace: WorkspaceManager,
+};
+
+
+export type WorkspaceManager = {
+    listFiles(): Promise<string[]>,
+    loadFileToWorkspace(fileName: string,url: string): Promise<void>,
+    clearWorkspace(): Promise<void>,
+    getUrlForFile(fileName: string): Promise<string |undefined>,
+    workingDirectory: string,
+}
+
+export type WorkspaceManagerFactory = (workkDirectory: string) => Promise<WorkspaceManager>;
 
 export type MimirAgentArgs = {
     name: string,
@@ -30,10 +49,23 @@ export type MimirAgentArgs = {
     talkToUserTool?: StructuredTool,
     plugins: MimirAgentPlugin[]
     constitution: string,
+    workspaceManager: WorkspaceManager,
     memoryBuilder: (messageHistory: BaseChatMessageHistory) => BaseChatMemory,
+}
+export type PluginContext = {
+    workingDirectory: string,
+    agentName: string,
+}
+
+export interface MimirPluginFactory {
+    create(context: PluginContext): MimirAgentPlugin 
 }
 
 export abstract class MimirAgentPlugin {
+
+    init(): Promise<void> {
+        return Promise.resolve();
+    }
 
     systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
         return [];
@@ -88,3 +120,11 @@ export type MimirHumanReplyMessage = {
 }
 
 export type MemoryCompactionCallback = (newMessage: BaseMessage[], previousConversation: BaseMessage[]) => Promise<void>;
+
+export type AgentUserMessage = {
+    message: string,
+    sharedFiles?: {
+        url: string,
+        fileName: string,
+    }[],
+}

@@ -1,9 +1,10 @@
 import { ChainValues } from "langchain/schema";
 
 import chalk from 'chalk';
-import { Agent } from "agent-mimir/schema";
+import { Agent, FILES_TO_SEND_FIELD } from "agent-mimir/schema";
 import readline from 'readline';
 import { Retry } from "./utils.js";
+import path from "path";
 
 
 export async function chatWithAgent(continuousMode: boolean, assistant: Agent) {
@@ -26,7 +27,12 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent) {
       if (answers.message.toLowerCase() === "y" || answers.message === "") {
         aiResponse = await Retry(() => executor.call({ continuousMode, continue: true }));
       } else {
-        aiResponse = await Retry(() => executor.call({ continuousMode, input: answers.message }));
+        const parsedMessage = extractContentAndText(answers.message);
+        const files = parsedMessage.content.map((file) => {
+          const filename = path.basename(file);
+          return { fileName: filename, url: file };
+        });
+        aiResponse = await Retry(() => executor.call({ continuousMode, input: parsedMessage.text,  [FILES_TO_SEND_FIELD]: files }));
       }
     } else {
 
@@ -36,9 +42,31 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent) {
         });
       })]);
 
-      aiResponse = (await executor.call({ continuousMode, input: answers.message }))
+      const parsedMessage = extractContentAndText(answers.message);
+      const files = parsedMessage.content.map((file) => {
+        const filename = path.basename(file);
+        return { fileName: filename, url: file };
+      });
+      aiResponse = await Retry(() => executor.call({ continuousMode, input: parsedMessage.text,  [FILES_TO_SEND_FIELD]: files }));
     }
     console.log(chalk.red("AI Response: ", chalk.blue(aiResponse?.output)));
   }
 }
 
+function extractContentAndText(str: string) {
+  const regex = /^(?:\s*\(([^)]+)\)\s*)+/g;
+  let matches = [];
+  let match;
+
+  while ((match = regex.exec(str)) !== null) {
+    matches.push(match[1]);
+  }
+
+  // Get the unmatched portion of the string after the parentheses
+  const remainingText = str.replace(regex, '');
+
+  return {
+    content: matches,
+    text: remainingText.trim()
+  };
+}

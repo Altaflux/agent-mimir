@@ -8,7 +8,7 @@ import { LLMChain } from "langchain/chains";
 import { BaseLLMOutputParser, BaseOutputParser } from "langchain/schema/output_parser";
 import { BaseLanguageModel } from "langchain/base_language";
 import { HumanMessage } from "langchain/schema";
-import { AgentContext, MimirHumanReplyMessage } from "../schema.js";
+import { AgentContext, AgentUserMessage, FILES_TO_SEND_FIELD, MimirHumanReplyMessage, WorkspaceManager } from "../schema.js";
 
 
 const BAD_MESSAGE_TEXT = `I could not understand that your response, please rememeber to use the correct response format.`;
@@ -50,6 +50,7 @@ export class MimirAgent extends BaseSingleActionAgent {
     defaultInputs?: Record<string, any>;
     plugins: InternalAgentPlugin[];
     name: string;
+    workspaceManager: WorkspaceManager;
     messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>;
 
     constructor(
@@ -59,6 +60,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         outputParser: BaseOutputParser<AgentAction | AgentFinish>,
         messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
         name: string,
+        workspaceManager: WorkspaceManager,
         plugins?: InternalAgentPlugin[],
         defaultInputs?: Record<string, any>,
     ) {
@@ -71,7 +73,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         this.defaultInputs = defaultInputs;
         this.plugins = plugins ?? [];
         this.name = name;
-
+        this.workspaceManager = workspaceManager;
     }
 
     get inputKeys(): string[] {
@@ -85,12 +87,22 @@ export class MimirAgent extends BaseSingleActionAgent {
 
         if (_returnValues.complete) {
             await Promise.all(this.plugins.map(async plugin => await plugin.clear()));
+            await this.workspaceManager.clearWorkspace();
             await this.memory.clear()
+            console.debug("Cleared workspace and memory");
+            //NOTE Output has to be of type AgentUserMessage.
+            //TODO This function is aware of the input of the FinalTool, it should not be.
+            return {
+                complete: true,
+                output: JSON.stringify({
+                    message: _returnValues.output.messageToSend,
+                    sharedFiles: [],
+                } as AgentUserMessage),
+            }
         }
-        //This has to match the input of the Finish Tool.
         return {
-            complete: _returnValues.complete ?? false,
-            output: _returnValues.output.messageToUser ?? _returnValues.output,
+            complete: false,
+            output: _returnValues.output,
         };
     }
 
@@ -100,12 +112,28 @@ export class MimirAgent extends BaseSingleActionAgent {
         callbackManager?: CallbackManager,
     ): Promise<AgentAction | AgentFinish> {
 
+   
+
         const nextMessage = this.getMessageForAI(steps, inputs);
         const context: AgentContext = {
             input: nextMessage,
             memory: this.memory,
         }
-        const { message, messageToSave } = await this.messageGenerator(nextMessage);
+        let message = nextMessage;
+        if (nextMessage.type === "USER_MESSAGE") {
+            if (inputs[FILES_TO_SEND_FIELD] && inputs[FILES_TO_SEND_FIELD] instanceof Array && inputs[FILES_TO_SEND_FIELD].length > 0) {
+                for (const file of inputs[FILES_TO_SEND_FIELD]) {
+                    await this.workspaceManager.loadFileToWorkspace(file.fileName, file.url);
+                }
+            }
+            const filesToSendMessage = inputs[FILES_TO_SEND_FIELD].map((file: any) => file.fileName).join(", ");
+            message = {
+                ...nextMessage,
+                message: `I am sending the following files into your work directory: ${filesToSendMessage} \n\n ${nextMessage.message}`
+            }
+        }
+
+        const { message: langChainMessage, messageToSave } = await this.messageGenerator(message);
 
         const pluginInputs = (await Promise.all(this.plugins.map(async plugin => await plugin.getInputs(context))))
             .reduce((acc, val) => ({ ...acc, ...val }), {})
@@ -114,7 +142,7 @@ export class MimirAgent extends BaseSingleActionAgent {
             ...this.defaultInputs,
             ...pluginInputs,
             ...inputs,
-            realInput: message,
+            realInput: langChainMessage,
             inputToSave: messageToSave
         });
 
@@ -212,6 +240,7 @@ export class MimirAgent extends BaseSingleActionAgent {
             outputParser,
             messageGenerator,
             args.name,
+            args.workspaceManager,
             args.plugins,
             args.defaultInputs
         );
@@ -234,6 +263,8 @@ export type CreatePromptArgs = {
     plugins: InternalAgentPlugin[];
 
     name: string;
+
+    workspaceManager: WorkspaceManager;
 
 };
 
