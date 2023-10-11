@@ -19,7 +19,9 @@ const CODE_INTERPRETER_PROMPT = function (args: CodeInterpreterArgs) {
 Code Interpreter Functions Instructions:
 {interpreterInputFiles}
 
-${args.workDirectory ? `If you are given the task to create a file or they ask you to save it then save the files inside the directory who's path is stored in the OS environment variable named "WORK_DIRECTORY" like \"os.getenv('WORK_DIRECTORY')\".` : ""}
+If you are given the task to create a file or they ask you to save it then save the files inside the directory who's path is stored in the OS environment variable named "WORK_DIRECTORY" like \"os.getenv('WORK_DIRECTORY')\".
+Do not mention the work directory in your conversations.
+
 End of Code Interpreter Functions Instructions.
 
 `
