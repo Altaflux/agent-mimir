@@ -111,18 +111,28 @@ export class MimirAgent extends BaseSingleActionAgent {
         callbackManager?: CallbackManager,
     ): Promise<AgentAction | AgentFinish> {
 
-        if (inputs[FILES_TO_SEND_FIELD] && inputs[FILES_TO_SEND_FIELD] instanceof Array) {
-            for (const file of inputs[FILES_TO_SEND_FIELD]) {
-                await this.workspaceManager.loadFileToWorkspace(file.fileName, file.url);
-            }
-        }
+   
 
         const nextMessage = this.getMessageForAI(steps, inputs);
         const context: AgentContext = {
             input: nextMessage,
             memory: this.memory,
         }
-        const { message, messageToSave } = await this.messageGenerator(nextMessage);
+        let message = nextMessage;
+        if (nextMessage.type === "USER_MESSAGE") {
+            if (inputs[FILES_TO_SEND_FIELD] && inputs[FILES_TO_SEND_FIELD] instanceof Array && inputs[FILES_TO_SEND_FIELD].length > 0) {
+                for (const file of inputs[FILES_TO_SEND_FIELD]) {
+                    await this.workspaceManager.loadFileToWorkspace(file.fileName, file.url);
+                }
+            }
+            const filesToSendMessage = inputs[FILES_TO_SEND_FIELD].map((file: any) => file.fileName).join(", ");
+            message = {
+                ...nextMessage,
+                message: `I am sending the following files into your work directory: ${filesToSendMessage} \n\n ${nextMessage.message}`
+            }
+        }
+
+        const { message: langChainMessage, messageToSave } = await this.messageGenerator(message);
 
         const pluginInputs = (await Promise.all(this.plugins.map(async plugin => await plugin.getInputs(context))))
             .reduce((acc, val) => ({ ...acc, ...val }), {})
@@ -131,7 +141,7 @@ export class MimirAgent extends BaseSingleActionAgent {
             ...this.defaultInputs,
             ...pluginInputs,
             ...inputs,
-            realInput: message,
+            realInput: langChainMessage,
             inputToSave: messageToSave
         });
 

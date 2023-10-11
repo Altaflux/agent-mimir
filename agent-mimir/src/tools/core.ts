@@ -10,7 +10,7 @@ export class TalkToUserTool extends StructuredTool {
 
     schema = z.object({
         messageToSend: z.string().describe("The message in plain text you want to tell me."),
-        workspaceFilesToShare: z.array(z.string()).optional().describe("The list of files of your working directory you want to share with the me. Share files you want to send me or I have requested."),
+        workspaceFilesToShare: z.array(z.string()).optional().describe("The list of files of your work directory you want to share with the me. Share files you want to send me or I have requested."),
     })
 
     returnDirect: boolean = true;

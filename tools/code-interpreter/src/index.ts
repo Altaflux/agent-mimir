@@ -26,7 +26,7 @@ End of Code Interpreter Functions Instructions.
 };
 
 
-export class CodeInterpreterPluginFactory implements MimirPluginFactory  {
+export class CodeInterpreterPluginFactory implements MimirPluginFactory {
     create(context: PluginContext): MimirAgentPlugin {
         return new CodeInterpreterPlugin({ workDirectory: context.workingDirectory });
     }
@@ -38,7 +38,7 @@ class CodeInterpreterPlugin extends MimirAgentPlugin {
         super();
         this.workDirectory = args.workDirectory;
     }
-    
+
     async init(): Promise<void> {
         if (this.workDirectory) {
             await fs.mkdir(this.workDirectory, { recursive: true });
@@ -96,6 +96,8 @@ The input must be the content of the script to execute. The result of this funct
 If you are given the task to create a file or they ask you to save it then save the files inside the directory who's path is stored in the OS environment variable named "WORK_DIRECTORY" accessible like \"os.getenv('WORK_DIRECTORY')\". ` ;
     }
 
+    name = "pythonCodeInterpreter";
+
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<string> {
         const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'python-code-interpreter-'));
 
@@ -108,7 +110,7 @@ If you are given the task to create a file or they ask you to save it then save 
 
         try {
             console.debug(`Creating python virtual environment in ${tempDir} ...`);
-            const pyenv = await executeShellCommand(`cd ${tempDir} && py -m venv .`);
+            const pyenv = await this.executeShellCommand(`cd ${tempDir} && py -m venv .`);
             if (pyenv.exitCode !== 0) {
                 throw new Error(`Failed to create python virtual environment: ${pyenv.output}`);
             }
@@ -126,7 +128,7 @@ If you are given the task to create a file or they ask you to save it then save 
             }
             for (const libraryName of arg?.externalLibraries ?? []) {
                 console.debug(`Installing library ${libraryName}...`);
-                const installationResult = await executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && py -m pip install ${libraryName}`);
+                const installationResult = await this.executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && py -m pip install ${libraryName}`);
                 if (installationResult.exitCode !== 0) {
                     libraryInstallationResult = {
                         exitCode: installationResult.exitCode,
@@ -138,7 +140,7 @@ If you are given the task to create a file or they ask you to save it then save 
                 console.warn(`Failed to install libraries:\n ${libraryInstallationResult?.output}`);
             }
 
-            const result = await executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && py ${scriptPath}`);
+            const result = await this.executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && py ${scriptPath}`);
 
             let fileList = "";
             if (this.workDirectory) {
@@ -155,36 +157,38 @@ If you are given the task to create a file or they ask you to save it then save 
             await fs.rm(tempDir, { recursive: true, force: true });
         }
     }
-    name = "pythonCodeInterpreter";
 
+
+    async executeShellCommand(command: string) {
+        return await new Promise<{
+            exitCode: number,
+            output: string,
+        }>((resolve, reject) => {
+            let output = '';
+            const ls = spawn(command, [], { shell: true });
+            ls.stdout.on("data", data => {
+                output += data;
+            });
+
+            ls.stderr.on("data", data => {
+                output += data;
+            });
+
+            ls.on('error', (error) => {
+                output += error.message;
+            });
+
+            ls.on("close", code => {
+                const finalOutput = this.workDirectory ? output.replaceAll(this.workDirectory, "./WORK_DIRECTORY") : output;
+                resolve({
+                    exitCode: code ?? 0,
+                    output: finalOutput,
+                })
+            });
+        });
+    }
 }
 
 
 
-async function executeShellCommand(command: string) {
-    return await new Promise<{
-        exitCode: number,
-        output: string,
-    }>((resolve, reject) => {
-        let output = '';
-        const ls = spawn(command, [], { shell: true });
-        ls.stdout.on("data", data => {
-            output += data;
-        });
 
-        ls.stderr.on("data", data => {
-            output += data;
-        });
-
-        ls.on('error', (error) => {
-            output += error.message;
-        });
-
-        ls.on("close", code => {
-            resolve({
-                exitCode: code ?? 0,
-                output: output,
-            })
-        });
-    });
-}

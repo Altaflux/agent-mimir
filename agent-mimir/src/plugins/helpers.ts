@@ -3,7 +3,7 @@ import { StructuredTool } from "langchain/tools";
 import { AgentManager } from "../agent-manager/index.js";
 import { BaseChatModel } from "langchain/chat_models";
 import { z } from "zod";
-import { AgentContext, AgentUserMessage, MimirAgentPlugin } from "../schema.js";
+import { AgentContext, AgentUserMessage, FILES_TO_SEND_FIELD, MimirAgentPlugin } from "../schema.js";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
 
 export class TalkToHelper extends StructuredTool {
@@ -11,7 +11,7 @@ export class TalkToHelper extends StructuredTool {
     schema = z.object({
         helperName: z.string().describe("The name of the helper you want to talk to and the message you want to send them."),
         message: z.string().describe("The message to the helper, be as detailed as possible."),
-        workspaceFilesToShare: z.array(z.string()).optional().describe("The list of files of your working directory you want to share with the helper."),
+        workspaceFilesToShare: z.array(z.string()).optional().describe("The list of files of your work directory you want to share with the helper."),
     })
     constructor(private helperSingleton: AgentManager, private agentName: string) {
         super();
@@ -29,7 +29,8 @@ export class TalkToHelper extends StructuredTool {
             })
             .filter(value => value !== undefined)
             .map((file) => file!);
-        const response = (await helper.agent.call({ input: message, filesToSend: filesToSend }));
+        
+        const response = (await helper.agent.call({ input: message, [FILES_TO_SEND_FIELD]: filesToSend }));
         const agentUserMessage: AgentUserMessage = JSON.parse(response.output);
 
         for (const file of agentUserMessage.sharedFiles ?? []) {

@@ -1,7 +1,7 @@
 import { ChainValues } from "langchain/schema";
 
 import chalk from 'chalk';
-import { Agent } from "agent-mimir/schema";
+import { Agent, FILES_TO_SEND_FIELD } from "agent-mimir/schema";
 import readline from 'readline';
 import { Retry } from "./utils.js";
 import path from "path";
@@ -32,7 +32,7 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent) {
           const filename = path.basename(file);
           return { fileName: filename, url: file };
         });
-        aiResponse = await Retry(() => executor.call({ continuousMode, input: parsedMessage.text, filesToSend: files }));
+        aiResponse = await Retry(() => executor.call({ continuousMode, input: parsedMessage.text,  [FILES_TO_SEND_FIELD]: files }));
       }
     } else {
 
@@ -47,7 +47,7 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent) {
         const filename = path.basename(file);
         return { fileName: filename, url: file };
       });
-      aiResponse = await Retry(() => executor.call({ continuousMode, input: parsedMessage.text, filesToSend: files }));
+      aiResponse = await Retry(() => executor.call({ continuousMode, input: parsedMessage.text,  [FILES_TO_SEND_FIELD]: files }));
     }
     console.log(chalk.red("AI Response: ", chalk.blue(aiResponse?.output)));
   }

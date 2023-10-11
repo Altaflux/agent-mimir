@@ -1,6 +1,6 @@
 import { MimirAgentTypes } from "agent-mimir/agent";
 import { AgentManager } from "agent-mimir/agent-manager"
-import { AgentUserMessage, MimirPluginFactory, WorkspaceManager } from "agent-mimir/schema";
+import { AgentUserMessage, FILES_TO_SEND_FIELD, MimirPluginFactory, WorkspaceManager } from "agent-mimir/schema";
 import chalk from "chalk";
 import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
@@ -85,15 +85,7 @@ const getConfig = async () => {
     console.log(chalk.yellow("No config file found, using default ApenAI config"));
     return (await import("./default-config.js")).default();
 };
-// const downloadFile = (async (url: string, folder=".") => {
-//     const res = await fetch(url);
-//     if (!res.body) throw new Error(`unexpected response ${res.statusText}`);
-//     //if (!fs.existsSync("downloads")) await fs.mkdir("downloads"); //Optional if you already have downloads directory
-//     const destination = path.resolve("./downloads", folder);
 
-//     const fileStream = normalFs.createWriteStream(destination, { flags: 'wx' });
-//     await finished(Readable.fromWeb(res.body!).pipe(fileStream));
-//   });
 async function downloadFile(filename: string, link: string) {
     const response = await fetch(link);
     const body = Readable.fromWeb(response.body as any);
@@ -180,7 +172,7 @@ export const run = async () => {
 
         const messageToAi = msg.cleanContent.replaceAll(`@${client.user!.username}`, "").trim();
       
-        const response: AgentUserMessage = JSON.parse((await mainAgent.agent.call({ continuousMode: true, input: messageToAi, filesToSend: loadedFiles })).output);
+        const response: AgentUserMessage = JSON.parse((await mainAgent.agent.call({ continuousMode: true, input: messageToAi, [FILES_TO_SEND_FIELD]: loadedFiles })).output);
         clearInterval(typing);
         await msg.reply({
             content: response.message,
