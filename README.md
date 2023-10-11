@@ -82,7 +82,7 @@ module.exports = async function() {
                         maxTaskHistoryWindow: 6, //Maximum size of the task chat before summarizing. 6 by default
                     },
                     plugins: [
-                            new CodeInterpreterPlugin(),
+                            new CodeInterpreterPluginFactory(),
                     ],
                     tools: [ //Tools available to the agent.
                         ...webToolKit.tools,
@@ -147,7 +147,7 @@ You can optionally configure an input and output directory that the agent can us
         //...
         //Add to plugins:
         plugins: [
-                new CodeInterpreterPlugin(),
+                new CodeInterpreterPluginFactory(),
             ],
     }
 ```

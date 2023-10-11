@@ -37,7 +37,7 @@ export class EndTool extends StructuredTool {
     })
 
     name: string;
-    description: string = "Only call this command when I have informed you that you have completed the task.";
+    description: string = "Only call this function when I have explicitly informed you that you have completed the task.";
 
     constructor(name: string) {
         super();

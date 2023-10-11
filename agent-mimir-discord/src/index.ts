@@ -1,6 +1,6 @@
 import { MimirAgentTypes } from "agent-mimir/agent";
 import { AgentManager } from "agent-mimir/agent-manager"
-import { MimirPluginFactory, WorkspaceManager } from "agent-mimir/schema";
+import { AgentUserMessage, MimirPluginFactory, WorkspaceManager } from "agent-mimir/schema";
 import chalk from "chalk";
 import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
@@ -8,10 +8,13 @@ import { Tool } from "langchain/tools";
 import { BaseChain } from "langchain/chains";
 import { chatWithAgent } from "./chat.js";
 import { promises as fs } from 'fs';
+import normalFs from 'fs';
 import os from 'os';
 import path from "path";
 import { ChannelType, Client, GatewayIntentBits, MessageType, Partials } from 'discord.js';
 import { REST, Routes } from 'discord.js';
+import { Readable } from "stream";
+import { finished } from "stream/promises";
 export type AgentDefinition = {
     mainAgent?: boolean;
     description: string;
@@ -60,7 +63,7 @@ class FileSystemWorkspaceManager implements WorkspaceManager {
     }
     async loadFileToWorkspace(fileName: string, url: string): Promise<void> {
         const destination = path.join(this.workingDirectory, fileName);
-        await fs.copyFile(url, path.join(this.workingDirectory, destination));
+        await fs.copyFile(url, destination);
         console.debug(`Copied file ${url} to ${destination}`);
     }
 
@@ -82,7 +85,23 @@ const getConfig = async () => {
     console.log(chalk.yellow("No config file found, using default ApenAI config"));
     return (await import("./default-config.js")).default();
 };
+// const downloadFile = (async (url: string, folder=".") => {
+//     const res = await fetch(url);
+//     if (!res.body) throw new Error(`unexpected response ${res.statusText}`);
+//     //if (!fs.existsSync("downloads")) await fs.mkdir("downloads"); //Optional if you already have downloads directory
+//     const destination = path.resolve("./downloads", folder);
 
+//     const fileStream = normalFs.createWriteStream(destination, { flags: 'wx' });
+//     await finished(Readable.fromWeb(res.body!).pipe(fileStream));
+//   });
+async function downloadFile(filename: string, link: string) {
+    const response = await fetch(link);
+    const body = Readable.fromWeb(response.body as any);
+    const destination = path.join(os.tmpdir(), filename);
+    const download_write_stream = normalFs.createWriteStream(destination);
+    await finished(body.pipe(download_write_stream));
+    return destination
+}
 export const run = async () => {
 
     const agentConfig: AgentMimirConfig = await getConfig();
@@ -151,10 +170,22 @@ export const run = async () => {
         }
         await msg.channel.sendTyping();
         const typing = setInterval(() => msg.channel.sendTyping(), 5000);
+        const loadedFiles = await Promise.all(msg.attachments.map(async (attachment) => {
+            const response = await downloadFile(attachment.name, attachment.url);
+            return {
+                fileName: attachment.name,
+                url: response
+            }
+        }));
 
+        const messageToAi = msg.cleanContent.replaceAll(`@${client.user!.username}`, "").trim();
+      
+        const response: AgentUserMessage = JSON.parse((await mainAgent.agent.call({ continuousMode: true, input: messageToAi, filesToSend: loadedFiles })).output);
         clearInterval(typing);
-        await msg.reply("TEST");
-        //await msg.reply(response.output);
+        await msg.reply({
+            content: response.message,
+            files: (response.sharedFiles ?? []).map(f => f.url)
+        });
 
     });
     client.on('interactionCreate', async interaction => {
