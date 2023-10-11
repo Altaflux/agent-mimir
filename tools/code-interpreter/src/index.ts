@@ -156,7 +156,7 @@ If you are given the task to create a file or they ask you to save it then save 
         } catch (e) {
             return "Failed to execute the script." + e;
         } finally {
-            await fs.rm(tempDir, { recursive: true, force: true });
+           await fs.rm(tempDir, { recursive: true, force: true });
         }
     }
 

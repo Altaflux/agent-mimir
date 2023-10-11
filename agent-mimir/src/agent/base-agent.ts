@@ -89,6 +89,7 @@ export class MimirAgent extends BaseSingleActionAgent {
             await Promise.all(this.plugins.map(async plugin => await plugin.clear()));
             await this.workspaceManager.clearWorkspace();
             await this.memory.clear()
+            console.debug("Cleared workspace and memory");
             //NOTE Output has to be of type AgentUserMessage.
             //TODO This function is aware of the input of the FinalTool, it should not be.
             return {
