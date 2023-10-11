@@ -29,16 +29,20 @@ export class TalkToHelper extends StructuredTool {
             })
             .filter(value => value !== undefined)
             .map((file) => file!);
-        
+
         const response = (await helper.agent.call({ input: message, [FILES_TO_SEND_FIELD]: filesToSend }));
         const agentUserMessage: AgentUserMessage = JSON.parse(response.output);
 
-        for (const file of agentUserMessage.sharedFiles ?? []) {
-            await self?.workspace.loadFileToWorkspace(file.fileName, file.url);
-            console.debug(`Loaded file ${file.fileName} from ${file.url} into ${self?.workspace.workingDirectory}`);
+        let toolResponse = `Response from ${helper.name}: ${agentUserMessage.message}`;
+        if (agentUserMessage.sharedFiles?.length ?? 0 > 0) {
+            for (const file of agentUserMessage.sharedFiles ?? []) {
+                await self?.workspace.loadFileToWorkspace(file.fileName, file.url);
+                console.debug(`Loaded file ${file.fileName} from ${file.url} into ${self?.workspace.workingDirectory}`);
+            }
+            toolResponse = `The following files have been given to you by the helper and saved into your work directory: ${agentUserMessage.sharedFiles!.map((file) => file.fileName).join(", ")} \n\n`;
         }
 
-        return `Response from ${helper.name}: ${agentUserMessage.message}`;
+        return toolResponse;
     }
     name: string = "talkToHelper";
     description: string = `Talk to a helper. If a helper responds that it will do a task ask them again to complete the task. `;
