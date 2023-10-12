@@ -125,11 +125,11 @@ export class MimirAgent extends BaseSingleActionAgent {
                 for (const file of inputs[FILES_TO_SEND_FIELD]) {
                     await this.workspaceManager.loadFileToWorkspace(file.fileName, file.url);
                 }
-            }
-            const filesToSendMessage = inputs[FILES_TO_SEND_FIELD].map((file: any) => file.fileName).join(", ");
-            message = {
-                ...nextMessage,
-                message: `I am sending the following files into your work directory: ${filesToSendMessage} \n\n ${nextMessage.message}`
+                const filesToSendMessage = inputs[FILES_TO_SEND_FIELD].map((file: any) => file.fileName).join(", ");
+                message = {
+                    ...nextMessage,
+                    message: `I am sending the following files into your work directory: ${filesToSendMessage} \n\n ${nextMessage.message}`
+                }
             }
         }
 
