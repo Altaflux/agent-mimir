@@ -1,5 +1,6 @@
 import { BaseMessage, ChatMessage } from "langchain/schema";
 
+
 export function messagesToString(
   messages: BaseMessage[],
   humanPrefix = "Human",
@@ -10,22 +11,21 @@ export function messagesToString(
     let role: string;
     if (m._getType() === "human") {
       role = humanPrefix;
-      string_messages.push(`${role}: ${m.content}`);
+      const mm = `Start-Of-Message:\n- Participant: ${role}\n- Task: message\n- Payload: ${m.content}`
+      string_messages.push(mm);
     } else if (m._getType() === "ai") {
       role = aiPrefix;
-      let functionInvokationMessage = "";
-      if (m.additional_kwargs?.function_call){
-        const functionName = m.additional_kwargs.function_call?.name;
-        const args = m.additional_kwargs.function_call?.arguments;
-        functionInvokationMessage = `I want to call function: ${functionName} with arguments: ${args}`;
-      }
-      string_messages.push(`${role}: ${m.content}\n ${functionInvokationMessage}`);
+      const functionName = m.additional_kwargs.function_call?.name ?? "message";
+      const arg = m.additional_kwargs.function_call?.arguments ?? m.content;
+      const mm = `Start-Of-Message:\n- Participant: ${role}\n- Task: ${functionName}\n- Payload: ${arg}`
+      string_messages.push(mm);
     } else if (m._getType() === "system") {
       role = humanPrefix;
       string_messages.push(`${role}: ${m.content}`);
     } else if (m._getType() === "function") {
       role = humanPrefix;
-      string_messages.push(`${role}: The "${m.name}" tool responded the following: ${m.content}`);
+      const mm = `Start-Of-Message:\n- Participant: ${role}\n- Task: message\n- Payload: The "${m.name}" tool responded the following: ${m.content}`
+      string_messages.push(mm);
     } else if (m._getType() === "generic") {
       role = humanPrefix;
       string_messages.push(`${role}: ${m.content}`);
@@ -33,5 +33,5 @@ export function messagesToString(
       throw new Error(`Got unsupported message type: ${m}`);
     }
   }
-  return string_messages.join("\n");
+  return string_messages.join("\n\n\n");
 }

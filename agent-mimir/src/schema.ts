@@ -50,7 +50,10 @@ export type MimirAgentArgs = {
     plugins: MimirAgentPlugin[]
     constitution: string,
     workspaceManager: WorkspaceManager,
-    memoryBuilder: (messageHistory: BaseChatMessageHistory) => BaseChatMemory,
+    memoryBuilder: (messageHistory: {
+        messageHistory: BaseChatMessageHistory,
+        plainText: boolean,
+    }) => BaseChatMemory,
 }
 export type PluginContext = {
     workingDirectory: string,

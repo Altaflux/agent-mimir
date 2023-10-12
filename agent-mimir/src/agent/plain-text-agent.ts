@@ -198,7 +198,10 @@ export function createPlainTextMimirAgent(args: MimirAgentArgs) {
     ];
 
     const chatHistory = new TransformationalChatMessageHistory(args.chatMemory,  new DefaultAiMessageSerializer(), new PlainTextHumanMessageSerializer());
-    const finalMemory = args.memoryBuilder(chatHistory);
+    const finalMemory = args.memoryBuilder({
+        messageHistory: chatHistory,
+        plainText: true,
+    });
 
     const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(formatManager), messageGenerator, {
         systemMessage: systemMessages,

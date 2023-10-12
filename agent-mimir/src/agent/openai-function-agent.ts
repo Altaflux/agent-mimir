@@ -150,7 +150,10 @@ export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
     });
 
     const chatHistory = new TransformationalChatMessageHistory(args.chatMemory, new FunctionCallAiMessageSerializer(), new PlainTextHumanMessageSerializer());
-    const finalMemory = args.memoryBuilder(chatHistory);
+    const finalMemory = args.memoryBuilder({
+        messageHistory: chatHistory,
+        plainText: false,
+    });
 
     const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGenerator, {
         systemMessage: systemMessages,

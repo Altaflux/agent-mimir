@@ -21,7 +21,7 @@ import { MimirAgentTypes } from '../agent/index.js';
 import { AutomaticTagMemoryPlugin } from '../plugins/tag-memory/plugins.js';
 import { CompactingConversationSummaryMemory } from '../memory/compacting-memory/index.js';
 import { ChatMessageHistory } from 'langchain/memory';
-import path from "path";
+import { BaseMessage } from 'langchain/schema';
 
 
 export type CreateAgentOptions = {
@@ -40,6 +40,7 @@ export type CreateAgentOptions = {
         maxTaskHistoryWindow?: number,
     }
     tools?: Tool[],
+    messageHistory?: BaseMessage[],
     
 }
 
@@ -131,15 +132,15 @@ export class AgentManager {
             workspaceManager: workspace,
             plugins: allPlugins,
             constitution: config.constitution ?? DEFAULT_CONSTITUTION,
-            chatMemory: new ChatMessageHistory(),
-            memoryBuilder: (chatMessageHistory) => {
+            chatMemory: new ChatMessageHistory(config.messageHistory),
+            memoryBuilder: (args) => {
                 const memory = new CompactingConversationSummaryMemory(summarizingModel, {
-                    chatHistory: chatMessageHistory,
+                    plainTextCompacting: args.plainText,
+                    chatHistory: args.messageHistory,
                     returnMessages: true,
                     memoryKey: "history",
                     inputKey: "inputToSave",
                     embeddings: embeddings,
-                    maxWindowSize: config.chatHistory?.maxTaskHistoryWindow ?? 6,
                     compactionCallback: async (newLines, previousConversation) => {
                         for (const plugin of allPlugins) {
                             await plugin.memoryCompactionCallback(newLines, previousConversation);

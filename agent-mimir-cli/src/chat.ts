@@ -1,7 +1,7 @@
 import { ChainValues } from "langchain/schema";
 
 import chalk from 'chalk';
-import { Agent, FILES_TO_SEND_FIELD } from "agent-mimir/schema";
+import { Agent, AgentUserMessage, FILES_TO_SEND_FIELD } from "agent-mimir/schema";
 import readline from 'readline';
 import { Retry } from "./utils.js";
 import path from "path";
@@ -49,7 +49,9 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent) {
       });
       aiResponse = await Retry(() => executor.call({ continuousMode, input: parsedMessage.text,  [FILES_TO_SEND_FIELD]: files }));
     }
-    console.log(chalk.red("AI Response: ", chalk.blue(aiResponse?.output)));
+    const response: AgentUserMessage = JSON.parse(aiResponse?.output);
+    const responseMessage = `Files provided by AI: ${response.sharedFiles?.map(f => f.fileName).join(", ") || "None"}\n\n${response.message}`;
+    console.log(chalk.red("AI Response: ", chalk.blue(responseMessage)));
   }
 }
 
