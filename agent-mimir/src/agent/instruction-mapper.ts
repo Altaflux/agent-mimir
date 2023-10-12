@@ -32,7 +32,7 @@ export class ResponseFieldMapper<T = any> {
     }
 
     async readInstructionsFromResponse(response: string): Promise<T> {
-        const responseParts = this.attributeSetters.map((attributeSetter) => `-${attributeSetter.name}`).join('|');
+        const responseParts = this.attributeSetters.map((attributeSetter) => `- ${attributeSetter.name}`).join('|');
         const mappings = this.attributeSetters.map((attributeSetter) => {
             return {
                 regex: new RegExp(`(?<=- ${attributeSetter.name}:\\s)([\\s\\S]*?)` + '(?=\\s' + responseParts + "|$)"),
