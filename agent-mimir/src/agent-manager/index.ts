@@ -21,7 +21,7 @@ import { MimirAgentTypes } from '../agent/index.js';
 import { AutomaticTagMemoryPlugin } from '../plugins/tag-memory/plugins.js';
 import { CompactingConversationSummaryMemory } from '../memory/compacting-memory/index.js';
 import { ChatMessageHistory } from 'langchain/memory';
-import { BaseMessage } from 'langchain/schema';
+import { BaseChatMessageHistory, BaseMessage } from 'langchain/schema';
 
 
 export type CreateAgentOptions = {
@@ -32,7 +32,6 @@ export type CreateAgentOptions = {
     model: BaseChatModel,
     plugins?: MimirPluginFactory[],
     summaryModel?: BaseChatModel,
-    allowAgentCreation?: boolean,
     constitution?: string,
     communicationWhitelist?: boolean | string[],
     chatHistory?: {
@@ -40,7 +39,7 @@ export type CreateAgentOptions = {
         maxTaskHistoryWindow?: number,
     }
     tools?: Tool[],
-    messageHistory?: BaseMessage[],
+    messageHistory: BaseChatMessageHistory,
     
 }
 
@@ -89,8 +88,7 @@ export class AgentManager {
                 name: shortName,
                 helperSingleton: this,
                 model: model,
-                communicationWhitelist: communicationWhitelist ?? null,
-                allowAgentCreation: config.allowAgentCreation ?? false,
+                communicationWhitelist: communicationWhitelist ?? null
             });
 
             agentCommunicationPlugin.push(helpersPlugin);
@@ -116,7 +114,7 @@ export class AgentManager {
 
         const workspace = await this.managerConfig.workspaceManagerFactory(shortName);
         const configurablePlugins = config.plugins?.map(plugin => plugin.create({ workingDirectory: workspace.workingDirectory, agentName: shortName }));
-        const defaultPlugins = [timePlugin, tagPlugin, ...agentCommunicationPlugin, ...configurablePlugins ?? []] as MimirAgentPlugin[];
+        const defaultPlugins = [timePlugin, ...agentCommunicationPlugin, ...configurablePlugins ?? []] as MimirAgentPlugin[];
 
         const talkToUserTool = new TalkToUserTool(workspace);
 
@@ -132,7 +130,7 @@ export class AgentManager {
             workspaceManager: workspace,
             plugins: allPlugins,
             constitution: config.constitution ?? DEFAULT_CONSTITUTION,
-            chatMemory: new ChatMessageHistory(config.messageHistory),
+            chatMemory: config.messageHistory,
             memoryBuilder: (args) => {
                 const memory = new CompactingConversationSummaryMemory(summarizingModel, {
                     plainTextCompacting: args.plainText,

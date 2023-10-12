@@ -11,6 +11,8 @@ import { promises as fs } from 'fs';
 import os from 'os';
 import path from "path";
 import { AIMessage, BaseMessage, ChatMessage, ChatMessageFieldsWithRole, FunctionMessage, HumanMessage, StoredMessage, SystemMessage } from "langchain/schema";
+import { ChatMessageHistory } from "langchain/memory";
+import { FileSystemChatHistory } from "./fileMessageHistory.js";
 
 const messages: StoredMessage[] = [
 
@@ -34,12 +36,12 @@ export type AgentDefinition = {
         }
         tools?: Tool[];
         communicationWhitelist?: string[] | boolean;
-        allowAgentCreation?: boolean;
     },
 
 }
 type AgentMimirConfig = {
     agents: Record<string, AgentDefinition>;
+    workingDirectory?: string;
     continuousMode?: boolean;
 }
 const getConfig = async () => {
@@ -60,9 +62,9 @@ const getConfig = async () => {
 class FileSystemWorkspaceManager implements WorkspaceManager {
 
     workingDirectory: string;
-
-    constructor(workDirectory: string) {
-        this.workingDirectory = workDirectory;
+    
+    constructor(agentRootDirectory: string) {
+        this.workingDirectory = path.join(agentRootDirectory, "workspace");
     }
 
     async clearWorkspace(): Promise<void> {
@@ -89,10 +91,13 @@ class FileSystemWorkspaceManager implements WorkspaceManager {
 export const run = async () => {
 
     const agentConfig: AgentMimirConfig = await getConfig();
+    const workingDirectory = agentConfig.workingDirectory ?? await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-cli-'));
+    await fs.mkdir(workingDirectory, { recursive: true });
 
     const agentManager = new AgentManager({
         workspaceManagerFactory: async (agent) => {
-            const tempDir = path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-cli-')), "workspace");
+            // const tempDir = path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-cli-')), agent);
+             const tempDir = path.join(workingDirectory, agent);
             await fs.mkdir(tempDir, { recursive: true });
             return new FileSystemWorkspaceManager(tempDir)!;
         }
@@ -104,10 +109,10 @@ export const run = async () => {
             const newAgent = {
                 mainAgent: agentDefinition.mainAgent,
                 name: agentName,
-    
                 agent: await agentManager.createAgent({
                     name: agentName,
-                    messageHistory: mapStoredMessagesToChatMessages(messages),
+                    messageHistory: new FileSystemChatHistory(path.join(workingDirectory, agentName, "chat-history.json")),
+                  //  messageHistory: new ChatMessageHistory(),
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,
                     tools: agentDefinition.definition.tools ?? [],
@@ -115,7 +120,6 @@ export const run = async () => {
                     summaryModel: agentDefinition.definition.summaryModel,
                     chatHistory: agentDefinition.definition.chatHistory,
                     communicationWhitelist: agentDefinition.definition.communicationWhitelist,
-                    allowAgentCreation: agentDefinition.definition.allowAgentCreation,
                     constitution: agentDefinition.definition.constitution,
                     agentType: agentDefinition.definition.agentType,
                     plugins: agentDefinition.definition.plugins
@@ -145,33 +149,32 @@ run();
 
 export function mapStoredMessagesToChatMessages(
     messages: StoredMessage[]
-  ): BaseMessage[] {
+): BaseMessage[] {
     return messages.map((message) => {
-      const storedMessage = (message);
-      switch (storedMessage.type) {
-        case "human":
-          return new HumanMessage(storedMessage.data);
-        case "ai":
-          return new AIMessage(storedMessage.data);
-        case "system":
-          return new SystemMessage(storedMessage.data);
-        case "function":
-          if (storedMessage.data.name === undefined) {
-            throw new Error("Name must be defined for function messages");
-          }
-          return new FunctionMessage(
-            storedMessage.data as any,
-            storedMessage.data.name
-          );
-        case "chat": {
-          if (storedMessage.data.role === undefined) {
-            throw new Error("Role must be defined for chat messages");
-          }
-          return new ChatMessage(storedMessage.data as ChatMessageFieldsWithRole);
+        const storedMessage = (message);
+        switch (storedMessage.type) {
+            case "human":
+                return new HumanMessage(storedMessage.data);
+            case "ai":
+                return new AIMessage(storedMessage.data);
+            case "system":
+                return new SystemMessage(storedMessage.data);
+            case "function":
+                if (storedMessage.data.name === undefined) {
+                    throw new Error("Name must be defined for function messages");
+                }
+                return new FunctionMessage(
+                    storedMessage.data as any,
+                    storedMessage.data.name
+                );
+            case "chat": {
+                if (storedMessage.data.role === undefined) {
+                    throw new Error("Role must be defined for chat messages");
+                }
+                return new ChatMessage(storedMessage.data as ChatMessageFieldsWithRole);
+            }
+            default:
+                throw new Error(`Got unexpected type: ${storedMessage.type}`);
         }
-        default:
-          throw new Error(`Got unexpected type: ${storedMessage.type}`);
-      }
     });
-  }
-  
+}

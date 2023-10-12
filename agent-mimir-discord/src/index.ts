@@ -6,15 +6,15 @@ import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
 import { Tool } from "langchain/tools";
 import { BaseChain } from "langchain/chains";
-import { chatWithAgent } from "./chat.js";
 import { promises as fs } from 'fs';
 import normalFs from 'fs';
 import os from 'os';
 import path from "path";
-import { ChannelType, Client, GatewayIntentBits, MessageType, Partials } from 'discord.js';
-import { REST, Routes } from 'discord.js';
+import { ChannelType, Client, GatewayIntentBits, Partials } from 'discord.js';
 import { Readable } from "stream";
 import { finished } from "stream/promises";
+import { ChatMessageHistory } from "langchain/memory";
+import { FileSystemChatHistory } from "./fileMessageHistory.js";
 export type AgentDefinition = {
     mainAgent?: boolean;
     description: string;
@@ -33,21 +33,21 @@ export type AgentDefinition = {
         }
         tools?: Tool[];
         communicationWhitelist?: string[] | boolean;
-        allowAgentCreation?: boolean;
     },
 
 }
 type AgentMimirConfig = {
     agents: Record<string, AgentDefinition>;
     continuousMode?: boolean;
+    workingDirectory?: string;
 }
 
 class FileSystemWorkspaceManager implements WorkspaceManager {
 
     workingDirectory: string;
 
-    constructor(workDirectory: string) {
-        this.workingDirectory = workDirectory;
+    constructor(agentRootDirectory: string) {
+        this.workingDirectory = path.join(agentRootDirectory, "workspace");
     }
 
     async clearWorkspace(): Promise<void> {
@@ -97,10 +97,12 @@ async function downloadFile(filename: string, link: string) {
 export const run = async () => {
 
     const agentConfig: AgentMimirConfig = await getConfig();
-
+    const workingDirectory = agentConfig.workingDirectory ?? await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-cli-'));
+    await fs.mkdir(workingDirectory, { recursive: true });
+    
     const agentManager = new AgentManager({
         workspaceManagerFactory: async (agent) => {
-            const tempDir = path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-cli-')), "workspace");
+            const tempDir = path.join(workingDirectory, agent);
             await fs.mkdir(tempDir, { recursive: true });
             return new FileSystemWorkspaceManager(tempDir);
         }
@@ -114,6 +116,7 @@ export const run = async () => {
                 name: agentName,
                 agent: await agentManager.createAgent({
                     name: agentName,
+                    messageHistory: new FileSystemChatHistory(path.join(workingDirectory, agentName, "chat-history.json")),
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,
                     tools: agentDefinition.definition.tools ?? [],
@@ -121,7 +124,6 @@ export const run = async () => {
                     summaryModel: agentDefinition.definition.summaryModel,
                     chatHistory: agentDefinition.definition.chatHistory,
                     communicationWhitelist: agentDefinition.definition.communicationWhitelist,
-                    allowAgentCreation: agentDefinition.definition.allowAgentCreation,
                     constitution: agentDefinition.definition.constitution,
                     agentType: agentDefinition.definition.agentType,
                     plugins: agentDefinition.definition.plugins
@@ -141,7 +143,6 @@ export const run = async () => {
     }
 
     console.log(chalk.green(`Using "${mainAgent.name}" as main agent`));
-    //   await chatWithAgent(continousMode, mainAgent);
 
     const client = new Client(
         {
@@ -156,7 +157,7 @@ export const run = async () => {
 
     client.on('messageCreate', async msg => {
         if (msg.author.bot) return;
-        // const foo = msg.type !== MessageType.Reply && msg.reference
+
         if (msg.channel.type !== ChannelType.DM && !msg.mentions.has(client.user!)) {
             return;
         }
@@ -171,7 +172,7 @@ export const run = async () => {
         }));
 
         const messageToAi = msg.cleanContent.replaceAll(`@${client.user!.username}`, "").trim();
-      
+
         const response: AgentUserMessage = JSON.parse((await mainAgent.agent.call({ continuousMode: true, input: messageToAi, [FILES_TO_SEND_FIELD]: loadedFiles })).output);
         clearInterval(typing);
         await msg.reply({

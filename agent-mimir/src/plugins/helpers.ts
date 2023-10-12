@@ -13,9 +13,11 @@ export class TalkToHelper extends StructuredTool {
         message: z.string().describe("The message to the helper, be as detailed as possible."),
         workspaceFilesToShare: z.array(z.string()).optional().describe("The list of files of your work directory you want to share with the helper."),
     })
+
     constructor(private helperSingleton: AgentManager, private agentName: string) {
         super();
     }
+
     protected async _call(arg: z.input<this["schema"]>): Promise<string> {
         const { helperName, message } = arg;
         const helper = this.helperSingleton.getAgent(helperName);
@@ -49,34 +51,11 @@ export class TalkToHelper extends StructuredTool {
 
 }
 
-export class CreateHelper extends StructuredTool {
-
-    schema = z.object({
-        helperDescription: z.string().describe("The verbose description of the profession you want to talk to the helper about."),
-    })
-
-    constructor(private helperSingleton: AgentManager, private model: BaseChatModel) {
-        super();
-    }
-    protected async _call(arg: z.input<this["schema"]>): Promise<string> {
-        return (await this.helperSingleton.createAgent({
-            profession: arg.helperDescription,
-            description: arg.helperDescription,
-            model: this.model
-        })).name;
-    }
-    name: string = "createHelper";
-    description: string = "Creates a helper who is an expert on any profession, you can talk to them with the `talkToHelper` tool. ";
-
-}
-
-
 export type HelperPluginConfig = {
     name: string,
     helperSingleton: AgentManager,
     communicationWhitelist: string[] | null,
     model: BaseChatModel,
-    allowAgentCreation: boolean,
 }
 
 export class HelpersPlugin extends MimirAgentPlugin {
@@ -85,14 +64,13 @@ export class HelpersPlugin extends MimirAgentPlugin {
     private communicationWhitelist: string[] | null;
     private model: BaseChatModel;
     private name: string;
-    private allowAgentCreation: boolean;
+
     constructor(config: HelperPluginConfig) {
         super();
         this.helperSingleton = config.helperSingleton;
         this.model = config.model;
         this.communicationWhitelist = config.communicationWhitelist;
         this.name = config.name;
-        this.allowAgentCreation = config.allowAgentCreation;
     }
 
     async getInputs(_: AgentContext): Promise<Record<string, any>> {
@@ -117,9 +95,7 @@ export class HelpersPlugin extends MimirAgentPlugin {
 
     tools(): StructuredTool[] {
         let tools: StructuredTool[] = [new TalkToHelper(this.helperSingleton, this.name)];
-        if (this.allowAgentCreation) {
-            tools.push(new CreateHelper(this.helperSingleton, this.model));
-        }
+ 
         return tools;
     }
 }

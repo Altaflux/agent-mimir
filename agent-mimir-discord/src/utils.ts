@@ -14,6 +14,7 @@ export async function Retry<T>( action: () => Promise<T>, retryInterval = 2000, 
         catch ( e )
         {
             console.log( `Attempt ${attempted + 1} of ${maxAttemptCount} failed.` );
+           
             exceptions.push( e );
         }
     }
