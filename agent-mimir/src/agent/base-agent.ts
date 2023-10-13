@@ -229,7 +229,6 @@ export class MimirAgent extends BaseSingleActionAgent {
                 const message = getInputValue(messagePack.output, innerMemory.outputKey);
                 const aiMessage = message as MimirAIMessage;
                 return aiMessage.error === true;
-                //return false;
             }
         });
         const chain = new LLMChain({ prompt, llm, memory: innerMemory, outputParser: mimirOutputParser });
