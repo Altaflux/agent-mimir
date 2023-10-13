@@ -50,13 +50,20 @@ export class ChatConversationalAgentOutputParser extends AgentActionOutputParser
 export class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
     async parseResult(generations: Generation[] | ChatGeneration[]): Promise<MimirAIMessage> {
         const generation = generations[0] as ChatGeneration;
-        const functionCall: any = generation.message?.additional_kwargs?.function_call
-        const mimirMessage = {
+        const functionCall: any = generation.message?.additional_kwargs?.function_call;
+        let hasError = false;
+        try {
+            JSON.parse(callJsonRepair(functionCall?.arguments ?? undefined))
+        } catch (e) {
+            hasError = true;
+        }
+        const mimirMessage: MimirAIMessage = {
             functionCall: functionCall ? {
                 name: functionCall?.name,
                 arguments: (functionCall?.arguments),
             } : undefined,
             text: generation.text,
+            error: hasError,
         }
         return mimirMessage;
     }

@@ -20,7 +20,8 @@ import { HelpersPlugin } from '../plugins/helpers.js';
 import { MimirAgentTypes } from '../agent/index.js';
 import { AutomaticTagMemoryPlugin } from '../plugins/tag-memory/plugins.js';
 import { CompactingConversationSummaryMemory } from '../memory/compacting-memory/index.js';
-import { BaseChatMessageHistory, BaseMessage } from 'langchain/schema';
+import { BaseChatMessageHistory } from 'langchain/schema';
+import { NoopMemory } from '../memory/noopMemory.js';
 
 
 export type CreateAgentOptions = {
@@ -101,12 +102,18 @@ export class AgentManager {
         ];
 
 
-        const memory = new WindowedConversationSummaryMemory(summarizingModel, {
+        // const memory = new WindowedConversationSummaryMemory(summarizingModel, {
+        //     returnMessages: true,
+        //     memoryKey: "chat_history",
+        //     inputKey: "input",
+        //     outputKey: "output",
+        //     maxWindowSize: config.chatHistory?.maxChatHistoryWindow ?? 6
+        // });
+        const memory = new NoopMemory( {
             returnMessages: true,
             memoryKey: "chat_history",
             inputKey: "input",
             outputKey: "output",
-            maxWindowSize: config.chatHistory?.maxChatHistoryWindow ?? 6
         });
 
         const timePlugin = new TimePlugin();

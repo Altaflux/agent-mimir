@@ -1,6 +1,6 @@
 
 
-export async function Retry<T>( action: () => Promise<T>, retryInterval = 2000, maxAttemptCount = 3 )
+export async function Retry<T>( action: () => Promise<T>, retryInterval = 2000, maxAttemptCount = 1 )
 {
     const exceptions = [];
     for ( let attempted = 0 ; attempted < maxAttemptCount ; attempted++ )
@@ -13,7 +13,7 @@ export async function Retry<T>( action: () => Promise<T>, retryInterval = 2000, 
         }
         catch ( e )
         {
-            console.log( `Attempt ${attempted + 1} of ${maxAttemptCount} failed.` );
+            console.log( `Attempt ${attempted + 1} of ${maxAttemptCount} failed.` , e);
             exceptions.push( e );
         }
     }

@@ -170,14 +170,17 @@ export class MimirAgent extends BaseSingleActionAgent {
                 agentResponse = await this.llmChain.predict({
                     ...inputs,
                     realInput: errMessage,
-                    inputToSave: errMessage
+                    inputToSave: {
+                        type: "USER_MESSAGE",
+                        message: BAD_MESSAGE_TEXT,
+                    } as MimirHumanReplyMessage,
                 });
 
             } else {
                 agentResponse = await this.llmChain.predict(inputs);
             }
 
-            if (agentResponse!.functionCall?.name !== "PARSING_ERROR") {
+            if (agentResponse!.error !== true) {
                 return agentResponse;
             }
             console.error("Failed to parse agent message, retrying..: ", JSON.stringify(agentResponse));
@@ -225,7 +228,8 @@ export class MimirAgent extends BaseSingleActionAgent {
             startCollectionFilter: (messagePack) => {
                 const message = getInputValue(messagePack.output, innerMemory.outputKey);
                 const aiMessage = message as MimirAIMessage;
-                return aiMessage.error === true;
+                // return aiMessage.error === true;
+                return false;
             }
         });
         const chain = new LLMChain({ prompt, llm, memory: innerMemory, outputParser: mimirOutputParser });
