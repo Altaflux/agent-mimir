@@ -27,6 +27,7 @@ export type Agent = {
     description: string, 
     agent: BaseChain,
     workspace: WorkspaceManager,
+    reset: () => Promise<void>,
 };
 
 
@@ -50,6 +51,7 @@ export type MimirAgentArgs = {
     plugins: MimirAgentPlugin[]
     constitution: string,
     workspaceManager: WorkspaceManager,
+    resetFunction: () => Promise<void>,
     memoryBuilder: (messageHistory: {
         messageHistory: BaseChatMessageHistory,
         plainText: boolean,

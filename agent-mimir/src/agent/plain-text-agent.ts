@@ -208,6 +208,7 @@ export function createPlainTextMimirAgent(args: MimirAgentArgs) {
         outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName),
         taskCompleteCommandName: args.taskCompleteCommandName,
         memory: finalMemory,
+        resetFunction: args.resetFunction,
         defaultInputs: {
 
         },

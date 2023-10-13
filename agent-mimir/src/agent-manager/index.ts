@@ -10,7 +10,7 @@ import { SteppedAgentExecutor } from '../executor/index.js';
 import { ChatMemoryChain } from '../memory/transactional-memory-chain.js';
 
 import { BaseChatModel } from 'langchain/chat_models';
-import { Agent, MimirAgentPlugin,  MimirPluginFactory, WorkspaceManagerFactory } from '../schema.js';
+import { Agent, MimirAgentPlugin, MimirPluginFactory, WorkspaceManagerFactory } from '../schema.js';
 
 import { initializeAgent } from '../agent/index.js'
 import { LangchainToolWrapper } from '../schema.js';
@@ -40,7 +40,7 @@ export type CreateAgentOptions = {
     }
     tools?: Tool[],
     messageHistory: BaseChatMessageHistory,
-    
+
 }
 
 export type ManagerConfig = {
@@ -109,7 +109,7 @@ export class AgentManager {
         //     outputKey: "output",
         //     maxWindowSize: config.chatHistory?.maxChatHistoryWindow ?? 6
         // });
-        const memory = new NoopMemory( {
+        const memory = new NoopMemory({
             returnMessages: true,
             memoryKey: "chat_history",
             inputKey: "input",
@@ -126,7 +126,11 @@ export class AgentManager {
 
         const allPlugins = [...tools.map(tool => new LangchainToolWrapper(tool)), ...defaultPlugins];
 
-        
+        const reset = async () => {
+            await Promise.all(allPlugins.map(async plugin => await plugin.clear()));
+            await workspace.clearWorkspace();
+            await config.messageHistory.clear()
+        };
         const agent = initializeAgent(config.agentType ?? "plain-text-agent", {
             llm: model,
             name: shortName,
@@ -137,6 +141,7 @@ export class AgentManager {
             plugins: allPlugins,
             constitution: config.constitution ?? DEFAULT_CONSTITUTION,
             chatMemory: config.messageHistory,
+            resetFunction: reset,
             memoryBuilder: (args) => {
                 const memory = new CompactingConversationSummaryMemory(summarizingModel, {
                     plainTextCompacting: args.plainText,
@@ -181,7 +186,13 @@ export class AgentManager {
             await plugin.init();
         }
 
-        this.map.set(shortName, { name: shortName, description: config.description, agent: chatMemoryChain, workspace: workspace });
+        this.map.set(shortName, {
+            name: shortName,
+            description: config.description,
+            agent: chatMemoryChain,
+            workspace: workspace,
+            reset: reset
+        });
         return this.map.get(shortName)!;
     }
 

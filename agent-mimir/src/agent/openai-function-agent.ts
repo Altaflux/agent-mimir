@@ -162,6 +162,7 @@ export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
         outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName, args.talkToUserTool?.name),
         taskCompleteCommandName: args.taskCompleteCommandName,
         memory: finalMemory,
+        resetFunction: args.resetFunction,
         defaultInputs: {
             tools: [...args.plugins.map(plugin => plugin.tools()).flat(), ...talkToUserTools],
         },

@@ -51,6 +51,7 @@ export class MimirAgent extends BaseSingleActionAgent {
     plugins: InternalAgentPlugin[];
     name: string;
     workspaceManager: WorkspaceManager;
+    resetFunction: () => Promise<void>;
     messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>;
 
     constructor(
@@ -61,8 +62,10 @@ export class MimirAgent extends BaseSingleActionAgent {
         messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
         name: string,
         workspaceManager: WorkspaceManager,
+        resetFunction: () => Promise<void>,
         plugins?: InternalAgentPlugin[],
         defaultInputs?: Record<string, any>,
+       
     ) {
         super(input);
         this.llmChain = input.llmChain;
@@ -74,6 +77,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         this.plugins = plugins ?? [];
         this.name = name;
         this.workspaceManager = workspaceManager;
+        this.resetFunction = resetFunction;
     }
 
     get inputKeys(): string[] {
@@ -86,9 +90,7 @@ export class MimirAgent extends BaseSingleActionAgent {
     ): Promise<AgentFinish["returnValues"]> {
 
         if (_returnValues.complete) {
-            await Promise.all(this.plugins.map(async plugin => await plugin.clear()));
-            await this.workspaceManager.clearWorkspace();
-            await this.memory.clear()
+            await this.resetFunction();
             console.debug("Cleared workspace and memory");
             //NOTE Output has to be of type AgentUserMessage.
             //TODO This function is aware of the input of the FinalTool, it should not be.
@@ -244,8 +246,9 @@ export class MimirAgent extends BaseSingleActionAgent {
             messageGenerator,
             args.name,
             args.workspaceManager,
+            args.resetFunction,
             args.plugins,
-            args.defaultInputs
+            args.defaultInputs,
         );
     }
 }
@@ -268,6 +271,8 @@ export type CreatePromptArgs = {
     name: string;
 
     workspaceManager: WorkspaceManager;
+
+    resetFunction: () => Promise<void>;
 
 };
 
