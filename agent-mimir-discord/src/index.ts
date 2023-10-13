@@ -13,7 +13,6 @@ import path from "path";
 import { ChannelType, Client, GatewayIntentBits, Partials } from 'discord.js';
 import { Readable } from "stream";
 import { finished } from "stream/promises";
-import { ChatMessageHistory } from "langchain/memory";
 import { FileSystemChatHistory } from "./fileMessageHistory.js";
 export type AgentDefinition = {
     mainAgent?: boolean;
@@ -99,7 +98,7 @@ export const run = async () => {
     const agentConfig: AgentMimirConfig = await getConfig();
     const workingDirectory = agentConfig.workingDirectory ?? await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-cli-'));
     await fs.mkdir(workingDirectory, { recursive: true });
-    
+
     const agentManager = new AgentManager({
         workspaceManagerFactory: async (agent) => {
             const tempDir = path.join(workingDirectory, agent);

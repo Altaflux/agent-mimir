@@ -20,7 +20,6 @@ import { HelpersPlugin } from '../plugins/helpers.js';
 import { MimirAgentTypes } from '../agent/index.js';
 import { AutomaticTagMemoryPlugin } from '../plugins/tag-memory/plugins.js';
 import { CompactingConversationSummaryMemory } from '../memory/compacting-memory/index.js';
-import { ChatMessageHistory } from 'langchain/memory';
 import { BaseChatMessageHistory, BaseMessage } from 'langchain/schema';
 
 
@@ -120,7 +119,7 @@ export class AgentManager {
 
         const allPlugins = [...tools.map(tool => new LangchainToolWrapper(tool)), ...defaultPlugins];
 
-
+        
         const agent = initializeAgent(config.agentType ?? "plain-text-agent", {
             llm: model,
             name: shortName,

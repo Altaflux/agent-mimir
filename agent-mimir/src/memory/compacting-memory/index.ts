@@ -67,7 +67,7 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
         this.embeddings = fields.embeddings;
         this.compactionCallback = fields?.compactionCallback ?? (async () => { });
         this.tokenLimit = fields?.tokenLimit ?? this.tokenLimit;
-        this.compactedMessageDeserializer = fields.plainTextCompacting ? plainTextPayloadToMessage : functionPayloadToMessage;
+        this.compactedMessageDeserializer = fields.plainTextCompacting ?  plainTextPayloadToMessage : functionPayloadToMessage;
     }
 
     get memoryKeys(): string[] {
@@ -179,7 +179,7 @@ function extractPayload(text: string): Payload {
     }
 }
 
-export function functionPayloadToMessage(payload: Payload) {
+export function plainTextPayloadToMessage(payload: Payload) {
 
     if (payload.participant === "Human") {
         return new HumanMessage(payload.payload, {
@@ -192,7 +192,7 @@ export function functionPayloadToMessage(payload: Payload) {
     }
 }
 
-export function plainTextPayloadToMessage(payload: Payload) {
+export function functionPayloadToMessage(payload: Payload) {
     if (payload.participant === "Human") {
         return new HumanMessage(payload.payload, {
             compacted: true,
