@@ -1,6 +1,6 @@
 
 import { BaseChatMemory, ChatMessageHistory } from "langchain/memory";
-import { InputValues } from "langchain/schema";
+import { BaseMessage, InputValues } from "langchain/schema";
 
 
 export type MessagePair = { input: InputValues, output: Record<string, any> };
@@ -11,8 +11,10 @@ export type TrimmingMemoryInput = {
 export class TrimmingMemory extends BaseChatMemory {
 
     memory: BaseChatMemory;
-    pendingMessage: InputValues | undefined;
+
     startCollectionFilter: (message: MessagePair) => boolean;
+    lastGoodMessages: BaseMessage[] = [];
+    pendingMemory: InputValues | undefined
 
     constructor(memory: BaseChatMemory, args: TrimmingMemoryInput) {
         super({
@@ -33,27 +35,34 @@ export class TrimmingMemory extends BaseChatMemory {
 
     async saveContext(inputValues: InputValues, outputValues: Record<string, any>): Promise<void> {
         if (this.startCollectionFilter({ input: inputValues, output: outputValues })) {
-            if (!this.pendingMessage) {
-                this.pendingMessage = inputValues;
+            if (!(this.lastGoodMessages.length > 0)) {
+                this.pendingMemory = inputValues;
+                this.lastGoodMessages = [...(await this.memory.chatHistory.getMessages())];
             }
-            return await super.saveContext(inputValues, outputValues);
-        } else {
-            if (this.pendingMessage) {
-                await this.memory.saveContext(this.pendingMessage, outputValues);
-                this.pendingMessage = undefined;
-                await this.chatHistory.clear();
-                return;
-            }
+
             return await this.memory.saveContext(inputValues, outputValues);
+        } else {
+            if (this.pendingMemory) {
+                await this.memory.clear();
+                for (const message of this.lastGoodMessages) {
+                    await this.memory.chatHistory.addMessage(message);
+                }
+
+                await this.memory.saveContext(this.pendingMemory, outputValues);
+                this.lastGoodMessages = [];
+                this.pendingMemory = undefined;
+
+            } else {
+                return await this.memory.saveContext(inputValues, outputValues);
+            }
+
         }
 
     }
     async loadMemoryVariables(_values: InputValues): Promise<Record<string, any>> {
         const normalMemory = await this.memory.loadMemoryVariables(_values);
-        const pending = await this.chatHistory.getMessages();
         const messages = [
             ...normalMemory[Object.keys(normalMemory)[0]],
-            ...pending,
         ];
         const result = {
             [Object.keys(normalMemory)[0]]: messages,

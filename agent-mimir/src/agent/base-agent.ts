@@ -11,7 +11,7 @@ import { HumanMessage } from "langchain/schema";
 import { AgentContext, AgentUserMessage, FILES_TO_SEND_FIELD, MimirHumanReplyMessage, WorkspaceManager } from "../schema.js";
 
 
-const BAD_MESSAGE_TEXT = `I could not understand that your response, please rememeber to use the correct response format.`;
+const BAD_MESSAGE_TEXT = `I could not understand your response, please rememeber to use the correct response format using the appropiate functions.`;
 
 
 export type NextMessage = {
@@ -228,8 +228,8 @@ export class MimirAgent extends BaseSingleActionAgent {
             startCollectionFilter: (messagePack) => {
                 const message = getInputValue(messagePack.output, innerMemory.outputKey);
                 const aiMessage = message as MimirAIMessage;
-                // return aiMessage.error === true;
-                return false;
+                return aiMessage.error === true;
+                //return false;
             }
         });
         const chain = new LLMChain({ prompt, llm, memory: innerMemory, outputParser: mimirOutputParser });
