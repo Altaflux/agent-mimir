@@ -1,6 +1,6 @@
 import { MimirAgentTypes } from "agent-mimir/agent";
 import { AgentManager } from "agent-mimir/agent-manager"
-import { AgentUserMessage, FILES_TO_SEND_FIELD, MimirPluginFactory, WorkspaceManager } from "agent-mimir/schema";
+import { AgentUserMessage, FILES_TO_SEND_FIELD, MimirPluginFactory } from "agent-mimir/schema";
 import chalk from "chalk";
 import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
@@ -10,11 +10,11 @@ import { promises as fs } from 'fs';
 import normalFs from 'fs';
 import os from 'os';
 import path from "path";
-import { ChannelType, Client, GatewayIntentBits, Partials, Collection, REST, Routes, Events } from 'discord.js';
+import { ChannelType, Client, GatewayIntentBits, Partials, REST, Routes, Events } from 'discord.js';
 import { Readable } from "stream";
 import { finished } from "stream/promises";
-import { FileSystemChatHistory } from "./fileMessageHistory.js";
 import { SlashCommandBuilder } from "discord.js";
+import { FileSystemChatHistory, FileSystemWorkspaceManager } from "agent-mimir/nodejs";
 
 
 function splitStringInChunks(str: string) {
@@ -55,36 +55,6 @@ type AgentMimirConfig = {
     workingDirectory?: string;
 }
 
-class FileSystemWorkspaceManager implements WorkspaceManager {
-
-    workingDirectory: string;
-
-    constructor(agentRootDirectory: string) {
-        this.workingDirectory = path.join(agentRootDirectory, "workspace");
-    }
-
-    async clearWorkspace(): Promise<void> {
-        const files = await fs.readdir(this.workingDirectory);
-        for (const file of files) {
-            await fs.unlink(path.join(this.workingDirectory, file));
-        }
-    }
-
-    async listFiles(): Promise<string[]> {
-        const files = await fs.readdir(this.workingDirectory);
-        return files;
-    }
-    async loadFileToWorkspace(fileName: string, url: string): Promise<void> {
-        const destination = path.join(this.workingDirectory, fileName);
-        await fs.copyFile(url, destination);
-        console.debug(`Copied file ${url} to ${destination}`);
-    }
-
-    async getUrlForFile(fileName: string): Promise<string> {
-        const file = path.join(this.workingDirectory, fileName);
-        return file;
-    }
-}
 const getConfig = async () => {
     if (process.env.MIMIR_CFG_PATH) {
         let cfgFile = path.join(process.env.MIMIR_CFG_PATH, 'mimir-cfg.js');

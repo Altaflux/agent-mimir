@@ -34,6 +34,10 @@
     "./utils/format": {
       "types": "./dist/utils/format.d.ts",
       "import": "./dist/utils/format.js"
+    },
+    "./nodejs": {
+      "types": "./dist/nodejs/index.d.ts",
+      "import": "./dist/nodejs/index.js"
     }
   },
   "scripts": {

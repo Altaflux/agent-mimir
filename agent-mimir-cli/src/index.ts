@@ -1,6 +1,6 @@
 import { MimirAgentTypes } from "agent-mimir/agent";
 import { AgentManager } from "agent-mimir/agent-manager"
-import { MimirPluginFactory, WorkspaceManager } from "agent-mimir/schema";
+import { MimirPluginFactory } from "agent-mimir/schema";
 import chalk from "chalk";
 import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
@@ -11,8 +11,7 @@ import { promises as fs } from 'fs';
 import os from 'os';
 import path from "path";
 import { AIMessage, BaseMessage, ChatMessage, ChatMessageFieldsWithRole, FunctionMessage, HumanMessage, StoredMessage, SystemMessage } from "langchain/schema";
-import { ChatMessageHistory } from "langchain/memory";
-import { FileSystemChatHistory } from "./fileMessageHistory.js";
+import { FileSystemChatHistory, FileSystemWorkspaceManager } from "agent-mimir/nodejs";
 
 const messages: StoredMessage[] = [
 
@@ -58,36 +57,6 @@ const getConfig = async () => {
     return (await import("./default-config.js")).default();
 };
 
-
-class FileSystemWorkspaceManager implements WorkspaceManager {
-
-    workingDirectory: string;
-    
-    constructor(agentRootDirectory: string) {
-        this.workingDirectory = path.join(agentRootDirectory, "workspace");
-    }
-
-    async clearWorkspace(): Promise<void> {
-        const files = await fs.readdir(this.workingDirectory);
-        for (const file of files) {
-            await fs.unlink(path.join(this.workingDirectory, file));
-        }
-    }
-
-    async listFiles(): Promise<string[]> {
-        const files = await fs.readdir(this.workingDirectory);
-        return files;
-    }
-    async loadFileToWorkspace(fileName: string, url: string): Promise<void> {
-        const destination = path.join(this.workingDirectory, fileName);
-        await fs.copyFile(url, destination);
-        console.debug(`Copied file ${url} to ${destination}`);
-    }
-    async getUrlForFile(fileName: string): Promise<string> {
-        const file = path.join(this.workingDirectory, fileName);
-        return file;
-    }
-}
 export const run = async () => {
 
     const agentConfig: AgentMimirConfig = await getConfig();
@@ -112,7 +81,6 @@ export const run = async () => {
                 agent: await agentManager.createAgent({
                     name: agentName,
                     messageHistory: new FileSystemChatHistory(path.join(workingDirectory, agentName, "chat-history.json")),
-                  //  messageHistory: new ChatMessageHistory(),
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,
                     tools: agentDefinition.definition.tools ?? [],
@@ -144,37 +112,3 @@ export const run = async () => {
 
 run();
 
-
-
-
-export function mapStoredMessagesToChatMessages(
-    messages: StoredMessage[]
-): BaseMessage[] {
-    return messages.map((message) => {
-        const storedMessage = (message);
-        switch (storedMessage.type) {
-            case "human":
-                return new HumanMessage(storedMessage.data);
-            case "ai":
-                return new AIMessage(storedMessage.data);
-            case "system":
-                return new SystemMessage(storedMessage.data);
-            case "function":
-                if (storedMessage.data.name === undefined) {
-                    throw new Error("Name must be defined for function messages");
-                }
-                return new FunctionMessage(
-                    storedMessage.data as any,
-                    storedMessage.data.name
-                );
-            case "chat": {
-                if (storedMessage.data.role === undefined) {
-                    throw new Error("Role must be defined for chat messages");
-                }
-                return new ChatMessage(storedMessage.data as ChatMessageFieldsWithRole);
-            }
-            default:
-                throw new Error(`Got unexpected type: ${storedMessage.type}`);
-        }
-    });
-}
