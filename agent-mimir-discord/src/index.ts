@@ -16,6 +16,18 @@ import { finished } from "stream/promises";
 import { FileSystemChatHistory } from "./fileMessageHistory.js";
 import { SlashCommandBuilder } from "discord.js";
 
+
+function splitStringInChunks(str: string) {
+    const chunkSize = 1900;
+    let chunks = [];
+
+    for (let i = 0; i < str.length; i += chunkSize) {
+        chunks.push(str.slice(i, i + chunkSize));
+    }
+
+    return chunks;
+}
+
 export type AgentDefinition = {
     mainAgent?: boolean;
     description: string;
@@ -154,7 +166,7 @@ export const run = async () => {
     const rest = new REST().setToken(process.env.DISCORD_TOKEN!);
 
     const resetCommand = new SlashCommandBuilder().setName('reset')
-        .setDescription('Resets the agent');
+        .setDescription('Resets thee agent');
     const commands = [resetCommand];
     // and deploy your commands!
 
@@ -176,13 +188,17 @@ export const run = async () => {
 
     client.on(Events.InteractionCreate, async interaction => {
         if (!interaction.isChatInputCommand()) return;
-
+        await interaction.deferReply();
         if (interaction.commandName === 'reset') {
-            await mainAgent.reset();
-            console.log("Reset agent");
-            await interaction.reply('Reset agent!');
+            try {
+                await mainAgent.reset();
+            } catch (e) {
+                console.error(e);
+                await interaction.editReply('There was an error resetting the agent.');
+            }
+            await interaction.editReply('The agents have been reset!');
         }
-      
+
 
     });
     client.on('messageCreate', async msg => {
@@ -206,19 +222,18 @@ export const run = async () => {
 
         const response: AgentUserMessage = JSON.parse((await mainAgent.agent.call({ continuousMode: true, input: messageToAi, [FILES_TO_SEND_FIELD]: loadedFiles })).output);
         clearInterval(typing);
-        await msg.reply({
-            content: response.message,
-            files: (response.sharedFiles ?? []).map(f => f.url)
-        });
-
-    });
-    client.on('interactionCreate', async interaction => {
-        if (!interaction.isChatInputCommand()) return;
-
-        if (interaction.commandName === 'ping') {
-            await interaction.reply('Pong!');
+        const chunks = splitStringInChunks(response.message);
+        for (let i = 0; i < chunks.length; i++) {
+            const files = (i === chunks.length - 1) ? (response.sharedFiles ?? []).map(f => f.url) : [];
+            await msg.reply({
+                content: chunks[i],
+                files: files
+            });
         }
+
+
     });
+
     client.login(process.env.DISCORD_TOKEN);
 };
 

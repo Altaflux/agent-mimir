@@ -1,8 +1,9 @@
 import { PromptTemplate } from "langchain/prompts";
 
-const _DEFAULT_SUMMARIZER_TEMPLATE = `Copy the following conversation between two individuals. 
+const _DEFAULT_SUMMARIZER_TEMPLATE = `Compact the following conversation between two individuals. 
 
 Remove irrelevant details and prioritize keeping important information and context.
+Remove whole messages if they are not important.
 Important! Keep the same conversation format!
 -------
 Example expected output format:
@@ -22,7 +23,7 @@ Start of the conversation:
 {conversation}
 ---------------
 
-Start of the copy version:`;
+Start of the compacted version:`;
 
 // eslint-disable-next-line spaced-comment
 export const COMPACT_PROMPT = /*#__PURE__*/ new PromptTemplate({
