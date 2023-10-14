@@ -35,7 +35,7 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
 
     aiPrefix = "AI";
 
-    tokenLimit = 1500;
+    tokenLimit = 4000;
 
     conversationTokenThreshold = 75;
 

@@ -142,7 +142,7 @@ If you are given the task to create a file or they ask you to save it then save 
                 console.warn(`Failed to install libraries:\n ${libraryInstallationResult?.output}`);
             }
 
-            const result = await this.executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && py ${scriptPath}`);
+            const result = await this.executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && cd ${this.workDirectory} &&  py ${scriptPath}`);
 
             let fileList = "";
             if (this.workDirectory) {

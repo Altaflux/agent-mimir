@@ -10,10 +10,12 @@ import { promises as fs } from 'fs';
 import normalFs from 'fs';
 import os from 'os';
 import path from "path";
-import { ChannelType, Client, GatewayIntentBits, Partials } from 'discord.js';
+import { ChannelType, Client, GatewayIntentBits, Partials, Collection, REST, Routes, Events } from 'discord.js';
 import { Readable } from "stream";
 import { finished } from "stream/promises";
 import { FileSystemChatHistory } from "./fileMessageHistory.js";
+import { SlashCommandBuilder } from "discord.js";
+
 export type AgentDefinition = {
     mainAgent?: boolean;
     description: string;
@@ -149,17 +151,47 @@ export const run = async () => {
             partials: [Partials.Message, Partials.Channel]
         }
     );
+    const rest = new REST().setToken(process.env.DISCORD_TOKEN!);
 
-    client.on('ready', () => {
+    const resetCommand = new SlashCommandBuilder().setName('reset')
+        .setDescription('Resets the agent');
+    const commands = [resetCommand];
+    // and deploy your commands!
+
+
+    client.on('ready', async () => {
         console.log(`Logged in as ${client!.user!.tag}!`);
+        (async () => {
+            try {
+                console.log(`Started refreshing ${commands.length} application (/) commands.`);
+                const data = await rest.put(Routes.applicationCommands(client.user?.id!), { body: commands });
+                console.log(`Successfully reloaded ${JSON.stringify(data)} application (/) commands.`);
+            } catch (error) {
+                // And of course, make sure you catch and log any errors!
+                console.error(error);
+            }
+        })();
+
     });
 
+    client.on(Events.InteractionCreate, async interaction => {
+        if (!interaction.isChatInputCommand()) return;
+
+        if (interaction.commandName === 'reset') {
+            await mainAgent.reset();
+            console.log("Reset agent");
+            await interaction.reply('Reset agent!');
+        }
+      
+
+    });
     client.on('messageCreate', async msg => {
         if (msg.author.bot) return;
 
         if (msg.channel.type !== ChannelType.DM && !msg.mentions.has(client.user!)) {
             return;
         }
+
         await msg.channel.sendTyping();
         const typing = setInterval(() => msg.channel.sendTyping(), 5000);
         const loadedFiles = await Promise.all(msg.attachments.map(async (attachment) => {
