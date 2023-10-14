@@ -166,7 +166,7 @@ export const run = async () => {
     const rest = new REST().setToken(process.env.DISCORD_TOKEN!);
 
     const resetCommand = new SlashCommandBuilder().setName('reset')
-        .setDescription('Resets thee agent');
+        .setDescription('Resets the agent to a clean state.');
     const commands = [resetCommand];
     // and deploy your commands!
 
