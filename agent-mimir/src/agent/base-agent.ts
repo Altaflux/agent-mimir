@@ -51,7 +51,7 @@ export class MimirAgent extends BaseSingleActionAgent {
     plugins: InternalAgentPlugin[];
     name: string;
     workspaceManager: WorkspaceManager;
-    resetFunction: () => Promise<void>;
+    reset: () => Promise<void>;
     messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>;
 
     constructor(
@@ -62,7 +62,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
         name: string,
         workspaceManager: WorkspaceManager,
-        resetFunction: () => Promise<void>,
+        reset: () => Promise<void>,
         plugins?: InternalAgentPlugin[],
         defaultInputs?: Record<string, any>,
        
@@ -77,7 +77,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         this.plugins = plugins ?? [];
         this.name = name;
         this.workspaceManager = workspaceManager;
-        this.resetFunction = resetFunction;
+        this.reset = reset;
     }
 
     get inputKeys(): string[] {
@@ -90,7 +90,7 @@ export class MimirAgent extends BaseSingleActionAgent {
     ): Promise<AgentFinish["returnValues"]> {
 
         if (_returnValues.complete) {
-            await this.resetFunction();
+            await this.reset();
             console.debug("Cleared workspace and memory");
             //NOTE Output has to be of type AgentUserMessage.
             //TODO This function is aware of the input of the FinalTool, it should not be.
