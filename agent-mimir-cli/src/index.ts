@@ -65,8 +65,7 @@ export const run = async () => {
 
     const agentManager = new AgentManager({
         workspaceManagerFactory: async (agent) => {
-            // const tempDir = path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-cli-')), agent);
-             const tempDir = path.join(workingDirectory, agent);
+            const tempDir = path.join(workingDirectory, agent);
             await fs.mkdir(tempDir, { recursive: true });
             return new FileSystemWorkspaceManager(tempDir)!;
         }

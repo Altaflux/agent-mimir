@@ -140,7 +140,7 @@ export class SteppedAgentExecutor extends BaseChain {
                         storeInMem: false,
                         workPending: true,
                         chainValues: await getOutput({
-                            returnValues: { [this.agent.returnValues[0]]: `Agent: "${this.agentName}" is requesting permission to use tool: "${action.tool}" with input:\n"${JSON.stringify(action.toolInput, null, 2)}"`, toolStep: true },
+                            returnValues: { [this.agent.returnValues[0]]: JSON.stringify({ message: `Agent: "${this.agentName}" is requesting permission to use tool: "${action.tool}" with input:\n"${JSON.stringify(action.toolInput, null, 2)}"` }), toolStep: true },
                             log: action.log,
                         })
                     };

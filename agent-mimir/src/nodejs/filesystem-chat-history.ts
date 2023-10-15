@@ -79,9 +79,3 @@ export function mapStoredMessagesToChatMessages(
     }
   });
 }
-
-export function mapChatMessagesToStoredMessages(
-  messages: BaseMessage[]
-): StoredMessage[] {
-  return messages.map((message) => message.toDict());
-}

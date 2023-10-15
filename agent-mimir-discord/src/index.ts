@@ -10,7 +10,7 @@ import { promises as fs } from 'fs';
 import normalFs from 'fs';
 import os from 'os';
 import path from "path";
-import { ChannelType, Client, GatewayIntentBits, Partials, REST, Routes, Events } from 'discord.js';
+import { ChannelType, Client, GatewayIntentBits, Partials, REST, Routes, Events, Message } from 'discord.js';
 import { Readable } from "stream";
 import { finished } from "stream/promises";
 import { SlashCommandBuilder } from "discord.js";
@@ -143,7 +143,7 @@ export const run = async () => {
 
     client.on('ready', async () => {
         console.log(`Logged in as ${client!.user!.tag}!`);
-        (async () => {
+        await (async () => {
             try {
                 console.log(`Started refreshing ${commands.length} application (/) commands.`);
                 const data = await rest.put(Routes.applicationCommands(client.user?.id!), { body: commands });
@@ -171,7 +171,7 @@ export const run = async () => {
 
 
     });
-    client.on('messageCreate', async msg => {
+    client.on(Events.MessageCreate, async msg => {
         if (msg.author.bot) return;
 
         if (msg.channel.type !== ChannelType.DM && !msg.mentions.has(client.user!)) {
@@ -189,18 +189,19 @@ export const run = async () => {
         }));
 
         const messageToAi = msg.cleanContent.replaceAll(`@${client.user!.username}`, "").trim();
+        try {
+            let chainResponse = (await mainAgent.agent.call({ continuousMode: false, input: messageToAi, [FILES_TO_SEND_FIELD]: loadedFiles }));
+            const response: AgentUserMessage = JSON.parse(chainResponse.output);
+            await sendDiscordResponse(msg, response);
 
-        const response: AgentUserMessage = JSON.parse((await mainAgent.agent.call({ continuousMode: true, input: messageToAi, [FILES_TO_SEND_FIELD]: loadedFiles })).output);
-        clearInterval(typing);
-        const chunks = splitStringInChunks(response.message);
-        for (let i = 0; i < chunks.length; i++) {
-            const files = (i === chunks.length - 1) ? (response.sharedFiles ?? []).map(f => f.url) : [];
-            await msg.reply({
-                content: chunks[i],
-                files: files
-            });
+            while (chainResponse.toolStep) {
+                chainResponse = (await mainAgent.agent.call({ continuousMode: false, continue: true }));
+                const response: AgentUserMessage = JSON.parse(chainResponse.output);
+                await sendDiscordResponse(msg, response);
+            }
+        } finally {
+            clearInterval(typing);
         }
-
 
     });
 
@@ -208,3 +209,14 @@ export const run = async () => {
 };
 
 run();
+
+async function sendDiscordResponse(msg: Message<boolean>, message: AgentUserMessage) {
+    const chunks = splitStringInChunks(message.message);
+    for (let i = 0; i < chunks.length; i++) {
+        const files = (i === chunks.length - 1) ? (message.sharedFiles ?? []).map(f => f.url) : [];
+        await msg.reply({
+            content: chunks[i],
+            files: files
+        });
+    }
+}
