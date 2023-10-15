@@ -96,7 +96,7 @@ export class AgentManager {
 
 
         const tools = [
-            ...controlTools,
+           // ...controlTools,
             ...(config.tools ?? []),
 
         ];
