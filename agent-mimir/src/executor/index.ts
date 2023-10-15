@@ -28,7 +28,7 @@ export class SteppedAgentExecutor extends BaseChain {
 
     returnIntermediateSteps = false;
 
-    maxIterations?: number = 15;
+    maxIterations?: number = 10;
 
     earlyStoppingMethod: StoppingMethod = "force";
 

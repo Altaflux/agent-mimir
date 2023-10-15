@@ -1,4 +1,4 @@
-import { AgentActionOutputParser, BaseSingleActionAgent } from "langchain/agents";
+import { AgentActionOutputParser, BaseSingleActionAgent, StoppingMethod } from "langchain/agents";
 import { CallbackManager } from "langchain/callbacks";
 import { AgentAction, AgentFinish, AgentStep, BaseMessage, ChainValues } from "langchain/schema";
 import { BaseChatMemory, getInputValue } from "langchain/memory";
@@ -65,7 +65,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         reset: () => Promise<void>,
         plugins?: InternalAgentPlugin[],
         defaultInputs?: Record<string, any>,
-       
+
     ) {
         super(input);
         this.llmChain = input.llmChain;
@@ -114,7 +114,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         callbackManager?: CallbackManager,
     ): Promise<AgentAction | AgentFinish> {
 
-   
+
 
         const nextMessage = this.getMessageForAI(steps, inputs);
         const context: AgentContext = {
@@ -161,6 +161,24 @@ export class MimirAgent extends BaseSingleActionAgent {
         return this.taskCompleteCommandName;
     }
 
+    /**
+     * Return response when agent has been stopped due to max iterations
+     */
+    returnStoppedResponse(
+        earlyStoppingMethod: StoppingMethod,
+        _steps: AgentStep[],
+        _inputs: ChainValues,
+        _callbackManager?: CallbackManager
+    ): Promise<AgentFinish> {
+        if (earlyStoppingMethod === "force") {
+            return Promise.resolve({
+                returnValues: { output: JSON.stringify({ message: "I am sorry, the task could not be completed." } as AgentUserMessage) },
+                log: "",
+            });
+        }
+
+        throw new Error(`Invalid stopping method: ${earlyStoppingMethod}`);
+    }
 
     private async executePlanWithRetry(inputs: Record<string, any>, retries: number = 6) {
         let attempts = 0;
