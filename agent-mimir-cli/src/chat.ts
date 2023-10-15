@@ -32,7 +32,7 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent) {
           const filename = path.basename(file);
           return { fileName: filename, url: file };
         });
-        aiResponse = await Retry(() => executor.call({ continuousMode, input: parsedMessage.text,  [FILES_TO_SEND_FIELD]: files }));
+        aiResponse = await Retry(() => executor.call({ continuousMode, input: parsedMessage.text, [FILES_TO_SEND_FIELD]: files }));
       }
     } else {
 
@@ -47,11 +47,19 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent) {
         const filename = path.basename(file);
         return { fileName: filename, url: file };
       });
-      aiResponse = await Retry(() => executor.call({ continuousMode, input: parsedMessage.text,  [FILES_TO_SEND_FIELD]: files }));
+      aiResponse = await Retry(() => executor.call({ continuousMode, input: parsedMessage.text, [FILES_TO_SEND_FIELD]: files }));
     }
-    const response: AgentUserMessage = JSON.parse(aiResponse?.output);
-    const responseMessage = `Files provided by AI: ${response.sharedFiles?.map(f => f.fileName).join(", ") || "None"}\n\n${response.message}`;
-    console.log(chalk.red("AI Response: ", chalk.blue(responseMessage)));
+    if (aiResponse?.toolStep) {
+      const response: { toolName: string, toolArguments: string } = JSON.parse(aiResponse?.output);
+      const responseMessage = `Agent is requesting permission to use tool: "${response.toolName}" with input:\n"${response.toolArguments}"`
+      console.log(chalk.red("AI Response: ", chalk.blue(responseMessage)));
+
+    } else {
+      const response: AgentUserMessage = JSON.parse(aiResponse?.output);
+      const responseMessage = `Files provided by AI: ${response.sharedFiles?.map(f => f.fileName).join(", ") || "None"}\n\n${response.message}`;
+      console.log(chalk.red("AI Response: ", chalk.blue(responseMessage)));
+    }
+
   }
 }
 

@@ -15,6 +15,7 @@ import { Readable } from "stream";
 import { finished } from "stream/promises";
 import { SlashCommandBuilder } from "discord.js";
 import { FileSystemChatHistory, FileSystemWorkspaceManager } from "agent-mimir/nodejs";
+import { ChainValues } from "langchain/schema";
 
 
 function splitStringInChunks(str: string) {
@@ -191,13 +192,11 @@ export const run = async () => {
         const messageToAi = msg.cleanContent.replaceAll(`@${client.user!.username}`, "").trim();
         try {
             let chainResponse = (await mainAgent.agent.call({ continuousMode: false, input: messageToAi, [FILES_TO_SEND_FIELD]: loadedFiles }));
-            const response: AgentUserMessage = JSON.parse(chainResponse.output);
-            await sendDiscordResponse(msg, response);
+            await sendChainResponse(msg, chainResponse);
 
             while (chainResponse.toolStep) {
                 chainResponse = (await mainAgent.agent.call({ continuousMode: false, continue: true }));
-                const response: AgentUserMessage = JSON.parse(chainResponse.output);
-                await sendDiscordResponse(msg, response);
+                await sendChainResponse(msg, chainResponse);
             }
         } finally {
             clearInterval(typing);
@@ -210,10 +209,21 @@ export const run = async () => {
 
 run();
 
-async function sendDiscordResponse(msg: Message<boolean>, message: AgentUserMessage) {
-    const chunks = splitStringInChunks(message.message);
+async function sendChainResponse(msg: Message<boolean>, aiResponse: ChainValues){
+    if (aiResponse?.toolStep) {
+        const response: { toolName: string, toolArguments: string } = JSON.parse(aiResponse?.output);
+        const responseMessage = `Agent will execute function: \`${response.toolName}\` with input:\n\`\`\`${response.toolArguments}\`\`\``
+        await sendDiscordResponse(msg, responseMessage);
+      } else {
+        const response: AgentUserMessage = JSON.parse(aiResponse?.output);
+        await sendDiscordResponse(msg, response.message, response.sharedFiles?.map(f => f.url));
+      }
+}
+
+async function sendDiscordResponse(msg: Message<boolean>, message: string, attachments?: string[]) {
+    const chunks = splitStringInChunks(message);
     for (let i = 0; i < chunks.length; i++) {
-        const files = (i === chunks.length - 1) ? (message.sharedFiles ?? []).map(f => f.url) : [];
+        const files = (i === chunks.length - 1) ? (attachments ?? []) : [];
         await msg.reply({
             content: chunks[i],
             files: files
