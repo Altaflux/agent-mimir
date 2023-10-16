@@ -162,7 +162,9 @@ export const run = async () => {
         await interaction.deferReply();
         if (interaction.commandName === 'reset') {
             try {
-                await mainAgent.reset();
+                for (const agent of agents) {
+                    await agent.agent.reset();
+                }
             } catch (e) {
                 console.error(e);
                 await interaction.editReply('There was an error resetting the agent.');
@@ -209,15 +211,15 @@ export const run = async () => {
 
 run();
 
-async function sendChainResponse(msg: Message<boolean>, aiResponse: ChainValues){
+async function sendChainResponse(msg: Message<boolean>, aiResponse: ChainValues) {
     if (aiResponse?.toolStep) {
         const response: { toolName: string, toolArguments: string } = JSON.parse(aiResponse?.output);
         const responseMessage = `Agent will execute function: \`${response.toolName}\` with input:\n\`\`\`${response.toolArguments}\`\`\``
         await sendDiscordResponse(msg, responseMessage);
-      } else {
+    } else {
         const response: AgentUserMessage = JSON.parse(aiResponse?.output);
         await sendDiscordResponse(msg, response.message, response.sharedFiles?.map(f => f.url));
-      }
+    }
 }
 
 async function sendDiscordResponse(msg: Message<boolean>, message: string, attachments?: string[]) {
