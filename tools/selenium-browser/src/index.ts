@@ -6,21 +6,43 @@ import { WebBrowserOptions } from "./driver-manager.js";
 import { Embeddings } from "langchain/embeddings";
 import { BaseLanguageModel } from "langchain/base_language";
 import { WebBrowserTool, PassValueToInput, AskSiteQuestion, ClickWebSiteLinkOrButton } from "./tools.js";
+import { MimirAgentPlugin, PluginContext, MimirPluginFactory } from "agent-mimir/schema";
 
 export { WebDriverManager, SeleniumDriverOptions, WebBrowserOptions } from "./driver-manager.js";
 export { WebBrowserTool, PassValueToInput, AskSiteQuestion, ClickWebSiteLinkOrButton } from "./tools.js";
 
-export class WebBrowserToolKit  {
 
-    tools: StructuredTool[];
+export class WebBrowserPluginFactory implements MimirPluginFactory {
 
+    constructor(private config: WebBrowserOptions, private model: BaseLanguageModel, private embeddings: Embeddings) {
+    }
+
+    create(context: PluginContext): MimirAgentPlugin {
+        return new WebBrowserPlugin(this.config, this.model, this.embeddings);
+    }
+
+}
+
+class WebBrowserPlugin extends MimirAgentPlugin {
+
+    driverManager: WebDriverManager;
+    toolList: StructuredTool[];
     constructor(config: WebBrowserOptions, model: BaseLanguageModel, embeddings: Embeddings) {
-        const driverManager = new WebDriverManager(config, model, embeddings);
-        this.tools = [
-            new WebBrowserTool(driverManager),
-            new ClickWebSiteLinkOrButton(driverManager),
-            new AskSiteQuestion(driverManager),
-            new PassValueToInput(driverManager),
+        super();
+        this.driverManager = new WebDriverManager(config, model, embeddings);
+        this.toolList = [
+            new WebBrowserTool(this.driverManager),
+            new ClickWebSiteLinkOrButton(this.driverManager),
+            new AskSiteQuestion(this.driverManager),
+            new PassValueToInput(this.driverManager),
         ];
+    }
+
+    async clear(): Promise<void> {
+        await this.driverManager.close();
+    }
+
+    tools(): StructuredTool[] {
+        return this.toolList;
     }
 }

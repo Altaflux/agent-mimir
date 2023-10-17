@@ -12,8 +12,8 @@ import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { MemoryVectorStore, } from "langchain/vectorstores/memory";
 import { COMBINE_PROMPT } from "./prompt/combiner-prompt.js";
 import { Options, update, } from 'webdriver-manager';
-import { Options as ChromeOptions } from 'selenium-webdriver/chrome';
-import { Options as FireFoxOptions } from 'selenium-webdriver/firefox';
+import { Options as ChromeOptions } from 'selenium-webdriver/chrome.js';
+import { Options as FireFoxOptions } from 'selenium-webdriver/firefox.js';
 import { Options as EdgeOptions } from 'selenium-webdriver/edge.js';
 import exitHook from 'async-exit-hook';
 import { IS_RELEVANT_PROMPT } from "./prompt/relevance-prompt.js";
@@ -51,9 +51,13 @@ export class WebDriverManager {
         this.relevanceCheck = config.doRelevanceCheck || false;
 
         exitHook(async (callback) => {
-            await this.driver?.quit();
+            await this.close();
             callback();
         });
+    }
+
+    async close() {
+        await this.driver?.quit();
     }
 
     async getDriver() {

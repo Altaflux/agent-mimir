@@ -60,9 +60,8 @@ module.exports = async function() {
     
     //Plugins and tools can be loaded as follows:
     const Serper = (await import('@agent-mimir/serper-search')).Serper;
-    const WebBrowserToolKit = (await import('@agent-mimir/selenium-browser')).WebBrowserToolKit;
     const CodeInterpreterPluginFactory = (await import('@agent-mimir/code-interpreter')).CodeInterpreterPluginFactory;
-    const webToolKit = new WebBrowserToolKit({ browserConfig: { browserName: "chrome" } }, taskModel, embeddings);
+    const WebBrowserPluginFactory = (await import('@agent-mimir/selenium-browser')).WebBrowserPluginFactory;
 
     return {
         //If continuousMode is set to true the agent will not ask you before executing a tool. Disable at your own risk.
@@ -83,9 +82,9 @@ module.exports = async function() {
                     },
                     plugins: [
                             new CodeInterpreterPluginFactory(),
+                            new WebBrowserPluginFactory({ browserConfig: { browserName: "chrome" } }, model, embeddings),
                     ],
                     tools: [ //Tools available to the agent.
-                        ...webToolKit.tools,
                         new Serper(process.env.SERPER_API_KEY)
                     ]
                 }
@@ -178,11 +177,10 @@ The Web Browser plugin allows the agent to fully navigate thru any website, givi
     });
 
     module.exports = async function() {
-        const WebBrowserToolKit = (await import('@agent-mimir/selenium-browser')).WebBrowserToolKit;
-        const webToolKit = new WebBrowserToolKit({ browserConfig: { browserName: "chrome" } }, model, embeddings);
-        //...
-        tools: [
-                ...webToolKit.tools,
+        const WebBrowserPluginFactory = (await import('@agent-mimir/selenium-browser')).WebBrowserPluginFactory;
+        //Add to plugins:
+        plugins: [
+                new WebBrowserPluginFactory({ browserConfig: { browserName: "chrome" } }, model, embeddings),
             ],
     }
 ```
