@@ -32,8 +32,8 @@ export class TalkToHelper extends StructuredTool {
             .filter(value => value !== undefined)
             .map((file) => file!);
 
-        const response = (await helper.agent.call({ input: message, [FILES_TO_SEND_FIELD]: filesToSend }));
-        const agentUserMessage: AgentUserMessage = JSON.parse(response.output);
+        const response = (await helper.call(true, { input: message, [FILES_TO_SEND_FIELD]: filesToSend }));
+        const agentUserMessage: AgentUserMessage = response.output;
 
         let toolResponse = `Response from ${helper.name}: ${agentUserMessage.message}`;
         if (agentUserMessage.sharedFiles?.length ?? 0 > 0) {

@@ -4,13 +4,12 @@ import { uniqueNamesGenerator, names } from 'unique-names-generator';
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 
 import { Tool } from "langchain/tools";
-import { WindowedConversationSummaryMemory } from '../memory/windowed-memory/index.js';
 import { EndTool, TalkToUserTool } from '../tools/core.js';
 import { SteppedAgentExecutor } from '../executor/index.js';
 import { ChatMemoryChain } from '../memory/transactional-memory-chain.js';
 
 import { BaseChatModel } from 'langchain/chat_models';
-import { Agent, MimirAgentPlugin, MimirPluginFactory, WorkspaceManagerFactory } from '../schema.js';
+import { Agent, AgentResponse, AgentToolRequest, AgentUserMessage, MimirAgentPlugin, MimirPluginFactory, WorkspaceManagerFactory } from '../schema.js';
 
 import { initializeAgent } from '../agent/index.js'
 import { LangchainToolWrapper } from '../schema.js';
@@ -52,11 +51,6 @@ export class AgentManager {
     private map: Map<string, Agent> = new Map();
     public constructor(private managerConfig: ManagerConfig) { }
 
-    public async createAgentFromChain(config: Agent): Promise<Agent> {
-        this.map.set(config.name, config);
-        return this.map.get(config.name)!;
-    }
-
     public async createAgent(config: CreateAgentOptions): Promise<Agent> {
 
 
@@ -96,7 +90,7 @@ export class AgentManager {
 
 
         const tools = [
-           // ...controlTools,
+            // ...controlTools,
             ...(config.tools ?? []),
 
         ];
@@ -189,9 +183,25 @@ export class AgentManager {
         this.map.set(shortName, {
             name: shortName,
             description: config.description,
-            agent: chatMemoryChain,
             workspace: workspace,
-            reset: reset
+            reset: reset,
+            call: async (continuousMode, input, callback) => {
+                const out = await chatMemoryChain.call({ continuousMode, ...input, functionResponseCallBack: callback });
+                if (continuousMode) {
+                    return {
+                        output: JSON.parse(out.output) as AgentUserMessage,
+                        toolStep: () => false,
+                        agentResponse: () => true
+                    } as any
+                } else {
+                    return {
+                        output: JSON.parse(out.output) as AgentToolRequest | AgentUserMessage,
+                        toolStep: () => out.toolStep === true,
+                        agentResponse: () => out.toolStep !== true
+                    } as AgentResponse
+                }
+            },
+
         });
         return this.map.get(shortName)!;
     }

@@ -22,20 +22,31 @@ export type AIMessageType = {
 
 export const FILES_TO_SEND_FIELD = "filesToSend";
 
-export type Agent = { 
-    name: string, 
-    description: string, 
-    agent: BaseChain,
+export type Agent = {
+    name: string,
+    description: string,
+    call: <T extends boolean>(continuousMode: T, input: Record<string, any>, callback?: FunctionResponseCallBack) => T extends true ? Promise<AgentUserMessageResponse> : Promise<AgentResponse>,
     workspace: WorkspaceManager,
     reset: () => Promise<void>,
 };
 
 
+export interface AgentUserMessageResponse extends AgentResponse {
+    output: AgentUserMessage
+}
+export interface AgentToolRequestResponse extends AgentResponse {
+    output: AgentToolRequest
+}
+export interface AgentResponse {
+    toolStep(): this is AgentToolRequestResponse,
+    agentResponse(): this is AgentUserMessageResponse,
+}
+
 export type WorkspaceManager = {
     listFiles(): Promise<string[]>,
-    loadFileToWorkspace(fileName: string,url: string): Promise<void>,
+    loadFileToWorkspace(fileName: string, url: string): Promise<void>,
     clearWorkspace(): Promise<void>,
-    getUrlForFile(fileName: string): Promise<string |undefined>,
+    getUrlForFile(fileName: string): Promise<string | undefined>,
     workingDirectory: string,
 }
 
@@ -63,7 +74,7 @@ export type PluginContext = {
 }
 
 export interface MimirPluginFactory {
-    create(context: PluginContext): MimirAgentPlugin 
+    create(context: PluginContext): MimirAgentPlugin
 }
 
 export abstract class MimirAgentPlugin {
@@ -95,7 +106,7 @@ export abstract class MimirAgentPlugin {
     }
 
     async memoryCompactionCallback(newLines: BaseMessage[], previousConversation: BaseMessage[]): Promise<void> {
-        
+
     }
 }
 
@@ -116,7 +127,7 @@ export class LangchainToolWrapper extends MimirAgentPlugin {
 
 
 export type MimirHumanReplyMessage = {
-    type : "USER_MESSAGE" | "FUNCTION_REPLY",
+    type: "USER_MESSAGE" | "FUNCTION_REPLY",
     message?: string,
     functionReply?: {
         name: string,
@@ -133,3 +144,7 @@ export type AgentUserMessage = {
         fileName: string,
     }[],
 }
+
+export type AgentToolRequest = { toolName: string, toolArguments: string }
+
+export type FunctionResponseCallBack = (name: string, response: string) => Promise<void>;

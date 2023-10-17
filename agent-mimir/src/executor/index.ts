@@ -3,6 +3,7 @@ import { BaseSingleActionAgent, StoppingMethod } from "langchain/agents";
 import { BaseChain, ChainInputs, SerializedLLMChain } from "langchain/chains";
 import { AgentAction, AgentFinish, AgentStep, ChainValues } from "langchain/schema";
 import { StructuredTool } from "langchain/tools";
+import { FunctionResponseCallBack } from "../schema.js";
 
 interface AgentExecutorInput extends ChainInputs {
     agent: BaseSingleActionAgent;
@@ -65,7 +66,7 @@ export class SteppedAgentExecutor extends BaseChain {
 
 
     async doTool(action: AgentAction, toolsByName: { [k: string]: StructuredTool }, steps: AgentStep[], getOutput: (finishStep: AgentFinish)
-        => Promise<ChainValues>) {
+        => Promise<ChainValues>, functionResponseCallBack: FunctionResponseCallBack) {
 
         const tool = toolsByName[action.tool?.toLowerCase()];
         const observation = tool
@@ -75,7 +76,7 @@ export class SteppedAgentExecutor extends BaseChain {
         if (process.env.MIMIR_LOG_TOOL_RESPONSE) {
             console.log('\x1b[32m%s\x1b[0m', `Executed command: "${action.tool}" with input: "${JSON.stringify(action.toolInput)}". Tool response:\n${observation}`)
         }
-
+        functionResponseCallBack(action.tool?.toLowerCase() ?? "", observation);
         steps.push({ action, observation });
 
         if (tool?.returnDirect) {
@@ -93,14 +94,14 @@ export class SteppedAgentExecutor extends BaseChain {
     async _call(inputs: ChainValues): Promise<ChainValues> {
 
         const continuousMode = inputs.continuousMode !== undefined ? inputs.continuousMode : true;
+        const functionResponseCallBack: FunctionResponseCallBack = inputs.functionResponseCallBack !== undefined ? inputs.functionResponseCallBack : () => Promise<void>;
         const fullValues = { ...inputs } as typeof inputs;
-
-        const output = await this._invoke(continuousMode, fullValues);
+        const output = await this._invoke(continuousMode, fullValues, functionResponseCallBack);
 
         return output.chainValues;
     }
 
-    async _invoke(continuousMode: boolean, inputs: ChainValues): Promise<{ storeInMem: boolean, workPending: boolean, chainValues: ChainValues }> {
+    async _invoke(continuousMode: boolean, inputs: ChainValues, functionResponseCallBack: FunctionResponseCallBack): Promise<{ storeInMem: boolean, workPending: boolean, chainValues: ChainValues }> {
 
         const toolsByName = Object.fromEntries(
             this.tools.map((t) => [t.name.toLowerCase(), t])
@@ -152,7 +153,7 @@ export class SteppedAgentExecutor extends BaseChain {
                     };
                 }
 
-                const out = await this.doTool(action, toolsByName, steps, getOutput);
+                const out = await this.doTool(action, toolsByName, steps, getOutput, functionResponseCallBack);
                 if (out) {
                     return out;
                 }
@@ -161,7 +162,7 @@ export class SteppedAgentExecutor extends BaseChain {
             else if (inputs.continue) {
                 const action = this.pendingAgentAction;
                 this.pendingAgentAction = undefined;
-                const out = await this.doTool(action, toolsByName, steps, getOutput);
+                const out = await this.doTool(action, toolsByName, steps, getOutput, functionResponseCallBack);
                 if (out) {
                     return out;
                 }

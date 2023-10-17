@@ -1,6 +1,6 @@
 import { MimirAgentTypes } from "agent-mimir/agent";
 import { AgentManager } from "agent-mimir/agent-manager"
-import { AgentUserMessage, FILES_TO_SEND_FIELD, MimirPluginFactory } from "agent-mimir/schema";
+import { AgentResponse, AgentUserMessage, FILES_TO_SEND_FIELD, MimirPluginFactory } from "agent-mimir/schema";
 import chalk from "chalk";
 import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
@@ -15,7 +15,6 @@ import { Readable } from "stream";
 import { finished } from "stream/promises";
 import { SlashCommandBuilder } from "discord.js";
 import { FileSystemChatHistory, FileSystemWorkspaceManager } from "agent-mimir/nodejs";
-import { ChainValues } from "langchain/schema";
 
 
 function splitStringInChunks(str: string) {
@@ -139,7 +138,6 @@ export const run = async () => {
     const resetCommand = new SlashCommandBuilder().setName('reset')
         .setDescription('Resets the agent to a clean state.');
     const commands = [resetCommand];
-    // and deploy your commands!
 
 
     client.on('ready', async () => {
@@ -193,11 +191,11 @@ export const run = async () => {
 
         const messageToAi = msg.cleanContent.replaceAll(`@${client.user!.username}`, "").trim();
         try {
-            let chainResponse = (await mainAgent.agent.call({ continuousMode: false, input: messageToAi, [FILES_TO_SEND_FIELD]: loadedFiles }));
+            
+            let chainResponse = (await mainAgent.call(false, { input: messageToAi, [FILES_TO_SEND_FIELD]: loadedFiles }));
             await sendChainResponse(msg, chainResponse);
-
-            while (chainResponse.toolStep) {
-                chainResponse = (await mainAgent.agent.call({ continuousMode: false, continue: true }));
+            while (chainResponse.toolStep()) {
+                chainResponse = (await mainAgent.call(false, { continuousMode: false, continue: true }));
                 await sendChainResponse(msg, chainResponse);
             }
         } finally {
@@ -211,13 +209,13 @@ export const run = async () => {
 
 run();
 
-async function sendChainResponse(msg: Message<boolean>, aiResponse: ChainValues) {
-    if (aiResponse?.toolStep) {
-        const response: { toolName: string, toolArguments: string } = JSON.parse(aiResponse?.output);
+async function sendChainResponse(msg: Message<boolean>, aiResponse: AgentResponse) {
+    if (aiResponse.toolStep()) {
+        const response = aiResponse.output;
         const responseMessage = `Agent will execute function: \`${response.toolName}\` with input:\n\`\`\`${response.toolArguments}\`\`\``
         await sendDiscordResponse(msg, responseMessage);
-    } else {
-        const response: AgentUserMessage = JSON.parse(aiResponse?.output);
+    } else if (aiResponse.agentResponse()){
+        const response: AgentUserMessage = aiResponse.output;
         await sendDiscordResponse(msg, response.message, response.sharedFiles?.map(f => f.url));
     }
 }
