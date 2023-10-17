@@ -147,4 +147,4 @@ export type AgentUserMessage = {
 
 export type AgentToolRequest = { toolName: string, toolArguments: string }
 
-export type FunctionResponseCallBack = (name: string, response: string) => Promise<void>;
+export type FunctionResponseCallBack = (name: string, input: string, response: string) => Promise<void>;
