@@ -76,7 +76,10 @@ export class SteppedAgentExecutor extends BaseChain {
         if (process.env.MIMIR_LOG_TOOL_RESPONSE) {
             console.log('\x1b[32m%s\x1b[0m', `Executed command: "${action.tool}" with input: "${JSON.stringify(action.toolInput)}". Tool response:\n${observation}`)
         }
-        functionResponseCallBack(action.tool?.toLowerCase() ?? "", observation);
+        if (!tool.returnDirect) {
+            functionResponseCallBack(action.tool?.toLowerCase() ?? "", observation);
+        }
+
         steps.push({ action, observation });
 
         if (tool?.returnDirect) {

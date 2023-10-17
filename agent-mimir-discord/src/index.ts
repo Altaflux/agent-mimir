@@ -90,7 +90,6 @@ export const run = async () => {
             return new FileSystemWorkspaceManager(tempDir);
         }
     });
-    const continousMode = agentConfig.continuousMode ?? false;
 
     const agents = await Promise.all(Object.entries(agentConfig.agents).map(async ([agentName, agentDefinition]) => {
         if (agentDefinition.definition) {
@@ -191,11 +190,17 @@ export const run = async () => {
 
         const messageToAi = msg.cleanContent.replaceAll(`@${client.user!.username}`, "").trim();
         try {
-            
-            let chainResponse = (await mainAgent.call(false, { input: messageToAi, [FILES_TO_SEND_FIELD]: loadedFiles }));
+
+            let chainResponse = (await mainAgent.call(false, { input: messageToAi, [FILES_TO_SEND_FIELD]: loadedFiles }, async (name, functionResponse) => {
+                const toolResponse = `Function: \`${name}\` responded with: \n\`\`\`${functionResponse}\`\`\``;
+                await sendDiscordResponse(msg, toolResponse);
+            }));
             await sendChainResponse(msg, chainResponse);
             while (chainResponse.toolStep()) {
-                chainResponse = (await mainAgent.call(false, { continuousMode: false, continue: true }));
+                chainResponse = (await mainAgent.call(false, { continuousMode: false, continue: true }, async (name, functionResponse) => {
+                    const toolResponse = `Function: \`${name}\` responded with: \n\`\`\`${functionResponse}\`\`\``;
+                    await sendDiscordResponse(msg, toolResponse);
+                }));
                 await sendChainResponse(msg, chainResponse);
             }
         } finally {
@@ -214,7 +219,7 @@ async function sendChainResponse(msg: Message<boolean>, aiResponse: AgentRespons
         const response = aiResponse.output;
         const responseMessage = `Agent will execute function: \`${response.toolName}\` with input:\n\`\`\`${response.toolArguments}\`\`\``
         await sendDiscordResponse(msg, responseMessage);
-    } else if (aiResponse.agentResponse()){
+    } else if (aiResponse.agentResponse()) {
         const response: AgentUserMessage = aiResponse.output;
         await sendDiscordResponse(msg, response.message, response.sharedFiles?.map(f => f.url));
     }
