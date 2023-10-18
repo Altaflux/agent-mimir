@@ -58,6 +58,7 @@ export class WebDriverManager {
 
     async close() {
         await this.driver?.quit();
+        this.driver = undefined;
     }
 
     async getDriver() {
