@@ -10,7 +10,7 @@ import { chatWithAgent } from "./chat.js";
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from "path";
-import { AIMessage, BaseMessage, ChatMessage, ChatMessageFieldsWithRole, FunctionMessage, HumanMessage, StoredMessage, SystemMessage } from "langchain/schema";
+import { StoredMessage } from "langchain/schema";
 import { FileSystemChatHistory, FileSystemWorkspaceManager } from "agent-mimir/nodejs";
 
 const messages: StoredMessage[] = [
@@ -30,8 +30,8 @@ export type AgentDefinition = {
         constitution?: string;
         plugins?: MimirPluginFactory[];
         chatHistory?: {
-            maxChatHistoryWindow?: number,
-            maxTaskHistoryWindow?: number,
+            tokenLimit: number;
+            conversationTokenThreshold: number;
         }
         tools?: Tool[];
         communicationWhitelist?: string[] | boolean;

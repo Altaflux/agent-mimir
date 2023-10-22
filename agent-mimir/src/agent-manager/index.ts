@@ -34,8 +34,8 @@ export type CreateAgentOptions = {
     constitution?: string,
     communicationWhitelist?: boolean | string[],
     chatHistory?: {
-        maxChatHistoryWindow?: number,
-        maxTaskHistoryWindow?: number,
+        tokenLimit?: number;
+        conversationTokenThreshold?: number;
     }
     tools?: Tool[],
     messageHistory: BaseChatMessageHistory,
@@ -140,6 +140,8 @@ export class AgentManager {
                 const memory = new CompactingConversationSummaryMemory(summarizingModel, {
                     plainTextCompacting: args.plainText,
                     chatHistory: args.messageHistory,
+                    tokenLimit: config.chatHistory?.tokenLimit ?? 8000,
+                    conversationTokenThreshold: config.chatHistory?.conversationTokenThreshold ?? 75,
                     returnMessages: true,
                     memoryKey: "history",
                     inputKey: "inputToSave",

@@ -68,6 +68,7 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
         this.compactionCallback = fields?.compactionCallback ?? (async () => { });
         this.tokenLimit = fields?.tokenLimit ?? this.tokenLimit;
         this.compactedMessageDeserializer = fields.plainTextCompacting ?  plainTextPayloadToMessage : functionPayloadToMessage;
+        this.conversationTokenThreshold = fields?.conversationTokenThreshold ?? this.conversationTokenThreshold;
     }
 
     get memoryKeys(): string[] {

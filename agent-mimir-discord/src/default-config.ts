@@ -28,8 +28,8 @@ export default function () {
                     summaryModel: taskModel,
                     profession: 'an Assistant',
                     chatHistory: {
-                        maxChatHistoryWindow: 4,
-                        maxTaskHistoryWindow: 4,
+                        tokenLimit: 4000,
+                        conversationTokenThreshold: 75,
                     },
                     tools: [
                     ],

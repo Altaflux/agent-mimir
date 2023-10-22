@@ -41,8 +41,8 @@ export type AgentDefinition = {
         constitution?: string;
         plugins?: MimirPluginFactory[];
         chatHistory?: {
-            maxChatHistoryWindow?: number,
-            maxTaskHistoryWindow?: number,
+            tokenLimit: number;
+            conversationTokenThreshold: number;
         }
         tools?: Tool[];
         communicationWhitelist?: string[] | boolean;

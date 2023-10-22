@@ -77,8 +77,8 @@ module.exports = async function() {
                     profession: 'an Assistant', //The profession assigned to the agent.
                     communicationWhitelist: ['MR_CHEF'], //The list of agents it is allowed to talk to.
                     chatHistory: {
-                        maxChatHistoryWindow: 6, //Maximum size of the conversational chat before summarizing. 6 by default
-                        maxTaskHistoryWindow: 6, //Maximum size of the task chat before summarizing. 6 by default
+                        tokenLimit: 4000, //Maximum number of tokens that can be used by the chat. 4000 by default.
+                        conversationTokenThreshold: 75, //Percentage threshold of the tokens used by the chat before summarizing. 75% by default.
                     },
                     plugins: [
                             new CodeInterpreterPluginFactory(),
