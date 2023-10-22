@@ -2,10 +2,6 @@ import { ChatOpenAI } from 'langchain/chat_models/openai';
 
 const openAIModelType = process.env.AGENT_OPENAI_MODEL ?? 'gpt-4-0613';
 const agentType = openAIModelType.includes('0613') ? 'openai-function-agent' : 'plain-text-agent';
-const taskModel = new ChatOpenAI({
-    openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
-    temperature: !isNaN(Number(process.env.AGENT_OPENAI_TASK_TEMPERATURE)) ? Number(process.env.AGENT_OPENAI_TASK_TEMPERATURE) : 0.0,
-});
 
 const chatModel = new ChatOpenAI({
     openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
@@ -13,6 +9,11 @@ const chatModel = new ChatOpenAI({
     modelName: process.env.AGENT_OPENAI_MODEL 
 });
 
+const summaryModel = new ChatOpenAI({
+    openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
+    temperature: 0.0,
+    modelName: 'gpt-3.5-turbo-16k-0613',
+});
 
 export default function () {
     return {
@@ -24,8 +25,7 @@ export default function () {
                 agentType: agentType,
                 definition: {
                     chatModel: chatModel,
-                    taskModel: taskModel,
-                    summaryModel: taskModel,
+                    summaryModel: summaryModel,
                     profession: 'an Assistant',
                     chatHistory: {
                         tokenLimit: 4000,

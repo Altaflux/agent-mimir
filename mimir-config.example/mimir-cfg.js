@@ -1,43 +1,35 @@
 
 const ChatOpenAI = require('langchain/chat_models/openai').ChatOpenAI;
-const SeleniumWebBrowser = require('@agent-mimir/selenium-browser').SeleniumWebBrowser;
-const OpenAIEmbeddings = require('langchain/embeddings/openai').OpenAIEmbeddings;
 
-const taskModel = new ChatOpenAI({
-    openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
-    temperature: 0.9,
-});
-const embeddings = new OpenAIEmbeddings({
-    openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
-});
 const chatModel = new ChatOpenAI({
     openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
-    temperature: 0.9,
-    modelName: 'gpt-4'
+    temperature: 0.0,
+    modelName: 'gpt-4-0613'
 });
 
+const summaryModel = new ChatOpenAI({
+    openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
+    temperature: 0.0,
+    modelName: 'gpt-3.5-turbo-16k-0613',
+});
 
-module.exports = async function() {
+module.exports = async function () {
+    
+    const CodeInterpreterPluginFactory = (await import('@agent-mimir/code-interpreter')).CodeInterpreterPluginFactory;
+
     return {
         continuousMode: false,
         agents: {
-            'Assistant': { 
-                mainAgent: true, 
-                description: 'An assistant', 
+            'Assistant': {
+                mainAgent: true,
+                description: 'An assistant',
                 definition: {
                     chatModel: chatModel,
-                    taskModel: taskModel,
-                    summaryModel: taskModel,
+                    summaryModel: summaryModel,
                     profession: 'an Assistant',
-                    tools: [ 
-                        new SeleniumWebBrowser({
-                            model: taskModel,
-                            embeddings: embeddings,
-                            seleniumDriverOptions: {
-                                browserName: "chrome"
-                            }
-                        })
-                    ]
+                    plugins: [
+                        new CodeInterpreterPluginFactory()
+                    ],
                 }
             }
         }

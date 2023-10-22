@@ -3,6 +3,6 @@
     "private": false,
     "scripts": {},
     "dependencies": {
-        "@agent-mimir/selenium-browser": "*"
+        "@agent-mimir/code-interpreter": "*"
     }
 }
