@@ -45,8 +45,9 @@ export interface AgentResponse {
 export type WorkspaceManager = {
     listFiles(): Promise<string[]>,
     loadFileToWorkspace(fileName: string, url: string): Promise<void>,
-    clearWorkspace(): Promise<void>,
+    reset(): Promise<void>,
     getUrlForFile(fileName: string): Promise<string | undefined>,
+    pluginDirectory(pluginName: string): string,
     workingDirectory: string,
 }
 
@@ -70,10 +71,12 @@ export type MimirAgentArgs = {
 }
 export type PluginContext = {
     workingDirectory: string,
+    persistenceDirectory: string,
     agentName: string,
 }
 
 export interface MimirPluginFactory {
+    pluginName: string;
     create(context: PluginContext): MimirAgentPlugin
 }
 
@@ -116,8 +119,12 @@ export type AgentContext = {
 };
 
 export class LangchainToolWrapper extends MimirAgentPlugin {
+
+    name: string;
+
     constructor(private tool: StructuredTool) {
         super();
+        this.name = tool.name;
     }
 
     tools(): StructuredTool[] {

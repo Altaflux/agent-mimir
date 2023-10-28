@@ -14,7 +14,7 @@ import { messagesToString } from "../../utils/format.js";
 
 export class TagMemoryManager {
 
-    vectorStore?: VectorStore;
+    vectorStore: VectorStore;
     relevantInformation: Map<string, string[]> = new Map<string, string[]>();
     model: BaseChatModel;
 
@@ -97,7 +97,7 @@ export class TagMemoryManager {
 
     async rememberTagFacts(tag: string) {
         const tagDocuments = await Promise.all([tag].map(async (tag) => {
-            return await this.vectorStore?.similaritySearch(tag, 1);
+            return await this.vectorStore.similaritySearch(tag, 1);
         }));
 
         const validTags = tagDocuments.flat()

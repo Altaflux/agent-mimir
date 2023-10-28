@@ -63,20 +63,23 @@ export class HelpersPlugin extends MimirAgentPlugin {
     private helperSingleton: AgentManager;
     private communicationWhitelist: string[] | null;
     private model: BaseChatModel;
-    private name: string;
+    private agentName: string;
+    
+    name: string = "HelpersPlugin";
+    
 
     constructor(config: HelperPluginConfig) {
         super();
         this.helperSingleton = config.helperSingleton;
         this.model = config.model;
         this.communicationWhitelist = config.communicationWhitelist;
-        this.name = config.name;
+        this.agentName = config.name;
     }
 
     async getInputs(_: AgentContext): Promise<Record<string, any>> {
         const helpers = this.helperSingleton?.getAllAgents() ?? [];
         const whiteList = this.communicationWhitelist ?? helpers.map((helper) => helper.name) ?? [];
-        const helperList = helpers.filter((helper) => helper.name !== this.name)
+        const helperList = helpers.filter((helper) => helper.name !== this.agentName)
             .filter(element => whiteList.includes(element.name))
             .map((helper) => `${helper.name}: ${helper.description}`)
             .join("\n") ?? "";

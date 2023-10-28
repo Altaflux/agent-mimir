@@ -67,7 +67,7 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
         this.embeddings = fields.embeddings;
         this.compactionCallback = fields?.compactionCallback ?? (async () => { });
         this.tokenLimit = fields?.tokenLimit ?? this.tokenLimit;
-        this.compactedMessageDeserializer = fields.plainTextCompacting ?  plainTextPayloadToMessage : functionPayloadToMessage;
+        this.compactedMessageDeserializer = fields.plainTextCompacting ? plainTextPayloadToMessage : functionPayloadToMessage;
         this.conversationTokenThreshold = fields?.conversationTokenThreshold ?? this.conversationTokenThreshold;
     }
 
@@ -105,7 +105,6 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
         }, {
             [outputKey]: output,
         });
-        console.debug("Saved context");
     }
 
     async compactIfNeeded() {
@@ -134,6 +133,11 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
                 await this.compactionCallback(newMessagesToCompact, newMessages.slice(0, numberOfAlreadyCompactedMessages));
             }
             const compactedMessages = await this.messageCompact(newMessagesToSummarize, this.llm);
+            if (true) {
+                const compactedMessagesLenght = tokenEncode(compactedMessages).length;
+                const newMessagesLenght = tokenEncode(newMessagesToSummarize).length;
+                console.log(`Compacted ${newMessagesToSummarize.length} messages into ${compactedMessages.length} messages. ${compactedMessagesLenght} characters vs ${newMessagesLenght} characters.`);
+            }
             await this.chatHistory.clear();
             for (const leftOverNewerMessage of [...compactedMessages, ...leftOverNewerMessages]) {
                 await this.chatHistory.addMessage(leftOverNewerMessage);

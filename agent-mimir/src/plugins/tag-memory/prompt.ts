@@ -1,5 +1,3 @@
-// eslint-disable-next-line tree-shaking/no-side-effects-in-initialization
-
 import { PromptTemplate } from "langchain/prompts";
 
 
@@ -25,7 +23,7 @@ export const TAG_EXTRACTION_PROMPT = /*#__PURE__*/ new PromptTemplate({
 
 
 
-const _TAG_FINDER_PROMPT_TEMPLATE = `The following is a previous conversation we had you and I (you are AI and I am the Human), find tags that are relevant to the new lines of the conversation. Use the current summary for context.
+const _TAG_FINDER_PROMPT_TEMPLATE = `The following is a previous conversation we had you and I (you are AI and I am the Human), find facts that are relevant to the new lines of the conversation. Use the current summary for context.
 If there is no relevant facts related to the new lines of conversations return an empty array response to the "selectRelevantTags" function.
 
 Here is the list of tags you can choose from: {memoryTags}

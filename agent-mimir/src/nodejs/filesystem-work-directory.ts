@@ -4,17 +4,22 @@ import { promises as fs } from 'fs';
 
 export class FileSystemWorkspaceManager implements WorkspaceManager {
 
-    workingDirectory: string;
-
-    constructor(agentRootDirectory: string) {
-        this.workingDirectory = path.join(agentRootDirectory, "workspace");
+    get workingDirectory() {
+        return path.join(this.agentRootDirectory, "workspace");
+    }
+    
+    constructor(private agentRootDirectory: string) {
     }
 
-    async clearWorkspace(): Promise<void> {
+    async reset(): Promise<void> {
         const files = await fs.readdir(this.workingDirectory);
         for (const file of files) {
             await fs.unlink(path.join(this.workingDirectory, file));
         }
+    }
+
+    pluginDirectory(pluginName: string): string {
+        return path.join(this.workingDirectory, "plugins", pluginName);
     }
 
     async listFiles(): Promise<string[]> {

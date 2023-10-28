@@ -29,6 +29,9 @@ End of Code Interpreter Functions Instructions.
 
 
 export class CodeInterpreterPluginFactory implements MimirPluginFactory {
+    
+    pluginName: string = "codeInterpreter";
+
     create(context: PluginContext): MimirAgentPlugin {
         return new CodeInterpreterPlugin({ workDirectory: context.workingDirectory });
     }

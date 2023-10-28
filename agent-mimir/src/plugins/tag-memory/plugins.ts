@@ -1,6 +1,6 @@
 import { BaseMessage } from "langchain/schema";
 import { StructuredTool } from "langchain/tools";
-import { AgentContext, MimirAgentPlugin } from "../../schema.js";
+import { AgentContext, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../../schema.js";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
 import { TagMemoryManager } from "./index.js";
 import { z } from "zod";
@@ -8,10 +8,25 @@ import { messagesToString } from "../../utils/format.js";
 import { Embeddings } from "langchain/embeddings";
 import { BaseChatModel } from "langchain/chat_models";
 
+export class ManualTagMemoryPluginFactory implements MimirPluginFactory {
+    pluginName: string = "manualTagMemory";
+    constructor(private embeddings: Embeddings, private model: BaseChatModel) {
+    }
+
+    create(context: PluginContext): MimirAgentPlugin {
+        throw new ManualTagMemoryPlugin(this.embeddings, this.model);
+    }
+}
+
 export class ManualTagMemoryPlugin extends MimirAgentPlugin {
 
-    constructor(private manager: TagMemoryManager) {
+    private manager: TagMemoryManager;
+
+
+
+    constructor(embeddings: Embeddings, model: BaseChatModel) {
         super();
+        this.manager = new TagMemoryManager(embeddings, model);
     }
 
     async memoryCompactionCallback(newLines: BaseMessage[], previousConversation: BaseMessage[]): Promise<void> {
@@ -49,7 +64,7 @@ class TagRetrieverTool extends StructuredTool {
 
     protected async _call(arg: z.input<this["schema"]>): Promise<string> {
         const memoriesByTag = await Promise.all(arg.relevantInformation.slice(0, 3).map(async (tag) => {
-            const memories = await  this.manager.rememberTagFacts(tag);
+            const memories = await this.manager.rememberTagFacts(tag);
             return `Topic or context: ${tag}\n-${memories.join("\n-")}`
         }));
         return `You remember the following information: ${memoriesByTag.join("\n\n")}`;
@@ -61,6 +76,16 @@ class TagRetrieverTool extends StructuredTool {
 }
 
 
+export class AutomaticTagMemoryPluginFactory implements MimirPluginFactory {
+    
+    pluginName: string = "automaticTagMemory";
+    constructor(private embeddings: Embeddings, private model: BaseChatModel) {
+    }
+
+    create(context: PluginContext): MimirAgentPlugin {
+        throw new AutomaticTagMemoryPlugin(this.embeddings, this.model);
+    }
+}
 
 export class AutomaticTagMemoryPlugin extends MimirAgentPlugin {
 

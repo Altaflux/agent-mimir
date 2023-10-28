@@ -4,7 +4,7 @@ import { uniqueNamesGenerator, names } from 'unique-names-generator';
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 
 import { Tool } from "langchain/tools";
-import { EndTool, TalkToUserTool } from '../tools/core.js';
+import { TalkToUserTool } from '../tools/core.js';
 import { SteppedAgentExecutor } from '../executor/index.js';
 import { ChatMemoryChain } from '../memory/transactional-memory-chain.js';
 
@@ -17,7 +17,7 @@ import { DEFAULT_CONSTITUTION } from '../agent/prompt.js';
 import { TimePlugin } from '../plugins/time.js';
 import { HelpersPlugin } from '../plugins/helpers.js';
 import { MimirAgentTypes } from '../agent/index.js';
-import { AutomaticTagMemoryPlugin } from '../plugins/tag-memory/plugins.js';
+import { ManualTagMemoryPlugin } from '../plugins/tag-memory/plugins.js';
 import { CompactingConversationSummaryMemory } from '../memory/compacting-memory/index.js';
 import { BaseChatMessageHistory } from 'langchain/schema';
 import { NoopMemory } from '../memory/noopMemory.js';
@@ -27,7 +27,7 @@ export type CreateAgentOptions = {
     profession: string,
     description: string,
     agentType?: MimirAgentTypes,
-    name?: string,
+    name: string,
     model: BaseChatModel,
     plugins?: MimirPluginFactory[],
     summaryModel?: BaseChatModel,
@@ -44,7 +44,7 @@ export type CreateAgentOptions = {
 
 export type ManagerConfig = {
 
-    workspaceManagerFactory: WorkspaceManagerFactory
+    workspaceManagerFactory: WorkspaceManagerFactory,
 }
 export class AgentManager {
 
@@ -64,11 +64,9 @@ export class AgentManager {
 
         const summarizingModel = config.summaryModel ?? config.model;
 
-        const tagPlugin = new AutomaticTagMemoryPlugin(embeddings, config.summaryModel ?? config.model);
-
+        const tagPlugin = new ManualTagMemoryPlugin(embeddings, config.summaryModel ?? config.model);
 
         const taskCompleteCommandName = "taskComplete";
-        const controlTools = [new EndTool(taskCompleteCommandName)]
 
         const agentCommunicationPlugin = [];
         const canCommunicateWithAgents = config.communicationWhitelist ?? false;
@@ -90,19 +88,10 @@ export class AgentManager {
 
 
         const tools = [
-            // ...controlTools,
             ...(config.tools ?? []),
-
         ];
 
 
-        // const memory = new WindowedConversationSummaryMemory(summarizingModel, {
-        //     returnMessages: true,
-        //     memoryKey: "chat_history",
-        //     inputKey: "input",
-        //     outputKey: "output",
-        //     maxWindowSize: config.chatHistory?.maxChatHistoryWindow ?? 6
-        // });
         const memory = new NoopMemory({
             returnMessages: true,
             memoryKey: "chat_history",
@@ -113,8 +102,8 @@ export class AgentManager {
         const timePlugin = new TimePlugin();
 
         const workspace = await this.managerConfig.workspaceManagerFactory(shortName);
-        const configurablePlugins = config.plugins?.map(plugin => plugin.create({ workingDirectory: workspace.workingDirectory, agentName: shortName }));
-        const defaultPlugins = [timePlugin, ...agentCommunicationPlugin, ...configurablePlugins ?? []] as MimirAgentPlugin[];
+        const configurablePlugins = config.plugins?.map(plugin => plugin.create({ workingDirectory: workspace.workingDirectory, agentName: shortName, persistenceDirectory: workspace.pluginDirectory(plugin.pluginName) }));
+        const defaultPlugins = [tagPlugin, timePlugin, ...agentCommunicationPlugin, ...configurablePlugins ?? []] as MimirAgentPlugin[];
 
         const talkToUserTool = new TalkToUserTool(workspace);
 
@@ -122,7 +111,7 @@ export class AgentManager {
 
         const reset = async () => {
             await Promise.all(allPlugins.map(async plugin => await plugin.clear()));
-            await workspace.clearWorkspace();
+            await workspace.reset();
             await config.messageHistory.clear()
         };
         const agent = initializeAgent(config.agentType ?? "plain-text-agent", {
