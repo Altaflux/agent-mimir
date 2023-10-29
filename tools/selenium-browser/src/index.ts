@@ -14,7 +14,7 @@ export { WebBrowserTool, PassValueToInput, AskSiteQuestion, ClickWebSiteLinkOrBu
 
 export class WebBrowserPluginFactory implements MimirPluginFactory {
 
-    pluginName: string = "webBrowser";
+    name: string = "webBrowser";
     
     constructor(private config: WebBrowserOptions, private model: BaseLanguageModel, private embeddings: Embeddings) {
     }

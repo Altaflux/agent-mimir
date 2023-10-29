@@ -10,7 +10,7 @@ import { BaseChatModel } from "langchain/chat_models";
 
 export class ManualTagMemoryPluginFactory implements MimirPluginFactory {
 
-    pluginName: string = "manualTagMemory";
+    name: string = "manualTagMemory";
 
     constructor(private embeddings: Embeddings, private model: BaseChatModel) {
     }
@@ -87,7 +87,7 @@ class TagRetrieverTool extends StructuredTool {
 
 export class AutomaticTagMemoryPluginFactory implements MimirPluginFactory {
 
-    pluginName: string = "automaticTagMemory";
+    name: string = "automaticTagMemory";
 
     constructor(private embeddings: Embeddings, private model: BaseChatModel) {
     }

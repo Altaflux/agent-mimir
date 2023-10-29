@@ -60,7 +60,7 @@ export type HelperPluginConfig = {
 
 export class HelpersPluginFactory implements MimirPluginFactory {
 
-    pluginName: string = "helpers";
+    name: string = "helpers";
 
     constructor(private config: HelperPluginConfig) {
     }
@@ -77,7 +77,7 @@ export class HelpersPlugin extends MimirAgentPlugin {
     private model: BaseChatModel;
     private agentName: string;
 
-    name: string = "HelpersPlugin";
+    name: string = "helpers";
     
 
     constructor(config: HelperPluginConfig) {

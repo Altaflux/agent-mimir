@@ -1,4 +1,3 @@
-import { BaseChain } from "langchain/chains";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
 import { MimirAIMessage, NextMessage } from "./agent/base-agent.js";
 import { AttributeDescriptor, ResponseFieldMapper } from "./agent/instruction-mapper.js";
@@ -76,7 +75,7 @@ export type PluginContext = {
 }
 
 export interface MimirPluginFactory {
-    pluginName: string;
+    name: string;
     create(context: PluginContext): MimirAgentPlugin
 }
 
@@ -117,30 +116,6 @@ export type AgentContext = {
     input: NextMessage,
     memory?: BaseChatMemory,
 };
-
-export class LangchainToolWrapperPluginFactory implements MimirPluginFactory {
-    pluginName: string;
-    constructor(private tool: StructuredTool) {
-        this.pluginName = tool.name;
-    }
-    create(context: PluginContext): MimirAgentPlugin {
-        return new LangchainToolWrapper(this.tool);
-    }
-}
-
-class LangchainToolWrapper extends MimirAgentPlugin {
-
-
-    constructor(private tool: StructuredTool) {
-        super();
-
-    }
-
-    tools(): StructuredTool[] {
-        return [this.tool];
-    }
-}
-
 
 export type MimirHumanReplyMessage = {
     type: "USER_MESSAGE" | "FUNCTION_REPLY",

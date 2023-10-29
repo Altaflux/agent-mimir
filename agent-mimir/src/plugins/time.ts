@@ -3,7 +3,7 @@ import { MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../schema.j
 
 export class TimePluginFactory implements MimirPluginFactory {
 
-    pluginName: string = "time";
+    name: string = "time";
 
     create(context: PluginContext): MimirAgentPlugin {
         return new TimePlugin();

@@ -3,16 +3,15 @@ import { uniqueNamesGenerator, names } from 'unique-names-generator';
 
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 
-import { Tool } from "langchain/tools";
+import { StructuredTool, Tool } from "langchain/tools";
 import { TalkToUserTool } from '../tools/core.js';
 import { SteppedAgentExecutor } from '../executor/index.js';
 import { ChatMemoryChain } from '../memory/transactional-memory-chain.js';
 
 import { BaseChatModel } from 'langchain/chat_models';
-import { Agent, AgentResponse, AgentToolRequest, AgentUserMessage, MimirPluginFactory, WorkspaceManagerFactory } from '../schema.js';
+import { Agent, AgentResponse, AgentToolRequest, AgentUserMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext, WorkspaceManagerFactory } from '../schema.js';
 
 import { initializeAgent } from '../agent/index.js'
-import { LangchainToolWrapperPluginFactory } from '../schema.js';
 import { DEFAULT_CONSTITUTION } from '../agent/prompt.js';
 import { TimePluginFactory } from '../plugins/time.js';
 import { HelpersPluginFactory } from '../plugins/helpers.js';
@@ -106,7 +105,7 @@ export class AgentManager {
         const defaultPluginsFactories = [timePlugin, tagPlugin, ...agentCommunicationPlugin, ...config.plugins ?? []];
 
         const allPluginFactories: MimirPluginFactory[] = [...tools.map(tool => new LangchainToolWrapperPluginFactory(tool)), ...defaultPluginsFactories];
-        const allCreatedPlugins = allPluginFactories.map(factory => factory.create({ workingDirectory: workspace.workingDirectory, agentName: shortName, persistenceDirectory: workspace.pluginDirectory(factory.pluginName) }));
+        const allCreatedPlugins = allPluginFactories.map(factory => factory.create({ workingDirectory: workspace.workingDirectory, agentName: shortName, persistenceDirectory: workspace.pluginDirectory(factory.name) }));
         const talkToUserTool = new TalkToUserTool(workspace);
 
         const reset = async () => {
@@ -206,4 +205,30 @@ export class AgentManager {
         return Array.from(this.map.values())
     }
 
+}
+
+
+class LangchainToolWrapperPluginFactory implements MimirPluginFactory {
+
+    name: string;
+
+    constructor(private tool: StructuredTool) {
+        this.name = tool.name;
+    }
+    create(context: PluginContext): MimirAgentPlugin {
+        return new LangchainToolWrapper(this.tool);
+    }
+}
+
+class LangchainToolWrapper extends MimirAgentPlugin {
+
+
+    constructor(private tool: StructuredTool) {
+        super();
+
+    }
+
+    tools(): StructuredTool[] {
+        return [this.tool];
+    }
 }
