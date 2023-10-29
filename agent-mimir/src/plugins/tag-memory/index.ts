@@ -12,15 +12,46 @@ import { LLMChain } from "langchain/chains";
 import { BaseMessage } from "langchain/schema";
 import { messagesToString } from "../../utils/format.js";
 
+import path from "path";
+import { promises as fs } from 'fs';
+
 export class TagMemoryManager {
 
     vectorStore: VectorStore;
     relevantInformation: Map<string, string[]> = new Map<string, string[]>();
     model: BaseChatModel;
+    persistencePath: string;
 
-    constructor(embeddings: Embeddings, model: BaseChatModel) {
+    constructor(embeddings: Embeddings, model: BaseChatModel, persistencePath: string) {
         this.vectorStore = new MemoryVectorStore(embeddings);
         this.model = model;
+        this.persistencePath = persistencePath;
+    }
+
+    async init(): Promise<void> {
+        await fs.mkdir(this.persistencePath, { recursive: true });
+        const jsonFile = path.join(this.persistencePath, "tag-memory.json");
+        const fileExists = await fs.access(jsonFile, fs.constants.F_OK).then(() => true).catch(() => false);
+        if (fileExists) {
+            const content: Map<string, string[]> = new Map(JSON.parse(await fs.readFile(jsonFile, 'utf-8')));
+            this.relevantInformation = content;
+            for (const tag of this.relevantInformation.keys()) {
+                const document = new Document({ pageContent: tag });
+                await this.vectorStore.addDocuments([document]);
+            }
+            console.log("Loaded tag memory from file.");
+        }
+    }
+
+    async clear(): Promise<void> {
+        this.relevantInformation = new Map<string, string[]>();
+        this.vectorStore = new MemoryVectorStore(this.vectorStore.embeddings);
+        await this.save();
+    }
+
+    private async save(): Promise<void> {
+        const jsonFile = path.join(this.persistencePath, "tag-memory.json");
+        await fs.writeFile(jsonFile, JSON.stringify(Array.from(this.relevantInformation.entries()), null, 2));
     }
 
     async extractConversationInformation(newMessages: BaseMessage[], previousConversation: BaseMessage[]): Promise<void> {
@@ -43,6 +74,7 @@ export class TagMemoryManager {
                 await this.addTag([relevantInformation.topic], `${information}`);
             }
         }
+        await this.save();
     }
 
     async findRelevantTags(currentBuffer: string, newMessages: string) {
@@ -66,7 +98,7 @@ export class TagMemoryManager {
         return listOfRelevantTags.tagList;
     }
 
-    async addTag(tags: string[], information: string) {
+    private async addTag(tags: string[], information: string) {
 
         for (const tag of tags) {
             const document = new Document({ pageContent: tag });
@@ -84,7 +116,6 @@ export class TagMemoryManager {
                 this.relevantInformation.set(tag, [information]);
             }
         }
-
     }
 
     getAllTags() {

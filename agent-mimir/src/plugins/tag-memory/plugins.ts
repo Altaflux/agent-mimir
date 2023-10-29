@@ -16,7 +16,7 @@ export class ManualTagMemoryPluginFactory implements MimirPluginFactory {
     }
 
     create(context: PluginContext): MimirAgentPlugin {
-        return new ManualTagMemoryPlugin(this.embeddings, this.model);
+        return new ManualTagMemoryPlugin(this.embeddings, this.model, context.persistenceDirectory);
     }
 }
 
@@ -24,9 +24,18 @@ export class ManualTagMemoryPlugin extends MimirAgentPlugin {
 
     private manager: TagMemoryManager;
 
-    constructor(embeddings: Embeddings, model: BaseChatModel) {
+    constructor(embeddings: Embeddings, model: BaseChatModel, persistencePath: string) {
         super();
-        this.manager = new TagMemoryManager(embeddings, model);
+        this.manager = new TagMemoryManager(embeddings, model, persistencePath);
+    }
+
+        
+    async init(): Promise<void> {
+        await this.manager.init();
+    }
+
+    async clear(): Promise<void> {
+        await this.manager.clear();
     }
 
     async memoryCompactionCallback(newLines: BaseMessage[], previousConversation: BaseMessage[]): Promise<void> {
@@ -84,7 +93,7 @@ export class AutomaticTagMemoryPluginFactory implements MimirPluginFactory {
     }
 
     create(context: PluginContext): MimirAgentPlugin {
-        return new AutomaticTagMemoryPlugin(this.embeddings, this.model);
+        return new AutomaticTagMemoryPlugin(this.embeddings, this.model, context.persistenceDirectory);
     }
 }
 
@@ -92,9 +101,17 @@ export class AutomaticTagMemoryPlugin extends MimirAgentPlugin {
 
     private tagManager: TagMemoryManager;
 
-    constructor(embeddings: Embeddings, model: BaseChatModel) {
+    constructor(embeddings: Embeddings, model: BaseChatModel, persistencePath: string) {
         super();
-        this.tagManager = new TagMemoryManager(embeddings, model);
+        this.tagManager = new TagMemoryManager(embeddings, model, persistencePath);
+    }
+
+    async init(): Promise<void> {
+        await this.tagManager.init();
+    }
+
+    async clear(): Promise<void> {
+        await this.tagManager.clear();
     }
 
     async memoryCompactionCallback(newLines: BaseMessage[], previousConversation: BaseMessage[]): Promise<void> {

@@ -19,7 +19,7 @@ export class FileSystemWorkspaceManager implements WorkspaceManager {
     }
 
     pluginDirectory(pluginName: string): string {
-        return path.join(this.workingDirectory, "plugins", pluginName);
+        return path.join(this.agentRootDirectory, "plugins", pluginName);
     }
 
     async listFiles(): Promise<string[]> {
