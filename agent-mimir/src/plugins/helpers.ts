@@ -3,7 +3,7 @@ import { StructuredTool } from "langchain/tools";
 import { AgentManager } from "../agent-manager/index.js";
 import { BaseChatModel } from "langchain/chat_models";
 import { z } from "zod";
-import { AgentContext, AgentUserMessage, FILES_TO_SEND_FIELD, MimirAgentPlugin } from "../schema.js";
+import { AgentContext, AgentUserMessage, FILES_TO_SEND_FIELD, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../schema.js";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
 
 export class TalkToHelper extends StructuredTool {
@@ -58,13 +58,25 @@ export type HelperPluginConfig = {
     model: BaseChatModel,
 }
 
+export class HelpersPluginFactory implements MimirPluginFactory {
+
+    pluginName: string = "helpers";
+
+    constructor(private config: HelperPluginConfig) {
+    }
+
+    create(context: PluginContext): MimirAgentPlugin {
+        return new HelpersPlugin(this.config);
+    }
+}
+
 export class HelpersPlugin extends MimirAgentPlugin {
 
     private helperSingleton: AgentManager;
     private communicationWhitelist: string[] | null;
     private model: BaseChatModel;
     private agentName: string;
-    
+
     name: string = "HelpersPlugin";
     
 

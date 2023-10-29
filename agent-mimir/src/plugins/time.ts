@@ -1,9 +1,18 @@
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
-import { MimirAgentPlugin } from "../schema.js";
+import { MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../schema.js";
 
+export class TimePluginFactory implements MimirPluginFactory {
 
-export class TimePlugin extends MimirAgentPlugin {
-    
+    pluginName: string = "time";
+
+    create(context: PluginContext): MimirAgentPlugin {
+        return new TimePlugin();
+    }
+
+}
+
+class TimePlugin extends MimirAgentPlugin {
+
     systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
         return [
             SystemMessagePromptTemplate.fromTemplate(`The current time is: {currentTime}`),

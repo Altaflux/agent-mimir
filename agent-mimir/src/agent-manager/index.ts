@@ -9,15 +9,15 @@ import { SteppedAgentExecutor } from '../executor/index.js';
 import { ChatMemoryChain } from '../memory/transactional-memory-chain.js';
 
 import { BaseChatModel } from 'langchain/chat_models';
-import { Agent, AgentResponse, AgentToolRequest, AgentUserMessage, MimirAgentPlugin, MimirPluginFactory, WorkspaceManagerFactory } from '../schema.js';
+import { Agent, AgentResponse, AgentToolRequest, AgentUserMessage, MimirPluginFactory, WorkspaceManagerFactory } from '../schema.js';
 
 import { initializeAgent } from '../agent/index.js'
-import { LangchainToolWrapper } from '../schema.js';
+import { LangchainToolWrapperPluginFactory } from '../schema.js';
 import { DEFAULT_CONSTITUTION } from '../agent/prompt.js';
-import { TimePlugin } from '../plugins/time.js';
-import { HelpersPlugin } from '../plugins/helpers.js';
+import { TimePluginFactory } from '../plugins/time.js';
+import { HelpersPluginFactory } from '../plugins/helpers.js';
 import { MimirAgentTypes } from '../agent/index.js';
-import { ManualTagMemoryPlugin } from '../plugins/tag-memory/plugins.js';
+import { ManualTagMemoryPluginFactory } from '../plugins/tag-memory/plugins.js';
 import { CompactingConversationSummaryMemory } from '../memory/compacting-memory/index.js';
 import { BaseChatMessageHistory } from 'langchain/schema';
 import { NoopMemory } from '../memory/noopMemory.js';
@@ -64,11 +64,11 @@ export class AgentManager {
 
         const summarizingModel = config.summaryModel ?? config.model;
 
-        const tagPlugin = new ManualTagMemoryPlugin(embeddings, config.summaryModel ?? config.model);
+        const tagPlugin = new ManualTagMemoryPluginFactory(embeddings, config.summaryModel ?? config.model);
 
         const taskCompleteCommandName = "taskComplete";
 
-        const agentCommunicationPlugin = [];
+        const agentCommunicationPlugin: MimirPluginFactory[] = [];
         const canCommunicateWithAgents = config.communicationWhitelist ?? false;
         let communicationWhitelist = undefined;
         if (Array.isArray(canCommunicateWithAgents)) {
@@ -76,7 +76,7 @@ export class AgentManager {
         }
 
         if (config.communicationWhitelist) {
-            const helpersPlugin = new HelpersPlugin({
+            const helpersPlugin = new HelpersPluginFactory({
                 name: shortName,
                 helperSingleton: this,
                 model: model,
@@ -99,18 +99,18 @@ export class AgentManager {
             outputKey: "output",
         });
 
-        const timePlugin = new TimePlugin();
 
         const workspace = await this.managerConfig.workspaceManagerFactory(shortName);
-        const configurablePlugins = config.plugins?.map(plugin => plugin.create({ workingDirectory: workspace.workingDirectory, agentName: shortName, persistenceDirectory: workspace.pluginDirectory(plugin.pluginName) }));
-        const defaultPlugins = [tagPlugin, timePlugin, ...agentCommunicationPlugin, ...configurablePlugins ?? []] as MimirAgentPlugin[];
 
+        const timePlugin = new TimePluginFactory();
+        const defaultPluginsFactories = [timePlugin, tagPlugin, ...agentCommunicationPlugin, ...config.plugins ?? []];
+
+        const allPluginFactories: MimirPluginFactory[] = [...tools.map(tool => new LangchainToolWrapperPluginFactory(tool)), ...defaultPluginsFactories];
+        const allCreatedPlugins = allPluginFactories.map(factory => factory.create({ workingDirectory: workspace.workingDirectory, agentName: shortName, persistenceDirectory: workspace.pluginDirectory(factory.pluginName) }));
         const talkToUserTool = new TalkToUserTool(workspace);
 
-        const allPlugins = [...tools.map(tool => new LangchainToolWrapper(tool)), ...defaultPlugins];
-
         const reset = async () => {
-            await Promise.all(allPlugins.map(async plugin => await plugin.clear()));
+            await Promise.all(allCreatedPlugins.map(async plugin => await plugin.clear()));
             await workspace.reset();
             await config.messageHistory.clear()
         };
@@ -121,7 +121,7 @@ export class AgentManager {
             taskCompleteCommandName: taskCompleteCommandName,
             talkToUserTool: talkToUserTool,
             workspaceManager: workspace,
-            plugins: allPlugins,
+            plugins: allCreatedPlugins,
             constitution: config.constitution ?? DEFAULT_CONSTITUTION,
             chatMemory: config.messageHistory,
             resetFunction: reset,
@@ -136,7 +136,7 @@ export class AgentManager {
                     inputKey: "inputToSave",
                     embeddings: embeddings,
                     compactionCallback: async (newLines, previousConversation) => {
-                        for (const plugin of allPlugins) {
+                        for (const plugin of allCreatedPlugins) {
                             await plugin.memoryCompactionCallback(newLines, previousConversation);
                         }
                     }
@@ -149,7 +149,7 @@ export class AgentManager {
             agentName: shortName,
             memory: memory,
             agent: agent,
-            tools: [...allPlugins.map((plugin) => plugin.tools()).flat(), talkToUserTool],
+            tools: [...allCreatedPlugins.map((plugin) => plugin.tools()).flat(), talkToUserTool],
             verbose: false,
             alwaysAllowTools: ['respondBack'],
         });
@@ -167,7 +167,7 @@ export class AgentManager {
             }
         );
 
-        for (const plugin of allPlugins) {
+        for (const plugin of allCreatedPlugins) {
             await plugin.init();
         }
 

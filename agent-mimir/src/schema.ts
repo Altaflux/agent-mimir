@@ -118,13 +118,22 @@ export type AgentContext = {
     memory?: BaseChatMemory,
 };
 
-export class LangchainToolWrapper extends MimirAgentPlugin {
+export class LangchainToolWrapperPluginFactory implements MimirPluginFactory {
+    pluginName: string;
+    constructor(private tool: StructuredTool) {
+        this.pluginName = tool.name;
+    }
+    create(context: PluginContext): MimirAgentPlugin {
+        return new LangchainToolWrapper(this.tool);
+    }
+}
 
-    name: string;
+class LangchainToolWrapper extends MimirAgentPlugin {
+
 
     constructor(private tool: StructuredTool) {
         super();
-        this.name = tool.name;
+
     }
 
     tools(): StructuredTool[] {

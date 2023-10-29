@@ -9,20 +9,20 @@ import { Embeddings } from "langchain/embeddings";
 import { BaseChatModel } from "langchain/chat_models";
 
 export class ManualTagMemoryPluginFactory implements MimirPluginFactory {
+
     pluginName: string = "manualTagMemory";
+
     constructor(private embeddings: Embeddings, private model: BaseChatModel) {
     }
 
     create(context: PluginContext): MimirAgentPlugin {
-        throw new ManualTagMemoryPlugin(this.embeddings, this.model);
+        return new ManualTagMemoryPlugin(this.embeddings, this.model);
     }
 }
 
 export class ManualTagMemoryPlugin extends MimirAgentPlugin {
 
     private manager: TagMemoryManager;
-
-
 
     constructor(embeddings: Embeddings, model: BaseChatModel) {
         super();
@@ -77,13 +77,14 @@ class TagRetrieverTool extends StructuredTool {
 
 
 export class AutomaticTagMemoryPluginFactory implements MimirPluginFactory {
-    
+
     pluginName: string = "automaticTagMemory";
+
     constructor(private embeddings: Embeddings, private model: BaseChatModel) {
     }
 
     create(context: PluginContext): MimirAgentPlugin {
-        throw new AutomaticTagMemoryPlugin(this.embeddings, this.model);
+        return new AutomaticTagMemoryPlugin(this.embeddings, this.model);
     }
 }
 
