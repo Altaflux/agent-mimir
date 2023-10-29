@@ -14,7 +14,7 @@ const summaryModel = new ChatOpenAI({
 });
 
 module.exports = async function () {
-    
+
     const CodeInterpreterPluginFactory = (await import('@agent-mimir/code-interpreter')).CodeInterpreterPluginFactory;
 
     return {
@@ -24,6 +24,7 @@ module.exports = async function () {
                 mainAgent: true,
                 description: 'An assistant',
                 definition: {
+                    agentType: 'openai-function-agent',
                     chatModel: chatModel,
                     summaryModel: summaryModel,
                     profession: 'an Assistant',

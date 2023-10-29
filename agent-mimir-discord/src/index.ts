@@ -65,7 +65,7 @@ const getConfig = async () => {
             return await Promise.resolve(configFunction);
         }
     }
-    console.log(chalk.yellow("No config file found, using default ApenAI config"));
+    console.log(chalk.yellow("No config file found, using default OpenAI config"));
     return (await import("./default-config.js")).default();
 };
 

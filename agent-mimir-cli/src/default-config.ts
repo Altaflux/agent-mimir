@@ -1,7 +1,8 @@
+import { MimirAgentTypes } from 'agent-mimir/agent';
 import { ChatOpenAI } from 'langchain/chat_models/openai';
 
 const openAIModelType = process.env.AGENT_OPENAI_MODEL ?? 'gpt-4-0613';
-const agentType = openAIModelType.includes('0613') ? 'openai-function-agent' : 'plain-text-agent';
+const agentType: MimirAgentTypes = openAIModelType.includes('0613') ? 'openai-function-agent' : 'plain-text-agent';
 
 const chatModel = new ChatOpenAI({
     openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
@@ -15,6 +16,7 @@ const summaryModel = new ChatOpenAI({
     modelName: 'gpt-3.5-turbo-16k-0613',
 });
 
+// eslint-disable-next-line import/no-anonymous-default-export
 export default function () {
     return {
         continuousMode: false,
@@ -22,8 +24,8 @@ export default function () {
             'Assistant': {
                 mainAgent: true,
                 description: 'An assistant',
-                agentType: agentType,
                 definition: {
+                    agentType: agentType,
                     chatModel: chatModel,
                     summaryModel: summaryModel,
                     profession: 'an Assistant',
