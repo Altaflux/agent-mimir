@@ -3,9 +3,10 @@ import { Agent, AgentResponse, AgentUserMessage, FILES_TO_SEND_FIELD } from "age
 import readline from 'readline';
 import { Retry } from "./utils.js";
 import path from "path";
+import { AgentManager } from 'agent-mimir/agent-manager';
 
 
-export async function chatWithAgent<T extends boolean>(continuousMode: boolean, assistant: Agent) {
+export async function chatWithAgent(continuousMode: boolean, assistant: Agent, agentManager: AgentManager) {
   const executor = assistant!;
   var rl = readline.createInterface({
     input: process.stdin,
@@ -13,6 +14,8 @@ export async function chatWithAgent<T extends boolean>(continuousMode: boolean, 
   });
 
   let aiResponse: undefined | AgentResponse = undefined;
+  console.log("Available commands:\n")
+  console.log("/reset - resets all agents\n\n")
   while (true) {
     if (aiResponse && aiResponse.toolStep()) {
 
@@ -26,11 +29,15 @@ export async function chatWithAgent<T extends boolean>(continuousMode: boolean, 
         aiResponse = await Retry(() => executor.call(continuousMode, { continue: true }));
       } else {
         const parsedMessage = extractContentAndText(answers.message);
-        const files = parsedMessage.content.map((file) => {
+        if (parsedMessage.type === "command") {
+          await handleCommands(parsedMessage.command!, assistant, agentManager);
+          continue;
+        }
+        const files = parsedMessage.message?.content.map((file) => {
           const filename = path.basename(file);
           return { fileName: filename, url: file };
         });
-        aiResponse = await Retry(() => executor.call(continuousMode, { input: parsedMessage.text, [FILES_TO_SEND_FIELD]: files }));
+        aiResponse = await Retry(() => executor.call(continuousMode, { input: parsedMessage.message?.text, [FILES_TO_SEND_FIELD]: files }));
       }
     } else {
 
@@ -41,11 +48,15 @@ export async function chatWithAgent<T extends boolean>(continuousMode: boolean, 
       })]);
 
       const parsedMessage = extractContentAndText(answers.message);
-      const files = parsedMessage.content.map((file) => {
+      if (parsedMessage.type === "command") {
+        await handleCommands(parsedMessage.command!, assistant, agentManager);
+        continue;
+      }
+      const files = parsedMessage.message?.content.map((file) => {
         const filename = path.basename(file);
         return { fileName: filename, url: file };
       });
-      aiResponse = await Retry(() => executor.call(continuousMode, { input: parsedMessage.text, [FILES_TO_SEND_FIELD]: files }));
+      aiResponse = await Retry(() => executor.call(continuousMode, { input: parsedMessage.message?.text, [FILES_TO_SEND_FIELD]: files }));
     }
     if (aiResponse?.toolStep()) {
       const response = aiResponse?.output;
@@ -60,8 +71,33 @@ export async function chatWithAgent<T extends boolean>(continuousMode: boolean, 
 
   }
 }
+async function handleCommands(command: string, assistant: Agent, agentManager: AgentManager) {
+  if (command.trim() === "reset") {
+    for (const agent of agentManager.getAllAgents()) {
+      await agent.reset();
+    }
+    console.log(chalk.red(`Agents have been reset.`));
+  } else {
+    console.log(chalk.red(`Unknown command: ${command}`));
+  }
+}
 
-function extractContentAndText(str: string) {
+function extractContentAndText(str: string): {
+  type: `command` | `message`,
+  command?: string,
+  message?: {
+    content: string[];
+    text: string;
+  }
+} {
+
+  if (str.startsWith("/")) {
+    return {
+      type: 'command',
+      command: str.slice(1)
+    }
+  }
+
   const regex = /^(?:\s*\(([^)]+)\)\s*)+/g;
   let matches = [];
   let match;
@@ -74,7 +110,10 @@ function extractContentAndText(str: string) {
   const remainingText = str.replace(regex, '');
 
   return {
-    content: matches,
-    text: remainingText.trim()
+    type: 'message',
+    message: {
+      content: matches,
+      text: remainingText.trim()
+    }
   };
 }

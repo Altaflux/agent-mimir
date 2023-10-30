@@ -66,7 +66,20 @@ You can send files to the agent by simply attaching them in your message.
 
 To reset the agent back to its initial state use the Discord command `/reset`. This command will clear all the chat history and workspace of all agents.
 
+### Command Line Client
 
+The command line version can be started by running the command `npm run start-cli`.
+
+### Files
+To send files to the agent you can pass the file paths inside `()` at the beginning of your message.
+
+```
+(C:\Users\user\Pictures\image1.jpg)(C:\Users\user\Pictures\image2.jpg) Convert this images to greyscale.
+```
+The agent will respond back with the path of files it may have produced.
+
+### Commands
+Currently only a `/reset` command is supported. This command will resent the agents to their initial state.
 
 ## Customizing Agents Configuration
 

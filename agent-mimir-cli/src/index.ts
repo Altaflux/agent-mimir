@@ -108,7 +108,7 @@ export const run = async () => {
     }
 
     console.log(chalk.green(`Using "${mainAgent.name}" as main agent`));
-    await chatWithAgent(continousMode, mainAgent);
+    await chatWithAgent(continousMode, mainAgent, agentManager);
 };
 
 run();
