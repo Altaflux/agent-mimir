@@ -75,9 +75,6 @@ export class HelpersPlugin extends MimirAgentPlugin {
     private communicationWhitelist: string[] | null;
     private agentName: string;
 
-    name: string = "helpersPlugin";
-
-
     constructor(config: HelperPluginConfig) {
         super();
         this.helperSingleton = config.helperSingleton;
