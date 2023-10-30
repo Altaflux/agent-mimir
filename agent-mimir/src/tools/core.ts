@@ -1,10 +1,10 @@
 import { StructuredTool } from "langchain/tools";
 import { z } from "zod";
-import { AgentUserMessage, WorkspaceManager } from "../schema.js";
+import { AgentUserMessage, AgentWorkspace } from "../schema.js";
 
 export class TalkToUserTool extends StructuredTool {
 
-    constructor(private workspace: WorkspaceManager) {
+    constructor(private workspace: AgentWorkspace) {
         super();
     }
 

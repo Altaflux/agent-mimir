@@ -25,7 +25,7 @@ export type Agent = {
     name: string,
     description: string,
     call: <T extends boolean>(continuousMode: T, input: Record<string, any>, callback?: FunctionResponseCallBack) => T extends true ? Promise<AgentUserMessageResponse> : Promise<AgentResponse>,
-    workspace: WorkspaceManager,
+    workspace: AgentWorkspace,
     reset: () => Promise<void>,
 };
 
@@ -41,7 +41,7 @@ export interface AgentResponse {
     agentResponse(): this is AgentUserMessageResponse,
 }
 
-export type WorkspaceManager = {
+export type AgentWorkspace = {
     listFiles(): Promise<string[]>,
     loadFileToWorkspace(fileName: string, url: string): Promise<void>,
     reset(): Promise<void>,
@@ -50,7 +50,7 @@ export type WorkspaceManager = {
     workingDirectory: string,
 }
 
-export type WorkspaceManagerFactory = (workkDirectory: string) => Promise<WorkspaceManager>;
+export type WorkspaceManagerFactory = (workkDirectory: string) => Promise<AgentWorkspace>;
 
 export type MimirAgentArgs = {
     name: string,
@@ -61,7 +61,7 @@ export type MimirAgentArgs = {
     talkToUserTool?: StructuredTool,
     plugins: MimirAgentPlugin[]
     constitution: string,
-    workspaceManager: WorkspaceManager,
+    workspaceManager: AgentWorkspace,
     resetFunction: () => Promise<void>,
     memoryBuilder: (messageHistory: {
         messageHistory: BaseChatMessageHistory,

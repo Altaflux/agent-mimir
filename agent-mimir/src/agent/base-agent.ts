@@ -8,7 +8,7 @@ import { LLMChain } from "langchain/chains";
 import { BaseLLMOutputParser, BaseOutputParser } from "langchain/schema/output_parser";
 import { BaseLanguageModel } from "langchain/base_language";
 import { HumanMessage } from "langchain/schema";
-import { AgentContext, AgentUserMessage, FILES_TO_SEND_FIELD, MimirHumanReplyMessage, WorkspaceManager } from "../schema.js";
+import { AgentContext, AgentUserMessage, FILES_TO_SEND_FIELD, MimirHumanReplyMessage, AgentWorkspace } from "../schema.js";
 
 
 const BAD_MESSAGE_TEXT = `I could not understand your response, please rememeber to use the correct response format using the appropiate functions.`;
@@ -50,7 +50,7 @@ export class MimirAgent extends BaseSingleActionAgent {
     defaultInputs?: Record<string, any>;
     plugins: InternalAgentPlugin[];
     name: string;
-    workspaceManager: WorkspaceManager;
+    workspaceManager: AgentWorkspace;
     reset: () => Promise<void>;
     messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>;
 
@@ -61,7 +61,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         outputParser: BaseOutputParser<AgentAction | AgentFinish>,
         messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
         name: string,
-        workspaceManager: WorkspaceManager,
+        workspaceManager: AgentWorkspace,
         reset: () => Promise<void>,
         plugins?: InternalAgentPlugin[],
         defaultInputs?: Record<string, any>,
@@ -288,7 +288,7 @@ export type CreatePromptArgs = {
 
     name: string;
 
-    workspaceManager: WorkspaceManager;
+    workspaceManager: AgentWorkspace;
 
     resetFunction: () => Promise<void>;
 

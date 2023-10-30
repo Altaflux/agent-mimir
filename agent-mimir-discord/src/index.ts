@@ -14,7 +14,7 @@ import { ChannelType, Client, GatewayIntentBits, Partials, REST, Routes, Events,
 import { Readable } from "stream";
 import { finished } from "stream/promises";
 import { SlashCommandBuilder } from "discord.js";
-import { FileSystemChatHistory, FileSystemWorkspaceManager } from "agent-mimir/nodejs";
+import { FileSystemChatHistory, FileSystemAgentWorkspace } from "agent-mimir/nodejs";
 
 
 function splitStringInChunks(str: string) {
@@ -87,7 +87,9 @@ export const run = async () => {
         workspaceManagerFactory: async (agent) => {
             const tempDir = path.join(workingDirectory, agent);
             await fs.mkdir(tempDir, { recursive: true });
-            return new FileSystemWorkspaceManager(tempDir);
+            const workspace = new FileSystemAgentWorkspace(tempDir);
+            await fs.mkdir(workspace.workingDirectory, { recursive: true });
+            return workspace;
         }
     });
 

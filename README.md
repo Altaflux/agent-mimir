@@ -8,9 +8,9 @@ Agent Mimir is based on [LangchainJS](https://github.com/hwchase17/langchainjs),
 
 The tasking system is based on Auto-GPT and BabyAGI where the agent needs to come up with a plan, iterate over its steps and review as it completes the task.
 
-<h2 align="center">Demo</h2>
+<h2 align="center">Discord Demo</h2>
 <p align="center">
-    <img align="center" src="assets/demo-screenshot.png" width="800" height="500">
+    <img align="center" src="assets/demo-discord.png" width="800" height="500">
 </p>
 
 ## Usage

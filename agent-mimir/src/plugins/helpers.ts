@@ -25,12 +25,11 @@ export class TalkToHelper extends StructuredTool {
         if (!helper) {
             return `There is no helper named ${helperName}, create one with the \`createHelper\` tool.`
         }
-        const filesToSend = (arg.workspaceFilesToShare ?? [])
-            .map((file) => {
-                return self!.workspace.getUrlForFile(file);
-            })
-            .filter(value => value !== undefined)
-            .map((file) => file!);
+        const filesToSend = await Promise.all(((arg.workspaceFilesToShare ?? [])
+            .map(async (fileName) => {
+            
+                return {fileName: fileName, url: await self?.workspace.getUrlForFile(fileName)};
+            }).filter(async value => (await value).url !== undefined)));
 
         const response = (await helper.call(true, { input: message, [FILES_TO_SEND_FIELD]: filesToSend }));
         const agentUserMessage: AgentUserMessage = response.output;
@@ -74,16 +73,14 @@ export class HelpersPlugin extends MimirAgentPlugin {
 
     private helperSingleton: AgentManager;
     private communicationWhitelist: string[] | null;
-    private model: BaseChatModel;
     private agentName: string;
 
-    name: string = "helpers";
-    
+    name: string = "helpersPlugin";
+
 
     constructor(config: HelperPluginConfig) {
         super();
         this.helperSingleton = config.helperSingleton;
-        this.model = config.model;
         this.communicationWhitelist = config.communicationWhitelist;
         this.agentName = config.name;
     }
@@ -109,8 +106,8 @@ export class HelpersPlugin extends MimirAgentPlugin {
 
 
     tools(): StructuredTool[] {
-        let tools: StructuredTool[] = [new TalkToHelper(this.helperSingleton, this.name)];
- 
+        let tools: StructuredTool[] = [new TalkToHelper(this.helperSingleton, this.agentName)];
+
         return tools;
     }
 }

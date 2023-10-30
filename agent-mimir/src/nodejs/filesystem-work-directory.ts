@@ -1,8 +1,8 @@
 import path from "path";
-import { WorkspaceManager } from "../schema.js";
+import { AgentWorkspace } from "../schema.js";
 import { promises as fs } from 'fs';
 
-export class FileSystemWorkspaceManager implements WorkspaceManager {
+export class FileSystemAgentWorkspace implements AgentWorkspace {
 
     get workingDirectory() {
         return path.join(this.agentRootDirectory, "workspace");

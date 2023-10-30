@@ -11,7 +11,7 @@ import { promises as fs } from 'fs';
 import os from 'os';
 import path from "path";
 import { StoredMessage } from "langchain/schema";
-import { FileSystemChatHistory, FileSystemWorkspaceManager } from "agent-mimir/nodejs";
+import { FileSystemChatHistory, FileSystemAgentWorkspace } from "agent-mimir/nodejs";
 
 const messages: StoredMessage[] = [
 
@@ -67,7 +67,9 @@ export const run = async () => {
         workspaceManagerFactory: async (agent) => {
             const tempDir = path.join(workingDirectory, agent);
             await fs.mkdir(tempDir, { recursive: true });
-            return new FileSystemWorkspaceManager(tempDir)!;
+            const workspace = new FileSystemAgentWorkspace(tempDir);
+            await fs.mkdir(workspace.workingDirectory, { recursive: true });
+            return workspace;
         }
     });
 
