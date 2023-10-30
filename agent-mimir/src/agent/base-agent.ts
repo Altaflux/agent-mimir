@@ -11,7 +11,7 @@ import { HumanMessage } from "langchain/schema";
 import { AgentContext, AgentUserMessage, FILES_TO_SEND_FIELD, MimirHumanReplyMessage, AgentWorkspace } from "../schema.js";
 
 
-const BAD_MESSAGE_TEXT = `I could not understand your response, please rememeber to use the correct response format using the appropiate functions.`;
+const BAD_MESSAGE_TEXT = `I could not understand your response, please rememeber to use the correct response format using the appropiate functions. If you need to tell me something, please use the "respondBack" function.`;
 
 
 export type NextMessage = {
