@@ -16,12 +16,12 @@ class JavascriptRepl extends Tool {
 }
 
 const taskModel = new ChatOpenAI({
-    openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
+    openAIApiKey: process.env.OPENAI_API_KEY,
     temperature: 0.9,
 });
 
 const chatModel = new ChatOpenAI({
-    openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
+    openAIApiKey: process.env.OPENAI_API_KEY,
     temperature: 0.9,
     modelName: 'gpt-4',
     callbacks: callbackManager

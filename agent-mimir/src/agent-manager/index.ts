@@ -58,7 +58,7 @@ export class AgentManager {
             length: 2
         });
 
-        const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.AGENT_OPENAI_API_KEY });
+        const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY });
         const model = config.model;
 
         const summarizingModel = config.summaryModel ?? config.model;

@@ -23,7 +23,7 @@ You must have installed NodeJS version 18 or above.
 1. Clone this repository `git clone https://github.com/Altaflux/agent-mimir`
 2. Install the required packages `npm install`
 3. Copy the .env.example file to .env: cp .env.example .env.
-4. In the .env file set the your OpenAI key in `AGENT_OPENAI_API_KEY` and in `AGENT_OPENAI_MODEL` the model you want to use.
+4. In the .env file set the your OpenAI key in `OPENAI_API_KEY` and in `AGENT_OPENAI_MODEL` the model you want to use.
 5. Optionally, create a custom configuration file to use a custom agent.
 
 
@@ -42,15 +42,15 @@ const OpenAIEmbeddings = require('langchain/embeddings/openai').OpenAIEmbeddings
 
 //Configure your language models, tools and embeddings
 const summaryModel = new ChatOpenAI({
-    openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
+    openAIApiKey: process.env.OPENAI_API_KEY,
     temperature: 0.0,
     modelName: 'gpt-3.5-turbo-16k-0613',
 });
 const embeddings = new OpenAIEmbeddings({
-    openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
+    openAIApiKey: process.env.OPENAI_API_KEY,
 });
 const chatModel = new ChatOpenAI({
-    openAIApiKey: process.env.AGENT_OPENAI_API_KEY,
+    openAIApiKey: process.env.OPENAI_API_KEY,
     temperature: 0.0,
     modelName: 'gpt-4-0613'
 });
