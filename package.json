@@ -3,8 +3,8 @@
     "private": false,
     "scripts": {
         "build": "turbo run build",
-        "start": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStart",
-        "startDiscord": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStartDiscord",
+        "start-cli": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStart",
+        "start-discord": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStartDiscord",
         "internalStartDiscord": "npm run build && dotenv -- npm run start -w agent-mimir-discord",
         "internalStart": "npm run build && dotenv -- npm run start -w agent-mimir-cli",
         "dev": "turbo run dev",

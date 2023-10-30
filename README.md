@@ -1,6 +1,6 @@
 # <img src="assets/mimir_logo.svg" width="80" height="80"> Agent Mimir
 
-Agent Mimir is a command line chat client and "agent" manager for LLM's like Chat-GPT that provides the models with access to tooling and a framework with which accomplish multi-step tasks.
+Agent Mimir is a command line and Discord chat client "agent" manager for LLM's like Chat-GPT that provides the models with access to tooling and a framework with which accomplish multi-step tasks.
 
 It is very easy to configure your own agent with a custom personality or profession as well as enabling access to all tools that are compatible with LangchainJS. https://js.langchain.com/docs/modules/agents/tools/integrations/.
 
@@ -23,13 +23,50 @@ You must have installed NodeJS version 18 or above.
 1. Clone this repository `git clone https://github.com/Altaflux/agent-mimir`
 2. Install the required packages `npm install`
 3. Copy the .env.example file to .env: cp .env.example .env.
-4. In the .env file set the your OpenAI key in `OPENAI_API_KEY` and in `AGENT_OPENAI_MODEL` the model you want to use.
+4. In the .env file set the your OpenAI key in `OPENAI_API_KEY`.
 5. Optionally, create a custom configuration file to use a custom agent.
 
 
-### How to use
-To start the chat run the command `npm run start`
-It is important to tell the agent every time it has completed a task the phrase `task complete`. This will erease its task's memory. This is useful to keep the number of tokens small.
+## How to use
+
+### Discord Client
+
+#### Discord Bot Setup
+To use Mimir as a Discord bot you first need to create a Bot on the developer's portal: [Discord Developer Portal](discord.com/developers/applications/).
+
+
+Click on `New Application` and give a name to your Bot.
+<p align="center">
+    <img align="center" src="assets/discord/newApp.png" width="800" height="200">
+</p>
+
+Disable `Public Bot` if you do not wish to allow others to join the bot into servers.
+
+Enable `PRESENCE INTENT`, `SERVER MEMBERS INTENT`, and `MESSAGE CONTENT INTENT`.
+
+<p align="center">
+    <img align="center" src="assets/discord/botIntents.png" width="800" height="400">
+</p>
+
+Click on `Reset Token` to generate the Discord Bot token, this token needs to be saved in your `.env` file as `DISCORD_TOKEN`. 
+
+Under the `Oauth2` tab go into the `URL Generator`, select the `bot` scope and the `Send Messages` permissions. At the bottom of the page copy the generated URL and open it in a browser. This link will allow you to register the bot in your discord server.
+
+<p align="center">
+    <img align="center" src="assets/discord/tokenGenerate.png" width="800" height="500">
+</p>
+
+#### Discord Bot Usage
+To start the chat run the command `npm run start-discord`
+When talking to the bot inside a server you have to Direct Mention him or else he will not respond. If you are talking to the bot directly outside of a server then there is not need to mention him.
+```
+@BotName Hey assisant, how are you doing?
+```
+You can send files to the agent by simply attaching them in your message.
+
+To reset the agent back to its initial state use the Discord command `/reset`. This command will clear all the chat history and workspace of all agents.
+
+
 
 ## Customizing Agents Configuration
 
@@ -78,7 +115,7 @@ module.exports = async function() {
                     communicationWhitelist: ['MR_CHEF'], //The list of agents it is allowed to talk to.
                     chatHistory: {
                         tokenLimit: 4000, //Maximum number of tokens that can be used by the chat. 4000 by default.
-                        conversationTokenThreshold: 75, //Percentage threshold of the tokens used by the chat before summarizing. 75% by default.
+                        conversationTokenThreshold: 75, //Percentage of chat history messages to summarize. Setting this to a value lower than 100% helps the agent keep better context of newer parts of the conversation.
                     },
                     plugins: [
                             new CodeInterpreterPluginFactory(),
