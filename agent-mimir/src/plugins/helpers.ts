@@ -40,7 +40,7 @@ export class TalkToHelper extends StructuredTool {
                 await self?.workspace.loadFileToWorkspace(file.fileName, file.url);
                 console.debug(`Loaded file ${file.fileName} from ${file.url} into ${self?.workspace.workingDirectory}`);
             }
-            toolResponse = `The following files have been given to you by the helper and saved into your work directory: ${agentUserMessage.sharedFiles!.map((file) => file.fileName).join(", ")} \n\n`;
+            toolResponse += ` \nThe following files have been given to you by the helper and saved into your work directory: ${agentUserMessage.sharedFiles!.map((file) => file.fileName).join(", ")} \n\n`;
         }
 
         return toolResponse;
