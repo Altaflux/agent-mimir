@@ -3,7 +3,7 @@ import { StructuredTool } from "langchain/tools";
 import { AgentManager } from "../agent-manager/index.js";
 import { BaseChatModel } from "langchain/chat_models";
 import { z } from "zod";
-import { AgentContext, AgentUserMessage, FILES_TO_SEND_FIELD, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../schema.js";
+import { AgentContext, AgentUserMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../schema.js";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
 
 export class TalkToHelper extends StructuredTool {
@@ -11,8 +11,10 @@ export class TalkToHelper extends StructuredTool {
     schema = z.object({
         helperName: z.string().describe("The name of the helper you want to talk to and the message you want to send them."),
         message: z.string().describe("The message to the helper, be as detailed as possible."),
-        workspaceFilesToShare: z.array(z.string()).optional().describe("The list of files of your work directory you want to share with the helper."),
+        workspaceFilesToShare: z.array(z.string().describe("a file to share with the helper.")).optional().describe("The list of files of your work directory you want to share with the helper. You do not share the same workspace as the helpers, if you want the helper to have access to a file from your workspace you must share it with them."),
     })
+
+    returnDirect: boolean = true;
 
     constructor(private helperSingleton: AgentManager, private agentName: string) {
         super();
@@ -20,30 +22,18 @@ export class TalkToHelper extends StructuredTool {
 
     protected async _call(arg: z.input<this["schema"]>): Promise<string> {
         const { helperName, message } = arg;
-        const helper = this.helperSingleton.getAgent(helperName);
         const self = this.helperSingleton.getAgent(this.agentName);
-        if (!helper) {
-            return `There is no helper named ${helperName}, create one with the \`createHelper\` tool.`
-        }
         const filesToSend = await Promise.all(((arg.workspaceFilesToShare ?? [])
             .map(async (fileName) => {
-            
-                return {fileName: fileName, url: await self?.workspace.getUrlForFile(fileName)};
+                return { fileName: fileName, url: (await self?.workspace.getUrlForFile(fileName))! };
             }).filter(async value => (await value).url !== undefined)));
 
-        const response = (await helper.call(true, { input: message, [FILES_TO_SEND_FIELD]: filesToSend }));
-        const agentUserMessage: AgentUserMessage = response.output;
-
-        let toolResponse = `Response from ${helper.name}: ${agentUserMessage.message}`;
-        if (agentUserMessage.sharedFiles?.length ?? 0 > 0) {
-            for (const file of agentUserMessage.sharedFiles ?? []) {
-                await self?.workspace.loadFileToWorkspace(file.fileName, file.url);
-                console.debug(`Loaded file ${file.fileName} from ${file.url} into ${self?.workspace.workingDirectory}`);
-            }
-            toolResponse += ` \nThe following files have been given to you by the helper and saved into your work directory: ${agentUserMessage.sharedFiles!.map((file) => file.fileName).join(", ")} \n\n`;
+        const result: AgentUserMessage = {
+            agentName: helperName,
+            message: message,
+            sharedFiles: filesToSend,
         }
-
-        return toolResponse;
+        return JSON.stringify(result);
     }
     name: string = "talkToHelper";
     description: string = `Talk to a helper. If a helper responds that it will do a task ask them again to complete the task. `;

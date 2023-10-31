@@ -129,6 +129,7 @@ export type MimirHumanReplyMessage = {
 export type MemoryCompactionCallback = (newMessage: BaseMessage[], previousConversation: BaseMessage[]) => Promise<void>;
 
 export type AgentUserMessage = {
+    agentName?: string,
     message: string,
     sharedFiles?: {
         url: string,

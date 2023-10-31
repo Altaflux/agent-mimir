@@ -1,6 +1,6 @@
 import { MimirAgentTypes } from "agent-mimir/agent";
 import { AgentManager } from "agent-mimir/agent-manager"
-import { AgentResponse, AgentUserMessage, FILES_TO_SEND_FIELD, MimirPluginFactory } from "agent-mimir/schema";
+import { Agent, AgentUserMessage, AgentUserMessageResponse, FILES_TO_SEND_FIELD, MimirPluginFactory } from "agent-mimir/schema";
 import chalk from "chalk";
 import { BaseChatModel } from 'langchain/chat_models';
 import { BaseLanguageModel } from "langchain/base_language";
@@ -189,22 +189,73 @@ export const run = async () => {
                 url: response
             }
         }));
-
+        let currentAgent = mainAgent;
         const messageToAi = msg.cleanContent.replaceAll(`@${client.user!.username}`, "").trim();
+        let pendingMessage: PendingMessage | undefined = undefined;
+        const agentStack: Agent[] = [];
         try {
+            mainLoop: while (true) {
 
-            let chainResponse = (await mainAgent.call(false, { input: messageToAi, [FILES_TO_SEND_FIELD]: loadedFiles }, async (name, input, functionResponse) => {
-                const toolResponse = `Function called: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse}\`\`\``;
-                await sendDiscordResponse(msg, toolResponse);
-            }));
-            await sendChainResponse(msg, chainResponse);
-            while (chainResponse.toolStep()) {
-                chainResponse = (await mainAgent.call(false, { continuousMode: false, continue: true }, async (name, input, functionResponse) => {
-                    const toolResponse = `Function called: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse}\`\`\``;
+                const handleMessage = async (chainResponse: AgentUserMessageResponse, agentStack: Agent[]): Promise<{ finalUser: boolean, currentAgent: Agent, pendingMessage: PendingMessage | undefined }> => {
+                    if (chainResponse.output.agentName) {
+                        agentStack.push(currentAgent);
+                        await sendDiscordResponse(msg, `\`${currentAgent.name}\` is sending a message to \`${chainResponse.output.agentName}\` with message:\n\`\`\`${chainResponse.output.message}\`\`\``);
+                        return {
+                            finalUser: false,
+                            currentAgent: agentManager.getAgent(chainResponse.output.agentName)!,
+                            pendingMessage: chainResponse.output
+                        }
+                    } else {
+                        const isFinalUser = agentStack.length === 0;
+                        if (!isFinalUser) {
+                            await sendDiscordResponse(msg, `\`${currentAgent.name}\` is replying back to \`${agentStack[agentStack.length - 1].name}\` with message:\n\`\`\`${chainResponse.output.message}\`\`\``);
+                        }
+                        return {
+                            finalUser: isFinalUser,
+                            currentAgent: isFinalUser ? currentAgent : agentStack.pop()!,
+                            pendingMessage: {
+                                message: isFinalUser ? chainResponse.output.message : `${currentAgent.name} responded with: ${chainResponse.output.message}`,
+                                sharedFiles: chainResponse.output.sharedFiles
+                            }
+                        }
+                    }
+                }
+
+                let messasgeToSend: PendingMessage = pendingMessage ? {
+                    message: pendingMessage.message,
+                    sharedFiles: pendingMessage.sharedFiles
+                } : { message: messageToAi, sharedFiles: loadedFiles };
+
+                let chainResponse = (await currentAgent.call(false, { input: messasgeToSend.message, [FILES_TO_SEND_FIELD]: messasgeToSend.sharedFiles }, async (name, input, functionResponse) => {
+                    const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse}\`\`\``;
                     await sendDiscordResponse(msg, toolResponse);
                 }));
-                await sendChainResponse(msg, chainResponse);
+                if (chainResponse.agentResponse()) {
+                    const routedMessage = await handleMessage(chainResponse, agentStack);
+                    currentAgent = routedMessage.currentAgent;
+                    pendingMessage = routedMessage.pendingMessage;
+                    if (routedMessage.finalUser) {
+                        await sendChainResponse(msg, chainResponse.output);
+                        break mainLoop;
+                    }
+                }
+                while (chainResponse.toolStep()) {
+                    chainResponse = (await currentAgent.call(false, { continuousMode: false, continue: true }, async (name, input, functionResponse) => {
+                        const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse}\`\`\``;
+                        await sendDiscordResponse(msg, toolResponse);
+                    }));
+                    if (chainResponse.agentResponse()) {
+                        const routedMessage = await handleMessage(chainResponse, agentStack);
+                        currentAgent = routedMessage.currentAgent;
+                        pendingMessage = routedMessage.pendingMessage;
+                        if (routedMessage.finalUser) {
+                            await sendChainResponse(msg, chainResponse.output);
+                            break mainLoop;
+                        }
+                    }
+                }
             }
+
         } finally {
             clearInterval(typing);
         }
@@ -216,11 +267,19 @@ export const run = async () => {
 
 run();
 
-async function sendChainResponse(msg: Message<boolean>, aiResponse: AgentResponse) {
-    if (aiResponse.agentResponse()) {
-        const response: AgentUserMessage = aiResponse.output;
-        await sendDiscordResponse(msg, response.message, response.sharedFiles?.map(f => f.url));
-    }
+type PendingMessage = {
+    sharedFiles?: {
+        url: string;
+        fileName: string;
+    }[],
+    message: string;
+}
+
+async function sendChainResponse(msg: Message<boolean>, aiResponse: AgentUserMessage) {
+
+    const response: AgentUserMessage = aiResponse;
+    await sendDiscordResponse(msg, response.message, response.sharedFiles?.map(f => f.url));
+
 }
 
 async function sendDiscordResponse(msg: Message<boolean>, message: string, attachments?: string[]) {

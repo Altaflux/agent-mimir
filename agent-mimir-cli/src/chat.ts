@@ -7,7 +7,9 @@ import { AgentManager } from 'agent-mimir/agent-manager';
 
 
 export async function chatWithAgent(continuousMode: boolean, assistant: Agent, agentManager: AgentManager) {
-  const executor = assistant!;
+  const agentStack: Agent[] = [];
+  let pendingMessage: PendingMessage | null = null;
+  let executor = assistant!;
   var rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout
@@ -33,7 +35,7 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
           await handleCommands(parsedMessage.command!, assistant, agentManager);
           continue;
         }
-        const files = parsedMessage.message?.content.map((file) => {
+        const files = parsedMessage.message?.responseFiles.map((file) => {
           const filename = path.basename(file);
           return { fileName: filename, url: file };
         });
@@ -41,36 +43,62 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
       }
     } else {
 
-      let answers = await Promise.race([new Promise<{ message: string }>((resolve, reject) => {
-        rl.question((chalk.blue("Human: ")), (answer) => {
-          resolve({ message: answer });
-        });
-      })]);
+      let messageToAgent: PendingMessage | undefined = undefined;
+      if (pendingMessage) {
+        messageToAgent = pendingMessage;
+        pendingMessage = null;
+      } else {
+        let answers = await Promise.race([new Promise<{ message: string }>((resolve, reject) => {
+          rl.question((chalk.blue("Human: ")), (answer) => {
+            resolve({ message: answer });
+          });
+        })]);
 
-      const parsedMessage = extractContentAndText(answers.message);
-      if (parsedMessage.type === "command") {
-        await handleCommands(parsedMessage.command!, assistant, agentManager);
-        continue;
+        const parsedMessage = extractContentAndText(answers.message);
+        if (parsedMessage.type === "command") {
+          await handleCommands(parsedMessage.command!, assistant, agentManager);
+          continue;
+        }
+        messageToAgent = {
+          message: parsedMessage.message?.text!,
+          sharedFiles: parsedMessage.message?.responseFiles.map((file) => {
+            const filename = path.basename(file);
+            return { fileName: filename, url: file };
+          })
+        };
       }
-      const files = parsedMessage.message?.content.map((file) => {
-        const filename = path.basename(file);
-        return { fileName: filename, url: file };
-      });
-      aiResponse = await Retry(() => executor.call(continuousMode, { input: parsedMessage.message?.text, [FILES_TO_SEND_FIELD]: files }));
+
+
+      aiResponse = await Retry(() => executor.call(continuousMode, { input: messageToAgent!.message, [FILES_TO_SEND_FIELD]: messageToAgent?.sharedFiles ?? [] }));
     }
     if (aiResponse?.toolStep()) {
       const response = aiResponse?.output;
-      const responseMessage = `Agent is requesting permission to use tool: "${response.toolName}" with input:\n"${response.toolArguments}"`
+      const responseMessage = `Agent: "${executor.name}" is requesting permission to use tool: "${response.toolName}" with input:\n"${response.toolArguments}"`
       console.log(chalk.red("AI Response: ", chalk.blue(responseMessage)));
 
     } else if (aiResponse?.agentResponse()) {
       const response: AgentUserMessage = aiResponse?.output;
-      const responseMessage = `Files provided by AI: ${response.sharedFiles?.map(f => f.fileName).join(", ") || "None"}\n\n${response.message}`;
-      console.log(chalk.red("AI Response: ", chalk.blue(responseMessage)));
-    }
+      if (response.agentName) {
+        agentStack.push(executor);
+        executor = agentManager.getAgent(response.agentName)!;
+        pendingMessage = response;
+      } else {
+        if (agentStack.length === 0) {
+          const responseMessage = `Files provided by AI: ${response.sharedFiles?.map(f => f.fileName).join(", ") || "None"}\n\n${response.message}`;
+          console.log(chalk.red("AI Response: ", chalk.blue(responseMessage)));
+        } else {
+          pendingMessage = {
+            message: `${executor.name} responded with: ${response.message}`,
+            sharedFiles: response.sharedFiles
+          };
+          executor = agentStack.pop()!;
+        }
+      }
 
+    }
   }
 }
+
 async function handleCommands(command: string, assistant: Agent, agentManager: AgentManager) {
   if (command.trim() === "reset") {
     for (const agent of agentManager.getAllAgents()) {
@@ -82,11 +110,19 @@ async function handleCommands(command: string, assistant: Agent, agentManager: A
   }
 }
 
+type PendingMessage = {
+  sharedFiles?: {
+    url: string;
+    fileName: string;
+  }[],
+  message: string;
+}
+
 function extractContentAndText(str: string): {
   type: `command` | `message`,
   command?: string,
   message?: {
-    content: string[];
+    responseFiles: string[];
     text: string;
   }
 } {
@@ -112,7 +148,7 @@ function extractContentAndText(str: string): {
   return {
     type: 'message',
     message: {
-      content: matches,
+      responseFiles: matches,
       text: remainingText.trim()
     }
   };
