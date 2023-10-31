@@ -167,8 +167,6 @@ Here is a list of useful and easy to install tools you can try:
 ### Code Interpreter Plugin:
 The Code Interpreter plugin allows the agent to run Python 3 scripts directly in your machine. The interpreter can access resources inside your computer. The interpreter will automatically install any dependencies the script requires to run.
 
-You can optionally configure an input and output directory that the agent can use to receive files that need processing as well as output files back to the user.
-
 `package.json`
 ```json
 {
