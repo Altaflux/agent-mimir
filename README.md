@@ -32,7 +32,7 @@ You must have installed NodeJS version 18 or above.
 ### Discord Client
 
 #### Discord Bot Setup
-To use Mimir as a Discord bot you first need to create a Bot on the developer's portal: [Discord Developer Portal](discord.com/developers/applications/).
+To use Mimir as a Discord bot you first need to create a Bot on the developer's portal: [Discord Developer Portal](https://discord.com/developers/applications/).
 
 
 Click on `New Application` and give a name to your Bot.
