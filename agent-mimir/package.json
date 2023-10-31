@@ -61,7 +61,6 @@
   "dependencies": {
     "jsonrepair": "^3.0.2",
     "ring-buffer-ts": "^1.2.0",
-    "unique-names-generator": "^4.7.1",
     "gpt-3-encoder": "v1.1.4"
   }
 }

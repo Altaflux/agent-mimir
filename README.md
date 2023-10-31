@@ -114,7 +114,7 @@ module.exports = async function() {
     const WebBrowserPluginFactory = (await import('@agent-mimir/selenium-browser')).WebBrowserPluginFactory;
 
     return {
-        //If continuousMode is set to true the agent will not ask you before executing a tool. Disable at your own risk.
+        //If continuousMode is set to true the agent will not ask you before executing a tool. Disable at your own risk. (Only works on cli mode for now).
         continuousMode: false,
         agents: {
             'Assistant': { //The name of the agent

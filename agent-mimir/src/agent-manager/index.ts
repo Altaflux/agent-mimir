@@ -1,5 +1,4 @@
 
-import { uniqueNamesGenerator, names } from 'unique-names-generator';
 
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 
@@ -53,10 +52,7 @@ export class AgentManager {
     public async createAgent(config: CreateAgentOptions): Promise<Agent> {
 
 
-        const shortName = config.name ?? uniqueNamesGenerator({
-            dictionaries: [names, names],
-            length: 2
-        });
+        const shortName = config.name;
 
         const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY });
         const model = config.model;
