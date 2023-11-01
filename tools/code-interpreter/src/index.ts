@@ -1,5 +1,5 @@
 import { StructuredTool } from "langchain/tools";
-import { MimirAgentPlugin, PluginContext, MimirPluginFactory } from "agent-mimir/schema";
+import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentWorkspace } from "agent-mimir/schema";
 import { CallbackManagerForToolRun } from "langchain/callbacks";
 import { z } from "zod";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
@@ -11,7 +11,7 @@ import path from "path";
 
 
 type CodeInterpreterArgs = {
-    workDirectory?: string;
+    workSpace?: AgentWorkspace;
 }
 
 const CODE_INTERPRETER_PROMPT = function (args: CodeInterpreterArgs) {
@@ -33,21 +33,21 @@ export class CodeInterpreterPluginFactory implements MimirPluginFactory {
     name: string = "codeInterpreter";
 
     create(context: PluginContext): MimirAgentPlugin {
-        return new CodeInterpreterPlugin({ workDirectory: context.workingDirectory });
+        return new CodeInterpreterPlugin({ workSpace: context.workspace });
     }
 }
 
 class CodeInterpreterPlugin extends MimirAgentPlugin {
-    private workDirectory?: string;
+    private workSpace?: AgentWorkspace;
     constructor(private args: CodeInterpreterArgs) {
         super();
-        this.workDirectory = args.workDirectory;
+        this.workSpace = args.workSpace;
     }
 
     async init(): Promise<void> {
-        if (this.workDirectory) {
-            await fs.mkdir(this.workDirectory, { recursive: true });
-            console.debug(`Code Interpreter Plugin initialized with work directory ${this.workDirectory}`);
+        if (this.workSpace) {
+            await fs.mkdir(this.workSpace.workingDirectory, { recursive: true });
+            console.debug(`Code Interpreter Plugin initialized with work directory ${this.workSpace}`);
         }
     }
     systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
@@ -57,12 +57,12 @@ class CodeInterpreterPlugin extends MimirAgentPlugin {
     }
 
     async getInputs(): Promise<Record<string, any>> {
-        if (!this.workDirectory) {
+        if (!this.workSpace) {
             return {
                 interpreterInputFiles: "",
             };
         }
-        const files = await fs.readdir(this.workDirectory);
+        const files = await fs.readdir(this.workSpace.workingDirectory);
         if (files.length === 0) {
             return {
                 interpreterInputFiles: "",
@@ -78,7 +78,7 @@ class CodeInterpreterPlugin extends MimirAgentPlugin {
 
     tools() {
         return [
-            new PythonCodeInterpreter(this.workDirectory),
+            new PythonCodeInterpreter(this.workSpace?.workingDirectory),
         ];
     };
 }

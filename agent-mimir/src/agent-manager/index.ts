@@ -104,7 +104,7 @@ export class AgentManager {
         const defaultPluginsFactories = [timePlugin, tagPlugin, ...agentCommunicationPlugin, ...config.plugins ?? []];
 
         const allPluginFactories: MimirPluginFactory[] = [...tools.map(tool => new LangchainToolWrapperPluginFactory(tool)), ...defaultPluginsFactories];
-        const allCreatedPlugins = allPluginFactories.map(factory => factory.create({ workingDirectory: workspace.workingDirectory, agentName: shortName, persistenceDirectory: workspace.pluginDirectory(factory.name) }));
+        const allCreatedPlugins = allPluginFactories.map(factory => factory.create({ workspace: workspace, agentName: shortName, persistenceDirectory: workspace.pluginDirectory(factory.name) }));
         const talkToUserTool = new TalkToUserTool(workspace);
 
         const reset = async () => {

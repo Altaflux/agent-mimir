@@ -69,7 +69,7 @@ export type MimirAgentArgs = {
     }) => BaseChatMemory,
 }
 export type PluginContext = {
-    workingDirectory: string,
+    workspace: AgentWorkspace,
     persistenceDirectory: string,
     agentName: string,
 }
