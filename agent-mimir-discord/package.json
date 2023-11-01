@@ -27,6 +27,8 @@
     },
     "dependencies": {
       "agent-mimir": "*",
+      "@agent-mimir/code-interpreter": "*",
+      "@agent-mimir/selenium-browser": "*",
       "chalk": "^5.2.0",
       "readline": "^1.3.0",
       "discord.js": "^14.13.0"
