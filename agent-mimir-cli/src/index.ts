@@ -25,13 +25,13 @@ export type AgentDefinition = {
         profession: string;
         agentType?: MimirAgentTypes;
         chatModel: BaseChatModel;
-        summaryModel: BaseChatModel;
         taskModel?: BaseLanguageModel;
         constitution?: string;
         plugins?: MimirPluginFactory[];
         chatHistory?: {
-            tokenLimit: number;
-            conversationTokenThreshold: number;
+            summaryModel?: BaseChatModel;
+            tokenLimit?: number;
+            conversationTokenThreshold?: number;
         }
         tools?: Tool[];
         communicationWhitelist?: string[] | boolean;
@@ -86,7 +86,6 @@ export const run = async () => {
                     profession: agentDefinition.definition.profession,
                     tools: agentDefinition.definition.tools ?? [],
                     model: agentDefinition.definition.chatModel,
-                    summaryModel: agentDefinition.definition.summaryModel,
                     chatHistory: agentDefinition.definition.chatHistory,
                     communicationWhitelist: agentDefinition.definition.communicationWhitelist,
                     constitution: agentDefinition.definition.constitution,

@@ -11,7 +11,7 @@ export class TalkToHelper extends StructuredTool {
     schema = z.object({
         helperName: z.string().describe("The name of the helper you want to talk to and the message you want to send them."),
         message: z.string().describe("The message to the helper, be as detailed as possible."),
-        workspaceFilesToShare: z.array(z.string().describe("a file to share with the helper.")).optional().describe("The list of files of your work directory you want to share with the helper. You do not share the same workspace as the helpers, if you want the helper to have access to a file from your workspace you must share it with them."),
+        workspaceFilesToShare: z.array(z.string().describe("File to share with the helper.")).optional().describe("The list of files of your work directory you want to share with the helper. You do not share the same workspace as the helpers, if you want the helper to have access to a file from your workspace you must share it with them."),
     })
 
     returnDirect: boolean = true;

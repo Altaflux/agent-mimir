@@ -44,9 +44,9 @@ export default async function () {
                 definition: {
                     agentType: agentType,
                     chatModel: chatModel,
-                    summaryModel: summaryModel,
                     profession: 'an Assistant',
                     chatHistory: {
+                        summaryModel: summaryModel,
                         tokenLimit: 4000,
                         conversationTokenThreshold: 75,
                     },

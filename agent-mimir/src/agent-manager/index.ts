@@ -28,10 +28,10 @@ export type CreateAgentOptions = {
     name: string,
     model: BaseChatModel,
     plugins?: MimirPluginFactory[],
-    summaryModel?: BaseChatModel,
     constitution?: string,
     communicationWhitelist?: boolean | string[],
     chatHistory?: {
+        summaryModel?: BaseChatModel,
         tokenLimit?: number;
         conversationTokenThreshold?: number;
     }
@@ -57,9 +57,12 @@ export class AgentManager {
         const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY });
         const model = config.model;
 
-        const summarizingModel = config.summaryModel ?? config.model;
+        const summarizingModel = config.chatHistory?.summaryModel ?? model;
+        if (!config.chatHistory?.summaryModel) {
+            console.warn(`No summarizing model provided for agent ${shortName}, using the chat model as summarizing model.`);
+        }
 
-        const tagPlugin = new ManualTagMemoryPluginFactory(embeddings, config.summaryModel ?? config.model);
+        const tagPlugin = new ManualTagMemoryPluginFactory(embeddings, summarizingModel ?? config.model);
 
         const taskCompleteCommandName = "taskComplete";
 

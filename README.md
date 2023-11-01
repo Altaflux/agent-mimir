@@ -123,10 +123,10 @@ module.exports = async function() {
                 definition: {
                     chatModel: chatModel, //The main chat LLM used for conversation and memory.
                     agentType: 'openai-function-agent', //Use "plain-text-agent" for general LLM, you can use "openai-function-agent" if your chat model is gpt-4-0613 or gpt-3.5-turbo-0613 for improved reliability. 
-                    summaryModel: summaryModel, //The model used when summarizing conversations.
                     profession: 'an Assistant', //The profession assigned to the agent.
                     communicationWhitelist: ['MR_CHEF'], //The list of agents it is allowed to talk to.
                     chatHistory: {
+                        summaryModel: summaryModel, //The model used when summarizing conversations. This model should preferably be able to handle double the token limit of the chat history.
                         tokenLimit: 4000, //Maximum number of tokens that can be used by the chat. 4000 by default.
                         conversationTokenThreshold: 75, //Percentage of chat history messages to summarize. Setting this to a value lower than 100% helps the agent keep better context of newer parts of the conversation.
                     },

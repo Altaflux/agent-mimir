@@ -32,7 +32,9 @@ module.exports = async function () {
                 definition: {
                     agentType: 'openai-function-agent',
                     chatModel: chatModel,
-                    summaryModel: summaryModel,
+                    chatHistory: {
+                        summaryModel: summaryModel,
+                    },
                     profession: 'an Assistant',
                     plugins: [
                         new CodeInterpreterPluginFactory(),

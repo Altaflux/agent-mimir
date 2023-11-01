@@ -36,13 +36,13 @@ export type AgentDefinition = {
         profession: string;
         agentType?: MimirAgentTypes;
         chatModel: BaseChatModel;
-        summaryModel: BaseChatModel;
         taskModel?: BaseLanguageModel;
         constitution?: string;
         plugins?: MimirPluginFactory[];
-        chatHistory?: {
-            tokenLimit: number;
-            conversationTokenThreshold: number;
+        chatHistory: {
+            summaryModel: BaseChatModel;
+            tokenLimit?: number;
+            conversationTokenThreshold?: number;
         }
         tools?: Tool[];
         communicationWhitelist?: string[] | boolean;
@@ -105,7 +105,6 @@ export const run = async () => {
                     profession: agentDefinition.definition.profession,
                     tools: agentDefinition.definition.tools ?? [],
                     model: agentDefinition.definition.chatModel,
-                    summaryModel: agentDefinition.definition.summaryModel,
                     chatHistory: agentDefinition.definition.chatHistory,
                     communicationWhitelist: agentDefinition.definition.communicationWhitelist,
                     constitution: agentDefinition.definition.constitution,
@@ -199,7 +198,9 @@ export const run = async () => {
                 const handleMessage = async (chainResponse: AgentUserMessageResponse, agentStack: Agent[]): Promise<{ finalUser: boolean, currentAgent: Agent, pendingMessage: PendingMessage | undefined }> => {
                     if (chainResponse.output.agentName) {
                         agentStack.push(currentAgent);
-                        await sendDiscordResponse(msg, `\`${currentAgent.name}\` is sending a message to \`${chainResponse.output.agentName}\` with message:\n\`\`\`${chainResponse.output.message}\`\`\``);
+                        const discordMessage = `\`${currentAgent.name}\` is sending a message to \`${chainResponse.output.agentName}\` with message:\n\`\`\`${chainResponse.output.message}\`\`\`` +
+                            `\nFiles provided: ${chainResponse.output.sharedFiles?.map(f => `\`${f.fileName}\``).join(", ") || "None"}`;
+                        await sendDiscordResponse(msg, discordMessage);
                         return {
                             finalUser: false,
                             currentAgent: agentManager.getAgent(chainResponse.output.agentName)!,
@@ -208,7 +209,9 @@ export const run = async () => {
                     } else {
                         const isFinalUser = agentStack.length === 0;
                         if (!isFinalUser) {
-                            await sendDiscordResponse(msg, `\`${currentAgent.name}\` is replying back to \`${agentStack[agentStack.length - 1].name}\` with message:\n\`\`\`${chainResponse.output.message}\`\`\``);
+                            const discordMessage = `\`${currentAgent.name}\` is replying back to \`${agentStack[agentStack.length - 1].name}\` with message:\n\`\`\`${chainResponse.output.message}\`\`\`` +
+                                `\nFiles provided: ${chainResponse.output.sharedFiles?.map(f => `\`${f.fileName}\``).join(", ") || "None"}`;
+                            await sendDiscordResponse(msg, discordMessage);
                         }
                         return {
                             finalUser: isFinalUser,

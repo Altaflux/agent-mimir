@@ -15,9 +15,10 @@ class JavascriptRepl extends Tool {
     }
 }
 
-const taskModel = new ChatOpenAI({
+const summaryModel = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY,
     temperature: 0.9,
+    modelName: 'gpt-3.5-turbo-16k-0613',
 });
 
 const chatModel = new ChatOpenAI({
@@ -37,7 +38,9 @@ module.exports = function () {
                 description: 'An assistant', 
                 definition: {
                     chatModel: chatModel,
-                    summaryModel: taskModel,
+                    chatHistory: {
+                        summaryModel: summaryModel
+                    },
                     profession: 'an Assistant',
                     tools: [ 
                         new JavascriptRepl()
