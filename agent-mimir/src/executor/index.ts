@@ -66,15 +66,15 @@ export class SteppedAgentExecutor extends BaseChain {
 
 
     async doTool(action: AgentAction, toolsByName: { [k: string]: StructuredTool }, steps: AgentStep[], getOutput: (finishStep: AgentFinish)
-        => Promise<ChainValues>, functionResponseCallBack: FunctionResponseCallBack) {
+        => Promise<ChainValues>, functionInvokationListener: FunctionResponseCallBack) {
 
         const tool = toolsByName[action.tool?.toLowerCase()];
         const observation = tool
             ? await tool.call(action.toolInput)
             : `${action.tool} is not a valid tool, try another one.`;
 
-        if (!tool.returnDirect) {
-            functionResponseCallBack(action.tool?.toLowerCase() ?? "", JSON.stringify(action.toolInput, null, 2), observation);
+        if (!tool?.returnDirect) {
+            functionInvokationListener(action.tool?.toLowerCase() ?? "", JSON.stringify(action.toolInput, null, 2), observation);
         }
 
         steps.push({ action, observation });
