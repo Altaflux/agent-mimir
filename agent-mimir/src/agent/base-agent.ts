@@ -127,7 +127,7 @@ export class MimirAgent extends BaseSingleActionAgent {
                 for (const file of inputs[FILES_TO_SEND_FIELD]) {
                     await this.workspace.loadFileToWorkspace(file.fileName, file.url);
                 }
-                const filesToSendMessage = inputs[FILES_TO_SEND_FIELD].map((file: any) => file.fileName).join(", ");
+                const filesToSendMessage = inputs[FILES_TO_SEND_FIELD].map((file: any) => `"${file.fileName}"`).join(", ");
                 message = {
                     ...nextMessage,
                     message: `I am sending the following files into your workspace: ${filesToSendMessage} \n\n ${nextMessage.message}`
