@@ -266,8 +266,6 @@ If you declare multiple agents in your configuration you can enable communicatio
 
 You can enable communication be setting `canCommunicateWithAgents` to either `true` if you want the agent to be able to communicate with every other agent or pass an array of the names of the agents it is allowed to talk to (`['Mr_Chef', 'Artist']`).
 
-Note: Even if continuous mode is set to false if an agent who is being talked to tries to use a tool it will not ask the user first. I need to rework how continuous mode is implemented.
-
 ## Roadmap
 
 * Configurable memory types to allow persistent memory or different use cases.
