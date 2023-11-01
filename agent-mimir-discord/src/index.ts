@@ -15,6 +15,7 @@ import { Readable } from "stream";
 import { finished } from "stream/promises";
 import { SlashCommandBuilder } from "discord.js";
 import { FileSystemChatHistory, FileSystemAgentWorkspace } from "agent-mimir/nodejs";
+import { Retry } from "./utils.js";
 
 
 function splitStringInChunks(str: string) {
@@ -229,7 +230,7 @@ export const run = async () => {
                     sharedFiles: pendingMessage.sharedFiles
                 } : { message: messageToAi, sharedFiles: loadedFiles };
 
-                let chainResponse = (await currentAgent.call(false, { input: messasgeToSend.message, [FILES_TO_SEND_FIELD]: messasgeToSend.sharedFiles }, async (name, input, functionResponse) => {
+                let chainResponse = await Retry(() => currentAgent.call(false, { input: messasgeToSend.message, [FILES_TO_SEND_FIELD]: messasgeToSend.sharedFiles }, async (name, input, functionResponse) => {
                     const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse}\`\`\``;
                     await sendDiscordResponse(msg, toolResponse);
                 }));
@@ -243,7 +244,7 @@ export const run = async () => {
                     }
                 }
                 while (chainResponse.toolStep()) {
-                    chainResponse = (await currentAgent.call(false, { continuousMode: false, continue: true }, async (name, input, functionResponse) => {
+                    chainResponse = await Retry(() => currentAgent.call(false, { continuousMode: false, continue: true }, async (name, input, functionResponse) => {
                         const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse}\`\`\``;
                         await sendDiscordResponse(msg, toolResponse);
                     }));

@@ -19,7 +19,7 @@ export async function Retry<T>( action: () => Promise<T>, retryInterval = 2000, 
         }
     }
 
-    return exceptions;
+    throw JSON.stringify(exceptions);
 }
 
 function sleep( ms: number ) { return new Promise( resolve => setTimeout( resolve, ms ) ); }
