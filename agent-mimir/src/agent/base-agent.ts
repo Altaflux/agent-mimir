@@ -50,7 +50,7 @@ export class MimirAgent extends BaseSingleActionAgent {
     defaultInputs?: Record<string, any>;
     plugins: InternalAgentPlugin[];
     name: string;
-    workspaceManager: AgentWorkspace;
+    workspace: AgentWorkspace;
     reset: () => Promise<void>;
     messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>;
 
@@ -76,7 +76,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         this.defaultInputs = defaultInputs;
         this.plugins = plugins ?? [];
         this.name = name;
-        this.workspaceManager = workspaceManager;
+        this.workspace = workspaceManager;
         this.reset = reset;
     }
 
@@ -125,12 +125,12 @@ export class MimirAgent extends BaseSingleActionAgent {
         if (nextMessage.type === "USER_MESSAGE") {
             if (inputs[FILES_TO_SEND_FIELD] && inputs[FILES_TO_SEND_FIELD] instanceof Array && inputs[FILES_TO_SEND_FIELD].length > 0) {
                 for (const file of inputs[FILES_TO_SEND_FIELD]) {
-                    await this.workspaceManager.loadFileToWorkspace(file.fileName, file.url);
+                    await this.workspace.loadFileToWorkspace(file.fileName, file.url);
                 }
                 const filesToSendMessage = inputs[FILES_TO_SEND_FIELD].map((file: any) => file.fileName).join(", ");
                 message = {
                     ...nextMessage,
-                    message: `I am sending the following files into your work directory: ${filesToSendMessage} \n\n ${nextMessage.message}`
+                    message: `I am sending the following files into your workspace: ${filesToSendMessage} \n\n ${nextMessage.message}`
                 }
             }
         }

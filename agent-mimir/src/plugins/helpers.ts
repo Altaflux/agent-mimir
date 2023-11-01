@@ -11,7 +11,7 @@ export class TalkToHelper extends StructuredTool {
     schema = z.object({
         helperName: z.string().describe("The name of the helper you want to talk to and the message you want to send them."),
         message: z.string().describe("The message to the helper, be as detailed as possible."),
-        workspaceFilesToShare: z.array(z.string().describe("File to share with the helper.")).optional().describe("The list of files of your work directory you want to share with the helper. You do not share the same workspace as the helpers, if you want the helper to have access to a file from your workspace you must share it with them."),
+        workspaceFilesToSend: z.array(z.string().describe("File to share with the helper.")).optional().describe("The list of files of your workspace you want to share with the helper. You do not share the same workspace as the helpers, if you want the helper to have access to a file from your workspace you must share it with them."),
     })
 
     returnDirect: boolean = true;
@@ -23,7 +23,7 @@ export class TalkToHelper extends StructuredTool {
     protected async _call(arg: z.input<this["schema"]>): Promise<string> {
         const { helperName, message } = arg;
         const self = this.helperSingleton.getAgent(this.agentName);
-        const filesToSend = await Promise.all(((arg.workspaceFilesToShare ?? [])
+        const filesToSend = await Promise.all(((arg.workspaceFilesToSend ?? [])
             .map(async (fileName) => {
                 return { fileName: fileName, url: (await self?.workspace.getUrlForFile(fileName))! };
             }).filter(async value => (await value).url !== undefined)));
@@ -36,7 +36,7 @@ export class TalkToHelper extends StructuredTool {
         return JSON.stringify(result);
     }
     name: string = "talkToHelper";
-    description: string = `Talk to a helper. If a helper responds that it will do a task ask them again to complete the task. `;
+    description: string = `Talk to a helper and / or send them files from your workspace. You can send files from your workspace to a helper.`;
 
 }
 

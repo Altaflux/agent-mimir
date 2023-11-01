@@ -11,6 +11,7 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import { JsonSchema7ObjectType } from "zod-to-json-schema/src/parsers/object.js";
 import { AgentContext, MimirAgentArgs, MimirHumanReplyMessage } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
+import { callJsonRepair } from "../utils/json.js";
 
 
 const JSON_INSTRUCTIONS = `You must format your inputs to these functions to match their "JSON schema" definitions below.
@@ -65,8 +66,13 @@ export class ChatConversationalAgentOutputParser extends AgentActionOutputParser
         if (out1.text && out1.text.length !== 0) {
             out = await this.responseThing.readInstructionsFromResponse(out1.text);
         }
-
-        const action = { tool: out1.functionCall!.name, toolInput: JSON.parse(out1.functionCall!.arguments), log: input }
+        let toolInput = undefined;
+        try {
+            toolInput = JSON.parse(out1.functionCall!.arguments);
+        } catch (e) {
+            toolInput = JSON.parse(callJsonRepair(out1.functionCall!.arguments));
+        }
+        const action = { tool: out1.functionCall!.name, toolInput: toolInput, log: input }
         if (action.tool === this.finishToolName) {
             return { returnValues: { output: action.toolInput, complete: true }, log: action.log };
         }
@@ -87,7 +93,14 @@ class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
     async parseResult(generations: Generation[] | ChatGeneration[]): Promise<MimirAIMessage> {
         const generation = generations[0] as ChatGeneration;
         const aiMessage = await this.responseThing.readInstructionsFromResponse(generation.text);
+        let hasError = false;
+        try {
+            JSON.parse(callJsonRepair(aiMessage.functionArguments!))
+        } catch (e) {
+            hasError = true;
+        }
         const mimirMessage = {
+            error: hasError,
             functionCall: aiMessage.functionName ? {
                 name: aiMessage.functionName,
                 arguments: aiMessage.functionArguments!,
@@ -132,7 +145,7 @@ export class DefaultAiMessageSerializer extends AiMessageSerializer {
         return new AIMessage(mimirMessage.text ?? "");
     }
 }
-export class PlainTextHumanMessageSerializer  extends HumanMessageSerializer{
+export class PlainTextHumanMessageSerializer extends HumanMessageSerializer {
     async deserialize(message: MimirHumanReplyMessage): Promise<BaseMessage> {
         return new HumanMessage(message.message!);
     }
@@ -197,7 +210,7 @@ export function createPlainTextMimirAgent(args: MimirAgentArgs) {
         toolsSystemMessage,
     ];
 
-    const chatHistory = new TransformationalChatMessageHistory(args.chatMemory,  new DefaultAiMessageSerializer(), new PlainTextHumanMessageSerializer());
+    const chatHistory = new TransformationalChatMessageHistory(args.chatMemory, new DefaultAiMessageSerializer(), new PlainTextHumanMessageSerializer());
     const finalMemory = args.memoryBuilder({
         messageHistory: chatHistory,
         plainText: true,

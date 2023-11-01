@@ -19,8 +19,8 @@ const CODE_INTERPRETER_PROMPT = function (args: CodeInterpreterArgs) {
 Code Interpreter Functions Instructions:
 {interpreterInputFiles}
 
-If you are given the task to create a file or they ask you to save it then save the files inside the directory who's path is stored in the OS environment variable named "WORK_DIRECTORY" like \"os.getenv('WORK_DIRECTORY')\".
-Do not mention the work directory in your conversations.
+If you are given the task to create a file or they ask you to save it then save the files inside the directory who's path is stored in the OS environment variable named "WORKSPACE" like \"os.getenv('WORKSPACE')\".
+Do not mention the workspace in your conversations.
 
 End of Code Interpreter Functions Instructions.
 
@@ -47,7 +47,7 @@ class CodeInterpreterPlugin extends MimirAgentPlugin {
     async init(): Promise<void> {
         if (this.workSpace) {
             await fs.mkdir(this.workSpace.workingDirectory, { recursive: true });
-            console.debug(`Code Interpreter Plugin initialized with work directory ${this.workSpace}`);
+            console.debug(`Code Interpreter Plugin initialized with workspace ${this.workSpace}`);
         }
     }
     systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
@@ -72,7 +72,7 @@ class CodeInterpreterPlugin extends MimirAgentPlugin {
             .map((fileName: string) => `- "${fileName}"`)
             .join("\n");
         return {
-            interpreterInputFiles: `You have been given access to the following files for you to use with the code interpreter functions. The files can be found inside a directory path stored in the OS environment variable named "WORK_DIRECTORY" accessible like \"os.getenv('WORK_DIRECTORY')\". :\n${bulletedFiles}\n`,
+            interpreterInputFiles: `You have been given access to the following files for you to use with the code interpreter functions. The files can be found inside a directory path stored in the OS environment variable named "WORKSPACE" accessible like \"os.getenv('WORKSPACE')\". :\n${bulletedFiles}\n`,
         };
     }
 
@@ -98,7 +98,7 @@ class PythonCodeInterpreter extends StructuredTool {
         this.workDirectory = workDirectory;
         this.description = `Code Interpreter to run a Python 3 script in the human's ${process.platform} computer. 
 The input must be the content of the script to execute. The result of this function is the output of the console so you can use print statements to return information to yourself about the results. 
-If you are given the task to create a file or they ask you to save it then save the files inside the directory who's path is stored in the OS environment variable named "WORK_DIRECTORY" accessible like \"os.getenv('WORK_DIRECTORY')\". ` ;
+If you are given the task to create a file or they ask you to save it then save the files inside the directory who's path is stored in the OS environment variable named "WORKSPACE" accessible like \"os.getenv('WORKSPACE')\". ` ;
     }
 
     name = "pythonCodeInterpreter";
@@ -119,9 +119,9 @@ If you are given the task to create a file or they ask you to save it then save 
             if (pyenv.exitCode !== 0) {
                 throw new Error(`Failed to create python virtual environment: ${pyenv.output}`);
             }
-            await fs.appendFile(path.join(tempDir, 'Scripts', 'activate.bat'), `\nSET WORK_DIRECTORY=${this.workDirectory}\n`);
-            await fs.appendFile(path.join(tempDir, 'Scripts', 'activate'), `\nexport WORK_DIRECTORY=${this.workDirectory}\n`);
-            await fs.appendFile(path.join(tempDir, 'Scripts', 'Activate.ps1'), `\n$Env:WORK_DIRECTORY = "${this.workDirectory}"\n`)
+            await fs.appendFile(path.join(tempDir, 'Scripts', 'activate.bat'), `\nSET WORKSPACE=${this.workDirectory}\n`);
+            await fs.appendFile(path.join(tempDir, 'Scripts', 'activate'), `\nexport WORKSPACE=${this.workDirectory}\n`);
+            await fs.appendFile(path.join(tempDir, 'Scripts', 'Activate.ps1'), `\n$Env:WORKSPACE = "${this.workDirectory}"\n`)
 
             const activeScriptCall = process.platform === "win32" ? `activate` : `./activate`;
 
@@ -152,7 +152,7 @@ If you are given the task to create a file or they ask you to save it then save 
                 const files = (await fs.readdir(this.workDirectory))
                     .filter(item => !beforeExecutionOutputFileList.includes(item));
 
-                fileList = files.length === 0 ? "" : `The following files were created in the work directory: ${files.map((fileName: string) => `"${fileName}"`).join(" ")}`;
+                fileList = files.length === 0 ? "" : `The following files were created in the workspace: ${files.map((fileName: string) => `"${fileName}"`).join(" ")}`;
             }
 
             return `Exit Code: ${result.exitCode} \n${fileList} \nScript Output:\n${result.output}`
@@ -184,7 +184,7 @@ If you are given the task to create a file or they ask you to save it then save 
             });
 
             ls.on("close", code => {
-                const finalOutput = this.workDirectory ? output.replaceAll(this.workDirectory, "./WORK_DIRECTORY") : output;
+                const finalOutput = this.workDirectory ? output.replaceAll(this.workDirectory, "./WORKSPACE") : output;
                 resolve({
                     exitCode: code ?? 0,
                     output: finalOutput,
