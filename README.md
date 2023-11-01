@@ -91,6 +91,7 @@ const ChatOpenAI = require('langchain/chat_models/openai').ChatOpenAI;
 const OpenAIEmbeddings = require('langchain/embeddings/openai').OpenAIEmbeddings;
 
 //Configure your language models, tools and embeddings
+//NOTE!: For the time being, the summary model MUST be a 0613 GPT model.
 const summaryModel = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY,
     temperature: 0.0,
