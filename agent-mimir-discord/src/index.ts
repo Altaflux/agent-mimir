@@ -57,15 +57,15 @@ type AgentMimirConfig = {
 }
 
 const getConfig = async () => {
-    if (process.env.MIMIR_CFG_PATH) {
-        let cfgFile = path.join(process.env.MIMIR_CFG_PATH, 'mimir-cfg.js');
-        const configFileExists = await fs.access(cfgFile, fs.constants.F_OK).then(() => true).catch(() => false);
-        if (configFileExists) {
-            console.log(chalk.green(`Loading configuration file`));
-            const configFunction: Promise<AgentMimirConfig> | AgentMimirConfig = (await import(`file://${cfgFile}`)).default()
-            return await Promise.resolve(configFunction);
-        }
-    }
+    // if (process.env.MIMIR_CFG_PATH) {
+    //     let cfgFile = path.join(process.env.MIMIR_CFG_PATH, 'mimir-cfg.js');
+    //     const configFileExists = await fs.access(cfgFile, fs.constants.F_OK).then(() => true).catch(() => false);
+    //     if (configFileExists) {
+    //         console.log(chalk.green(`Loading configuration file`));
+    //         const configFunction: Promise<AgentMimirConfig> | AgentMimirConfig = (await import(`file://${cfgFile}`)).default()
+    //         return await Promise.resolve(configFunction);
+    //     }
+    // }
     console.log(chalk.yellow("No config file found, using default OpenAI config"));
     return (await import("./default-config.js")).default();
 };
@@ -82,6 +82,7 @@ export const run = async () => {
 
     const agentConfig: AgentMimirConfig = await getConfig();
     const workingDirectory = agentConfig.workingDirectory ?? await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-cli-'));
+    console.log(`Using working directory ${workingDirectory}`);
     await fs.mkdir(workingDirectory, { recursive: true });
 
     const agentManager = new AgentManager({

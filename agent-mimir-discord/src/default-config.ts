@@ -21,6 +21,7 @@ const summaryModel = new ChatOpenAI({
     temperature: 0.0,
     modelName: 'gpt-3.5-turbo-16k-0613',
 });
+const workingDirectory = process.env.WORK_DIRECTORY ?? undefined;
 
 // eslint-disable-next-line import/no-anonymous-default-export
 export default async function () {
@@ -37,6 +38,7 @@ export default async function () {
 
     return {
         continuousMode: false,
+        workingDirectory: workingDirectory,
         agents: {
             'Assistant': {
                 mainAgent: true,

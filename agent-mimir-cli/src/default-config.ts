@@ -22,6 +22,8 @@ const summaryModel = new ChatOpenAI({
     modelName: 'gpt-3.5-turbo-16k-0613',
 });
 
+const workingDirectory = process.env.WORK_DIRECTORY ?? undefined;
+
 // eslint-disable-next-line import/no-anonymous-default-export
 export default async function () {
     const plugins = [];
@@ -37,6 +39,7 @@ export default async function () {
 
     return {
         continuousMode: false,
+        workingDirectory: workingDirectory,
         agents: {
             'Assistant': {
                 mainAgent: true,

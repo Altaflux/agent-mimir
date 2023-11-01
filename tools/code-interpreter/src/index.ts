@@ -47,7 +47,7 @@ class CodeInterpreterPlugin extends MimirAgentPlugin {
     async init(): Promise<void> {
         if (this.workSpace) {
             await fs.mkdir(this.workSpace.workingDirectory, { recursive: true });
-            console.debug(`Code Interpreter Plugin initialized with workspace ${this.workSpace}`);
+            console.debug(`Code Interpreter Plugin initialized with workspace ${this.workSpace.workingDirectory}`);
         }
     }
     systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {

@@ -10,12 +10,8 @@ import { chatWithAgent } from "./chat.js";
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from "path";
-import { StoredMessage } from "langchain/schema";
 import { FileSystemChatHistory, FileSystemAgentWorkspace } from "agent-mimir/nodejs";
 
-const messages: StoredMessage[] = [
-
-];
 
 export type AgentDefinition = {
     mainAgent?: boolean;
@@ -61,6 +57,7 @@ export const run = async () => {
 
     const agentConfig: AgentMimirConfig = await getConfig();
     const workingDirectory = agentConfig.workingDirectory ?? await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-cli-'));
+    console.log(`Using working directory ${workingDirectory}`);
     await fs.mkdir(workingDirectory, { recursive: true });
 
     const agentManager = new AgentManager({
