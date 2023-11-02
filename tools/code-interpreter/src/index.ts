@@ -29,7 +29,7 @@ End of Code Interpreter Functions Instructions.
 
 
 export class CodeInterpreterPluginFactory implements MimirPluginFactory {
-    
+
     name: string = "codeInterpreter";
 
     create(context: PluginContext): MimirAgentPlugin {
@@ -88,7 +88,7 @@ class PythonCodeInterpreter extends StructuredTool {
     private workDirectory?: string;
 
     schema = z.object({
-        externalLibraries: z.array(z.string()).optional().describe("The list of external libraries to download which are required by the script."),
+        externalDependencies: z.array(z.string().describe("Name of a dependency to install.")).optional().describe("The list of external dependencies to download and install which are going to be required by the script."),
         code: z.string().describe("The python script code to run."),
     });
     description: string;
@@ -131,7 +131,7 @@ If you are given the task to create a file or they ask you to save it then save 
                 exitCode: 0,
                 output: "",
             }
-            for (const libraryName of arg?.externalLibraries ?? []) {
+            for (const libraryName of arg?.externalDependencies ?? []) {
                 console.debug(`Installing library ${libraryName}...`);
                 const installationResult = await this.executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && py -m pip install ${libraryName}`);
                 if (installationResult.exitCode !== 0) {
@@ -154,12 +154,12 @@ If you are given the task to create a file or they ask you to save it then save 
 
                 fileList = files.length === 0 ? "" : `The following files were created in the workspace: ${files.map((fileName: string) => `"${fileName}"`).join(" ")}`;
             }
-
-            return `Exit Code: ${result.exitCode} \n${fileList} \nScript Output:\n${result.output}`
+            const dependenciesWarning = libraryInstallationResult?.exitCode !== 0 ? `\nWARNING: Failed to install libraries, if your script failed try to use an alternative library:\n ${libraryInstallationResult?.output}` : "";
+            return `Exit Code: ${result.exitCode} \n${fileList} \nScript Output:\n${result.output}` + dependenciesWarning;
         } catch (e) {
             return "Failed to execute the script." + e;
         } finally {
-           await fs.rm(tempDir, { recursive: true, force: true });
+            await fs.rm(tempDir, { recursive: true, force: true });
         }
     }
 

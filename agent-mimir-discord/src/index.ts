@@ -57,15 +57,15 @@ type AgentMimirConfig = {
 }
 
 const getConfig = async () => {
-    // if (process.env.MIMIR_CFG_PATH) {
-    //     let cfgFile = path.join(process.env.MIMIR_CFG_PATH, 'mimir-cfg.js');
-    //     const configFileExists = await fs.access(cfgFile, fs.constants.F_OK).then(() => true).catch(() => false);
-    //     if (configFileExists) {
-    //         console.log(chalk.green(`Loading configuration file`));
-    //         const configFunction: Promise<AgentMimirConfig> | AgentMimirConfig = (await import(`file://${cfgFile}`)).default()
-    //         return await Promise.resolve(configFunction);
-    //     }
-    // }
+    if (process.env.MIMIR_CFG_PATH) {
+        let cfgFile = path.join(process.env.MIMIR_CFG_PATH, 'mimir-cfg.js');
+        const configFileExists = await fs.access(cfgFile, fs.constants.F_OK).then(() => true).catch(() => false);
+        if (configFileExists) {
+            console.log(chalk.green(`Loading configuration file`));
+            const configFunction: Promise<AgentMimirConfig> | AgentMimirConfig = (await import(`file://${cfgFile}`)).default()
+            return await Promise.resolve(configFunction);
+        }
+    }
     console.log(chalk.yellow("No config file found, using default OpenAI config"));
     return (await import("./default-config.js")).default();
 };
@@ -174,7 +174,7 @@ export const run = async () => {
 
 
     });
-    client.on(Events.MessageCreate, async msg => {
+    const messageHandler = async (msg: Message<boolean>) => {
         if (msg.author.bot) return;
 
         if (msg.channel.type !== ChannelType.DM && !msg.mentions.has(client.user!)) {
@@ -265,6 +265,16 @@ export const run = async () => {
             clearInterval(typing);
         }
 
+    }
+    client.on(Events.MessageCreate, async msg => {
+        try {
+            messageHandler(msg);
+        } catch (e) {
+            console.error("An error occured while processing a message.", e)
+            await msg.reply({
+                content: "An error occured while processing your message.\n" + e,
+            });
+        }
     });
 
     client.login(process.env.DISCORD_TOKEN);
