@@ -170,7 +170,6 @@ export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
             tools: [...args.plugins.map(plugin => plugin.tools()).flat(), ...talkToUserTools],
         },
         plugins: internalPlugins,
-        name: args.name,
     });
 
     return agent;

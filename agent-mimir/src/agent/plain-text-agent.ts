@@ -228,8 +228,7 @@ export function createPlainTextMimirAgent(args: MimirAgentArgs) {
         defaultInputs: {
 
         },
-        plugins: internalPlugins,
-        name: args.name
+        plugins: internalPlugins
     });
 
     return agent;

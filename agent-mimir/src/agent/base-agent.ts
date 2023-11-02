@@ -44,8 +44,7 @@ export class MimirAgent extends BaseSingleActionAgent {
     llmChain: LLMChain<MimirAIMessage>;
     defaultInputs?: Record<string, any>;
     plugins: InternalAgentPlugin[];
-    name: string;
-    
+ 
     reset: () => Promise<void>;
     messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>;
 
@@ -55,7 +54,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         input: MimirChatConversationalAgentInput,
         outputParser: BaseOutputParser<AgentAction | AgentFinish>,
         messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
-        name: string,
+ 
    
         reset: () => Promise<void>,
         plugins?: InternalAgentPlugin[],
@@ -70,8 +69,6 @@ export class MimirAgent extends BaseSingleActionAgent {
         this.messageGenerator = messageGenerator;
         this.defaultInputs = defaultInputs;
         this.plugins = plugins ?? [];
-        this.name = name;
-    
         this.reset = reset;
     }
 
@@ -250,7 +247,6 @@ export class MimirAgent extends BaseSingleActionAgent {
             },
             outputParser,
             messageGenerator,
-            args.name,
             args.resetFunction,
             args.plugins,
             args.defaultInputs,
@@ -272,8 +268,6 @@ export type CreatePromptArgs = {
     memory: BaseChatMemory;
 
     plugins: InternalAgentPlugin[];
-
-    name: string;
 
     resetFunction: () => Promise<void>;
 
