@@ -5,8 +5,8 @@ import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prom
 import { TagMemoryManager } from "./index.js";
 import { z } from "zod";
 import { messagesToString } from "../../utils/format.js";
-import { Embeddings } from "langchain/embeddings";
-import { BaseChatModel } from "langchain/chat_models";
+import { Embeddings } from "langchain/embeddings/base";
+import { BaseChatModel } from "langchain/chat_models/base";
 
 export class ManualTagMemoryPluginFactory implements MimirPluginFactory {
 

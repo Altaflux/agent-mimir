@@ -2,7 +2,7 @@ import { MimirAgentTypes } from "agent-mimir/agent";
 import { AgentManager } from "agent-mimir/agent-manager"
 import { MimirPluginFactory } from "agent-mimir/schema";
 import chalk from "chalk";
-import { BaseChatModel } from 'langchain/chat_models';
+import { BaseChatModel } from 'langchain/chat_models/base';
 import { BaseLanguageModel } from "langchain/base_language";
 import { Tool } from "langchain/tools";
 import { BaseChain } from "langchain/chains";

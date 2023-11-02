@@ -2,7 +2,7 @@ import { MimirAgentTypes } from "agent-mimir/agent";
 import { AgentManager } from "agent-mimir/agent-manager"
 import { Agent, AgentUserMessage, AgentUserMessageResponse, FILES_TO_SEND_FIELD, MimirPluginFactory } from "agent-mimir/schema";
 import chalk from "chalk";
-import { BaseChatModel } from 'langchain/chat_models';
+import { BaseChatModel } from 'langchain/chat_models/base';
 import { BaseLanguageModel } from "langchain/base_language";
 import { Tool } from "langchain/tools";
 import { BaseChain } from "langchain/chains";
@@ -200,7 +200,7 @@ export const run = async () => {
                 const handleMessage = async (chainResponse: AgentUserMessageResponse, agentStack: Agent[]): Promise<{ finalUser: boolean, currentAgent: Agent, pendingMessage: PendingMessage | undefined }> => {
                     if (chainResponse.output.agentName) {
                         agentStack.push(currentAgent);
-                        const discordMessage = `\`${currentAgent.name}\` is sending a message to \`${chainResponse.output.agentName}\` with message:\n\`\`\`${chainResponse.output.message}\`\`\`` +
+                        const discordMessage = `\`${currentAgent.name}\` is sending a message to \`${chainResponse.output.agentName}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
                             `\nFiles provided: ${chainResponse.output.sharedFiles?.map(f => `\`${f.fileName}\``).join(", ") || "None"}`;
                         await sendDiscordResponse(msg, discordMessage);
                         return {
@@ -211,7 +211,7 @@ export const run = async () => {
                     } else {
                         const isFinalUser = agentStack.length === 0;
                         if (!isFinalUser) {
-                            const discordMessage = `\`${currentAgent.name}\` is replying back to \`${agentStack[agentStack.length - 1].name}\` with message:\n\`\`\`${chainResponse.output.message}\`\`\`` +
+                            const discordMessage = `\`${currentAgent.name}\` is replying back to \`${agentStack[agentStack.length - 1].name}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
                                 `\nFiles provided: ${chainResponse.output.sharedFiles?.map(f => `\`${f.fileName}\``).join(", ") || "None"}`;
                             await sendDiscordResponse(msg, discordMessage);
                         }

@@ -1,7 +1,7 @@
 
 import { StructuredTool } from "langchain/tools";
 import { AgentManager } from "../agent-manager/index.js";
-import { BaseChatModel } from "langchain/chat_models";
+import { BaseChatModel } from "langchain/chat_models/base";
 import { z } from "zod";
 import { AgentContext, AgentUserMessage, AgentWorkspace, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../schema.js";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";

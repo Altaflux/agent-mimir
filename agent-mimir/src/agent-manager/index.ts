@@ -7,7 +7,7 @@ import { TalkToUserTool } from '../tools/core.js';
 import { SteppedAgentExecutor } from '../executor/index.js';
 import { ChatMemoryChain } from '../memory/transactional-memory-chain.js';
 
-import { BaseChatModel } from 'langchain/chat_models';
+import { BaseChatModel } from 'langchain/chat_models/base';
 import { Agent, AgentResponse, AgentToolRequest, AgentUserMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext, WorkspaceManagerFactory } from '../schema.js';
 
 import { initializeAgent } from '../agent/index.js'

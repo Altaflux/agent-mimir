@@ -7,7 +7,7 @@ import { LLMChain } from "langchain/chains";
 import { messagesToString } from "../../utils/format.js";
 import { COMPACT_PROMPT } from "./prompt.js";
 import { MemoryCompactionCallback } from "../../schema.js";
-import { Embeddings } from "langchain/embeddings";
+import { Embeddings } from "langchain/embeddings/base";
 
 type Payload = {
     participant: string,

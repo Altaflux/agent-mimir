@@ -1,10 +1,10 @@
-import { Embeddings } from "langchain/embeddings";
+import { Embeddings } from "langchain/embeddings/base";
 import { StructuredTool } from "langchain/tools";
-import { VectorStore } from "langchain/vectorstores";
+import { VectorStore } from "langchain/vectorstores/base";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { z } from "zod";
 import { Document } from 'langchain/document'
-import { BaseChatModel } from "langchain/chat_models";
+import { BaseChatModel } from "langchain/chat_models/base";
 import { TAG_EXTRACTION_PROMPT, TAG_FINDER_PROMPT } from "./prompt.js";
 import { AIMessageLLMOutputParser } from "../../agent/openai-function-agent.js";
 import { MimirAIMessage } from "../../agent/base-agent.js";

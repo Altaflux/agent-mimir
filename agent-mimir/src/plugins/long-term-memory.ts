@@ -1,5 +1,5 @@
 
-import { Embeddings } from "langchain/embeddings";
+import { Embeddings } from "langchain/embeddings/base";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { AgentContext, MimirAgentPlugin } from "../schema.js";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";

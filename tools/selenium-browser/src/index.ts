@@ -3,7 +3,7 @@ import { StructuredTool } from "langchain/tools";
 import { WebDriverManager } from "./driver-manager.js";
 
 import { WebBrowserOptions } from "./driver-manager.js";
-import { Embeddings } from "langchain/embeddings";
+import { Embeddings } from "langchain/embeddings/base";
 import { BaseLanguageModel } from "langchain/base_language";
 import { WebBrowserTool, PassValueToInput, AskSiteQuestion, ClickWebSiteLinkOrButton } from "./tools.js";
 import { MimirAgentPlugin, PluginContext, MimirPluginFactory } from "agent-mimir/schema";

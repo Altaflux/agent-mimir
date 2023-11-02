@@ -1,8 +1,8 @@
 
 import { CallbackManagerForToolRun } from "langchain/callbacks";
 import { Document as VectorDocument } from 'langchain/document'
-import { VectorStore } from "langchain/vectorstores";
-import { Embeddings } from "langchain/embeddings";
+import { VectorStore } from "langchain/vectorstores/base";
+import { Embeddings } from "langchain/embeddings/base";
 import { Builder, ThenableWebDriver } from 'selenium-webdriver';
 import { BaseLanguageModel } from "langchain/base_language";
 import { LLMChain } from "langchain/chains";
