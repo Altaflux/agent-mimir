@@ -120,7 +120,6 @@ export class AgentManager {
             description: config.description,
             taskCompleteCommandName: taskCompleteCommandName,
             talkToUserTool: talkToUserTool,
-            workspaceManager: workspace,
             plugins: allCreatedPlugins,
             constitution: config.constitution ?? DEFAULT_CONSTITUTION,
             chatMemory: config.messageHistory,

@@ -1,12 +1,12 @@
 import { BaseLLMOutputParser } from "langchain/schema/output_parser";
-import { MimirAgent, InternalAgentPlugin, MimirAIMessage, NextMessage } from "./base-agent.js";
-import { AIMessage, AgentAction, AgentFinish, BaseMessage, ChatGeneration, FunctionMessage, Generation, HumanMessage } from "langchain/schema";
+import { MimirAgent, InternalAgentPlugin, MimirAIMessage } from "./base-agent.js";
+import { AIMessage, AgentAction, AgentFinish, BaseMessage, ChainValues, ChatGeneration, FunctionMessage, Generation, HumanMessage } from "langchain/schema";
 
 import { SystemMessagePromptTemplate } from "langchain/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
 import { AgentActionOutputParser } from "langchain/agents";
-import { AgentContext, MimirAgentArgs, MimirHumanReplyMessage } from "../schema.js";
+import { AgentContext, MimirAgentArgs, MimirHumanReplyMessage, NextMessage } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { AiMessageSerializer, HumanMessageSerializer, TransformationalChatMessageHistory } from "../memory/transform-memory.js";
 import { callJsonRepair } from "../utils/json.js";
@@ -146,6 +146,9 @@ export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
             },
             clear: async () => {
                 await plugin.clear();
+            },
+            processMessage: async function (nextMessage: NextMessage, inputs: ChainValues): Promise<NextMessage | undefined> {
+                return await plugin.processMessage(nextMessage, inputs);
             }
         }
         return agentPlugin;
@@ -166,7 +169,6 @@ export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
         defaultInputs: {
             tools: [...args.plugins.map(plugin => plugin.tools()).flat(), ...talkToUserTools],
         },
-        workspaceManager: args.workspaceManager,
         plugins: internalPlugins,
         name: args.name,
     });

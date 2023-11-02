@@ -8,17 +8,11 @@ import { LLMChain } from "langchain/chains";
 import { BaseLLMOutputParser, BaseOutputParser } from "langchain/schema/output_parser";
 import { BaseLanguageModel } from "langchain/base_language";
 import { HumanMessage } from "langchain/schema";
-import { AgentContext, AgentUserMessage, FILES_TO_SEND_FIELD, MimirHumanReplyMessage, AgentWorkspace } from "../schema.js";
+import { AgentContext, AgentUserMessage, MimirHumanReplyMessage, NextMessage } from "../schema.js";
 
 
 const BAD_MESSAGE_TEXT = `I could not understand your response, please rememeber to use the correct response format using the appropiate functions. If you need to tell me something, please use the "respondBack" function.`;
 
-
-export type NextMessage = {
-    type: "ACTION" | "USER_MESSAGE",
-    message: string,
-    tool?: string,
-}
 export type MimirChatConversationalAgentInput = {
     llmChain: LLMChain<MimirAIMessage>;
     outputParser: AgentActionOutputParser | undefined;
@@ -29,6 +23,7 @@ export type InternalAgentPlugin = {
     getInputs: (context: AgentContext) => Promise<Record<string, any>>,
     readResponse: (context: AgentContext, aiMessage: MimirAIMessage) => Promise<void>,
     clear: () => Promise<void>,
+    processMessage: (nextMessage: NextMessage, inputs: ChainValues) => Promise<NextMessage | undefined>
 }
 
 export type MimirAIMessage = {
@@ -50,7 +45,7 @@ export class MimirAgent extends BaseSingleActionAgent {
     defaultInputs?: Record<string, any>;
     plugins: InternalAgentPlugin[];
     name: string;
-    workspace: AgentWorkspace;
+    
     reset: () => Promise<void>;
     messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>;
 
@@ -61,7 +56,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         outputParser: BaseOutputParser<AgentAction | AgentFinish>,
         messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
         name: string,
-        workspaceManager: AgentWorkspace,
+   
         reset: () => Promise<void>,
         plugins?: InternalAgentPlugin[],
         defaultInputs?: Record<string, any>,
@@ -76,7 +71,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         this.defaultInputs = defaultInputs;
         this.plugins = plugins ?? [];
         this.name = name;
-        this.workspace = workspaceManager;
+    
         this.reset = reset;
     }
 
@@ -91,7 +86,6 @@ export class MimirAgent extends BaseSingleActionAgent {
 
         if (_returnValues.complete) {
             await this.reset();
-            console.debug("Cleared workspace and memory");
             //NOTE Output has to be of type AgentUserMessage.
             //TODO This function is aware of the input of the FinalTool, it should not be.
             return {
@@ -122,16 +116,10 @@ export class MimirAgent extends BaseSingleActionAgent {
             memory: this.memory,
         }
         let message = nextMessage;
-        if (nextMessage.type === "USER_MESSAGE") {
-            if (inputs[FILES_TO_SEND_FIELD] && inputs[FILES_TO_SEND_FIELD] instanceof Array && inputs[FILES_TO_SEND_FIELD].length > 0) {
-                for (const file of inputs[FILES_TO_SEND_FIELD]) {
-                    await this.workspace.loadFileToWorkspace(file.fileName, file.url);
-                }
-                const filesToSendMessage = inputs[FILES_TO_SEND_FIELD].map((file: any) => `"${file.fileName}"`).join(", ");
-                message = {
-                    ...nextMessage,
-                    message: `I am sending the following files into your workspace: ${filesToSendMessage} \n\n ${nextMessage.message}`
-                }
+        for (const plugin of this.plugins) {
+            const newMessage = await plugin.processMessage(message, inputs);
+            if (newMessage) {
+                message = newMessage;
             }
         }
 
@@ -263,7 +251,6 @@ export class MimirAgent extends BaseSingleActionAgent {
             outputParser,
             messageGenerator,
             args.name,
-            args.workspaceManager,
             args.resetFunction,
             args.plugins,
             args.defaultInputs,
@@ -287,8 +274,6 @@ export type CreatePromptArgs = {
     plugins: InternalAgentPlugin[];
 
     name: string;
-
-    workspaceManager: AgentWorkspace;
 
     resetFunction: () => Promise<void>;
 

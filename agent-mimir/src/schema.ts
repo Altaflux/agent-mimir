@@ -1,10 +1,10 @@
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
-import { MimirAIMessage, NextMessage } from "./agent/base-agent.js";
+import { MimirAIMessage } from "./agent/base-agent.js";
 import { AttributeDescriptor, ResponseFieldMapper } from "./agent/instruction-mapper.js";
 import { StructuredTool } from "langchain/tools";
 import { BaseLanguageModel } from "langchain/base_language";
 import { BaseChatMemory } from "langchain/memory";
-import { BaseChatMessageHistory, BaseMessage } from "langchain/schema";
+import { BaseChatMessageHistory, BaseMessage, ChainValues } from "langchain/schema";
 
 
 export type AIMessageType = {
@@ -61,7 +61,6 @@ export type MimirAgentArgs = {
     talkToUserTool?: StructuredTool,
     plugins: MimirAgentPlugin[]
     constitution: string,
-    workspaceManager: AgentWorkspace,
     resetFunction: () => Promise<void>,
     memoryBuilder: (messageHistory: {
         messageHistory: BaseChatMessageHistory,
@@ -79,10 +78,20 @@ export interface MimirPluginFactory {
     create(context: PluginContext): MimirAgentPlugin
 }
 
+export type NextMessage = {
+    type: "ACTION" | "USER_MESSAGE",
+    message: string,
+    tool?: string,
+}
+
 export abstract class MimirAgentPlugin {
 
     init(): Promise<void> {
         return Promise.resolve();
+    }
+
+    async processMessage(message: NextMessage, inputs: ChainValues): Promise<NextMessage | undefined> {
+        return message;
     }
 
     systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {

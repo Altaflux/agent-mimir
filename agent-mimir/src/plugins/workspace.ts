@@ -1,5 +1,6 @@
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
-import { AgentWorkspace, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../schema.js";
+import { AgentWorkspace, FILES_TO_SEND_FIELD, MimirAgentPlugin, MimirPluginFactory, NextMessage, PluginContext } from "../schema.js";
+import { ChainValues } from "langchain/schema";
 
 export class WorkspacePluginFactory implements MimirPluginFactory {
 
@@ -12,11 +13,11 @@ export class WorkspacePluginFactory implements MimirPluginFactory {
 
 class WorkspacePlugin extends MimirAgentPlugin {
 
-    private workSpace: AgentWorkspace;
+    private workspace: AgentWorkspace;
 
-    constructor(workSpace: AgentWorkspace) {
+    constructor(workspace: AgentWorkspace) {
         super();
-        this.workSpace = workSpace;
+        this.workspace = workspace;
     }
 
     systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
@@ -27,8 +28,24 @@ class WorkspacePlugin extends MimirAgentPlugin {
 
     async getInputs(): Promise<Record<string, any>> {
         return {
-            workspaceFiles: (await this.workSpace.listFiles()).map((file) => `"${file}"`).join(", "),
+            workspaceFiles: (await this.workspace.listFiles()).map((file) => `"${file}"`).join(", "),
         };
     }
 
+    async processMessage(nextMessage: NextMessage, inputs: ChainValues): Promise<NextMessage | undefined> {
+        let message = nextMessage;
+        if (nextMessage.type === "USER_MESSAGE") {
+            if (inputs[FILES_TO_SEND_FIELD] && inputs[FILES_TO_SEND_FIELD] instanceof Array && inputs[FILES_TO_SEND_FIELD].length > 0) {
+                for (const file of inputs[FILES_TO_SEND_FIELD]) {
+                    await this.workspace.loadFileToWorkspace(file.fileName, file.url);
+                }
+                const filesToSendMessage = inputs[FILES_TO_SEND_FIELD].map((file: any) => `"${file.fileName}"`).join(", ");
+                message = {
+                    ...nextMessage,
+                    message: `I am sending the following files into your workspace: ${filesToSendMessage} \n\n ${nextMessage.message}`
+                }
+            }
+        }
+        return message;
+    }
 }
