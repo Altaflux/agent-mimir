@@ -29,7 +29,6 @@ export class ManualTagMemoryPlugin extends MimirAgentPlugin {
         this.manager = new TagMemoryManager(embeddings, model, persistencePath);
     }
 
-        
     async init(): Promise<void> {
         await this.manager.init();
     }
@@ -72,10 +71,17 @@ class TagRetrieverTool extends StructuredTool {
     });
 
     protected async _call(arg: z.input<this["schema"]>): Promise<string> {
-        const memoriesByTag = await Promise.all(arg.relevantInformation.slice(0, 3).map(async (tag) => {
-            const memories = await this.manager.rememberTagFacts(tag);
-            return `Topic or context: ${tag}\n-${memories.join("\n-")}`
-        }));
+
+        const memoriesByTagList = (await Promise.all(arg.relevantInformation.slice(0, 3).map(async (tag) => {
+            return await this.manager.rememberTagFacts(tag);
+        }))).flat().filter((value, index, self) => {
+            return self.findIndex((v) => v.tag === value.tag) === index;
+        });
+
+        const memoriesByTag = memoriesByTagList.map(tag => {
+            return `Topic or context: ${tag.tag}\n-${tag.facts.join("\n-")}`
+        });
+
         return `You remember the following information: ${memoriesByTag.join("\n\n")}`;
     }
 
@@ -97,7 +103,7 @@ export class AutomaticTagMemoryPluginFactory implements MimirPluginFactory {
     }
 }
 
-export class AutomaticTagMemoryPlugin extends MimirAgentPlugin {
+class AutomaticTagMemoryPlugin extends MimirAgentPlugin {
 
     private tagManager: TagMemoryManager;
 
@@ -138,10 +144,16 @@ export class AutomaticTagMemoryPlugin extends MimirAgentPlugin {
         const formattedMessages = context.memory.returnMessages ? messagesToString(messages as BaseMessage[], "AI", "Human") : messages as string;
         const relevantTags = (await this.tagManager.findRelevantTags(formattedMessages, context.input.message)).slice(0, 3);
 
-        const memoriesByTag = await Promise.all(relevantTags.map(async (tag) => {
-            const memories = await this.tagManager.rememberTagFacts(tag);
-            return `Topic or context: ${tag}\n-${memories.join("\n-")}`
-        }));
+        const memoriesByTagList = (await Promise.all(relevantTags.map(async (tag) => {
+            return await this.tagManager.rememberTagFacts(tag);
+        }))).flat()
+            .filter((value, index, self) => {
+                return self.findIndex((v) => v.tag === value.tag) === index;
+            });
+
+        const memoriesByTag = memoriesByTagList.map(tag => {
+            return `Topic or context: ${tag.tag}\n-${tag.facts.join("\n-")}`
+        });
 
         const memories = memoriesByTag.join("\n\n");
         return {

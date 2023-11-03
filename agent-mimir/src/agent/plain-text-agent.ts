@@ -6,12 +6,10 @@ import { PromptTemplate, SystemMessagePromptTemplate, renderTemplate } from "lan
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
 import { AgentActionOutputParser } from "langchain/agents";
-import { StructuredTool } from "langchain/tools";
-import { zodToJsonSchema } from "zod-to-json-schema";
-import { JsonSchema7ObjectType } from "zod-to-json-schema/src/parsers/object.js";
 import { AgentContext, MimirAgentArgs, MimirHumanReplyMessage, NextMessage } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { callJsonRepair } from "../utils/json.js";
+import { renderTextDescriptionAndArgs } from "langchain/tools/render";
 
 
 const JSON_INSTRUCTIONS = `You must format your inputs to these functions to match their "JSON schema" definitions below.
@@ -199,7 +197,7 @@ export function createPlainTextMimirAgent(args: MimirAgentArgs) {
             template: SUFFIX,
             inputVariables: [],
             partialVariables: {
-                toolList: createToolSchemasString([...tools, ...talkToUserTools]),
+                toolList: renderTextDescriptionAndArgs([...tools, ...talkToUserTools]),
                 tool_names: [...tools, ...talkToUserTools].map((tool) => tool.name).join(", "),
                 json_instructions: JSON_INSTRUCTIONS,
             },
@@ -233,16 +231,4 @@ export function createPlainTextMimirAgent(args: MimirAgentArgs) {
 
     return agent;
 
-}
-
-
-function createToolSchemasString(tools: StructuredTool[]) {
-    return tools
-        .map(
-            (tool) =>
-                `${tool.name}: ${tool.description}, args: ${JSON.stringify(
-                    (zodToJsonSchema(tool.schema) as JsonSchema7ObjectType).properties
-                )}`
-        )
-        .join("\n");
 }

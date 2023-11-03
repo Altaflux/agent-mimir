@@ -91,11 +91,10 @@ const ChatOpenAI = require('langchain/chat_models/openai').ChatOpenAI;
 const OpenAIEmbeddings = require('langchain/embeddings/openai').OpenAIEmbeddings;
 
 //Configure your language models, tools and embeddings
-//NOTE!: For the time being, the summary model MUST be a 0613 Open AI GPT model.
 const summaryModel = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY,
     temperature: 0.0,
-    modelName: 'gpt-3.5-turbo-16k-0613',
+    modelName: 'gpt-3.5-turbo-16k',
 });
 const embeddings = new OpenAIEmbeddings({
     openAIApiKey: process.env.OPENAI_API_KEY,
@@ -127,7 +126,7 @@ module.exports = async function() {
                     profession: 'an Assistant', //The profession assigned to the agent.
                     communicationWhitelist: ['MR_CHEF'], //The list of agents it is allowed to talk to.
                     chatHistory: {
-                        summaryModel: summaryModel, //The model used when summarizing conversations. This model should preferably be able to handle double the token limit of the chat history. For the time being, the summary model MUST be a 0613 Open AI GPT model.
+                        summaryModel: summaryModel, //The model used when summarizing conversations. This model should preferably be able to handle double the token limit of the chat history.
                         tokenLimit: 4000, //Maximum number of tokens that can be used by the chat. 4000 by default.
                         conversationTokenThreshold: 75, //Percentage of chat history messages to summarize. Setting this to a value lower than 100% helps the agent keep better context of newer parts of the conversation.
                     },
