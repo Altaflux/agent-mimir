@@ -94,14 +94,14 @@ export class SteppedAgentExecutor extends BaseChain {
     async _call(inputs: ChainValues): Promise<ChainValues> {
 
         const continuousMode = inputs.continuousMode !== undefined ? inputs.continuousMode : true;
-        const functionResponseCallBack: FunctionResponseCallBack = inputs.functionResponseCallBack !== undefined ? inputs.functionResponseCallBack : () => Promise<void>;
+        const functionInvokationListener: FunctionResponseCallBack = inputs.functionResponseCallBack !== undefined ? inputs.functionResponseCallBack : () => Promise<void>;
         const fullValues = { ...inputs } as typeof inputs;
-        const output = await this._invoke(continuousMode, fullValues, functionResponseCallBack);
+        const output = await this._invoke(continuousMode, fullValues, functionInvokationListener);
 
         return output.chainValues;
     }
 
-    async _invoke(continuousMode: boolean, inputs: ChainValues, functionResponseCallBack: FunctionResponseCallBack): Promise<{ storeInMem: boolean, workPending: boolean, chainValues: ChainValues }> {
+    async _invoke(continuousMode: boolean, inputs: ChainValues, functionInvokationListener: FunctionResponseCallBack): Promise<{ storeInMem: boolean, workPending: boolean, chainValues: ChainValues }> {
 
         const toolsByName = Object.fromEntries(
             this.tools.map((t) => [t.name.toLowerCase(), t])
@@ -153,7 +153,7 @@ export class SteppedAgentExecutor extends BaseChain {
                     };
                 }
 
-                const out = await this.doTool(action, toolsByName, steps, getOutput, functionResponseCallBack);
+                const out = await this.doTool(action, toolsByName, steps, getOutput, functionInvokationListener);
                 if (out) {
                     return out;
                 }
@@ -162,7 +162,7 @@ export class SteppedAgentExecutor extends BaseChain {
             else if (inputs.continue) {
                 const action = this.pendingAgentAction;
                 this.pendingAgentAction = undefined;
-                const out = await this.doTool(action, toolsByName, steps, getOutput, functionResponseCallBack);
+                const out = await this.doTool(action, toolsByName, steps, getOutput, functionInvokationListener);
                 if (out) {
                     return out;
                 }
