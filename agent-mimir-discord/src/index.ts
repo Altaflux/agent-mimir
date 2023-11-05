@@ -197,7 +197,7 @@ export const run = async () => {
         try {
             mainLoop: while (true) {
 
-                const handleMessage = async (chainResponse: AgentUserMessageResponse, agentStack: Agent[]): Promise<{ finalUser: boolean, currentAgent: Agent, pendingMessage: PendingMessage | undefined }> => {
+                const handleMessage = async (chainResponse: AgentUserMessageResponse, agentStack: Agent[]): Promise<{ finalUser: boolean, currentAgent: Agent | undefined, pendingMessage: PendingMessage | undefined }> => {
                     if (chainResponse.output.agentName) {
                         agentStack.push(currentAgent);
                         const discordMessage = `\`${currentAgent.name}\` is sending a message to \`${chainResponse.output.agentName}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
@@ -205,7 +205,7 @@ export const run = async () => {
                         await sendDiscordResponse(msg, discordMessage);
                         return {
                             finalUser: false,
-                            currentAgent: agentManager.getAgent(chainResponse.output.agentName)!,
+                            currentAgent: agentManager.getAgent(chainResponse.output.agentName),
                             pendingMessage: chainResponse.output
                         }
                     } else {
@@ -237,8 +237,16 @@ export const run = async () => {
                 }));
                 if (chainResponse.agentResponse()) {
                     const routedMessage = await handleMessage(chainResponse, agentStack);
-                    currentAgent = routedMessage.currentAgent;
-                    pendingMessage = routedMessage.pendingMessage;
+                    if (!routedMessage.currentAgent) {
+                        agentStack.pop();
+                        pendingMessage = {
+                            message: "No agent found with that name.",
+                            sharedFiles: []
+                        };
+                    } else {
+                        currentAgent = routedMessage.currentAgent;
+                        pendingMessage = routedMessage.pendingMessage;
+                    }
                     if (routedMessage.finalUser) {
                         await sendChainResponse(msg, chainResponse.output);
                         break mainLoop;
@@ -251,8 +259,17 @@ export const run = async () => {
                     }));
                     if (chainResponse.agentResponse()) {
                         const routedMessage = await handleMessage(chainResponse, agentStack);
-                        currentAgent = routedMessage.currentAgent;
-                        pendingMessage = routedMessage.pendingMessage;
+                        if (!routedMessage.currentAgent) {
+                            agentStack.pop();
+                            pendingMessage = {
+                                message: "No agent found with that name.",
+                                sharedFiles: []
+                            };
+                        } else {
+                            currentAgent = routedMessage.currentAgent;
+                            pendingMessage = routedMessage.pendingMessage;
+                        }
+       
                         if (routedMessage.finalUser) {
                             await sendChainResponse(msg, chainResponse.output);
                             break mainLoop;
