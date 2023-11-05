@@ -115,15 +115,18 @@ If you are given the task to create a file or they ask you to save it then save 
 
         try {
             console.debug(`Creating python virtual environment in ${tempDir} ...`);
-            const pyenv = await this.executeShellCommand(`cd ${tempDir} && py -m venv .`);
+            const scriptsDir = process.platform === "win32" ? 'Scripts' : 'bin';
+            const pyenv = await this.executeShellCommand(`cd ${tempDir} && python -m venv .`);
             if (pyenv.exitCode !== 0) {
                 throw new Error(`Failed to create python virtual environment: ${pyenv.output}`);
             }
-            await fs.appendFile(path.join(tempDir, 'Scripts', 'activate.bat'), `\nSET WORKSPACE=${this.workDirectory}\n`);
-            await fs.appendFile(path.join(tempDir, 'Scripts', 'activate'), `\nexport WORKSPACE=${this.workDirectory}\n`);
-            await fs.appendFile(path.join(tempDir, 'Scripts', 'Activate.ps1'), `\n$Env:WORKSPACE = "${this.workDirectory}"\n`)
 
-            const activeScriptCall = process.platform === "win32" ? `activate` : `./activate`;
+
+            await fs.appendFile(path.join(tempDir, scriptsDir, 'activate.bat'), `\nSET WORKSPACE=${this.workDirectory}\n`).catch(() => { console.warn("Failed to write to activate.bat") });
+            await fs.appendFile(path.join(tempDir, scriptsDir, 'activate'), `\nexport WORKSPACE=${this.workDirectory}\n`).catch(() => { console.warn("Failed to write to activate") });;
+            await fs.appendFile(path.join(tempDir, scriptsDir, 'Activate.ps1'), `\n$Env:WORKSPACE = "${this.workDirectory}"\n`).catch(() => { console.warn("Failed to write to Activate.ps1") });
+
+            const activeScriptCall = process.platform === "win32" ? `activate` : `. ./activate`;
 
             const beforeExecutionOutputFileList = this.workDirectory ? await fs.readdir(this.workDirectory) : [];
 
@@ -133,7 +136,7 @@ If you are given the task to create a file or they ask you to save it then save 
             }
             for (const libraryName of arg?.externalDependencies ?? []) {
                 console.debug(`Installing library ${libraryName}...`);
-                const installationResult = await this.executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && py -m pip install ${libraryName}`);
+                const installationResult = await this.executeShellCommand(`cd ${path.join(tempDir, scriptsDir)} && ${activeScriptCall} && python -m pip install ${libraryName}`);
                 if (installationResult.exitCode !== 0) {
                     libraryInstallationResult = {
                         exitCode: installationResult.exitCode,
@@ -145,7 +148,7 @@ If you are given the task to create a file or they ask you to save it then save 
                 console.warn(`Failed to install libraries:\n ${libraryInstallationResult?.output}`);
             }
 
-            const result = await this.executeShellCommand(`cd ${path.join(tempDir, 'Scripts')} && ${activeScriptCall} && cd ${this.workDirectory} &&  py ${scriptPath}`);
+            const result = await this.executeShellCommand(`cd ${path.join(tempDir, scriptsDir)} && pwd && ${activeScriptCall} && cd ${this.workDirectory} && python ${scriptPath}`);
 
             let fileList = "";
             if (this.workDirectory) {
@@ -170,7 +173,7 @@ If you are given the task to create a file or they ask you to save it then save 
             output: string,
         }>((resolve, reject) => {
             let output = '';
-            const ls = spawn(command, [], { shell: true });
+            const ls = spawn(command, [], { shell: true, env: process.env });
             ls.stdout.on("data", data => {
                 output += data;
             });
