@@ -79,9 +79,18 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
     } else if (aiResponse?.agentResponse()) {
       const response: AgentUserMessage = aiResponse?.output;
       if (response.agentName) {
-        agentStack.push(executor);
-        executor = agentManager.getAgent(response.agentName)!;
-        pendingMessage = response;
+        const currentAgent = executor;
+        const newAgent = agentManager.getAgent(response.agentName);
+        if(!newAgent) {
+          pendingMessage = {
+            message: "No agent found with that name.",
+            sharedFiles: []
+          };
+        } else {
+          agentStack.push(currentAgent);
+          pendingMessage = response;
+        }
+
       } else {
         if (agentStack.length === 0) {
           const responseMessage = `Files provided by AI: ${response.sharedFiles?.map(f => f.fileName).join(", ") || "None"}\n\n${response.message}`;
