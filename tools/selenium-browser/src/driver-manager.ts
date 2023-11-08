@@ -17,6 +17,7 @@ import { Options as FireFoxOptions } from 'selenium-webdriver/firefox.js';
 import { Options as EdgeOptions } from 'selenium-webdriver/edge.js';
 import exitHook from 'async-exit-hook';
 import { IS_RELEVANT_PROMPT } from "./prompt/relevance-prompt.js";
+import { encode } from "gpt-3-encoder"
 
 export type SeleniumDriverOptions = {
     browserName?: 'chrome' | 'firefox' | 'edge';
@@ -90,15 +91,16 @@ export class WebDriverManager {
         const siteMarkdown = htmlToMarkdown(this.currentPage!);
 
         const textSplitter = RecursiveCharacterTextSplitter.fromLanguage("markdown", {
-            chunkSize: this.maximumChunkSize, 
+            chunkSize: this.maximumChunkSize,
             chunkOverlap: 300,
+            lengthFunction: (text) => encode(text).length
         });
 
         const texts = await textSplitter.splitText(siteMarkdown);
         const documents = texts.map((pageContent, index) => new VectorDocument({ pageContent: pageContent, metadata: { pageNumber: index } }));
 
         this.documents = documents;
-        this.vectorStore =  await MemoryVectorStore.fromDocuments(this.documents, this.embeddings);;
+        this.vectorStore = await MemoryVectorStore.fromDocuments(this.documents, this.embeddings);;
 
     }
 
@@ -161,7 +163,7 @@ export class WebDriverManager {
             .reduce(async (prev, current) => {
                 const previousDocument = await prev;
                 const currentDocument = await current;
-                if ((previousDocument.pageContent.length + currentDocument.pageContent.length) < this.maximumChunkSize) {
+                if (encode((previousDocument.pageContent + currentDocument.pageContent)).length < this.maximumChunkSize) {
                     if (previousDocument.pageContent === EMPTY_DOCUMENT_TAG) {
                         return currentDocument;
                     }

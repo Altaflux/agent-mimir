@@ -227,7 +227,7 @@ export const run = async () => {
                                 `\nFiles provided: ${chainResponse.output.sharedFiles?.map(f => `\`${f.fileName}\``).join(", ") || "None"}`;
                             await sendDiscordResponse(msg, discordMessage);
                         } else {
-                            await sendChainResponse(msg, chainResponse.output);
+                            await sendDiscordResponse(msg, chainResponse.output.message, chainResponse.output.sharedFiles?.map(f => f.url));
                         }
                         return {
                             conversationComplete: isFinalUser,
@@ -301,13 +301,6 @@ type PendingMessage = {
         fileName: string;
     }[],
     message: string;
-}
-
-async function sendChainResponse(msg: Message<boolean>, aiResponse: AgentUserMessage) {
-
-    const response: AgentUserMessage = aiResponse;
-    await sendDiscordResponse(msg, response.message, response.sharedFiles?.map(f => f.url));
-
 }
 
 async function sendDiscordResponse(msg: Message<boolean>, message: string, attachments?: string[]) {

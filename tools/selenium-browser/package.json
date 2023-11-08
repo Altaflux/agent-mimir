@@ -28,7 +28,8 @@
     "jsdom": "22.0.0",
     "selenium-webdriver": "4.9.0",
     "turndown": "^7.1.2",
-    "webdriver-manager": "^13.0.2"
+    "webdriver-manager": "^13.0.2",
+    "gpt-3-encoder": "v1.1.4"
   },
   "peerDependencies": {
     "agent-mimir": "*"

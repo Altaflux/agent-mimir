@@ -70,6 +70,7 @@ export function htmlToMarkdown(htmlDoc: Document) {
                     return `<button ${buildAttribute("type", element.getAttribute('type'), "button")} ${buildAttribute("id", element.getAttribute('x-interactableId'))}>${description}</button>`
                 }
                 return "";
+                
             }
         }).addRule('textarea', {
             filter: ['textarea'],
