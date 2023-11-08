@@ -214,7 +214,7 @@ export class MimirAgent extends BaseSingleActionAgent {
             new MessagesPlaceholder("history"),
             new MessagesPlaceholder("realInput")
         ];
-        const prompt = ChatPromptTemplate.fromPromptMessages(messages);
+        const prompt = ChatPromptTemplate.fromMessages(messages);
         return prompt;
     }
 
