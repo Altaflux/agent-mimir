@@ -183,7 +183,7 @@ export class AgentManager {
                 const agentResponse: MimirToolResponse | AgentToolRequest = JSON.parse(out.output);
                 if (continuousMode) {
                     return {
-                        output: JSON.parse((agentResponse as TheAgentResponse).text ?? "") as AgentUserMessage,
+                        output: JSON.parse((agentResponse as MimirToolResponse).text ?? "") as AgentUserMessage,
                         toolStep: () => false,
                         agentResponse: () => true
                     } as any
