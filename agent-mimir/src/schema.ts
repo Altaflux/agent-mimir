@@ -7,18 +7,6 @@ import { BaseChatMessageHistory, BaseMessage, ChainValues, MessageContent } from
 import { AgentTool } from "./tools/index.js";
 
 
-export type AIMessageType = {
-    thoughts?: string,
-    reasoning?: string,
-    saveToScratchPad?: string,
-    currentPlanStep?: string,
-    action: string,
-    action_input: any,
-    plan?: string[],
-    mainGoal?: string,
-    messageToUser?: string,
-}
-
 export const FILES_TO_SEND_FIELD = "filesToSend";
 
 export type Agent = {
@@ -59,6 +47,7 @@ export type MimirAgentArgs = {
     llm: BaseLanguageModel,
     chatMemory: BaseChatMessageHistory
     taskCompleteCommandName: string,
+    imageHandler: LLMImageHandler
     talkToUserTool?: AgentTool,
     plugins: MimirAgentPlugin[]
     constitution: string,

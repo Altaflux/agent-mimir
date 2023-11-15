@@ -21,6 +21,7 @@ import { WorkspacePluginFactory } from "../plugins/workspace.js";
 import { ViewPluginFactory } from "../tools/image_view.js";
 import { AgentTool } from "../tools/index.js";
 import { InnerToolWrapper, StructuredToolToAgentTool } from "../utils/wrapper.js";
+import { noopImageHandler, openAIImageHandler } from "../vision/index.js";
 
 
 export type CreateAgentOptions = {
@@ -31,6 +32,7 @@ export type CreateAgentOptions = {
     model: BaseChatModel,
     plugins?: MimirPluginFactory[],
     constitution?: string,
+    visionSupport?: 'openai'
     communicationWhitelist?: boolean | string[],
     chatHistory?: {
         summaryModel?: BaseChatModel,
@@ -104,8 +106,16 @@ export class AgentManager {
 
         const timePlugin = new TimePluginFactory();
         const workspacePlugin = new WorkspacePluginFactory();
-        const workspaceImageView = new ViewPluginFactory();
-        const defaultPluginsFactories = [timePlugin, tagPlugin, ...agentCommunicationPlugin, workspacePlugin, workspaceImageView, ...config.plugins ?? []];
+
+        const visionSupport = [];
+        let imageHandler = noopImageHandler;
+        if (config.visionSupport === 'openai') {
+            const workspaceImageView = new ViewPluginFactory();
+            visionSupport.push(workspaceImageView);
+            imageHandler = openAIImageHandler;
+        }
+
+        const defaultPluginsFactories = [timePlugin, tagPlugin, ...agentCommunicationPlugin, workspacePlugin, ...visionSupport, ...config.plugins ?? []];
 
         const allPluginFactories: MimirPluginFactory[] = [...tools.map(tool => new LangchainToolWrapperPluginFactory(tool)), ...defaultPluginsFactories];
         const allCreatedPlugins = allPluginFactories.map(factory => factory.create({ workspace: workspace, agentName: shortName, persistenceDirectory: workspace.pluginDirectory(factory.name) }));
@@ -125,6 +135,7 @@ export class AgentManager {
             plugins: allCreatedPlugins,
             constitution: config.constitution ?? DEFAULT_CONSTITUTION,
             chatMemory: config.messageHistory,
+            imageHandler: imageHandler,
             resetFunction: reset,
             memoryBuilder: (args) => {
                 const memory = new CompactingConversationSummaryMemory(summarizingModel, {

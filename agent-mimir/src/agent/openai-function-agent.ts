@@ -1,16 +1,15 @@
 import { BaseLLMOutputParser } from "langchain/schema/output_parser";
 import { MimirAgent, InternalAgentPlugin, MimirAIMessage } from "./base-agent.js";
-import { AIMessage, AgentAction, AgentFinish, BaseMessage, ChainValues, ChatGeneration, FunctionMessage, Generation, HumanMessage, MessageContent } from "langchain/schema";
+import { AIMessage, AgentAction, AgentFinish, BaseMessage, ChainValues, ChatGeneration, FunctionMessage, Generation, HumanMessage } from "langchain/schema";
 
 import { SystemMessagePromptTemplate } from "langchain/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
 import { AgentActionOutputParser } from "langchain/agents";
-import { AgentContext, MimirAgentArgs, MimirHumanReplyMessage, MimirToolResponse, NextMessage } from "../schema.js";
+import { AgentContext, LLMImageHandler, MimirAgentArgs, MimirHumanReplyMessage, MimirToolResponse, NextMessage } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { AiMessageSerializer, HumanMessageSerializer, TransformationalChatMessageHistory } from "../memory/transform-memory.js";
 import { callJsonRepair } from "../utils/json.js";
-import { openAIImageHandler } from "../vision/index.js";
 import { InnerToolWrapper } from "../utils/wrapper.js";
 
 
@@ -73,35 +72,8 @@ export class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage
     lc_namespace: string[] = [];
 }
 
-const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage) => {
-    const messages = nextMessage.type === "USER_MESSAGE" ? ({
-        type: "USER_MESSAGE",
-        message: nextMessage.message,
-    } as MimirHumanReplyMessage) : {
-        type: "FUNCTION_REPLY",
-        functionReply: {
-            name: nextMessage.tool!,
-            arguments: nextMessage.message,
-        }
-    } as MimirHumanReplyMessage;
 
-    const message = nextMessage.type === "USER_MESSAGE" ? new HumanMessage({
-        content: [
-            {
-                type: "text",
-                text: nextMessage.message,
-            }
-        ]
-    }) : new FunctionMessage(nextMessage.message, nextMessage.tool!);
-    return {
-        message: message,
-        messageToSave: messages,
-    };
-};
-
-export type OpenAIImageMessageFields = (images: string[]) => MessageContent;
-
-function messageGeneratorBuilder() {
+function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
     const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage) => {
         const mimirMessage = nextMessage.type === "USER_MESSAGE" ? ({
             type: "USER_MESSAGE",
@@ -122,7 +94,7 @@ function messageGeneratorBuilder() {
                 message: new HumanMessage({
                     content: [
                         text,
-                        ...openAIImageHandler(nextMessage.image_url ?? [], "high")
+                        ...imageHandler(nextMessage.image_url ?? [], "high")
                     ]
                 }),
                 messageToSave: mimirMessage,
@@ -137,7 +109,7 @@ function messageGeneratorBuilder() {
                             type: "text",
                             text: toolResponse.text ?? "",
                         },
-                        ...openAIImageHandler(toolResponse.image_url ?? [], "high")
+                        ...imageHandler(toolResponse.image_url ?? [], "high")
                     ]
                 }),
                 messageToSave: mimirMessage,
@@ -167,9 +139,11 @@ export class FunctionCallAiMessageSerializer extends AiMessageSerializer {
 }
 
 export class PlainTextHumanMessageSerializer extends HumanMessageSerializer {
+    constructor(private imageHandler: LLMImageHandler){
+        super();
+    }
     async deserialize(message: MimirHumanReplyMessage): Promise<BaseMessage> {
         if (message.type === "FUNCTION_REPLY") {
-            //return new FunctionMessage(message.functionReply?.arguments!, message.functionReply!.name);
             return new FunctionMessage({
                 name: message.functionReply!.name,
                 content: [
@@ -177,7 +151,7 @@ export class PlainTextHumanMessageSerializer extends HumanMessageSerializer {
                         type: "text",
                         text: message.functionReply?.arguments ?? "",
                     },
-                    ...openAIImageHandler(message.image_url ?? [], "high"),
+                    ...this.imageHandler(message.image_url ?? [], "high"),
                 ],
             });
         }
@@ -187,7 +161,7 @@ export class PlainTextHumanMessageSerializer extends HumanMessageSerializer {
                     type: "text",
                     text: message.message ?? "",
                 },
-                ...openAIImageHandler(message.image_url ?? [], "high"),
+                ...this.imageHandler(message.image_url ?? [], "high"),
             ]
         });
     }
@@ -233,14 +207,14 @@ export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
         return agentPlugin;
     });
 
-    const chatHistory = new TransformationalChatMessageHistory(args.chatMemory, new FunctionCallAiMessageSerializer(), new PlainTextHumanMessageSerializer());
+    const chatHistory = new TransformationalChatMessageHistory(args.chatMemory, new FunctionCallAiMessageSerializer(), new PlainTextHumanMessageSerializer(args.imageHandler));
     const finalMemory = args.memoryBuilder({
         messageHistory: chatHistory,
         plainText: false,
     });
 
  
-    const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGeneratorBuilder(), {
+    const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGeneratorBuilder(args.imageHandler), {
         systemMessage: systemMessages,
         outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName, args.talkToUserTool?.name),
         taskCompleteCommandName: args.taskCompleteCommandName,

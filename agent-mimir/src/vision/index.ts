@@ -11,3 +11,8 @@ export const openAIImageHandler: LLMImageHandler = (images: ImageType[], detail:
         }
     })
 }
+
+
+export const noopImageHandler: LLMImageHandler = (images: ImageType[], detail: "high" | "low" = "high") => {
+    return [];
+}

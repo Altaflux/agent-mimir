@@ -6,11 +6,10 @@ import { PromptTemplate, SystemMessagePromptTemplate, renderTemplate } from "lan
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
 import { AgentActionOutputParser } from "langchain/agents";
-import { AgentContext, MimirAgentArgs, MimirHumanReplyMessage, MimirToolResponse, NextMessage } from "../schema.js";
+import { AgentContext, LLMImageHandler, MimirAgentArgs, MimirHumanReplyMessage, MimirToolResponse, NextMessage } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { callJsonRepair } from "../utils/json.js";
 import { renderTextDescriptionAndArgs } from "langchain/tools/render";
-import { openAIImageHandler } from "../vision/index.js";
 import { InnerToolWrapper } from "../utils/wrapper.js";
 
 
@@ -115,7 +114,7 @@ class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
 
 
 
-function messageGeneratorBuilder() {
+function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
 
     const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage) => {
 
@@ -130,7 +129,7 @@ function messageGeneratorBuilder() {
                             type: "text",
                             text: renderedHumanMessage,
                         },
-                        ...openAIImageHandler(nextMessage.image_url ?? [], "high"),
+                        ...imageHandler(nextMessage.image_url ?? [], "high"),
                     ]
                 }),
                 messageToSave: {
@@ -142,7 +141,7 @@ function messageGeneratorBuilder() {
         } else {
             const toolResponse = convert(nextMessage.message);
             return {
-                message: new HumanMessage(extractToolResponse(toolResponse)),
+                message: new HumanMessage(extractToolResponse(toolResponse, imageHandler)),
                 messageToSave: {
                     type: "USER_MESSAGE",
                     message: toolResponse.text ?? "",
@@ -159,7 +158,7 @@ function convert(toolResponse: string): MimirToolResponse {
     return JSON.parse(toolResponse) as MimirToolResponse
 }
 
-function extractToolResponse(toolResponse: MimirToolResponse): BaseMessageFields {
+function extractToolResponse(toolResponse: MimirToolResponse, imageHandler: LLMImageHandler): BaseMessageFields {
 
     const stuff: BaseMessageFields = {
         content: [
@@ -169,7 +168,7 @@ function extractToolResponse(toolResponse: MimirToolResponse): BaseMessageFields
                     observation: toolResponse.text ?? "",
                 })
             },
-            ...openAIImageHandler(toolResponse.image_url ?? [], "high"),
+            ...imageHandler(toolResponse.image_url ?? [], "high"),
         ]
     }
     return stuff as FunctionMessageFieldsWithName;
@@ -180,6 +179,9 @@ export class DefaultAiMessageSerializer extends AiMessageSerializer {
     }
 }
 export class PlainTextHumanMessageSerializer extends HumanMessageSerializer {
+    constructor(private imageHandler: LLMImageHandler) {
+        super();
+    }
     async deserialize(message: MimirHumanReplyMessage): Promise<BaseMessage> {
         return new HumanMessage({
             content: [
@@ -187,7 +189,7 @@ export class PlainTextHumanMessageSerializer extends HumanMessageSerializer {
                     type: "text",
                     text: message.message ?? "",
                 },
-                ...openAIImageHandler(message.image_url ?? [], "high"),
+                ...this.imageHandler(message.image_url ?? [], "high"),
             ]
         });
     }
@@ -255,12 +257,12 @@ export function createPlainTextMimirAgent(args: MimirAgentArgs) {
         toolsSystemMessage,
     ];
 
-    const chatHistory = new TransformationalChatMessageHistory(args.chatMemory, new DefaultAiMessageSerializer(), new PlainTextHumanMessageSerializer());
+    const chatHistory = new TransformationalChatMessageHistory(args.chatMemory, new DefaultAiMessageSerializer(), new PlainTextHumanMessageSerializer(args.imageHandler));
     const finalMemory = args.memoryBuilder({
         messageHistory: chatHistory,
         plainText: true,
     });
-    const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(formatManager), messageGeneratorBuilder(), {
+    const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(formatManager), messageGeneratorBuilder(args.imageHandler), {
         systemMessage: systemMessages,
         outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName),
         taskCompleteCommandName: args.taskCompleteCommandName,
