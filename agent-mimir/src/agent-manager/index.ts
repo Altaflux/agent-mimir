@@ -6,7 +6,7 @@ import { SteppedAgentExecutor } from '../executor/index.js';
 import { ChatMemoryChain } from '../memory/transactional-memory-chain.js';
 
 import { BaseChatModel } from 'langchain/chat_models/base';
-import { Agent, AgentResponse, AgentToolRequest, AgentUserMessage, MimirAgentPlugin, MimirPluginFactory, MimirToolResponse, PluginContext, WorkspaceManagerFactory } from '../schema.js';
+import { Agent, AgentResponse, AgentToolRequest, AgentUserMessage, MimirAgentPlugin, MimirPluginFactory, ToolResponse, PluginContext, WorkspaceManagerFactory } from '../schema.js';
 
 import { initializeAgent } from '../agent/index.js'
 import { DEFAULT_CONSTITUTION } from '../agent/prompt.js';
@@ -20,7 +20,7 @@ import { NoopMemory } from '../memory/noopMemory.js';
 import { WorkspacePluginFactory } from "../plugins/workspace.js";
 import { ViewPluginFactory } from "../tools/image_view.js";
 import { AgentTool } from "../tools/index.js";
-import { InnerToolWrapper, StructuredToolToAgentTool } from "../utils/wrapper.js";
+import { MimirToolToLangchainTool, LangchainToolToMimirTool } from "../utils/wrapper.js";
 import { noopImageHandler, openAIImageHandler } from "../vision/index.js";
 
 
@@ -156,7 +156,7 @@ export class AgentManager {
                 return memory;
             }
         });
-        const allTools = [...allCreatedPlugins.map((plugin) => plugin.tools()).flat().map(tool => new InnerToolWrapper(tool)), new InnerToolWrapper(talkToUserTool)];
+        const allTools = [...allCreatedPlugins.map((plugin) => plugin.tools()).flat().map(tool => new MimirToolToLangchainTool(tool)), new MimirToolToLangchainTool(talkToUserTool)];
 
         let executor = SteppedAgentExecutor.fromAgentAndTools({
             agentName: shortName,
@@ -191,16 +191,16 @@ export class AgentManager {
             reset: reset,
             call: async (continuousMode, input, callback) => {
                 const out = await chatMemoryChain.call({ continuousMode, ...input, functionResponseCallBack: callback });
-                const agentResponse: MimirToolResponse | AgentToolRequest = JSON.parse(out.output);
+                const agentResponse: ToolResponse | AgentToolRequest = JSON.parse(out.output);
                 if (continuousMode) {
                     return {
-                        output: JSON.parse((agentResponse as MimirToolResponse).text ?? "") as AgentUserMessage,
+                        output: JSON.parse((agentResponse as ToolResponse).text ?? "") as AgentUserMessage,
                         toolStep: () => false,
                         agentResponse: () => true
                     } as any
                 } else {
                     return {
-                        output: out.toolStep ? agentResponse as AgentToolRequest : JSON.parse((agentResponse as MimirToolResponse).text ?? "") as AgentUserMessage,
+                        output: out.toolStep ? agentResponse as AgentToolRequest : JSON.parse((agentResponse as ToolResponse).text ?? "") as AgentUserMessage,
                         toolStep: () => out.toolStep === true,
                         agentResponse: () => out.toolStep !== true
                     } as AgentResponse
@@ -237,13 +237,11 @@ class LangchainToolWrapperPluginFactory implements MimirPluginFactory {
 
 class LangchainToolWrapper extends MimirAgentPlugin {
 
-
     constructor(private tool: StructuredTool) {
         super();
-
     }
 
     tools(): AgentTool[] {
-        return [new StructuredToolToAgentTool(this.tool)];
+        return [new LangchainToolToMimirTool(this.tool)];
     }
 }

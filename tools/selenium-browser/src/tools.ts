@@ -3,8 +3,7 @@ import { CallbackManagerForToolRun } from "langchain/callbacks";
 import { By } from 'selenium-webdriver';
 import { WebDriverManager } from "./driver-manager.js";
 import { z } from "zod";
-import { AgentTool } from "agent-mimir/tools";
-import { MimirToolResponse } from "agent-mimir/schema";
+import { AgentTool, ToolResponse } from "agent-mimir/tools";
 export { WebDriverManager, SeleniumDriverOptions } from "./driver-manager.js";
 
 
@@ -18,7 +17,7 @@ export class WebBrowserTool extends AgentTool {
     constructor(private toolManager: WebDriverManager) {
         super();
     }
-    protected async _call(inputs: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun): Promise<MimirToolResponse> {
+    protected async _call(inputs: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
         const { url, keywords, searchDescription } = inputs;
         let formattedBaseUrl = url;
         if (!formattedBaseUrl.startsWith("http://") && !formattedBaseUrl.startsWith("https://")) {
@@ -48,7 +47,7 @@ export class ClickWebSiteLinkOrButton extends AgentTool {
     constructor(private toolManager: WebDriverManager) {
         super();
     }
-    protected async _call(inputs: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun): Promise<MimirToolResponse> {
+    protected async _call(inputs: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
         if (!this.toolManager.currentPage) {
             return {
                 text: "You are not in any website at the moment, navigate into one using: navigate-to-website"
@@ -104,7 +103,7 @@ export class PassValueToInput extends AgentTool {
     constructor(private toolManager: WebDriverManager) {
         super();
     }
-    protected async _call(inputs: z.input<this["schema"]>): Promise<MimirToolResponse> {
+    protected async _call(inputs: z.input<this["schema"]>): Promise<ToolResponse> {
 
         if (!this.toolManager.currentPage) {
             return {
@@ -151,7 +150,7 @@ export class AskSiteQuestion extends AgentTool {
     constructor(private toolManager: WebDriverManager) {
         super();
     }
-    protected async _call(inputs: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun): Promise<MimirToolResponse> {
+    protected async _call(inputs: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
         if (!this.toolManager.currentPage) {
             return {
                 text: "You are not in any website at the moment, navigate into one using: navigate-to-website"

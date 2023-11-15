@@ -1,6 +1,6 @@
 import { StructuredTool } from "langchain/tools";
 import { z } from "zod";
-import { AgentUserMessage, AgentWorkspace, MimirToolResponse } from "../schema.js";
+import { AgentUserMessage, AgentWorkspace, ToolResponse } from "../schema.js";
 import { AgentTool } from "./index.js";
 
 export class TalkToUserTool extends AgentTool {
@@ -16,7 +16,7 @@ export class TalkToUserTool extends AgentTool {
 
     returnDirect: boolean = true;
 
-    protected async _call(arg: z.input<this["schema"]>): Promise<MimirToolResponse> {
+    protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
         const files = await Promise.all((arg.workspaceFilesToShare || [])
             .map(async (file) => ({ fileName: file, url: (await this.workspace.getUrlForFile(file))! })));
 

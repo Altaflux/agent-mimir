@@ -1,7 +1,12 @@
 
 import { CallbackManagerForToolRun } from "langchain/callbacks";
 import { z } from "zod";
-import { MimirToolResponse } from "../schema.js";
+import { ImageType } from "../schema.js";
+
+export type ToolResponse = {
+    text?: string;
+    image_url?: ImageType[];
+};
 
 export abstract class AgentTool<
     T extends z.ZodObject<any, any, any, any> = z.ZodObject<any, any, any, any>> {
@@ -10,11 +15,11 @@ export abstract class AgentTool<
     protected abstract _call(
         arg: z.output<T>,
         runManager?: CallbackManagerForToolRun
-    ): Promise<MimirToolResponse>;
+    ): Promise<ToolResponse>;
 
     async invoke(
         input: (z.output<T> extends string ? string : never) | z.input<T>
-    ): Promise<MimirToolResponse> {
+    ): Promise<ToolResponse> {
         return this.call(input);
     }
 
@@ -29,7 +34,7 @@ export abstract class AgentTool<
      */
     async call(
         arg: (z.output<T> extends string ? string : never) | z.input<T>,
-    ): Promise<MimirToolResponse> {
+    ): Promise<ToolResponse> {
         let parsed;
         try {
             parsed = await this.schema.parseAsync(arg);

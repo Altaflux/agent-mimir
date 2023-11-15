@@ -6,11 +6,11 @@ import { SystemMessagePromptTemplate } from "langchain/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
 import { AgentActionOutputParser } from "langchain/agents";
-import { AgentContext, LLMImageHandler, MimirAgentArgs, MimirHumanReplyMessage, MimirToolResponse, NextMessage } from "../schema.js";
+import { AgentContext, LLMImageHandler, MimirAgentArgs, MimirHumanReplyMessage, ToolResponse, NextMessage } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { AiMessageSerializer, HumanMessageSerializer, TransformationalChatMessageHistory } from "../memory/transform-memory.js";
 import { callJsonRepair } from "../utils/json.js";
-import { InnerToolWrapper } from "../utils/wrapper.js";
+import { MimirToolToLangchainTool } from "../utils/wrapper.js";
 
 
 type AIMessageType = {
@@ -118,8 +118,8 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
     }
     return messageGenerator;
 }
-function convert(toolResponse: string): MimirToolResponse {
-    return JSON.parse(toolResponse) as MimirToolResponse
+function convert(toolResponse: string): ToolResponse {
+    return JSON.parse(toolResponse) as ToolResponse
 }
 
 export class FunctionCallAiMessageSerializer extends AiMessageSerializer {
@@ -221,7 +221,7 @@ export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
         memory: finalMemory,
         resetFunction: args.resetFunction,
         defaultInputs: {
-            tools: [...args.plugins.map(plugin => plugin.tools()).flat(), ...talkToUserTools].map(tool => new InnerToolWrapper(tool)),
+            tools: [...args.plugins.map(plugin => plugin.tools()).flat(), ...talkToUserTools].map(tool => new MimirToolToLangchainTool(tool)),
         },
         plugins: internalPlugins,
     });

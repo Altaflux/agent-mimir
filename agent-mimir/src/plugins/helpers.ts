@@ -6,7 +6,7 @@ import { z } from "zod";
 import { AgentContext, AgentUserMessage, AgentWorkspace, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../schema.js";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
 import { AgentTool } from "../tools/index.js";
-import { StructuredToolToAgentTool } from "../utils/wrapper.js";
+import { LangchainToolToMimirTool } from "../utils/wrapper.js";
 
 export class TalkToHelper extends StructuredTool {
 
@@ -98,7 +98,7 @@ export class HelpersPlugin extends MimirAgentPlugin {
 
 
     tools(): AgentTool[] {
-        let tools: AgentTool[] = [new StructuredToolToAgentTool(new TalkToHelper(this.helperSingleton, this.agentName))];
+        let tools: AgentTool[] = [new LangchainToolToMimirTool(new TalkToHelper(this.helperSingleton, this.agentName))];
         return tools;
     }
 }

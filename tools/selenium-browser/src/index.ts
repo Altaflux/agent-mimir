@@ -1,5 +1,3 @@
-
-import { StructuredTool } from "langchain/tools";
 import { WebDriverManager } from "./driver-manager.js";
 
 import { WebBrowserOptions } from "./driver-manager.js";

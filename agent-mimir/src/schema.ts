@@ -94,7 +94,7 @@ export type ImageType = {
 }
 
 export type SupportedImageTypes = "url" | "jpeg" | "png";
-export type MimirToolResponse = {
+export type ToolResponse = {
     text?: string,
     image_url?: ImageType[],
 }

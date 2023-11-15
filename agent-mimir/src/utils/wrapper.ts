@@ -1,9 +1,9 @@
 import { StructuredTool } from "langchain/tools";
 import { AgentTool } from "../tools/index.js";
 import { z } from "zod";
-import { MimirToolResponse } from "../schema.js";
+import { ToolResponse } from "../schema.js";
 
-export class InnerToolWrapper extends StructuredTool {
+export class MimirToolToLangchainTool extends StructuredTool {
 
     schema = this.tool.schema;
     name: string = this.tool.name;
@@ -18,7 +18,7 @@ export class InnerToolWrapper extends StructuredTool {
     }
 }
 
-export class StructuredToolToAgentTool extends AgentTool {
+export class LangchainToolToMimirTool extends AgentTool {
 
     schema = this.tool.schema;
     name: string = this.tool.name;
@@ -28,7 +28,7 @@ export class StructuredToolToAgentTool extends AgentTool {
     constructor(private tool: StructuredTool) {
         super();
     }
-    protected async _call(arg: z.input<this["schema"]>): Promise<MimirToolResponse> {
+    protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
         return {
             text: await this.tool.call(arg),
         };

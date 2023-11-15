@@ -6,11 +6,11 @@ import { PromptTemplate, SystemMessagePromptTemplate, renderTemplate } from "lan
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
 import { AgentActionOutputParser } from "langchain/agents";
-import { AgentContext, LLMImageHandler, MimirAgentArgs, MimirHumanReplyMessage, MimirToolResponse, NextMessage } from "../schema.js";
+import { AgentContext, LLMImageHandler, MimirAgentArgs, MimirHumanReplyMessage, ToolResponse, NextMessage } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { callJsonRepair } from "../utils/json.js";
 import { renderTextDescriptionAndArgs } from "langchain/tools/render";
-import { InnerToolWrapper } from "../utils/wrapper.js";
+import { MimirToolToLangchainTool } from "../utils/wrapper.js";
 
 
 const JSON_INSTRUCTIONS = `You must format your inputs to these functions to match their "JSON schema" definitions below.
@@ -154,11 +154,11 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
     return messageGenerator;
 }
 
-function convert(toolResponse: string): MimirToolResponse {
-    return JSON.parse(toolResponse) as MimirToolResponse
+function convert(toolResponse: string): ToolResponse {
+    return JSON.parse(toolResponse) as ToolResponse
 }
 
-function extractToolResponse(toolResponse: MimirToolResponse, imageHandler: LLMImageHandler): BaseMessageFields {
+function extractToolResponse(toolResponse: ToolResponse, imageHandler: LLMImageHandler): BaseMessageFields {
 
     const stuff: BaseMessageFields = {
         content: [
@@ -243,7 +243,7 @@ export function createPlainTextMimirAgent(args: MimirAgentArgs) {
             template: SUFFIX,
             inputVariables: [],
             partialVariables: {
-                toolList: renderTextDescriptionAndArgs([...tools, ...talkToUserTools].map(tool => new InnerToolWrapper(tool))),
+                toolList: renderTextDescriptionAndArgs([...tools, ...talkToUserTools].map(tool => new MimirToolToLangchainTool(tool))),
                 tool_names: [...tools, ...talkToUserTools].map((tool) => tool.name).join(", "),
                 json_instructions: JSON_INSTRUCTIONS,
             },
