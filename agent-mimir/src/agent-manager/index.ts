@@ -20,6 +20,7 @@ import { CompactingConversationSummaryMemory } from '../memory/compacting-memory
 import { BaseChatMessageHistory } from 'langchain/schema';
 import { NoopMemory } from '../memory/noopMemory.js';
 import { WorkspacePluginFactory } from "../plugins/workspace.js";
+import { ViewPluginFactory } from "../tools/image_view.js";
 
 
 export type CreateAgentOptions = {
@@ -103,7 +104,8 @@ export class AgentManager {
 
         const timePlugin = new TimePluginFactory();
         const workspacePlugin = new WorkspacePluginFactory();
-        const defaultPluginsFactories = [timePlugin, tagPlugin, ...agentCommunicationPlugin, workspacePlugin, ...config.plugins ?? []];
+        const workspaceImageView = new ViewPluginFactory();
+        const defaultPluginsFactories = [timePlugin, tagPlugin, ...agentCommunicationPlugin, workspacePlugin, workspaceImageView, ...config.plugins ?? []];
 
         const allPluginFactories: MimirPluginFactory[] = [...tools.map(tool => new LangchainToolWrapperPluginFactory(tool)), ...defaultPluginsFactories];
         const allCreatedPlugins = allPluginFactories.map(factory => factory.create({ workspace: workspace, agentName: shortName, persistenceDirectory: workspace.pluginDirectory(factory.name) }));

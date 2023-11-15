@@ -1,6 +1,7 @@
 import { BaseMessage, ChatMessage } from "langchain/schema";
 
 
+// TODO ARREGLAR ESTO., el content es
 export function messagesToString(
   messages: BaseMessage[],
   humanPrefix = "Human",

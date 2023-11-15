@@ -7,9 +7,18 @@ export class FileSystemAgentWorkspace implements AgentWorkspace {
     get workingDirectory() {
         return path.join(this.agentRootDirectory, "workspace");
     }
-    
+
     constructor(private agentRootDirectory: string) {
     }
+
+    async fileAsBuffer(fileName: string): Promise<Buffer | undefined> {
+        if ((await this.listFiles()).includes(fileName)) {
+            const fileData = await fs.readFile(path.join(this.workingDirectory, fileName));
+            return fileData;
+        }
+        return undefined;
+    }
+
 
     async reset(): Promise<void> {
         const files = await fs.readdir(this.workingDirectory);

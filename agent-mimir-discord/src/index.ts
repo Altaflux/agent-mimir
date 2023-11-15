@@ -139,7 +139,11 @@ export const run = async () => {
 
     const resetCommand = new SlashCommandBuilder().setName('reset')
         .setDescription('Resets the agent to a clean state.');
-    const commands = [resetCommand];
+    const messageWithImage = new SlashCommandBuilder().setName('image')
+        .addAttachmentOption(option => option.setName('image').setDescription('The image to send to the agent').setRequired(true))        
+        .addStringOption(option => option.setName('message').setDescription('The message to send to the agent').setRequired(true))
+        .setDescription('Send an image to the agent.');
+    const commands = [resetCommand, messageWithImage];
 
 
     client.on('ready', async () => {
@@ -170,6 +174,9 @@ export const run = async () => {
                 await interaction.editReply('There was an error resetting the agent.');
             }
             await interaction.editReply('The agents have been reset!');
+        }
+        if (interaction.commandName === 'image') {
+            await interaction.editReply('Success!');
         }
 
 
@@ -246,7 +253,7 @@ export const run = async () => {
                 } : { message: messageToAi, sharedFiles: loadedFiles };
 
                 let chainResponse = await Retry(() => currentAgent.call(false, { input: messasgeToSend.message, [FILES_TO_SEND_FIELD]: messasgeToSend.sharedFiles }, async (name, input, functionResponse) => {
-                    const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse}\`\`\``;
+                    const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse.substring(0, 1000)}\`\`\``;
                     await sendDiscordResponse(msg, toolResponse);
                 }));
                 if (chainResponse.agentResponse()) {
@@ -259,7 +266,7 @@ export const run = async () => {
                 }
                 while (chainResponse.toolStep()) {
                     chainResponse = await Retry(() => currentAgent.call(false, { continuousMode: false, continue: true }, async (name, input, functionResponse) => {
-                        const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse}\`\`\``;
+                        const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse.substring(0, 1000)}\`\`\``;
                         await sendDiscordResponse(msg, toolResponse);
                     }));
                     if (chainResponse.agentResponse()) {

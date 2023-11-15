@@ -1,15 +1,16 @@
 import { BaseLLMOutputParser } from "langchain/schema/output_parser";
 import { MimirAgent, InternalAgentPlugin, MimirAIMessage } from "./base-agent.js";
-import { AIMessage, AgentAction, AgentFinish, BaseMessage, ChainValues, ChatGeneration, Generation, HumanMessage } from "langchain/schema";
+import { AIMessage, AgentAction, AgentFinish, BaseMessage, BaseMessageFields, ChainValues, ChatGeneration, FunctionMessageFieldsWithName, Generation, HumanMessage, MessageContent } from "langchain/schema";
 import { AiMessageSerializer, HumanMessageSerializer, TransformationalChatMessageHistory } from "../memory/transform-memory.js";
 import { PromptTemplate, SystemMessagePromptTemplate, renderTemplate } from "langchain/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
 import { AgentActionOutputParser } from "langchain/agents";
-import { AgentContext, MimirAgentArgs, MimirHumanReplyMessage, NextMessage } from "../schema.js";
+import { AgentContext, MimirAgentArgs, MimirHumanReplyMessage, MimirToolResponse, NextMessage } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { callJsonRepair } from "../utils/json.js";
 import { renderTextDescriptionAndArgs } from "langchain/tools/render";
+import { openAIImageHandler } from "../vision/index.js";
 
 
 const JSON_INSTRUCTIONS = `You must format your inputs to these functions to match their "JSON schema" definitions below.
@@ -111,33 +112,71 @@ class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
 
 }
 
-const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage) => {
-    if (nextMessage.type === "USER_MESSAGE") {
-        const renderedHumanMessage = renderTemplate(USER_INPUT, "f-string", {
-            input: nextMessage.message,
-        });
+
+
+function messageGeneratorBuilder(toolList: string[]) {
+
+    const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage) => {
+
+        if (nextMessage.type === "USER_MESSAGE") {
+            const renderedHumanMessage = renderTemplate(USER_INPUT, "f-string", {
+                input: nextMessage.message,
+            });
+            return {
+                message: new HumanMessage({
+                    content: [
+                        {
+                            type: "text",
+                            text: renderedHumanMessage,
+                        },
+                        ...openAIImageHandler(nextMessage.image_url ?? [], "high"),
+                    ]
+                }),
+                messageToSave: {
+                    type: "USER_MESSAGE",
+                    message: nextMessage.message,
+                    image_url: nextMessage.image_url
+                },
+            };
+        } else {
+            const toolResponse = convert(nextMessage.message, nextMessage.tool!, toolList);
+            return {
+                message: new HumanMessage(extractToolResponse(toolResponse)),
+                messageToSave: {
+                    type: "USER_MESSAGE",
+                    message: toolResponse.text ?? "",
+                    image_url: toolResponse.image_url,
+                },
+            };
+        }
+
+    };
+    return messageGenerator;
+}
+
+function convert(toolResponse: string, toolName: string, toolList: string[]): MimirToolResponse {
+    if (!toolList.includes(toolName)) {
         return {
-            message: new HumanMessage(renderedHumanMessage),
-            messageToSave: {
-                type: "USER_MESSAGE",
-                message: nextMessage.message,
-            },
-        };
-    } else {
-        const renderedHumanMessage = renderTemplate(TEMPLATE_TOOL_RESPONSE, "f-string", {
-            observation: nextMessage.message,
-        });
-        return {
-            message: new HumanMessage(renderedHumanMessage),
-            messageToSave: {
-                type: "USER_MESSAGE",
-                message: nextMessage.message,
-            },
-        };
+            text: toolResponse,
+        }
     }
+    return JSON.parse(toolResponse) as MimirToolResponse
+}
+function extractToolResponse(toolResponse: MimirToolResponse): BaseMessageFields {
 
-};
-
+    const stuff: BaseMessageFields = {
+        content: [
+            {
+                type: "text",
+                text: renderTemplate(TEMPLATE_TOOL_RESPONSE, "f-string", {
+                    observation: toolResponse.text ?? "",
+                })
+            },
+            ...openAIImageHandler(toolResponse.image_url ?? [], "high"),
+        ]
+    }
+    return stuff as FunctionMessageFieldsWithName;
+}
 export class DefaultAiMessageSerializer extends AiMessageSerializer {
     async deserialize(mimirMessage: MimirAIMessage): Promise<BaseMessage> {
         return new AIMessage(mimirMessage.text ?? "");
@@ -145,7 +184,24 @@ export class DefaultAiMessageSerializer extends AiMessageSerializer {
 }
 export class PlainTextHumanMessageSerializer extends HumanMessageSerializer {
     async deserialize(message: MimirHumanReplyMessage): Promise<BaseMessage> {
-        return new HumanMessage(message.message!);
+        const images = (message.image_url ?? []).map((url) => {
+            return {
+                type: "image_url" as const,
+                image_url: {
+                    url: url.url,
+                    detail: 'low' as const
+                }
+            };
+        });
+        return new HumanMessage({
+            content: [
+                {
+                    type: "text",
+                    text: message.message ?? "",
+                },
+                ...images,
+            ]
+        });
     }
 }
 
@@ -217,7 +273,7 @@ export function createPlainTextMimirAgent(args: MimirAgentArgs) {
         plainText: true,
     });
 
-    const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(formatManager), messageGenerator, {
+    const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(formatManager), messageGeneratorBuilder(["viewImageFromWorkspace"]), {
         systemMessage: systemMessages,
         outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName),
         taskCompleteCommandName: args.taskCompleteCommandName,

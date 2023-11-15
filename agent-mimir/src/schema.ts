@@ -4,7 +4,7 @@ import { AttributeDescriptor, ResponseFieldMapper } from "./agent/instruction-ma
 import { StructuredTool } from "langchain/tools";
 import { BaseLanguageModel } from "langchain/base_language";
 import { BaseChatMemory } from "langchain/memory";
-import { BaseChatMessageHistory, BaseMessage, ChainValues } from "langchain/schema";
+import { BaseChatMessageHistory, BaseMessage, ChainValues, MessageContent } from "langchain/schema";
 
 
 export type AIMessageType = {
@@ -46,6 +46,7 @@ export type AgentWorkspace = {
     loadFileToWorkspace(fileName: string, url: string): Promise<void>,
     reset(): Promise<void>,
     getUrlForFile(fileName: string): Promise<string | undefined>,
+    fileAsBuffer(fileName: string): Promise<Buffer | undefined>,
     pluginDirectory(pluginName: string): string,
     workingDirectory: string,
 }
@@ -78,10 +79,35 @@ export interface MimirPluginFactory {
     create(context: PluginContext): MimirAgentPlugin
 }
 
+
+export type LLMImageHandler = (images: ImageType[], detail: "high" | "low") => Extract<MessageContent, {
+    type: "text" | "image_url";
+    text?: string;
+    image_url?: string | {
+        url: string;
+        detail?: "low" | "high";
+    };
+}[]>;
+
 export type NextMessage = {
     type: "ACTION" | "USER_MESSAGE",
     message: string,
+    image_url?: {
+        url: string,
+        type: SupportedImageTypes
+    }[],
     tool?: string,
+}
+
+export type ImageType = {
+    url: string,
+    type: SupportedImageTypes
+}
+
+export type SupportedImageTypes = "url" | "jpeg" | "png";
+export type MimirToolResponse = {
+    text?: string,
+    image_url?: ImageType[],
 }
 
 export abstract class MimirAgentPlugin {
@@ -129,6 +155,7 @@ export type AgentContext = {
 export type MimirHumanReplyMessage = {
     type: "USER_MESSAGE" | "FUNCTION_REPLY",
     message?: string,
+    image_url?: ImageType[],
     functionReply?: {
         name: string,
         arguments: string,
@@ -140,6 +167,7 @@ export type MemoryCompactionCallback = (newMessage: BaseMessage[], previousConve
 export type AgentUserMessage = {
     agentName?: string,
     message: string,
+    image_url?: string,
     sharedFiles?: {
         url: string,
         fileName: string,

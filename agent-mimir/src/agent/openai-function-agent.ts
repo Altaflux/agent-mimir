@@ -1,15 +1,16 @@
 import { BaseLLMOutputParser } from "langchain/schema/output_parser";
 import { MimirAgent, InternalAgentPlugin, MimirAIMessage } from "./base-agent.js";
-import { AIMessage, AgentAction, AgentFinish, BaseMessage, ChainValues, ChatGeneration, FunctionMessage, Generation, HumanMessage } from "langchain/schema";
+import { AIMessage, AgentAction, AgentFinish, BaseMessage,  ChainValues, ChatGeneration, FunctionMessage, Generation, HumanMessage, MessageContent } from "langchain/schema";
 
 import { SystemMessagePromptTemplate } from "langchain/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
 import { AgentActionOutputParser } from "langchain/agents";
-import { AgentContext, MimirAgentArgs, MimirHumanReplyMessage, NextMessage } from "../schema.js";
+import { AgentContext, MimirAgentArgs, MimirHumanReplyMessage, MimirToolResponse, NextMessage } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { AiMessageSerializer, HumanMessageSerializer, TransformationalChatMessageHistory } from "../memory/transform-memory.js";
 import { callJsonRepair } from "../utils/json.js";
+import { openAIImageHandler } from "../vision/index.js";
 
 
 type AIMessageType = {
@@ -97,6 +98,62 @@ const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMes
     };
 };
 
+export type OpenAIImageMessageFields = (images: string[]) => MessageContent;
+//TODO THIS IS BROKEN
+function messageGeneratorBuilder(toolList: string[]) {
+    const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage) => {
+        const mimirMessage = nextMessage.type === "USER_MESSAGE" ? ({
+            type: "USER_MESSAGE",
+            message: nextMessage.message,
+            image_url: nextMessage.image_url,
+        } as MimirHumanReplyMessage) : {
+            type: "FUNCTION_REPLY",
+            functionReply: {
+                name: nextMessage.tool!,
+                arguments: nextMessage.message,
+                image_url: nextMessage.image_url,
+            }
+        } as MimirHumanReplyMessage;
+      
+        const text = { type: "text" as const, text: nextMessage.message };
+        if (nextMessage.type === "USER_MESSAGE") {
+            return {
+                message: new HumanMessage({
+                    content: [
+                        text,
+                        ...openAIImageHandler(nextMessage.image_url ?? [], "high")
+                    ]
+                }),
+                messageToSave: mimirMessage,
+            }
+        } else {
+            const toolResponse = convert(nextMessage.message, nextMessage.tool!, toolList);
+            return {
+                message: new FunctionMessage({
+                    name: nextMessage.tool!,
+                    content: [
+                        {
+                            type: "text",
+                            text: toolResponse.text ?? "",
+                        },
+                        ...openAIImageHandler(toolResponse.image_url ?? [], "high")
+                    ]
+                }),
+                messageToSave: mimirMessage,
+            }
+        }
+    }
+    return messageGenerator;
+}
+function convert(toolResponse: string, toolName: string, toolList: string[]): MimirToolResponse {
+    if (!toolList.includes(toolName)) {
+        return {
+            text: toolResponse,
+        }
+    }
+    return JSON.parse(toolResponse) as MimirToolResponse
+}
+
 export class FunctionCallAiMessageSerializer extends AiMessageSerializer {
     async deserialize(aiMessage: MimirAIMessage): Promise<BaseMessage> {
         const output = aiMessage as MimirAIMessage;
@@ -168,7 +225,7 @@ export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
         plainText: false,
     });
 
-    const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGenerator, {
+    const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGeneratorBuilder(["viewImageFromWorkspace"]), {
         systemMessage: systemMessages,
         outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName, args.talkToUserTool?.name),
         taskCompleteCommandName: args.taskCompleteCommandName,
