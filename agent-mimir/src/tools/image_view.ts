@@ -1,6 +1,7 @@
 import { StructuredTool } from "langchain/tools";
 import { MimirAgentPlugin, MimirPluginFactory, MimirToolResponse, PluginContext, SupportedImageTypes } from "../schema.js";
 import { z } from "zod";
+import { AgentTool } from "./index.js";
 
 export class ViewPluginFactory implements MimirPluginFactory {
     name: string = "viewImages";
@@ -14,12 +15,12 @@ export class ViewPlugin extends MimirAgentPlugin {
         super();
     }
 
-    tools(): StructuredTool[] {
+    tools(): AgentTool [] {
         return [new ViewTool(this.context)];
     }
 }
 
-export class ViewTool extends StructuredTool {
+export class ViewTool extends AgentTool {
 
     name: string = "viewImageFromWorkspace";
 
@@ -32,23 +33,23 @@ export class ViewTool extends StructuredTool {
         fileName: z.string().describe("The name of the file you want to view."),
     });
 
-    protected async _call(arg: z.input<this["schema"]>): Promise<string> {
+    protected async _call(arg: z.input<this["schema"]>): Promise<MimirToolResponse> {
         const file = (await this.context.workspace.fileAsBuffer(arg.fileName));
         if (file) {
             const imageType = arg.fileName.split('.').pop()! as SupportedImageTypes;
             const response: MimirToolResponse = {
                 image_url: [{
-                    url: `${file.toString("base64")}`,
-                    type: imageType ,
+                    type: imageType,
+                    url: file.toString("base64"),
                 }],
             };
 
-            return JSON.stringify(response);
+            return response;
         }
         const response: MimirToolResponse = {
             text: `The file named ${arg.fileName} does not exist in your workspace.`,
         };
-        return JSON.stringify(response);
+        return response;
     }
 
 }

@@ -1,10 +1,10 @@
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
 import { MimirAIMessage } from "./agent/base-agent.js";
 import { AttributeDescriptor, ResponseFieldMapper } from "./agent/instruction-mapper.js";
-import { StructuredTool } from "langchain/tools";
 import { BaseLanguageModel } from "langchain/base_language";
 import { BaseChatMemory } from "langchain/memory";
 import { BaseChatMessageHistory, BaseMessage, ChainValues, MessageContent } from "langchain/schema";
+import { AgentTool } from "./tools/index.js";
 
 
 export type AIMessageType = {
@@ -59,7 +59,7 @@ export type MimirAgentArgs = {
     llm: BaseLanguageModel,
     chatMemory: BaseChatMessageHistory
     taskCompleteCommandName: string,
-    talkToUserTool?: StructuredTool,
+    talkToUserTool?: AgentTool,
     plugins: MimirAgentPlugin[]
     constitution: string,
     resetFunction: () => Promise<void>,
@@ -138,7 +138,7 @@ export abstract class MimirAgentPlugin {
         return [];
     }
 
-    tools(): StructuredTool[] {
+    tools(): (AgentTool)[] {
         return [];
     }
 
@@ -167,7 +167,6 @@ export type MemoryCompactionCallback = (newMessage: BaseMessage[], previousConve
 export type AgentUserMessage = {
     agentName?: string,
     message: string,
-    image_url?: string,
     sharedFiles?: {
         url: string,
         fileName: string,

@@ -1,6 +1,6 @@
 import { BaseLLMOutputParser } from "langchain/schema/output_parser";
 import { MimirAgent, InternalAgentPlugin, MimirAIMessage } from "./base-agent.js";
-import { AIMessage, AgentAction, AgentFinish, BaseMessage,  ChainValues, ChatGeneration, FunctionMessage, Generation, HumanMessage, MessageContent } from "langchain/schema";
+import { AIMessage, AgentAction, AgentFinish, BaseMessage, ChainValues, ChatGeneration, FunctionMessage, Generation, HumanMessage, MessageContent } from "langchain/schema";
 
 import { SystemMessagePromptTemplate } from "langchain/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
@@ -11,6 +11,7 @@ import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { AiMessageSerializer, HumanMessageSerializer, TransformationalChatMessageHistory } from "../memory/transform-memory.js";
 import { callJsonRepair } from "../utils/json.js";
 import { openAIImageHandler } from "../vision/index.js";
+import { InnerToolWrapper } from "../utils/wrapper.js";
 
 
 type AIMessageType = {
@@ -99,8 +100,8 @@ const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMes
 };
 
 export type OpenAIImageMessageFields = (images: string[]) => MessageContent;
-//TODO THIS IS BROKEN
-function messageGeneratorBuilder(toolList: string[]) {
+
+function messageGeneratorBuilder() {
     const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage) => {
         const mimirMessage = nextMessage.type === "USER_MESSAGE" ? ({
             type: "USER_MESSAGE",
@@ -114,7 +115,7 @@ function messageGeneratorBuilder(toolList: string[]) {
                 image_url: nextMessage.image_url,
             }
         } as MimirHumanReplyMessage;
-      
+
         const text = { type: "text" as const, text: nextMessage.message };
         if (nextMessage.type === "USER_MESSAGE") {
             return {
@@ -127,7 +128,7 @@ function messageGeneratorBuilder(toolList: string[]) {
                 messageToSave: mimirMessage,
             }
         } else {
-            const toolResponse = convert(nextMessage.message, nextMessage.tool!, toolList);
+            const toolResponse = convert(nextMessage.message);
             return {
                 message: new FunctionMessage({
                     name: nextMessage.tool!,
@@ -145,12 +146,7 @@ function messageGeneratorBuilder(toolList: string[]) {
     }
     return messageGenerator;
 }
-function convert(toolResponse: string, toolName: string, toolList: string[]): MimirToolResponse {
-    if (!toolList.includes(toolName)) {
-        return {
-            text: toolResponse,
-        }
-    }
+function convert(toolResponse: string): MimirToolResponse {
     return JSON.parse(toolResponse) as MimirToolResponse
 }
 
@@ -173,9 +169,27 @@ export class FunctionCallAiMessageSerializer extends AiMessageSerializer {
 export class PlainTextHumanMessageSerializer extends HumanMessageSerializer {
     async deserialize(message: MimirHumanReplyMessage): Promise<BaseMessage> {
         if (message.type === "FUNCTION_REPLY") {
-            return new FunctionMessage(message.functionReply?.arguments!, message.functionReply!.name);
+            //return new FunctionMessage(message.functionReply?.arguments!, message.functionReply!.name);
+            return new FunctionMessage({
+                name: message.functionReply!.name,
+                content: [
+                    {
+                        type: "text",
+                        text: message.functionReply?.arguments ?? "",
+                    },
+                    ...openAIImageHandler(message.image_url ?? [], "high"),
+                ],
+            });
         }
-        return new HumanMessage(message.message!);
+        return new HumanMessage({
+            content: [
+                {
+                    type: "text",
+                    text: message.message ?? "",
+                },
+                ...openAIImageHandler(message.image_url ?? [], "high"),
+            ]
+        });
     }
 }
 
@@ -225,14 +239,15 @@ export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
         plainText: false,
     });
 
-    const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGeneratorBuilder(["viewImageFromWorkspace"]), {
+ 
+    const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGeneratorBuilder(), {
         systemMessage: systemMessages,
         outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName, args.talkToUserTool?.name),
         taskCompleteCommandName: args.taskCompleteCommandName,
         memory: finalMemory,
         resetFunction: args.resetFunction,
         defaultInputs: {
-            tools: [...args.plugins.map(plugin => plugin.tools()).flat(), ...talkToUserTools],
+            tools: [...args.plugins.map(plugin => plugin.tools()).flat(), ...talkToUserTools].map(tool => new InnerToolWrapper(tool)),
         },
         plugins: internalPlugins,
     });

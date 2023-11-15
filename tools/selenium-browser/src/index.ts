@@ -7,6 +7,7 @@ import { Embeddings } from "langchain/embeddings/base";
 import { BaseLanguageModel } from "langchain/base_language";
 import { WebBrowserTool, PassValueToInput, AskSiteQuestion, ClickWebSiteLinkOrButton } from "./tools.js";
 import { MimirAgentPlugin, PluginContext, MimirPluginFactory } from "agent-mimir/schema";
+import { AgentTool } from "agent-mimir/tools";
 
 export { WebDriverManager, SeleniumDriverOptions, WebBrowserOptions } from "./driver-manager.js";
 export { WebBrowserTool, PassValueToInput, AskSiteQuestion, ClickWebSiteLinkOrButton } from "./tools.js";
@@ -28,7 +29,7 @@ export class WebBrowserPluginFactory implements MimirPluginFactory {
 class WebBrowserPlugin extends MimirAgentPlugin {
 
     driverManager: WebDriverManager;
-    toolList: StructuredTool[];
+    toolList: AgentTool[];
     constructor(config: WebBrowserOptions, model: BaseLanguageModel, embeddings: Embeddings) {
         super();
         this.driverManager = new WebDriverManager(config, model, embeddings);
@@ -44,7 +45,7 @@ class WebBrowserPlugin extends MimirAgentPlugin {
         await this.driverManager.close();
     }
 
-    tools(): StructuredTool[] {
+    tools(): AgentTool[] {
         return this.toolList;
     }
 }
