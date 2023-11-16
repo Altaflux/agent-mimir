@@ -1,23 +1,11 @@
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
 import { MimirAIMessage } from "./agent/base-agent.js";
 import { AttributeDescriptor, ResponseFieldMapper } from "./agent/instruction-mapper.js";
-import { StructuredTool } from "langchain/tools";
 import { BaseLanguageModel } from "langchain/base_language";
 import { BaseChatMemory } from "langchain/memory";
-import { BaseChatMessageHistory, BaseMessage, ChainValues } from "langchain/schema";
+import { BaseChatMessageHistory, BaseMessage, ChainValues, MessageContent } from "langchain/schema";
+import { AgentTool } from "./tools/index.js";
 
-
-export type AIMessageType = {
-    thoughts?: string,
-    reasoning?: string,
-    saveToScratchPad?: string,
-    currentPlanStep?: string,
-    action: string,
-    action_input: any,
-    plan?: string[],
-    mainGoal?: string,
-    messageToUser?: string,
-}
 
 export const FILES_TO_SEND_FIELD = "filesToSend";
 
@@ -46,6 +34,7 @@ export type AgentWorkspace = {
     loadFileToWorkspace(fileName: string, url: string): Promise<void>,
     reset(): Promise<void>,
     getUrlForFile(fileName: string): Promise<string | undefined>,
+    fileAsBuffer(fileName: string): Promise<Buffer | undefined>,
     pluginDirectory(pluginName: string): string,
     workingDirectory: string,
 }
@@ -58,7 +47,8 @@ export type MimirAgentArgs = {
     llm: BaseLanguageModel,
     chatMemory: BaseChatMessageHistory
     taskCompleteCommandName: string,
-    talkToUserTool?: StructuredTool,
+    imageHandler: LLMImageHandler
+    talkToUserTool?: AgentTool,
     plugins: MimirAgentPlugin[]
     constitution: string,
     resetFunction: () => Promise<void>,
@@ -78,10 +68,35 @@ export interface MimirPluginFactory {
     create(context: PluginContext): MimirAgentPlugin
 }
 
+
+export type LLMImageHandler = (images: ImageType[], detail: "high" | "low") => Extract<MessageContent, {
+    type: "text" | "image_url";
+    text?: string;
+    image_url?: string | {
+        url: string;
+        detail?: "low" | "high";
+    };
+}[]>;
+
 export type NextMessage = {
     type: "ACTION" | "USER_MESSAGE",
     message: string,
+    image_url?: {
+        url: string,
+        type: SupportedImageTypes
+    }[],
     tool?: string,
+}
+
+export type ImageType = {
+    url: string,
+    type: SupportedImageTypes
+}
+
+export type SupportedImageTypes = "url" | "jpeg" | "png";
+export type ToolResponse = {
+    text?: string,
+    image_url?: ImageType[],
 }
 
 export abstract class MimirAgentPlugin {
@@ -112,7 +127,7 @@ export abstract class MimirAgentPlugin {
         return [];
     }
 
-    tools(): StructuredTool[] {
+    tools(): (AgentTool)[] {
         return [];
     }
 
@@ -129,6 +144,7 @@ export type AgentContext = {
 export type MimirHumanReplyMessage = {
     type: "USER_MESSAGE" | "FUNCTION_REPLY",
     message?: string,
+    image_url?: ImageType[],
     functionReply?: {
         name: string,
         arguments: string,

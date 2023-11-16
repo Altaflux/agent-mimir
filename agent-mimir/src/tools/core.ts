@@ -1,8 +1,9 @@
 import { StructuredTool } from "langchain/tools";
 import { z } from "zod";
-import { AgentUserMessage, AgentWorkspace } from "../schema.js";
+import { AgentUserMessage, AgentWorkspace, ToolResponse } from "../schema.js";
+import { AgentTool } from "./index.js";
 
-export class TalkToUserTool extends StructuredTool {
+export class TalkToUserTool extends AgentTool {
 
     constructor(private workspace: AgentWorkspace) {
         super();
@@ -15,15 +16,17 @@ export class TalkToUserTool extends StructuredTool {
 
     returnDirect: boolean = true;
 
-    protected async _call(arg: z.input<this["schema"]>): Promise<string> {
+    protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
         const files = await Promise.all((arg.workspaceFilesToShare || [])
             .map(async (file) => ({ fileName: file, url: (await this.workspace.getUrlForFile(file))! })));
-            
+
         const result: AgentUserMessage = {
             message: arg.messageToSend,
             sharedFiles: files,
         }
-        return JSON.stringify(result);
+        return {
+            text: JSON.stringify(result),
+        };
     }
 
     name: string = "respondBack";

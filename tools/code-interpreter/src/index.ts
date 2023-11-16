@@ -1,4 +1,3 @@
-import { StructuredTool } from "langchain/tools";
 import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentWorkspace } from "agent-mimir/schema";
 import { CallbackManagerForToolRun } from "langchain/callbacks";
 import { z } from "zod";
@@ -7,6 +6,7 @@ import { spawn } from 'child_process';
 import os from 'os';
 import { promises as fs } from 'fs';
 import path from "path";
+import { AgentTool, ToolResponse } from "agent-mimir/tools";
 
 
 
@@ -83,7 +83,7 @@ class CodeInterpreterPlugin extends MimirAgentPlugin {
     };
 }
 
-class PythonCodeInterpreter extends StructuredTool {
+class PythonCodeInterpreter extends AgentTool {
 
     private workDirectory?: string;
 
@@ -103,7 +103,7 @@ If you are given the task to create a file or they ask you to save it then save 
 
     name = "pythonCodeInterpreter";
 
-    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<string> {
+    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
         const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'python-code-interpreter-'));
 
         if (this.workDirectory) {
@@ -158,9 +158,13 @@ If you are given the task to create a file or they ask you to save it then save 
                 fileList = files.length === 0 ? "" : `The following files were created in the workspace: ${files.map((fileName: string) => `"${fileName}"`).join(" ")}`;
             }
             const dependenciesWarning = libraryInstallationResult?.exitCode !== 0 ? `\nWARNING: Failed to install libraries, if your script failed try to use an alternative library:\n ${libraryInstallationResult?.output}` : "";
-            return `Exit Code: ${result.exitCode} \n${fileList} \nScript Output:\n${result.output}` + dependenciesWarning;
+            return {
+                text: `Exit Code: ${result.exitCode} \n${fileList} \nScript Output:\n${result.output}` + dependenciesWarning
+            };
         } catch (e) {
-            return "Failed to execute the script." + e;
+            return {
+                text: "Failed to execute the script." + e
+            };
         } finally {
             await fs.rm(tempDir, { recursive: true, force: true });
         }

@@ -38,6 +38,10 @@
     "./nodejs": {
       "types": "./dist/nodejs/index.d.ts",
       "import": "./dist/nodejs/index.js"
+    },
+    "./tools": {
+      "types": "./dist/tools/index.d.ts",
+      "import": "./dist/tools/index.js"
     }
   },
   "scripts": {

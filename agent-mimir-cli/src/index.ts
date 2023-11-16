@@ -24,6 +24,7 @@ export type AgentDefinition = {
         taskModel?: BaseLanguageModel;
         constitution?: string;
         plugins?: MimirPluginFactory[];
+        visionSupport?: 'openai';
         chatHistory?: {
             summaryModel?: BaseChatModel;
             tokenLimit?: number;
@@ -84,6 +85,7 @@ export const run = async () => {
                     tools: agentDefinition.definition.tools ?? [],
                     model: agentDefinition.definition.chatModel,
                     chatHistory: agentDefinition.definition.chatHistory,
+                    visionSupport: agentDefinition.definition.visionSupport,
                     communicationWhitelist: agentDefinition.definition.communicationWhitelist,
                     constitution: agentDefinition.definition.constitution,
                     agentType: agentDefinition.definition.agentType,

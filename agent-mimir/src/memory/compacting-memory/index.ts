@@ -111,7 +111,7 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
         const newMessages = await this.chatHistory.getMessages();
         const totalMessages = [...newMessages];
         const numberOfAlreadyCompactedMessages = totalMessages.filter(e => e.additional_kwargs["compacted"]).length;
-        const tokenEncode = (messages: BaseMessage[]) => encode(messages.map(e => e.content + JSON.stringify(e.additional_kwargs?.function_call ?? {})).join("\n"));
+        const tokenEncode = (messages: BaseMessage[]) => encode(messages.map(e => JSON.stringify(e.content) + JSON.stringify(e.additional_kwargs?.function_call ?? {})).join("\n"));
 
         if (tokenEncode(totalMessages).length > this.tokenLimit) {
             const newMessagesToSummarize: BaseMessage[] = [];

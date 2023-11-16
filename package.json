@@ -36,6 +36,6 @@
         ".temp_custom_deps"
     ],
     "dependencies": {
-        "langchain": "0.0.185"
+        "langchain": "0.0.186"
     }
 }

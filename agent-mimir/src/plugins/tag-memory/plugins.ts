@@ -7,6 +7,8 @@ import { z } from "zod";
 import { messagesToString } from "../../utils/format.js";
 import { Embeddings } from "langchain/embeddings/base";
 import { BaseChatModel } from "langchain/chat_models/base";
+import { LangchainToolToMimirTool } from "../../utils/wrapper.js";
+import { AgentTool } from "../../tools/index.js";
 
 export class ManualTagMemoryPluginFactory implements MimirPluginFactory {
 
@@ -16,7 +18,7 @@ export class ManualTagMemoryPluginFactory implements MimirPluginFactory {
     }
 
     create(context: PluginContext): MimirAgentPlugin {
-        return new ManualTagMemoryPlugin(this.embeddings, this.model, context.persistenceDirectory);
+        return (new ManualTagMemoryPlugin(this.embeddings, this.model, context.persistenceDirectory));
     }
 }
 
@@ -53,8 +55,8 @@ export class ManualTagMemoryPlugin extends MimirAgentPlugin {
         };
     }
 
-    tools(): StructuredTool[] {
-        return [new TagRetrieverTool(this.manager)];
+    tools(): AgentTool[] {
+        return [new LangchainToolToMimirTool(new TagRetrieverTool(this.manager))];
     }
 
 }
