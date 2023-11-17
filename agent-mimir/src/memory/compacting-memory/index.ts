@@ -4,7 +4,7 @@ import { BaseChatMemory, BaseChatMemoryInput, getInputValue, } from "langchain/m
 import { AIMessage, BaseMessage, HumanMessage, InputValues } from "langchain/schema";
 import { encode } from "gpt-3-encoder"
 import { LLMChain } from "langchain/chains";
-import { messagesToString } from "../../utils/format.js";
+import { extractTextContent, messagesToString } from "../../utils/format.js";
 import { COMPACT_PROMPT } from "./prompt.js";
 import { MemoryCompactionCallback } from "../../schema.js";
 import { Embeddings } from "langchain/embeddings/base";
@@ -21,6 +21,7 @@ export type WindowedConversationSummaryMemoryInput = BaseChatMemoryInput & {
     humanPrefix?: string;
     aiPrefix?: string;
     embeddings: Embeddings;
+    compressionBatchSize?: number;
     tokenLimit?: number;
     conversationTokenThreshold?: number;
     compactionCallback?: MemoryCompactionCallback;
@@ -38,6 +39,8 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
     tokenLimit = 4000;
 
     conversationTokenThreshold = 75;
+
+    compressionBatchSize: number = 3000;
 
     llm: BaseLanguageModel;
 
@@ -111,7 +114,7 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
         const newMessages = await this.chatHistory.getMessages();
         const totalMessages = [...newMessages];
         const numberOfAlreadyCompactedMessages = totalMessages.filter(e => e.additional_kwargs["compacted"]).length;
-        const tokenEncode = (messages: BaseMessage[]) => encode(messages.map(e => JSON.stringify(e.content) + JSON.stringify(e.additional_kwargs?.function_call ?? {})).join("\n"));
+        const tokenEncode = (messages: BaseMessage[]) => encode(messages.map(e => JSON.stringify(extractTextContent(e.content)) + JSON.stringify(e.additional_kwargs?.function_call ?? {})).join("\n"));
 
         if (tokenEncode(totalMessages).length > this.tokenLimit) {
             const newMessagesToSummarize: BaseMessage[] = [];

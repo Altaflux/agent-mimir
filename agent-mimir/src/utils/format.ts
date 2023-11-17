@@ -37,7 +37,7 @@ export function messagesToString(
   return string_messages.join("\n\n\n");
 }
 
-function extractTextContent(messageContent: MessageContent) {
+export function extractTextContent(messageContent: MessageContent) {
   if (typeof messageContent === "string") {
     return messageContent;
   } else if (Array.isArray(messageContent)) {
