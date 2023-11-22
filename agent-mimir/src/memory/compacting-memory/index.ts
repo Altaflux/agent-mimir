@@ -40,7 +40,7 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
 
     conversationTokenThreshold = 75;
 
-    compressionBatchSize: number = 3000;
+    compressionBatchSize: number = 40000;
 
     llm: BaseLanguageModel;
 
@@ -98,8 +98,8 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
         let output = await getInputValue(outputValues, this.outputKey);
         let input = await getInputValue(inputValues, this.inputKey);
 
-
-        await this.compactIfNeeded();
+        // Disable compaction for now
+        //    await this.compactMemory();
 
         const outputKey = this.outputKey ?? "output";
         const inputKey = this.inputKey ?? "input";
@@ -110,7 +110,7 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
         });
     }
 
-    async compactIfNeeded() {
+    async compactMemory() {
         const newMessages = await this.chatHistory.getMessages();
         const totalMessages = [...newMessages];
         const numberOfAlreadyCompactedMessages = totalMessages.filter(e => e.additional_kwargs["compacted"]).length;
@@ -121,7 +121,7 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
             const newMessagesToCompact: BaseMessage[] = [];
 
             const maxNumberOfSummarizableMessages = totalMessages.length * (this.conversationTokenThreshold / 100.0);
-            while (newMessagesToSummarize.length < maxNumberOfSummarizableMessages && totalMessages.length !== 0) {
+            while (newMessagesToSummarize.length < maxNumberOfSummarizableMessages && totalMessages.length !== 0 && tokenEncode(newMessagesToSummarize).length < this.compressionBatchSize) {
                 const humanMessage = totalMessages.shift()!;
                 const aiMessage = totalMessages.shift()!;
                 newMessagesToSummarize.push(humanMessage, aiMessage);
@@ -136,17 +136,18 @@ export class CompactingConversationSummaryMemory extends BaseChatMemory {
                 await this.compactionCallback(newMessagesToCompact, newMessages.slice(0, numberOfAlreadyCompactedMessages));
             }
             const compactedMessages = await this.messageCompact(newMessagesToSummarize, this.llm);
-            if (true) {
-                const compactedMessagesLenght = tokenEncode(compactedMessages).length;
-                const newMessagesLenght = tokenEncode(newMessagesToSummarize).length;
-                console.log(`Compacted ${newMessagesToSummarize.length} messages into ${compactedMessages.length} messages. ${compactedMessagesLenght} characters vs ${newMessagesLenght} characters.`);
-            }
+
+            const compactedMessagesLenght = tokenEncode(compactedMessages).length;
+            const newMessagesLenght = tokenEncode(newMessagesToSummarize).length;
+            console.log(`Compacted ${newMessagesToSummarize.length} messages into ${compactedMessages.length} messages. ${compactedMessagesLenght} characters vs ${newMessagesLenght} characters.`);
+
             await this.chatHistory.clear();
             for (const leftOverNewerMessage of [...compactedMessages, ...leftOverNewerMessages]) {
                 await this.chatHistory.addMessage(leftOverNewerMessage);
             }
         }
     }
+
 
     async clear() {
         await super.clear();
@@ -174,7 +175,6 @@ function splitConversation(text: string) {
     return splittedMessages;
 }
 
-
 function extractPayload(text: string): Payload {
     const participantExtractor = new RegExp(`(?<=- Participant:\\s)([\\s\\S]*?)` + '(?=\\s' + "- Participant|- Task|- Payload" + "|$)");
     const taskExtractor = new RegExp(`(?<=- Task:\\s)([\\s\\S]*?)` + '(?=\\s' + "- Participant|- Task|- Payload" + "|$)");
@@ -190,11 +190,25 @@ function extractPayload(text: string): Payload {
 export function plainTextPayloadToMessage(payload: Payload) {
 
     if (payload.participant === "Human") {
-        return new HumanMessage(payload.payload, {
+        return new HumanMessage({
+            content: [
+                {
+                    type: "text",
+                    text: payload.payload,
+                }
+            ]
+        }, {
             compacted: true,
         });
     } else {
-        return new AIMessage(payload.payload, {
+        return new AIMessage({
+            content: [
+                {
+                    type: "text",
+                    text: payload.payload,
+                }
+            ]
+        }, {
             compacted: true,
         });
     }
@@ -202,11 +216,25 @@ export function plainTextPayloadToMessage(payload: Payload) {
 
 export function functionPayloadToMessage(payload: Payload) {
     if (payload.participant === "Human") {
-        return new HumanMessage(payload.payload, {
+        return new HumanMessage({
+            content: [
+                {
+                    type: "text",
+                    text: payload.payload,
+                }
+            ]
+        }, {
             compacted: true,
         });
     } else {
-        return new AIMessage("", {
+        return new AIMessage({
+            content: [
+                {
+                    type: "text",
+                    text: "",
+                }
+            ]
+        }, {
             compacted: true,
             function_call: {
                 name: payload.task,
