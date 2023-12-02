@@ -4,7 +4,7 @@
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json "
+    "build": "tsc-transpile-only -p tsconfig.json "
   },
   "author": "Altaflux",
   "keywords": [

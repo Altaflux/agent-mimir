@@ -16,7 +16,10 @@ import { finished } from "stream/promises";
 import { SlashCommandBuilder } from "discord.js";
 import { FileSystemChatHistory, FileSystemAgentWorkspace } from "agent-mimir/nodejs";
 import { Retry } from "./utils.js";
+import screenshot from 'screenshot-desktop';
+import si from 'systeminformation'
 
+import { Key, left, keyboard, mouse, Button, Point, } from "@nut-tree/nut-js";
 
 function splitStringInChunks(str: string) {
     const chunkSize = 1900;
@@ -79,7 +82,36 @@ async function downloadFile(filename: string, link: string) {
     await finished(body.pipe(download_write_stream));
     return destination
 }
+
+function convertToPixelCoordinates(
+    imageTotalXSize: number,
+    imageTotalYSize: number,
+    xPercentageCoordinate: number,
+    yPercentageCoordinate: number
+): { xPixelCoordinate: number, yPixelCoordinate: number } {
+    // Calculate pixel coordinates
+    let xPixelCoordinate = (xPercentageCoordinate / 100) * imageTotalXSize;
+    let yPixelCoordinate = (yPercentageCoordinate / 100) * imageTotalYSize;
+
+    return { xPixelCoordinate, yPixelCoordinate };
+}
+
+
 export const run = async () => {
+
+    const graphics = await si.graphics();
+
+    const displays = await screenshot.listDisplays();
+    const mainScreen = graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0];
+    const mainDisplay = (displays.find((el) => mainScreen.deviceName === el.name) ?? displays[0]) as { id: number; name: string, height: number, width: number };
+
+    //const location = convertToPixelCoordinates(mainDisplay.width, mainDisplay.height, 50, 50);
+    const location = convertToPixelCoordinates(mainScreen.resolutionX!, mainScreen.resolutionY!, 50, 5);
+   
+    const foo = await mouse.getPosition();
+    console.log(foo.toString());
+    //   const image = await screenshot({ screen: mainDisplay.id, filename: 'shot.jpg', format: 'jpg'  });
+    //console.log(image);
 
     const agentConfig: AgentMimirConfig = await getConfig();
     const workingDirectory = agentConfig.workingDirectory ?? await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-cli-'));
@@ -141,11 +173,8 @@ export const run = async () => {
 
     const resetCommand = new SlashCommandBuilder().setName('reset')
         .setDescription('Resets the agent to a clean state.');
-    const messageWithImage = new SlashCommandBuilder().setName('image')
-        .addAttachmentOption(option => option.setName('image').setDescription('The image to send to the agent').setRequired(true))        
-        .addStringOption(option => option.setName('message').setDescription('The message to send to the agent').setRequired(true))
-        .setDescription('Send an image to the agent.');
-    const commands = [resetCommand, messageWithImage];
+
+    const commands = [resetCommand];
 
 
     client.on('ready', async () => {

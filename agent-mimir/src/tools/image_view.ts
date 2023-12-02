@@ -15,11 +15,13 @@ export class ViewPlugin extends MimirAgentPlugin {
         super();
     }
 
-    tools(): AgentTool [] {
+    async tools(): Promise<AgentTool[]> {
+        if ((await this.context.workspace.listFiles()).length === 0) {
+            return [];
+        }
         return [new ViewTool(this.context)];
     }
 }
-
 export class ViewTool extends AgentTool {
 
     name: string = "viewImageFromWorkspace";

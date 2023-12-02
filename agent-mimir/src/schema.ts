@@ -109,6 +109,10 @@ export abstract class MimirAgentPlugin {
         return message;
     }
 
+    async postProcessMessage(message: NextMessage, inputs: ChainValues): Promise<NextMessage | undefined> {
+        return message;
+    }
+
     systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
         return [];
     }
@@ -127,7 +131,7 @@ export abstract class MimirAgentPlugin {
         return [];
     }
 
-    tools(): (AgentTool)[] {
+    tools(): Promise<(AgentTool)[]> | (AgentTool)[] {
         return [];
     }
 

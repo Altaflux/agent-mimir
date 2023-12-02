@@ -24,6 +24,7 @@ export type InternalAgentPlugin = {
     readResponse: (context: AgentContext, aiMessage: MimirAIMessage) => Promise<void>,
     clear: () => Promise<void>,
     processMessage: (nextMessage: NextMessage, inputs: ChainValues) => Promise<NextMessage | undefined>
+    postProcessMessage: (nextMessage: NextMessage, inputs: ChainValues) => Promise<NextMessage | undefined>
 }
 
 export type MimirAIMessage = {
@@ -44,18 +45,18 @@ export class MimirAgent extends BaseSingleActionAgent {
     llmChain: LLMChain<MimirAIMessage>;
     defaultInputs?: Record<string, any>;
     plugins: InternalAgentPlugin[];
- 
+
     reset: () => Promise<void>;
-    messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>;
+    messageGenerator: (arg: NextMessage, postProcessor: (arg: NextMessage) => Promise<NextMessage>) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>;
 
     constructor(
         memory: BaseChatMemory,
         taskCompleteCommandName: string,
         input: MimirChatConversationalAgentInput,
         outputParser: BaseOutputParser<AgentAction | AgentFinish>,
-        messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
- 
-   
+        messageGenerator: (arg: NextMessage, postProcessor: (arg: NextMessage) => Promise<NextMessage>) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
+
+
         reset: () => Promise<void>,
         plugins?: InternalAgentPlugin[],
         defaultInputs?: Record<string, any>,
@@ -120,7 +121,16 @@ export class MimirAgent extends BaseSingleActionAgent {
             }
         }
 
-        const { message: langChainMessage, messageToSave } = await this.messageGenerator(message);
+        const { message: langChainMessage, messageToSave } = await this.messageGenerator(message, async (n) => {
+            let tempMsg = n;
+            for (const plugin of this.plugins) {
+                const newMessage = await plugin.postProcessMessage(n, inputs);
+                if (newMessage) {
+                    tempMsg = newMessage;
+                }
+            }
+            return tempMsg;
+        });
 
         const pluginInputs = (await Promise.all(this.plugins.map(async plugin => await plugin.getInputs(context))))
             .reduce((acc, val) => ({ ...acc, ...val }), {})
@@ -209,9 +219,10 @@ export class MimirAgent extends BaseSingleActionAgent {
 
     static createPrompt(args: CreatePromptArgs) {
         const messages = [
-            ...args.systemMessage,
+            ...args.constitutionMessages,
             new MessagesPlaceholder("chat_history"),
             new MessagesPlaceholder("history"),
+            ...args.systemMessage,
             new MessagesPlaceholder("realInput")
         ];
         const prompt = ChatPromptTemplate.fromMessages(messages);
@@ -221,7 +232,7 @@ export class MimirAgent extends BaseSingleActionAgent {
     public static fromLLMAndTools(
         llm: BaseLanguageModel,
         mimirOutputParser: BaseLLMOutputParser<MimirAIMessage>,
-        messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
+        messageGenerator: (arg: NextMessage, postProcessor: (arg: NextMessage) => Promise<NextMessage>) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
         args: CreatePromptArgs,
     ) {
 
@@ -256,6 +267,8 @@ export class MimirAgent extends BaseSingleActionAgent {
 
 
 export type CreatePromptArgs = {
+
+    constitutionMessages: (SystemMessagePromptTemplate | MessagesPlaceholder)[];
 
     systemMessage: (SystemMessagePromptTemplate | MessagesPlaceholder)[];
 
