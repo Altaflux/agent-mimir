@@ -3,7 +3,7 @@
   "description": "Javascript code runner tool for langchain",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc-transpile-only -p tsconfig.json "
+    "build": "tsc -p tsconfig.json "
   },
   "author": "Altaflux",
   "keywords": [

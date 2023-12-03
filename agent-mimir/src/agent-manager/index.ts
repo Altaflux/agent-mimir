@@ -156,8 +156,7 @@ export class AgentManager {
                 return memory;
             }
         });
-        // const foo = (await Promise.all(allCreatedPlugins.map(async plugin => await plugin.init())));
-        // const ff = await Promise.all(allCreatedPlugins.map(async (plugin) => plugin.tools()));
+
         const allTools = [...(await Promise.all(allCreatedPlugins.map(async (plugin) => plugin.tools()))).flat().map(tool => new MimirToolToLangchainTool(tool)), new MimirToolToLangchainTool(talkToUserTool)];
 
         let executor = SteppedAgentExecutor.fromAgentAndTools({

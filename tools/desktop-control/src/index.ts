@@ -1,16 +1,14 @@
-import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentWorkspace, AgentContext, NextMessage } from "agent-mimir/schema";
+import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentContext } from "agent-mimir/schema";
 import { CallbackManagerForToolRun } from "langchain/callbacks";
 import { z } from "zod";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
-
 import { AgentTool, ToolResponse } from "agent-mimir/tools";
 import screenshot, { DisplayID } from 'screenshot-desktop';
 import si from 'systeminformation'
-import { ChainValues, SystemMessage } from "langchain/schema";
+import { SystemMessage } from "langchain/schema";
 import { Key, keyboard, mouse, Button, Point } from "@nut-tree/nut-js";
-import { promises as fs } from 'fs';
 import sharp from 'sharp'
-
+import fs from 'fs/promises'
 export class DesktopControlPluginFactory implements MimirPluginFactory {
 
     name: string = "desktopControl";
@@ -79,7 +77,7 @@ class DesktopControlPlugin extends MimirAgentPlugin {
 }
 
 
-async function addMouse(imageBuffer: Buffer) {
+async function addMouse(strurcturedImage: sharp.Sharp) {
     const mousePosition = await mouse.getPosition();
     const displays = await screenshot.listDisplays();
     const graphics = await si.graphics();
@@ -95,13 +93,13 @@ async function addMouse(imageBuffer: Buffer) {
 <polygon points="9.2,7.3 9.2,18.5 12.2,15.6 12.6,15.5 17.4,15.5 "/>
 </svg>`
 
-    let strurcturedImage = sharp(imageBuffer)
+
     const metadata = await strurcturedImage.metadata();
     const width = metadata.width;
     const height = metadata.height;
     const overlaySvg = `<svg  height="${height}" width="${width}">${mouseIcon}</svg>`;
     const overlayBuffer = Buffer.from(overlaySvg);
-    strurcturedImage = sharp(imageBuffer)
+    strurcturedImage = strurcturedImage
         .composite([{ input: overlayBuffer, top: 0, left: 0 }])
 
     return await strurcturedImage.toBuffer();
@@ -169,7 +167,7 @@ async function drawGridForTile(imageBuffer: Buffer, imageNumber: number, padding
             .toBuffer();
 
         return await sharp(strurcturedImage)
-            .resize({ width: 1500 })
+          
             .toBuffer();
     } catch (error) {
         throw error;
@@ -181,9 +179,11 @@ async function getScreenTiles(numberOfPieces = 16) {
     const graphics = await si.graphics();
     const displays = await screenshot.listDisplays();
     const mainDisplay = (displays.find((el) => (graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0]).deviceName === el.name) ?? displays[0]) as { id: number; name: string, height: number, width: number };
-    let image = await addMouse(await screenshot({ screen: mainDisplay.id, format: 'png' }))
-    const sharpImage = sharp(image);
-    const metadata = (await sharpImage.metadata())!;
+    const screenshotImage = sharp(await screenshot({ screen: mainDisplay.id, format: 'png' }));
+
+    let sharpImage = sharp(await addMouse(screenshotImage))
+
+    const metadata = await sharpImage.metadata()!;
     const gridSize = Math.sqrt(numberOfPieces);
 
     const pieceWidth = metadata.width! / gridSize;
@@ -194,12 +194,10 @@ async function getScreenTiles(numberOfPieces = 16) {
         for (let col = 0; col < gridSize; col++) {
             const left = col * pieceWidth;
             const top = row * pieceHeight;
-            const img = await sharpImage.clone()
-                .extract({ left: Math.floor(left), top: Math.floor(top), width: Math.floor(pieceWidth), height: Math.floor(pieceHeight) })
-                .toBuffer();
-            const finalImage = await drawGridForTile(img, row * gridSize + col + 1);
+            const img = sharpImage.clone()
+                .extract({ left: Math.floor(left), top: Math.floor(top), width: Math.floor(pieceWidth), height: Math.floor(pieceHeight) });
+            const finalImage = await drawGridForTile(await img.toBuffer(), row * gridSize + col + 1);
             tiles.push(finalImage);
-
         }
     }
     const fullImage = await sharpImage.resize({ width: 1500 }).toBuffer();
@@ -227,7 +225,7 @@ class MoveMouse extends AgentTool {
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
         const graphics = await si.graphics();
         const mainScreen = graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0];
-        const location = convertToPixelCoordinates2(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, arg.coordinates.xCoordinate, arg.coordinates.yCoordinate, arg.coordinates.tileNumber, 16);
+        const location = convertToPixelCoordinates(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, arg.coordinates.xCoordinate, arg.coordinates.yCoordinate, arg.coordinates.tileNumber, 16);
 
         await mouse.setPosition(new Point(location.xPixelCoordinate, location.yPixelCoordinate));
         return {
@@ -264,7 +262,7 @@ class ClickPositionOnDesktop extends AgentTool {
     }
 }
 
-function convertToPixelCoordinates2(
+function convertToPixelCoordinates(
     imageTotalXSize: number,
     imageTotalYSize: number,
     xPercentageCoordinate: number,

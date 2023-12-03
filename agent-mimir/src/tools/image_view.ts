@@ -16,9 +16,6 @@ export class ViewPlugin extends MimirAgentPlugin {
     }
 
     async tools(): Promise<AgentTool[]> {
-        if ((await this.context.workspace.listFiles()).length === 0) {
-            return [];
-        }
         return [new ViewTool(this.context)];
     }
 }

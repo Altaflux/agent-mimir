@@ -109,10 +109,6 @@ export abstract class MimirAgentPlugin {
         return message;
     }
 
-    async postProcessMessage(message: NextMessage, inputs: ChainValues): Promise<NextMessage | undefined> {
-        return message;
-    }
-
     systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
         return [];
     }

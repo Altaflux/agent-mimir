@@ -201,9 +201,6 @@ export async function createOpenAiFunctionAgent(args: MimirAgentArgs) {
             processMessage: async function (nextMessage: NextMessage, inputs: ChainValues): Promise<NextMessage | undefined> {
                 return await plugin.processMessage(nextMessage, inputs);
             },
-            postProcessMessage: async function (nextMessage: NextMessage, inputs: ChainValues): Promise<NextMessage | undefined> {
-                return await plugin.postProcessMessage(nextMessage, inputs);
-            }
         }
         return agentPlugin;
     });

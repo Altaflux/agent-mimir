@@ -116,13 +116,9 @@ class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
 
 function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
 
-    const messageGenerator:  (nextMessage: NextMessage, postProcessor: (arg: NextMessage) => Promise<NextMessage>) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage, postProcessor: (arg: NextMessage) => Promise<NextMessage>) => {
+    const messageGenerator:  (nextMessage: NextMessage, ) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage, ) => {
 
-        const messageToAi = await postProcessor({
-            message: nextMessage.message,
-            type: nextMessage.type,
-            image_url: nextMessage.image_url,
-        });
+        const messageToAi = nextMessage;
         if (nextMessage.type === "USER_MESSAGE") {
             const renderedHumanMessage = renderTemplate(USER_INPUT, "f-string", {
                 input: messageToAi.message,
@@ -238,9 +234,6 @@ export async function createPlainTextMimirAgent(args: MimirAgentArgs) {
             },
             processMessage: async function (nextMessage: NextMessage, inputs: ChainValues): Promise<NextMessage | undefined> {
                 return await plugin.processMessage(nextMessage, inputs);
-            },
-            postProcessMessage: async function (nextMessage: NextMessage, inputs: ChainValues): Promise<NextMessage | undefined> {
-                return await plugin.postProcessMessage(nextMessage, inputs);
             }
         }
         return agentPlugin;

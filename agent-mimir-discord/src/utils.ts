@@ -13,7 +13,8 @@ export async function Retry<T>( action: () => Promise<T>, retryInterval = 2000, 
         }
         catch ( e )
         {
-            console.log( `Attempt ${attempted + 1} of ${maxAttemptCount} failed.` );
+
+            console.warn( `Attempt ${attempted + 1} of ${maxAttemptCount} failed. ${JSON.stringify(e)}`, e );
            
             exceptions.push( e );
         }
