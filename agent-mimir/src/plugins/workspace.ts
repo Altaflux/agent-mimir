@@ -22,13 +22,15 @@ class WorkspacePlugin extends MimirAgentPlugin {
 
     systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
         return [
-            SystemMessagePromptTemplate.fromTemplate(`You have the following files in your workspace: {workspaceFiles}`),
+            SystemMessagePromptTemplate.fromTemplate(`{workspaceFiles}`),
         ];
     }
 
     async getInputs(): Promise<Record<string, any>> {
+        const files = (await this.workspace.listFiles());
+        const message = files.length > 0 ? `You have the following files in your workspace: {workspaceFiles}` : "There are currently no files in your workspace. You cannot use the \"viewImageFromWorkspace\" tool.";
         return {
-            workspaceFiles: (await this.workspace.listFiles()).map((file) => `"${file}"`).join(", "),
+            workspaceFiles: message,
         };
     }
 

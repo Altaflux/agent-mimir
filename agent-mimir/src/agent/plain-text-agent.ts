@@ -116,20 +116,22 @@ class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
 
 function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
 
-    const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage) => {
+    const messageGenerator:  (nextMessage: NextMessage, ) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage, ) => {
 
+        const messageToAi = nextMessage;
         if (nextMessage.type === "USER_MESSAGE") {
             const renderedHumanMessage = renderTemplate(USER_INPUT, "f-string", {
-                input: nextMessage.message,
+                input: messageToAi.message,
             });
             return {
+            
                 message: new HumanMessage({
                     content: [
                         {
                             type: "text",
                             text: renderedHumanMessage,
                         },
-                        ...imageHandler(nextMessage.image_url ?? [], "high"),
+                        ...imageHandler(messageToAi.image_url ?? [], "high"),
                     ]
                 }),
                 messageToSave: {
@@ -140,8 +142,9 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
             };
         } else {
             const toolResponse = convert(nextMessage.message);
+            const toolResponsePostProcess = convert(messageToAi.message);
             return {
-                message: new HumanMessage(extractToolResponse(toolResponse, imageHandler)),
+                message: new HumanMessage(extractToolResponse(toolResponsePostProcess, imageHandler)),
                 messageToSave: {
                     type: "USER_MESSAGE",
                     message: toolResponse.text ?? "",
@@ -215,7 +218,7 @@ const PLAIN_TEXT_AGENT_ATTRIBUTES: AttributeDescriptor[] = [
 
 
 
-export function createPlainTextMimirAgent(args: MimirAgentArgs) {
+export async function createPlainTextMimirAgent(args: MimirAgentArgs) {
 
     const pluginAttributes = args.plugins.map(plugin => plugin.attributes()).flat();
     const formatManager = new ResponseFieldMapper([...DEFAULT_ATTRIBUTES, ...pluginAttributes, ...PLAIN_TEXT_AGENT_ATTRIBUTES]);
@@ -236,7 +239,7 @@ export function createPlainTextMimirAgent(args: MimirAgentArgs) {
         return agentPlugin;
     });
 
-    const tools = args.plugins.map(plugin => plugin.tools()).flat();
+    const tools = (await Promise.all(args.plugins.map(async plugin => await plugin.tools()))).flat();
     const talkToUserTools = args.talkToUserTool ? [args.talkToUserTool] : [];
     const toolsSystemMessage = new SystemMessagePromptTemplate(
         new PromptTemplate({
@@ -250,11 +253,10 @@ export function createPlainTextMimirAgent(args: MimirAgentArgs) {
         })
     );
     const systemMessages = [
-        SystemMessagePromptTemplate.fromTemplate(IDENTIFICATION(args.name, args.description)),
-        SystemMessagePromptTemplate.fromTemplate(args.constitution),
+       
         SystemMessagePromptTemplate.fromTemplate(formatManager.createFieldInstructions()),
-        ...args.plugins.map(plugin => plugin.systemMessages()).flat(),
         toolsSystemMessage,
+        ...args.plugins.map(plugin => plugin.systemMessages()).flat(),
     ];
 
     const chatHistory = new TransformationalChatMessageHistory(args.chatMemory, new DefaultAiMessageSerializer(), new PlainTextHumanMessageSerializer(args.imageHandler));
@@ -263,6 +265,10 @@ export function createPlainTextMimirAgent(args: MimirAgentArgs) {
         plainText: true,
     });
     const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(formatManager), messageGeneratorBuilder(args.imageHandler), {
+        constitutionMessages:[
+            SystemMessagePromptTemplate.fromTemplate(IDENTIFICATION(args.name, args.description)),
+            SystemMessagePromptTemplate.fromTemplate(args.constitution),
+        ],
         systemMessage: systemMessages,
         outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName),
         taskCompleteCommandName: args.taskCompleteCommandName,

@@ -126,7 +126,7 @@ export class AgentManager {
             await workspace.reset();
             await config.messageHistory.clear()
         };
-        const agent = initializeAgent(config.agentType ?? "plain-text-agent", {
+        const agent = await initializeAgent(config.agentType ?? "plain-text-agent", {
             llm: model,
             name: shortName,
             description: config.description,
@@ -156,7 +156,8 @@ export class AgentManager {
                 return memory;
             }
         });
-        const allTools = [...allCreatedPlugins.map((plugin) => plugin.tools()).flat().map(tool => new MimirToolToLangchainTool(tool)), new MimirToolToLangchainTool(talkToUserTool)];
+
+        const allTools = [...(await Promise.all(allCreatedPlugins.map(async (plugin) => plugin.tools()))).flat().map(tool => new MimirToolToLangchainTool(tool)), new MimirToolToLangchainTool(talkToUserTool)];
 
         let executor = SteppedAgentExecutor.fromAgentAndTools({
             agentName: shortName,

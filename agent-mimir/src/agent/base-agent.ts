@@ -44,18 +44,18 @@ export class MimirAgent extends BaseSingleActionAgent {
     llmChain: LLMChain<MimirAIMessage>;
     defaultInputs?: Record<string, any>;
     plugins: InternalAgentPlugin[];
- 
+
     reset: () => Promise<void>;
-    messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>;
+    messageGenerator: (arg: NextMessage,) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>;
 
     constructor(
         memory: BaseChatMemory,
         taskCompleteCommandName: string,
         input: MimirChatConversationalAgentInput,
         outputParser: BaseOutputParser<AgentAction | AgentFinish>,
-        messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
- 
-   
+        messageGenerator: (arg: NextMessage,) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
+
+
         reset: () => Promise<void>,
         plugins?: InternalAgentPlugin[],
         defaultInputs?: Record<string, any>,
@@ -209,9 +209,10 @@ export class MimirAgent extends BaseSingleActionAgent {
 
     static createPrompt(args: CreatePromptArgs) {
         const messages = [
-            ...args.systemMessage,
+            ...args.constitutionMessages,
             new MessagesPlaceholder("chat_history"),
             new MessagesPlaceholder("history"),
+            ...args.systemMessage,
             new MessagesPlaceholder("realInput")
         ];
         const prompt = ChatPromptTemplate.fromMessages(messages);
@@ -256,6 +257,8 @@ export class MimirAgent extends BaseSingleActionAgent {
 
 
 export type CreatePromptArgs = {
+
+    constitutionMessages: (SystemMessagePromptTemplate | MessagesPlaceholder)[];
 
     systemMessage: (SystemMessagePromptTemplate | MessagesPlaceholder)[];
 

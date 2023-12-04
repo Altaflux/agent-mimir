@@ -19,13 +19,14 @@
     },
     "devDependencies": {
         "cross-env": "^7.0.3",
-        "eslint": "^7.32.0",
         "dotenv-cli": "latest",
+        "eslint": "^7.32.0",
         "eslint-config-custom": "*",
         "fs-extra": "^11.1.1",
         "prettier": "^2.5.1",
+        "release-it": "^15.10.0",
         "turbo": "latest",
-        "release-it": "^15.10.0"
+        "typescript-transpile-only": "0.0.4"
     },
     "packageManager": "npm@9.5.0",
     "workspaces": [

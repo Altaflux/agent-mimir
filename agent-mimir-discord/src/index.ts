@@ -17,7 +17,6 @@ import { SlashCommandBuilder } from "discord.js";
 import { FileSystemChatHistory, FileSystemAgentWorkspace } from "agent-mimir/nodejs";
 import { Retry } from "./utils.js";
 
-
 function splitStringInChunks(str: string) {
     const chunkSize = 1900;
     let chunks = [];
@@ -79,6 +78,21 @@ async function downloadFile(filename: string, link: string) {
     await finished(body.pipe(download_write_stream));
     return destination
 }
+
+function convertToPixelCoordinates(
+    imageTotalXSize: number,
+    imageTotalYSize: number,
+    xPercentageCoordinate: number,
+    yPercentageCoordinate: number
+): { xPixelCoordinate: number, yPixelCoordinate: number } {
+    // Calculate pixel coordinates
+    let xPixelCoordinate = (xPercentageCoordinate / 100) * imageTotalXSize;
+    let yPixelCoordinate = (yPercentageCoordinate / 100) * imageTotalYSize;
+
+    return { xPixelCoordinate, yPixelCoordinate };
+}
+
+
 export const run = async () => {
 
     const agentConfig: AgentMimirConfig = await getConfig();
@@ -141,11 +155,8 @@ export const run = async () => {
 
     const resetCommand = new SlashCommandBuilder().setName('reset')
         .setDescription('Resets the agent to a clean state.');
-    const messageWithImage = new SlashCommandBuilder().setName('image')
-        .addAttachmentOption(option => option.setName('image').setDescription('The image to send to the agent').setRequired(true))        
-        .addStringOption(option => option.setName('message').setDescription('The message to send to the agent').setRequired(true))
-        .setDescription('Send an image to the agent.');
-    const commands = [resetCommand, messageWithImage];
+
+    const commands = [resetCommand];
 
 
     client.on('ready', async () => {

@@ -127,7 +127,7 @@ export abstract class MimirAgentPlugin {
         return [];
     }
 
-    tools(): (AgentTool)[] {
+    tools(): Promise<(AgentTool)[]> | (AgentTool)[] {
         return [];
     }
 

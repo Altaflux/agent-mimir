@@ -1,0 +1,29 @@
+{
+  "name": "@agent-mimir/desktop-control",
+  "description": "Control your computer.",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json "
+  },
+  "author": "Altaflux",
+  "keywords": [
+    "langchain"
+  ],
+  "devDependencies": {
+    "@types/node": "^18.16.3",
+    "rimraf": "^5.0.0",
+    "typescript": "^5.0.4",
+    "agent-mimir": "*",
+    "@types/screenshot-desktop": "^1.12.3"
+  },
+  "dependencies": {
+    "screenshot-desktop": "1.15.0",
+    "@nut-tree/nut-js": "^3.1.2",
+    "sharp": "^0.32.6",
+    "systeminformation": "5.21.18"
+  },
+  "peerDependencies": {
+    "agent-mimir": "*"
+  }
+}

@@ -14,7 +14,7 @@ export async function Retry<T>(action: () => Promise<T>, retryInterval = 2000, m
         }
     }
 
-    throw JSON.stringify(exceptions);
+    throw new Error(`All ${maxAttemptCount} attempts failed. ${JSON.stringify(exceptions)}`);
 }
 
 function sleep(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)); }

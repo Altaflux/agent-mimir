@@ -103,7 +103,7 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
             const toolResponse = convert(nextMessage.message);
             return {
                 message: new FunctionMessage({
-                    name: nextMessage.tool!,
+                    name: mimirMessage.functionReply!.name,
                     content: [
                         {
                             type: "text",
@@ -173,7 +173,7 @@ const OPENAI_FUNCTION_AGENT_ATTRIBUTES: AttributeDescriptor[] = [
 ]
 
 
-export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
+export async function createOpenAiFunctionAgent(args: MimirAgentArgs) {
 
     if (args.llm._modelType() !== "base_chat_model" || args.llm._llmType() !== "openai") {
         throw new Error("This agent requires an OpenAI chat model");
@@ -183,8 +183,6 @@ export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
     const formatManager = new ResponseFieldMapper([...DEFAULT_ATTRIBUTES, ...pluginAttributes, ...OPENAI_FUNCTION_AGENT_ATTRIBUTES]);
 
     const systemMessages = [
-        SystemMessagePromptTemplate.fromTemplate(IDENTIFICATION(args.name, args.description)),
-        SystemMessagePromptTemplate.fromTemplate(args.constitution),
         SystemMessagePromptTemplate.fromTemplate(formatManager.createFieldInstructions()),
         ...args.plugins.map(plugin => plugin.systemMessages()).flat(),
     ];
@@ -202,7 +200,7 @@ export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
             },
             processMessage: async function (nextMessage: NextMessage, inputs: ChainValues): Promise<NextMessage | undefined> {
                 return await plugin.processMessage(nextMessage, inputs);
-            }
+            },
         }
         return agentPlugin;
     });
@@ -215,13 +213,17 @@ export function createOpenAiFunctionAgent(args: MimirAgentArgs) {
 
  
     const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGeneratorBuilder(args.imageHandler), {
+        constitutionMessages: [
+            SystemMessagePromptTemplate.fromTemplate(IDENTIFICATION(args.name, args.description)),
+            SystemMessagePromptTemplate.fromTemplate(args.constitution),
+        ],
         systemMessage: systemMessages,
         outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName, args.talkToUserTool?.name),
         taskCompleteCommandName: args.taskCompleteCommandName,
         memory: finalMemory,
         resetFunction: args.resetFunction,
         defaultInputs: {
-            tools: [...args.plugins.map(plugin => plugin.tools()).flat(), ...talkToUserTools].map(tool => new MimirToolToLangchainTool(tool)),
+            tools: [...(await Promise.all(args.plugins.map(async plugin => await plugin.tools()))).flat(), ...talkToUserTools].map(tool => new MimirToolToLangchainTool(tool)),
         },
         plugins: internalPlugins,
     });
