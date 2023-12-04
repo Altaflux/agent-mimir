@@ -4,11 +4,10 @@ import { z } from "zod";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
 import { AgentTool, ToolResponse } from "agent-mimir/tools";
 import screenshot, { DisplayID } from 'screenshot-desktop';
-import si from 'systeminformation'
+import si from 'systeminformation';
 import { SystemMessage } from "langchain/schema";
 import { Key, keyboard, mouse, Button, Point } from "@nut-tree/nut-js";
-import sharp from 'sharp'
-import fs from 'fs/promises'
+import sharp from 'sharp';
 export class DesktopControlPluginFactory implements MimirPluginFactory {
 
     name: string = "desktopControl";
@@ -19,9 +18,6 @@ export class DesktopControlPluginFactory implements MimirPluginFactory {
 }
 
 class DesktopControlPlugin extends MimirAgentPlugin {
-    async init(): Promise<void> {
-
-    };
 
     systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
         return [
@@ -133,7 +129,6 @@ async function drawGridForTile(imageBuffer: Buffer, imageNumber: number, padding
 
         // Vertical lines and numbering
         svgElements.push(`<line x1="${x}" y1="${padding}" x2="${x}" y2="${height + padding}" stroke="red" stroke-width="2"/>`);
-        //svgElements.push(`<text x="${x - 20}" y="${padding - 10}" font-size="35" fill="red">${i}</text>`);
         svgElements.push(`<text x="${x - 10}" y="${height + padding + 40}" font-size="35" fill="red">${i}</text>`);
 
         // Horizontal lines and numbering
@@ -141,7 +136,7 @@ async function drawGridForTile(imageBuffer: Buffer, imageNumber: number, padding
 
         const reverseValue = (i - 100) * -1;
         svgElements.push(`<text x="${padding - 60}" y="${y + 5}" font-size="35" fill="red">${reverseValue}</text>`);
-        //svgElements.push(`<text x="${width + padding + 30}" y="${y + 5}" font-size="35" fill="red">${reverseValue}</text>`);
+
 
         let initialY = padding;
         for (let j = 0; j <= 100; j = j + 10) {
@@ -155,7 +150,7 @@ async function drawGridForTile(imageBuffer: Buffer, imageNumber: number, padding
     const overlaySvg = `<svg height="${paddedHeight}" width="${paddedWidth}">${svgElements.join('')}</svg>`;
     try {
         const overlayBuffer = Buffer.from(overlaySvg);
-        const strurcturedImage = await primeImage
+        return await primeImage
             .extend({
                 top: padding,
                 bottom: padding,
@@ -166,9 +161,6 @@ async function drawGridForTile(imageBuffer: Buffer, imageNumber: number, padding
             .composite([{ input: overlayBuffer, top: 0, left: 0 }])
             .toBuffer();
 
-        return await sharp(strurcturedImage)
-          
-            .toBuffer();
     } catch (error) {
         throw error;
     }
@@ -200,7 +192,7 @@ async function getScreenTiles(numberOfPieces = 16) {
             tiles.push(finalImage);
         }
     }
-    const fullImage = await sharpImage.resize({ width: 1500 }).toBuffer();
+    const fullImage = await sharpImage.resize({ width: Math.floor(metadata.width! * (70 / 100)) }).toBuffer();
     return {
         originalImage: fullImage,
         tiles: tiles
