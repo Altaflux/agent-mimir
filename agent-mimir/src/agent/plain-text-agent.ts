@@ -192,7 +192,7 @@ export class PlainTextHumanMessageSerializer extends HumanMessageSerializer {
                     type: "text",
                     text: message.message ?? "",
                 },
-                ...this.imageHandler(message.image_url ?? [], "low"),
+                ...this.imageHandler(message.image_url ?? [], "high"),
             ]
         });
     }
