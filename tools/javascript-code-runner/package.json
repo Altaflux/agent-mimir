@@ -12,7 +12,7 @@
   "devDependencies": {
     "@types/node": "^18.16.3",
     "rimraf": "^5.0.0",
-    "typescript": "^5.0.4"
+    "typescript": "^5.3.3"
   },
   "dependencies": {
     "vm2": "^3.9.19"
