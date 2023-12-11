@@ -212,7 +212,7 @@ async function getScreenTiles(numberOfPieces = 16) {
 }
 
 import { renderTemplate } from "langchain/prompts";
-import { callJsonRepair, simpleParseJson } from "agent-mimir/utils/json";
+import { simpleParseJson } from "agent-mimir/utils/json";
 
 class MoveMouse extends AgentTool {
 
@@ -423,26 +423,3 @@ class TypeOnDesktop extends AgentTool {
         }
     }
 }
-
-
-
-
-
-// function callJsonRepair(functionResponse: string): string {
-//     throw new Error("Function not implemented.");
-// }
-// class InternalMouseMove implements MimirPluginFactory {
-//     name: string = "internalMouseMove";
-//     create(context: PluginContext): MimirAgentPlugin {
-//         return new DesktopControlPlugin(context);
-//     }
-// }
-
-// class InternalDesktopControlPlugin extends MimirAgentPlugin {
-
-//     constructor(private context: PluginContext) {
-//         super();
-//     }
-
-
-// };

@@ -135,7 +135,7 @@ export class AgentManager {
             await workspace.reset();
             await config.messageHistory.clear()
         };
-        
+
         const agent = await initializeAgent(config.agentType ?? "plain-text-agent", {
             llm: model,
             name: shortName,
