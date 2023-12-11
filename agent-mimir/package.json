@@ -35,6 +35,10 @@
       "types": "./dist/utils/format.d.ts",
       "import": "./dist/utils/format.js"
     },
+    "./utils/json": {
+      "types": "./dist/utils/json.d.ts",
+      "import": "./dist/utils/json.js"
+    },
     "./nodejs": {
       "types": "./dist/nodejs/index.d.ts",
       "import": "./dist/nodejs/index.js"

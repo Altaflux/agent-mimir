@@ -1,23 +1,35 @@
 import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentContext } from "agent-mimir/schema";
 import { CallbackManagerForToolRun } from "langchain/callbacks";
 import { z } from "zod";
-import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
+import { ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
 import { AgentTool, ToolResponse } from "agent-mimir/tools";
 import screenshot, { DisplayID } from 'screenshot-desktop';
 import si from 'systeminformation';
-import { SystemMessage } from "langchain/schema";
+import { JsonSchema7ObjectType } from "zod-to-json-schema/src/parsers/object.js";
+import { zodToJsonSchema } from "zod-to-json-schema";
+import { HumanMessage, SystemMessage } from "langchain/schema";
 import { Key, keyboard, mouse, Button, Point } from "@nut-tree/nut-js";
 import sharp from 'sharp';
+import { BaseChatModel } from "langchain/chat_models/base";
+import { LLMChain } from "langchain/chains";
 export class DesktopControlPluginFactory implements MimirPluginFactory {
 
     name: string = "desktopControl";
 
+    constructor(private model: BaseChatModel) {
+
+    }
+
     create(context: PluginContext): MimirAgentPlugin {
-        return new DesktopControlPlugin();
+        return new DesktopControlPlugin(context, this.model);
     }
 }
 
 class DesktopControlPlugin extends MimirAgentPlugin {
+
+    constructor(private context: PluginContext, private model: BaseChatModel) {
+        super();
+    }
 
     systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
         return [
@@ -65,7 +77,7 @@ class DesktopControlPlugin extends MimirAgentPlugin {
 
     tools(): AgentTool[] {
         return [
-            new MoveMouse(),
+            new MoveMouse(this.context, this.model),
             new ClickPositionOnDesktop(),
             new TypeOnDesktop(),
         ]
@@ -199,10 +211,17 @@ async function getScreenTiles(numberOfPieces = 16) {
     };
 }
 
-
+import { renderTemplate } from "langchain/prompts";
+import { callJsonRepair, simpleParseJson } from "agent-mimir/utils/json";
 
 class MoveMouse extends AgentTool {
+
+    constructor(private context: PluginContext, private model: BaseChatModel) {
+        super();
+    }
+
     schema = z.object({
+        elementDescription: z.string().describe("A description of the element to which you are moving the mouse over."),
         coordinates: z.object({
             tileNumber: z.number().int().describe("The tile number of the piece of the screen to click on."),
             xCoordinate: z.number().int().min(1).max(100).describe("The x axis coordinate of the of the position of the click on the screen, the axis can be any value between 1 and 100."),
@@ -220,10 +239,94 @@ class MoveMouse extends AgentTool {
         const location = convertToPixelCoordinates(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, arg.coordinates.xCoordinate, arg.coordinates.yCoordinate, arg.coordinates.tileNumber, 16);
 
         await mouse.setPosition(new Point(location.xPixelCoordinate, location.yPixelCoordinate));
+
+        const newCoordinates = await this.veryifyMousePosition(arg.coordinates.tileNumber, arg.elementDescription, { x: arg.coordinates.xCoordinate, y: arg.coordinates.yCoordinate });
+
+        const newLocation = convertToPixelCoordinates(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, newCoordinates.x, newCoordinates.y, arg.coordinates.tileNumber, 16);
+        await mouse.setPosition(new Point(newLocation.xPixelCoordinate, newLocation.yPixelCoordinate));
+
         return {
             text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location.",
+        }
+    }
+
+    private async veryifyMousePosition(tileNumber: number, elementDescription: string, existingCoordinates: { x: number, y: number }): Promise<{ x: number, y: number }> {
+
+        const tiles = await getScreenTiles();
+        const specificTile = tiles.tiles[tileNumber - 1];
+
+        const responseSchema = z.object({
+            xCoordinate: z.number().int().min(1).max(100).describe("The x axis coordinate of the of the position of the click on the screen, the axis can be any value between 1 and 100."),
+            yCoordinate: z.number().int().min(1).max(100).describe("The y axis coordinate of the of the position of the click on the screen, the axis can be any value between 1 and 100."),
+        });
+
+        const instrucction = `From the given image verify that the mouse is over the following element: \n{elementDescription}
+
+Return the correct coordinates of location of the element, use x and y coordinates value as shown in the graph drawn over the image.
+If the mouse is located correctly exactly over the element then respond with the following with the following coordinates: {previousCoordinates}.
+If it is not in the correct location then respond with the correct coordinates.
+IMPORTANT! Your response must be conformed with the following JSON schema:
+\`\`\`json
+{tool_schema}
+\`\`\`
+
+Example of a valid response:
+\`\`\`json
+{{
+    "xCoordinate": 34,
+    "yCoordinate": 76
+}}
+\`\`\`
+
+-----------------
+Your JSON response:
+`;
+        const renderedHumanMessage = renderTemplate(instrucction, "f-string", {
+            tool_schema: JSON.stringify(
+                (zodToJsonSchema(responseSchema) as JsonSchema7ObjectType).properties
+            ),
+            elementDescription: elementDescription,
+            previousCoordinates: `x${existingCoordinates.x}, y${existingCoordinates.y}`
+        });
+
+        const instructionMessage = new HumanMessage({
+            content: [
+                {
+                    type: "text",
+                    text: renderedHumanMessage
+                },
+                {
+                    type: "image_url",
+                    image_url: `data:image/png;base64,${specificTile.toString("base64")}`
+                }
+            ]
+        });
+
+        const messagePrompt = ChatPromptTemplate.fromMessages([instructionMessage]);
+        const chain: LLMChain<string> = new LLMChain({
+            llm: this.model,
+            prompt: messagePrompt,
+        });
+
+        const functionResponse = await chain.predict({
+            tool_schema: JSON.stringify(
+                (zodToJsonSchema(responseSchema) as JsonSchema7ObjectType).properties
+            )
+        });
+
+        let relevantFacts = { xCoordinate: existingCoordinates.x, yCoordinate: existingCoordinates.y };
+        try {
+            relevantFacts = responseSchema.parse((await simpleParseJson(functionResponse)));
+        } catch (error) {
+            console.warn("Error parsing response from fact memory extractor.", error);
 
         }
+
+        return {
+            x: relevantFacts.xCoordinate,
+            y: relevantFacts.yCoordinate
+        }
+
     }
 }
 
@@ -320,3 +423,26 @@ class TypeOnDesktop extends AgentTool {
         }
     }
 }
+
+
+
+
+
+// function callJsonRepair(functionResponse: string): string {
+//     throw new Error("Function not implemented.");
+// }
+// class InternalMouseMove implements MimirPluginFactory {
+//     name: string = "internalMouseMove";
+//     create(context: PluginContext): MimirAgentPlugin {
+//         return new DesktopControlPlugin(context);
+//     }
+// }
+
+// class InternalDesktopControlPlugin extends MimirAgentPlugin {
+
+//     constructor(private context: PluginContext) {
+//         super();
+//     }
+
+
+// };

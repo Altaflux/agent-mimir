@@ -22,6 +22,7 @@ import { ViewPluginFactory } from "../tools/image_view.js";
 import { AgentTool } from "../tools/index.js";
 import { MimirToolToLangchainTool, LangchainToolToMimirTool } from "../utils/wrapper.js";
 import { noopImageHandler, openAIImageHandler } from "../vision/index.js";
+import { ChatMessageHistory } from "langchain/memory";
 
 
 export type CreateAgentOptions = {
@@ -52,9 +53,13 @@ export class AgentManager {
 
     private map: Map<string, Agent> = new Map();
     public constructor(private managerConfig: ManagerConfig) { }
-
     public async createAgent(config: CreateAgentOptions): Promise<Agent> {
+       const agent = await this.createAgentNoRegister(config);
+       this.map.set(agent.name, agent);
+       return agent;
+    }
 
+    private async createAgentNoRegister(config: CreateAgentOptions): Promise<Agent> {
 
         const shortName = config.name;
 
@@ -118,7 +123,11 @@ export class AgentManager {
         const defaultPluginsFactories = [timePlugin, tagPlugin, ...agentCommunicationPlugin, workspacePlugin, ...visionSupport, ...config.plugins ?? []];
 
         const allPluginFactories: MimirPluginFactory[] = [...tools.map(tool => new LangchainToolWrapperPluginFactory(tool)), ...defaultPluginsFactories];
-        const allCreatedPlugins = allPluginFactories.map(factory => factory.create({ workspace: workspace, agentName: shortName, persistenceDirectory: workspace.pluginDirectory(factory.name) }));
+        const allCreatedPlugins = allPluginFactories.map(factory => factory.create({
+            workspace: workspace,
+            agentName: shortName,
+            persistenceDirectory: workspace.pluginDirectory(factory.name),
+        }));
         const talkToUserTool = new TalkToUserTool(workspace);
 
         const reset = async () => {
@@ -126,6 +135,7 @@ export class AgentManager {
             await workspace.reset();
             await config.messageHistory.clear()
         };
+        
         const agent = await initializeAgent(config.agentType ?? "plain-text-agent", {
             llm: model,
             name: shortName,
@@ -185,7 +195,7 @@ export class AgentManager {
             await plugin.init();
         }
 
-        this.map.set(shortName, {
+        return {
             name: shortName,
             description: config.description,
             workspace: workspace,
@@ -208,8 +218,7 @@ export class AgentManager {
                 }
             },
 
-        });
-        return this.map.get(shortName)!;
+        }
     }
 
     public getAgent(shortName: string): Agent | undefined {
