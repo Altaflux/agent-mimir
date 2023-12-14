@@ -69,14 +69,16 @@ export interface MimirPluginFactory {
 }
 
 
-export type LLMImageHandler = (images: ImageType[], detail: "high" | "low") => Extract<MessageContent, {
-    type: "text" | "image_url";
-    text?: string;
-    image_url?: string | {
-        url: string;
-        detail?: "low" | "high";
-    };
-}[]>;
+export type LLMImageHandler = (images: ImageType[], detail: "high" | "low") => Extract<MessageContent, (
+    | {
+        type: "text";
+        text: string;
+    }
+    | {
+        type: "image_url";
+        image_url: string | { url: string; detail?: "auto" | "low" | "high" };
+    }
+)[]>;
 
 export type NextMessage = {
     type: "ACTION" | "USER_MESSAGE",
