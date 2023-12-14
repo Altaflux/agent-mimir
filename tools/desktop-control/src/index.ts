@@ -12,6 +12,10 @@ import { Key, keyboard, mouse, Button, Point } from "@nut-tree/nut-js";
 import sharp from 'sharp';
 import { BaseChatModel } from "langchain/chat_models/base";
 import { LLMChain } from "langchain/chains";
+import { promises as fs } from 'fs';
+import { renderTemplate } from "langchain/prompts";
+import { simpleParseJson } from "agent-mimir/utils/json";
+
 export class DesktopControlPluginFactory implements MimirPluginFactory {
 
     name: string = "desktopControl";
@@ -27,6 +31,8 @@ export class DesktopControlPluginFactory implements MimirPluginFactory {
 
 class DesktopControlPlugin extends MimirAgentPlugin {
 
+    private gridSize = 9;
+
     constructor(private context: PluginContext, private model: BaseChatModel) {
         super();
     }
@@ -40,7 +46,7 @@ class DesktopControlPlugin extends MimirAgentPlugin {
 
     async getInputs(context: AgentContext): Promise<Record<string, any>> {
 
-        const tiles = await getScreenTiles();
+        const tiles = await getScreenTiles(this.gridSize);
         const tilesMessageContent = tiles.tiles.map((tile) => {
             return {
                 type: "image_url" as const,
@@ -77,7 +83,7 @@ class DesktopControlPlugin extends MimirAgentPlugin {
 
     tools(): AgentTool[] {
         return [
-            new MoveMouse(this.context, this.model),
+            new MoveMouse(this.gridSize, this.model),
             new ClickPositionOnDesktop(),
             new TypeOnDesktop(),
         ]
@@ -178,7 +184,7 @@ async function drawGridForTile(imageBuffer: Buffer, imageNumber: number, padding
     }
 }
 
-async function getScreenTiles(numberOfPieces = 16) {
+async function getScreenTiles(numberOfPieces: number) {
 
     const graphics = await si.graphics();
     const displays = await screenshot.listDisplays();
@@ -201,22 +207,27 @@ async function getScreenTiles(numberOfPieces = 16) {
             const img = sharpImage.clone()
                 .extract({ left: Math.floor(left), top: Math.floor(top), width: Math.floor(pieceWidth), height: Math.floor(pieceHeight) });
             const finalImage = await drawGridForTile(await img.toBuffer(), row * gridSize + col + 1);
+
+            const savePath = `C:\\Users\\pablo\\OneDrive\\Pictures\\test\\image_${row * gridSize + col + 1}.png`;
+            await fs.writeFile(savePath, finalImage);
+
             tiles.push(finalImage);
         }
     }
     const fullImage = await sharpImage.resize({ width: Math.floor(metadata.width! * (70 / 100)) }).toBuffer();
+    const savePath = 'C:\\Users\\pablo\\OneDrive\\Pictures\\test\\full.png';
+    await fs.writeFile(savePath, fullImage);
+
     return {
         originalImage: fullImage,
         tiles: tiles
     };
 }
 
-import { renderTemplate } from "langchain/prompts";
-import { simpleParseJson } from "agent-mimir/utils/json";
 
 class MoveMouse extends AgentTool {
 
-    constructor(private context: PluginContext, private model: BaseChatModel) {
+    constructor(private gridSize: number, private model: BaseChatModel) {
         super();
     }
 
@@ -236,13 +247,13 @@ class MoveMouse extends AgentTool {
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
         const graphics = await si.graphics();
         const mainScreen = graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0];
-        const location = convertToPixelCoordinates(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, arg.coordinates.xCoordinate, arg.coordinates.yCoordinate, arg.coordinates.tileNumber, 16);
+        const location = convertToPixelCoordinates(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, arg.coordinates.xCoordinate, arg.coordinates.yCoordinate, arg.coordinates.tileNumber, this.gridSize);
 
         await mouse.setPosition(new Point(location.xPixelCoordinate, location.yPixelCoordinate));
 
         const newCoordinates = await this.veryifyMousePosition(arg.coordinates.tileNumber, arg.elementDescription, { x: arg.coordinates.xCoordinate, y: arg.coordinates.yCoordinate });
 
-        const newLocation = convertToPixelCoordinates(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, newCoordinates.x, newCoordinates.y, arg.coordinates.tileNumber, 16);
+        const newLocation = convertToPixelCoordinates(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, newCoordinates.x, newCoordinates.y, arg.coordinates.tileNumber, this.gridSize);
         await mouse.setPosition(new Point(newLocation.xPixelCoordinate, newLocation.yPixelCoordinate));
 
         return {
@@ -252,29 +263,44 @@ class MoveMouse extends AgentTool {
 
     private async veryifyMousePosition(tileNumber: number, elementDescription: string, existingCoordinates: { x: number, y: number }): Promise<{ x: number, y: number }> {
 
-        const tiles = await getScreenTiles();
+        const tiles = await getScreenTiles(this.gridSize);
         const specificTile = tiles.tiles[tileNumber - 1];
 
         const responseSchema = z.object({
-            xCoordinate: z.number().int().min(1).max(100).describe("The x axis coordinate of the of the position of the click on the screen, the axis can be any value between 1 and 100."),
-            yCoordinate: z.number().int().min(1).max(100).describe("The y axis coordinate of the of the position of the click on the screen, the axis can be any value between 1 and 100."),
+            elementFound: z.boolean().describe("A boolean value indicating if you were able to find the element."),
+            coordinates: z.object({
+                xCoordinate: z.number().int().min(1).max(100).describe("The x axis coordinate of the of the position of the click on the screen, the axis can be any value between 1 and 100."),
+                yCoordinate: z.number().int().min(1).max(100).describe("The y axis coordinate of the of the position of the click on the screen, the axis can be any value between 1 and 100."),
+            }).nullable().describe("The coordinates of the element on the screen, be as precise as possible!")
+
         });
 
-        const instrucction = `From the given image verify that the mouse is over the following element: \n{elementDescription}
+        const instrucction = `From the given image verify the existence and location of the following element: \"{elementDescription}\"
 
 Return the correct coordinates of location of the element, use x and y coordinates value as shown in the graph drawn over the image.
-If the mouse is located correctly exactly over the element then respond with the following with the following coordinates: {previousCoordinates}.
+If a mouse pointer is located correctly over the element then respond with the following with the following coordinates: {previousCoordinates}.
 If it is not in the correct location then respond with the correct coordinates.
 IMPORTANT! Your response must be conformed with the following JSON schema:
 \`\`\`json
 {tool_schema}
 \`\`\`
 
-Example of a valid response:
+Example of a valid response when the element is found:
 \`\`\`json
 {{
-    "xCoordinate": 34,
-    "yCoordinate": 76
+    "elementFound": true,
+    "coordinates": {{
+        "xCoordinate": 34,
+        "yCoordinate": 76
+    }}
+}}
+\`\`\`
+
+Example of a valid response when the element not is found:
+\`\`\`json
+{{
+    "elementFound": false,
+    "coordinates": null
 }}
 \`\`\`
 
@@ -314,17 +340,30 @@ Your JSON response:
             )
         });
 
-        let relevantFacts = { xCoordinate: existingCoordinates.x, yCoordinate: existingCoordinates.y };
+        let newCoordinates: z.infer<typeof responseSchema> = {
+            elementFound: true,
+            coordinates: {
+                xCoordinate: existingCoordinates.x,
+                yCoordinate: existingCoordinates.y
+            }
+        };
         try {
-            relevantFacts = responseSchema.parse((await simpleParseJson(functionResponse)));
+            newCoordinates = responseSchema.parse((await simpleParseJson(functionResponse)));
         } catch (error) {
             console.warn("Error parsing response from fact memory extractor.", error);
-
         }
 
+        console.log(`Original coordinates: ${existingCoordinates.x}, ${existingCoordinates.y} vs new coordinates:  ${newCoordinates.coordinates?.xCoordinate}, ${newCoordinates.coordinates?.yCoordinate}`)
+
+        if (newCoordinates.elementFound === false) {
+            return {
+                x: existingCoordinates.x,
+                y: existingCoordinates.y
+            }
+        }
         return {
-            x: relevantFacts.xCoordinate,
-            y: relevantFacts.yCoordinate
+            x: newCoordinates?.coordinates?.xCoordinate ?? 0,
+            y: newCoordinates.coordinates?.yCoordinate ?? 0
         }
 
     }
@@ -337,7 +376,7 @@ class ClickPositionOnDesktop extends AgentTool {
         typeOfClick: z.enum(["singleClick", "doubleClick"]).describe(`The type of mouse click to perform.`),
     });
 
-    name: string = "clickLocationOnComputerScreen";
+    name: string = "mouseClickOnComputerScreen";
 
     description: string = "Click in a location on the computer screen, be sure the mouse is located correctly at the location intended to be clicked.";
 
@@ -372,8 +411,9 @@ function convertToPixelCoordinates(
     const pieceHeight = imageTotalYSize! / gridSize;
     const reverseY = (yPercentageCoordinate - 100) * -1;
 
-    const row = Math.floor(tileNumber / gridSize);
-    const col = (tileNumber % gridSize) - 1;
+    //WRONG
+    const row = Math.floor((tileNumber - 1) / gridSize);
+    const col = Math.ceil((tileNumber - 1) % gridSize);
 
     let xPixelCoordinate = (xPercentageCoordinate / 100) * pieceWidth;
     let yPixelCoordinate = (reverseY / 100) * pieceHeight;
