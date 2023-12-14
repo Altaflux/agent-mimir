@@ -208,15 +208,11 @@ async function getScreenTiles(numberOfPieces: number) {
                 .extract({ left: Math.floor(left), top: Math.floor(top), width: Math.floor(pieceWidth), height: Math.floor(pieceHeight) });
             const finalImage = await drawGridForTile(await img.toBuffer(), row * gridSize + col + 1);
 
-            const savePath = `C:\\Users\\pablo\\OneDrive\\Pictures\\test\\image_${row * gridSize + col + 1}.png`;
-            await fs.writeFile(savePath, finalImage);
 
             tiles.push(finalImage);
         }
     }
     const fullImage = await sharpImage.resize({ width: Math.floor(metadata.width! * (70 / 100)) }).toBuffer();
-    const savePath = 'C:\\Users\\pablo\\OneDrive\\Pictures\\test\\full.png';
-    await fs.writeFile(savePath, fullImage);
 
     return {
         originalImage: fullImage,
