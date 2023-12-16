@@ -31,7 +31,7 @@ export class DesktopControlPluginFactory implements MimirPluginFactory {
 
 class DesktopControlPlugin extends MimirAgentPlugin {
 
-    private gridSize = 4;
+    private gridSize = 1;
 
     constructor(private context: PluginContext, private model: BaseChatModel) {
         super();
@@ -208,15 +208,11 @@ async function getScreenTiles(numberOfPieces: number) {
                 .extract({ left: Math.floor(left), top: Math.floor(top), width: Math.floor(pieceWidth), height: Math.floor(pieceHeight) });
             const finalImage = await drawGridForTile(await img.toBuffer(), row * gridSize + col + 1);
 
-            const savePath = `C:\\Users\\pablo\\OneDrive\\Pictures\\test\\image_${row * gridSize + col + 1}.png`;
-            await fs.writeFile(savePath, finalImage);
-
+     
             tiles.push(finalImage);
         }
     }
     const fullImage = await sharpImage.resize({ width: Math.floor(metadata.width! * (70 / 100)) }).toBuffer();
-    const savePath = 'C:\\Users\\pablo\\OneDrive\\Pictures\\test\\full.png';
-    await fs.writeFile(savePath, fullImage);
 
     return {
         originalImage: fullImage,
@@ -248,13 +244,17 @@ class MoveMouse extends AgentTool {
         const graphics = await si.graphics();
         const mainScreen = graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0];
         const location = convertToPixelCoordinates(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, arg.coordinates.xCoordinate, arg.coordinates.yCoordinate, arg.coordinates.tileNumber, this.gridSize);
-
+        console.log(`Moving mouse to: ${arg.coordinates.xCoordinate}, ${arg.coordinates.yCoordinate}`);
         await mouse.setPosition(new Point(location.xPixelCoordinate, location.yPixelCoordinate));
 
-        const newCoordinates = await this.veryifyMousePosition(arg.coordinates.tileNumber, arg.elementDescription, { x: arg.coordinates.xCoordinate, y: arg.coordinates.yCoordinate });
+        try {
+            const newCoordinates = await this.veryifyMousePosition(arg.coordinates.tileNumber, arg.elementDescription, { x: arg.coordinates.xCoordinate, y: arg.coordinates.yCoordinate });
+            const newLocation = convertToPixelCoordinates(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, newCoordinates.x, newCoordinates.y, arg.coordinates.tileNumber, this.gridSize);
+            await mouse.setPosition(new Point(newLocation.xPixelCoordinate, newLocation.yPixelCoordinate));
 
-        const newLocation = convertToPixelCoordinates(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, newCoordinates.x, newCoordinates.y, arg.coordinates.tileNumber, this.gridSize);
-        await mouse.setPosition(new Point(newLocation.xPixelCoordinate, newLocation.yPixelCoordinate));
+        } catch (error) {
+            console.warn("Error verifying mouse position.", error);
+        }
 
         return {
             text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location.",
@@ -274,12 +274,12 @@ class MoveMouse extends AgentTool {
             }).nullable().describe("The coordinates of the element on the screen, be as precise as possible!")
 
         });
-
+    //If a mouse pointer is located correctly over the element then respond with the following with the following coordinates: {previousCoordinates}.
+    //If it is not in the correct location then respond with the correct coordinates.
         const instrucction = `From the given image verify the existence and location of the following element: \"{elementDescription}\"
 
 Return the correct coordinates of location of the element, use x and y coordinates value as shown in the graph drawn over the image.
-If a mouse pointer is located correctly over the element then respond with the following with the following coordinates: {previousCoordinates}.
-If it is not in the correct location then respond with the correct coordinates.
+
 IMPORTANT! Your response must be conformed with the following JSON schema:
 \`\`\`json
 {tool_schema}
@@ -353,7 +353,7 @@ Your JSON response:
             console.warn("Error parsing response from fact memory extractor.", error);
         }
 
-        console.log(`Original coordinates: ${existingCoordinates.x}, ${existingCoordinates.y} vs new coordinates:  ${newCoordinates.coordinates?.xCoordinate}, ${newCoordinates.coordinates?.yCoordinate}`)
+        console.log(`Element Description: ${elementDescription}, New coordinates:  ${newCoordinates.coordinates?.xCoordinate}, ${newCoordinates.coordinates?.yCoordinate}`)
 
         if (newCoordinates.elementFound === false) {
             return {
@@ -411,7 +411,6 @@ function convertToPixelCoordinates(
     const pieceHeight = imageTotalYSize! / gridSize;
     const reverseY = (yPercentageCoordinate - 100) * -1;
 
-    //WRONG
     const row = Math.floor((tileNumber - 1) / gridSize);
     const col = Math.ceil((tileNumber - 1) % gridSize);
 
