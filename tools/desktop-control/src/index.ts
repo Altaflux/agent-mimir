@@ -46,7 +46,7 @@ class DesktopControlPlugin extends MimirAgentPlugin {
 
     async getInputs(context: AgentContext): Promise<Record<string, any>> {
 
-        const tiles = await getScreenTiles(this.gridSize);
+        const tiles = await getScreenTiles(this.gridSize, true);
         const tilesMessageContent = tiles.tiles.map((tile) => {
             return {
                 type: "image_url" as const,
@@ -139,7 +139,7 @@ async function drawGridForTile(imageBuffer: Buffer, imageNumber: number, padding
 
     const svgElements = [];
 
-    svgElements.push(`<text x="${width / 2}" y="${padding - 60}" font-size="35" fill="red">Image Number: ${imageNumber}</text>`);
+    svgElements.push(`<text x="${width / 2}" y="${padding - 60}" font-size="35" fill="red">Tile Number: ${imageNumber}</text>`);
     for (let i = 0; i <= 100; i = i + 10) {
         // Calculate positions for lines and text, offset by padding
         const x = (i / 10) * lineSpacingX + padding;
@@ -159,7 +159,7 @@ async function drawGridForTile(imageBuffer: Buffer, imageNumber: number, padding
         let initialY = padding;
         for (let j = 0; j <= 100; j = j + 10) {
             const secondReverseValue = (j - 100) * -1;
-            svgElements.push(`<text x="${x}" y="${initialY}" font-size="15" fill="red">(${i}, ${secondReverseValue})</text>`);
+            svgElements.push(`<text x="${x}" y="${initialY}" font-size="25" fill="red">(${i}, ${secondReverseValue})</text>`);
             initialY = initialY + lineSpacingY;
         }
 
@@ -177,6 +177,12 @@ async function drawGridForTile(imageBuffer: Buffer, imageNumber: number, padding
                 background: { r: 255, g: 255, b: 255, alpha: 1 }
             })
             .composite([{ input: overlayBuffer, top: 0, left: 0 }])
+            .toFormat('jpeg')
+            .jpeg({
+                quality: 65,
+                chromaSubsampling: '4:4:4',
+                force: true, // <----- add this parameter
+            })
             .toBuffer();
 
     } catch (error) {
@@ -184,14 +190,14 @@ async function drawGridForTile(imageBuffer: Buffer, imageNumber: number, padding
     }
 }
 
-async function getScreenTiles(numberOfPieces: number) {
+async function getScreenTiles(numberOfPieces: number, displayMouse: boolean) {
 
     const graphics = await si.graphics();
     const displays = await screenshot.listDisplays();
     const mainDisplay = (displays.find((el) => (graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0]).deviceName === el.name) ?? displays[0]) as { id: number; name: string, height: number, width: number };
     const screenshotImage = sharp(await screenshot({ screen: mainDisplay.id, format: 'png' }));
 
-    let sharpImage = sharp(await addMouse(screenshotImage))
+    let sharpImage = sharp(displayMouse ? await addMouse(screenshotImage) : await screenshotImage.toBuffer())
 
     const metadata = await sharpImage.metadata()!;
     const gridSize = Math.sqrt(numberOfPieces);
@@ -208,11 +214,20 @@ async function getScreenTiles(numberOfPieces: number) {
                 .extract({ left: Math.floor(left), top: Math.floor(top), width: Math.floor(pieceWidth), height: Math.floor(pieceHeight) });
             const finalImage = await drawGridForTile(await img.toBuffer(), row * gridSize + col + 1);
 
-     
+            const savePath = `C:\\Users\\pablo\\OneDrive\\Pictures\\test\\image_${row * gridSize + col + 1}.jpeg`;
+            await fs.writeFile(savePath, finalImage);
+
             tiles.push(finalImage);
         }
     }
-    const fullImage = await sharpImage.resize({ width: Math.floor(metadata.width! * (70 / 100)) }).toBuffer();
+    const fullImage = await sharpImage.resize({ width: Math.floor(metadata.width! * (70 / 100)) })
+        .toFormat('jpeg')
+        .jpeg({
+            quality: 100,
+            chromaSubsampling: '4:4:4',
+            force: true, 
+        })
+        .toBuffer();
 
     return {
         originalImage: fullImage,
@@ -241,6 +256,13 @@ class MoveMouse extends AgentTool {
     description: string = "Move the mouse to a location on the computer screen. Any x and y coordinates value inside the graph is valid, be as precise as possible!";
 
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
+
+        if (arg.coordinates.tileNumber > this.gridSize) {
+            return {
+                text: `The tile number must be between 1 and ${this.gridSize}`,
+            }
+        }
+
         const graphics = await si.graphics();
         const mainScreen = graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0];
         const location = convertToPixelCoordinates(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, arg.coordinates.xCoordinate, arg.coordinates.yCoordinate, arg.coordinates.tileNumber, this.gridSize);
@@ -263,7 +285,7 @@ class MoveMouse extends AgentTool {
 
     private async veryifyMousePosition(tileNumber: number, elementDescription: string, existingCoordinates: { x: number, y: number }): Promise<{ x: number, y: number }> {
 
-        const tiles = await getScreenTiles(this.gridSize);
+        const tiles = await getScreenTiles(this.gridSize, false);
         const specificTile = tiles.tiles[tileNumber - 1];
 
         const responseSchema = z.object({
@@ -274,8 +296,7 @@ class MoveMouse extends AgentTool {
             }).nullable().describe("The coordinates of the element on the screen, be as precise as possible!")
 
         });
-    //If a mouse pointer is located correctly over the element then respond with the following with the following coordinates: {previousCoordinates}.
-    //If it is not in the correct location then respond with the correct coordinates.
+
         const instrucction = `From the given image verify the existence and location of the following element: \"{elementDescription}\"
 
 Return the correct coordinates of location of the element, use x and y coordinates value as shown in the graph drawn over the image.

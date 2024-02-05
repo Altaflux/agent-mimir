@@ -210,9 +210,10 @@ export class MimirAgent extends BaseSingleActionAgent {
     static createPrompt(args: CreatePromptArgs) {
         const messages = [
             ...args.constitutionMessages,
+            ...args.systemMessage,
             new MessagesPlaceholder("chat_history"),
             new MessagesPlaceholder("history"),
-            ...args.systemMessage,
+           
             new MessagesPlaceholder("realInput")
         ];
         const prompt = ChatPromptTemplate.fromMessages(messages);

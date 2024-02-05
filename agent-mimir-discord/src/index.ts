@@ -266,7 +266,7 @@ export const run = async () => {
                 } : { message: messageToAi, sharedFiles: loadedFiles };
 
                 let chainResponse = await Retry(() => currentAgent.call(false, { input: messasgeToSend.message, [FILES_TO_SEND_FIELD]: messasgeToSend.sharedFiles }, async (name, input, functionResponse) => {
-                    const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse.substring(0, 1000)}\`\`\``;
+                    const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse.substring(0, 3000)}\`\`\``;
                     await sendDiscordResponse(msg, toolResponse);
                 }));
                 if (chainResponse.agentResponse()) {
@@ -279,7 +279,7 @@ export const run = async () => {
                 }
                 while (chainResponse.toolStep()) {
                     chainResponse = await Retry(() => currentAgent.call(false, { continuousMode: false, continue: true }, async (name, input, functionResponse) => {
-                        const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse.substring(0, 1000)}\`\`\``;
+                        const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse.substring(0, 3000)}\`\`\``;
                         await sendDiscordResponse(msg, toolResponse);
                     }));
                     if (chainResponse.agentResponse()) {

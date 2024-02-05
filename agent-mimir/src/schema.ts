@@ -68,17 +68,9 @@ export interface MimirPluginFactory {
     create(context: PluginContext): MimirAgentPlugin
 }
 
+type MessageContentObject = MessageContent extends string | infer MessageContentArg ? MessageContentArg : never;
 
-export type LLMImageHandler = (images: ImageType[], detail: "high" | "low") => Extract<MessageContent, (
-    | {
-        type: "text";
-        text: string;
-    }
-    | {
-        type: "image_url";
-        image_url: string | { url: string; detail?: "auto" | "low" | "high" };
-    }
-)[]>;
+export type LLMImageHandler = (images: ImageType[], detail: "high" | "low") => MessageContentObject;
 
 export type NextMessage = {
     type: "ACTION" | "USER_MESSAGE",
