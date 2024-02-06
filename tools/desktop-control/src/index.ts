@@ -15,7 +15,7 @@ import { LLMChain } from "langchain/chains";
 import { promises as fs } from 'fs';
 import { renderTemplate } from "langchain/prompts";
 import { simpleParseJson } from "agent-mimir/utils/json";
-
+import Tesseract from 'tesseract.js';
 export class DesktopControlPluginFactory implements MimirPluginFactory {
 
     name: string = "desktopControl";
@@ -72,7 +72,7 @@ class DesktopControlPlugin extends MimirAgentPlugin {
                     content: [
                         {
                             type: "text",
-                            text: "This images are the tiles of pieces of the user's computer's screen. They include a red plot overlay and there tile number to help you identify the coordinates of the screen. "
+                            text: `This images are the tiles of pieces of the user's computer's screen. They include a red plot overlay and there tile number to help you identify the coordinates of the screen. In total there are ${this.gridSize} tile images.`
                         },
                         ...tilesMessageContent
                     ]
@@ -83,7 +83,7 @@ class DesktopControlPlugin extends MimirAgentPlugin {
 
     tools(): AgentTool[] {
         return [
-            new MoveMouse(this.gridSize, this.model),
+            new MoveMouseThruText(this.gridSize, this.model),
             new ClickPositionOnDesktop(),
             new TypeOnDesktop(),
         ]
@@ -190,7 +190,7 @@ async function drawGridForTile(imageBuffer: Buffer, imageNumber: number, padding
     }
 }
 
-async function getScreenTiles(numberOfPieces: number, displayMouse: boolean) {
+async function getScreenTiles(numberOfPieces: number, displayMouse: boolean, drawGrid: boolean = true) {
 
     const graphics = await si.graphics();
     const displays = await screenshot.listDisplays();
@@ -212,10 +212,7 @@ async function getScreenTiles(numberOfPieces: number, displayMouse: boolean) {
             const top = row * pieceHeight;
             const img = sharpImage.clone()
                 .extract({ left: Math.floor(left), top: Math.floor(top), width: Math.floor(pieceWidth), height: Math.floor(pieceHeight) });
-            const finalImage = await drawGridForTile(await img.toBuffer(), row * gridSize + col + 1);
-
-            const savePath = `C:\\Users\\pablo\\OneDrive\\Pictures\\test\\image_${row * gridSize + col + 1}.jpeg`;
-            await fs.writeFile(savePath, finalImage);
+            const finalImage = drawGrid ? await drawGridForTile(await img.toBuffer(), row * gridSize + col + 1) : await img.toBuffer();
 
             tiles.push(finalImage);
         }
@@ -225,7 +222,7 @@ async function getScreenTiles(numberOfPieces: number, displayMouse: boolean) {
         .jpeg({
             quality: 100,
             chromaSubsampling: '4:4:4',
-            force: true, 
+            force: true,
         })
         .toBuffer();
 
@@ -234,7 +231,71 @@ async function getScreenTiles(numberOfPieces: number, displayMouse: boolean) {
         tiles: tiles
     };
 }
+class MoveMouseThruText extends AgentTool {
 
+    constructor(private gridSize: number, private model: BaseChatModel) {
+        super();
+    }
+
+    schema = z.object({
+        elementDescription: z.string().describe("A description of the element to which you are moving the mouse over."),
+        location: z.object({
+            tileNumber: z.number().int().describe("The tile number of the piece of the screen to click on."),
+            text: z.string().describe("The text in the button or link to click.")
+        }),
+    })
+
+    name: string = "moveMouseLocationOnComputerScreenToTextLocation";
+    description: string = "Move the mouse to a location on the computer screen. Use as input the text on the element to which you are moving the mouse over. The text must be as precise as possible!";
+
+    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
+        if (arg.location.tileNumber > this.gridSize) {
+            return {
+                text: `The tile number must be between 1 and ${this.gridSize}`,
+            }
+        }
+
+        const tiles = await getScreenTiles(this.gridSize, false, false);
+        const specificTile = tiles.tiles[arg.location.tileNumber - 1];
+
+        const { data: { symbols } } = await Tesseract.recognize(
+            specificTile,
+            'eng', // Specify the language as needed
+            {
+                logger: m => console.log(m), // Optional: Log progress
+            }
+        );
+
+        const fullText = symbols.map((symbol) =>  symbol.text ).join('');
+        const searchKeyword = arg.location.text.replaceAll(" ", "");
+        const searchLocation = fullText.indexOf(searchKeyword);
+        if (searchLocation === -1) {
+            return {
+                text: "Could not find the element to which move the mouse to, please try against with a more refined text snippet.",
+            }
+        }
+        const startingLocation = symbols[searchLocation].bbox;
+        const endingLocation = symbols[searchLocation + searchKeyword.length - 1].bbox;
+
+        const graphics = await si.graphics();
+        const displays = await screenshot.listDisplays();
+        const mainDisplay = (displays.find((el) => (graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0]).deviceName === el.name) ?? displays[0]) as { id: number; name: string, height: number, width: number };
+
+        const x = startingLocation.x0 + (endingLocation.x1 - startingLocation.x0) / 2;
+        const y = startingLocation.y0 + (endingLocation.y1 - startingLocation.y0) / 2;
+       
+        const mainScreen = graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0];
+        const scaledX = Math.floor(((((mainScreen.resolutionX ?? 0 )/ mainDisplay.width) * 100) * x) / 100);
+        const scaledY = Math.floor(((((mainScreen.resolutionY ?? 0 )/ mainDisplay.height) * 100) * y) / 100);
+
+        const location = convertToPixelCoordinates2(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, scaledX, scaledY, arg.location.tileNumber, this.gridSize);
+        await mouse.setPosition(new Point(location.xPixelCoordinate, location.yPixelCoordinate));
+
+        return {
+            text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location.",
+        }
+    }
+}
 
 class MoveMouse extends AgentTool {
 
@@ -414,6 +475,32 @@ class ClickPositionOnDesktop extends AgentTool {
             text: "The mouse has moved to the new location and clicked.",
 
         }
+    }
+}
+function convertToPixelCoordinates2(
+    imageTotalXSize: number,
+    imageTotalYSize: number,
+    xPercentageCoordinate: number,
+    yPercentageCoordinate: number,
+    tileNumber: number,
+    numberOfPieces: number
+): { xPixelCoordinate: number, yPixelCoordinate: number } {
+
+    const gridSize = Math.sqrt(numberOfPieces);
+
+    const pieceWidth = imageTotalXSize! / gridSize;
+    const pieceHeight = imageTotalYSize! / gridSize;
+
+    let xPixelCoordinate = xPercentageCoordinate;
+    let yPixelCoordinate = yPercentageCoordinate;
+
+    const row = Math.floor((tileNumber - 1) / gridSize);
+    const col = Math.ceil((tileNumber - 1) % gridSize);
+    let nX = (col * pieceWidth) + xPixelCoordinate;
+    let nY = (row * pieceHeight) + yPixelCoordinate;
+    return {
+        xPixelCoordinate: nX,
+        yPixelCoordinate: nY
     }
 }
 
