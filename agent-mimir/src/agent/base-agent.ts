@@ -8,7 +8,7 @@ import { LLMChain } from "langchain/chains";
 import { BaseLLMOutputParser, BaseOutputParser } from "langchain/schema/output_parser";
 import { BaseLanguageModel } from "langchain/base_language";
 import { HumanMessage } from "langchain/schema";
-import { AgentContext, AgentUserMessage, MimirHumanReplyMessage, NextMessage } from "../schema.js";
+import { AgentContext, AgentUserMessage, MimirHumanReplyMessage, NextMessage, ToolResponse } from "../schema.js";
 
 
 const BAD_MESSAGE_TEXT = `I could not understand your response, please rememeber to use the correct response format using the appropiate functions. If you need to tell me something, please use the "respondBack" function.`;
@@ -134,12 +134,21 @@ export class MimirAgent extends BaseSingleActionAgent {
         });
 
         this.plugins.forEach(plugin => plugin.readResponse(context, agentResponse));
-
-        const out = await this.outputParser.parse(JSON.stringify(agentResponse), callbackManager);
-        return {
-            ...out,
-            log: out.log,
-        };
+        try {
+            const out = await this.outputParser.parse(JSON.stringify(agentResponse), callbackManager);
+            return {
+                ...out,
+                log: out.log,
+            };
+        }
+        catch (error) {
+            console.error("Error while parsing agent response: ", error);
+            return {
+                tool: "",
+                toolInput: ({} as ToolResponse) as any,
+                log: JSON.stringify(agentResponse),
+            };
+        }
     }
 
     finishToolName(): string {
@@ -213,7 +222,7 @@ export class MimirAgent extends BaseSingleActionAgent {
             ...args.systemMessage,
             new MessagesPlaceholder("chat_history"),
             new MessagesPlaceholder("history"),
-           
+
             new MessagesPlaceholder("realInput")
         ];
         const prompt = ChatPromptTemplate.fromMessages(messages);

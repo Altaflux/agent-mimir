@@ -3,7 +3,7 @@ import { BaseSingleActionAgent, StoppingMethod } from "langchain/agents";
 import { BaseChain, ChainInputs, SerializedLLMChain } from "langchain/chains";
 import { AgentAction, AgentFinish, AgentStep, ChainValues } from "langchain/schema";
 import { StructuredTool } from "langchain/tools";
-import { AgentToolRequest, FunctionResponseCallBack } from "../schema.js";
+import { AgentToolRequest, FunctionResponseCallBack, ToolResponse } from "../schema.js";
 
 interface AgentExecutorInput extends ChainInputs {
     agent: BaseSingleActionAgent;
@@ -71,7 +71,7 @@ export class SteppedAgentExecutor extends BaseChain {
         const tool = toolsByName[action.tool?.toLowerCase()];
         const observation = tool
             ? await tool.call(action.toolInput)
-            : `${action.tool} is not a valid tool, try another one.`;
+            : JSON.stringify({ text: `"${action.tool}" is not a valid tool, try another one.` } as ToolResponse);
 
         if (!tool?.returnDirect) {
             functionInvokationListener(action.tool?.toLowerCase() ?? "", JSON.stringify(action.toolInput, null, 2), observation);

@@ -12,7 +12,6 @@ import { Key, keyboard, mouse, Button, Point } from "@nut-tree/nut-js";
 import sharp from 'sharp';
 import { BaseChatModel } from "langchain/chat_models/base";
 import { LLMChain } from "langchain/chains";
-import { promises as fs } from 'fs';
 import { renderTemplate } from "langchain/prompts";
 import { simpleParseJson } from "agent-mimir/utils/json";
 import Tesseract from 'tesseract.js';
@@ -31,7 +30,7 @@ export class DesktopControlPluginFactory implements MimirPluginFactory {
 
 class DesktopControlPlugin extends MimirAgentPlugin {
 
-    private gridSize = 1;
+    private gridSize = 4;
 
     constructor(private context: PluginContext, private model: BaseChatModel) {
         super();
@@ -83,7 +82,8 @@ class DesktopControlPlugin extends MimirAgentPlugin {
 
     tools(): AgentTool[] {
         return [
-            new MoveMouseThruText(this.gridSize, this.model),
+            new MoveMouseToText(this.gridSize, this.model),
+            new MoveMouseToCoordinate(this.gridSize, this.model),
             new ClickPositionOnDesktop(),
             new TypeOnDesktop(),
         ]
@@ -231,7 +231,7 @@ async function getScreenTiles(numberOfPieces: number, displayMouse: boolean, dra
         tiles: tiles
     };
 }
-class MoveMouseThruText extends AgentTool {
+class MoveMouseToText extends AgentTool {
 
     constructor(private gridSize: number, private model: BaseChatModel) {
         super();
@@ -246,7 +246,7 @@ class MoveMouseThruText extends AgentTool {
     })
 
     name: string = "moveMouseLocationOnComputerScreenToTextLocation";
-    description: string = "Move the mouse to a location on the computer screen. Use as input the text on the element to which you are moving the mouse over. The text must be as precise as possible!";
+    description: string = "Move the mouse to a location on the computer screen. This tool is preferred over the \"moveMouseLocationOnComputerScreenToCoordinate\" tool, but if you are not succeeding try using then try the \"moveMouseLocationOnComputerScreenToCoordinate\" tool. Use as input the text on the element to which you are want to move the mouse over. The text must be as precise as possible!";
 
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
         if (arg.location.tileNumber > this.gridSize) {
@@ -260,18 +260,15 @@ class MoveMouseThruText extends AgentTool {
 
         const { data: { symbols } } = await Tesseract.recognize(
             specificTile,
-            'eng', // Specify the language as needed
-            {
-                logger: m => console.log(m), // Optional: Log progress
-            }
+            'eng',
         );
 
-        const fullText = symbols.map((symbol) =>  symbol.text ).join('');
+        const fullText = symbols.map((symbol) => symbol.text).join('');
         const searchKeyword = arg.location.text.replaceAll(" ", "");
         const searchLocation = fullText.indexOf(searchKeyword);
         if (searchLocation === -1) {
             return {
-                text: "Could not find the element to which move the mouse to, please try against with a more refined text snippet.",
+                text: "Could not find the element to which move the mouse to, please try again by using the \"moveMouseLocationOnComputerScreenToCoordinate\" tool.",
             }
         }
         const startingLocation = symbols[searchLocation].bbox;
@@ -283,10 +280,10 @@ class MoveMouseThruText extends AgentTool {
 
         const x = startingLocation.x0 + (endingLocation.x1 - startingLocation.x0) / 2;
         const y = startingLocation.y0 + (endingLocation.y1 - startingLocation.y0) / 2;
-       
+
         const mainScreen = graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0];
-        const scaledX = Math.floor(((((mainScreen.resolutionX ?? 0 )/ mainDisplay.width) * 100) * x) / 100);
-        const scaledY = Math.floor(((((mainScreen.resolutionY ?? 0 )/ mainDisplay.height) * 100) * y) / 100);
+        const scaledX = Math.floor(((((mainScreen.resolutionX ?? 0) / mainDisplay.width) * 100) * x) / 100);
+        const scaledY = Math.floor(((((mainScreen.resolutionY ?? 0) / mainDisplay.height) * 100) * y) / 100);
 
         const location = convertToPixelCoordinates2(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, scaledX, scaledY, arg.location.tileNumber, this.gridSize);
         await mouse.setPosition(new Point(location.xPixelCoordinate, location.yPixelCoordinate));
@@ -297,7 +294,7 @@ class MoveMouseThruText extends AgentTool {
     }
 }
 
-class MoveMouse extends AgentTool {
+class MoveMouseToCoordinate extends AgentTool {
 
     constructor(private gridSize: number, private model: BaseChatModel) {
         super();
@@ -313,7 +310,7 @@ class MoveMouse extends AgentTool {
 
     })
 
-    name: string = "moveMouseLocationOnComputerScreen";
+    name: string = "moveMouseLocationOnComputerScreenToCoordinate";
     description: string = "Move the mouse to a location on the computer screen. Any x and y coordinates value inside the graph is valid, be as precise as possible!";
 
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
