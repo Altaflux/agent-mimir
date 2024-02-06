@@ -99,10 +99,10 @@ class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
             hasError = true;
         }
         const mimirMessage = {
-            error: hasError,
+            error: (aiMessage.functionName == null || aiMessage.functionName === '') || hasError,
             functionCall: aiMessage.functionName ? {
                 name: aiMessage.functionName,
-                arguments: aiMessage.functionArguments!,
+                arguments: aiMessage.functionArguments ?? "{}",
             } : undefined,
             text: generation.text,
         }

@@ -48,7 +48,7 @@ export class ChatConversationalAgentOutputParser extends AgentActionOutputParser
 }
 
 
-export class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
+class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
     async parseResult(generations: Generation[] | ChatGeneration[]): Promise<MimirAIMessage> {
         const generation = generations[0] as ChatGeneration;
         let functionCall: any = undefined;
