@@ -44,6 +44,8 @@ class DesktopControlPlugin extends MimirAgentPlugin {
 
 
     async getInputs(context: AgentContext): Promise<Record<string, any>> {
+    
+        await new Promise(r => setTimeout(r, 2000));
 
         const tiles = await getScreenTiles(this.gridSize, true);
         const tilesMessageContent = tiles.tiles.map((tile) => {
@@ -85,6 +87,7 @@ class DesktopControlPlugin extends MimirAgentPlugin {
             new MoveMouseToText(this.gridSize, this.model),
             new MoveMouseToCoordinate(this.gridSize, this.model),
             new ClickPositionOnDesktop(),
+            new TypeTextOnDesktop(),
             new TypeOnDesktop(),
         ]
     };
@@ -532,7 +535,22 @@ function convertToPixelCoordinates(
         yPixelCoordinate: nY
     }
 }
+class TypeTextOnDesktop extends AgentTool {
+    schema = z.object({
+        keys: z.string().describe("The text to type to the computer."),
+    });
 
+    name: string = "typeTextToComputer";
+    description: string = "Type a piece of text into the computer. Use this tool when you want to type a piece of text into the computer. This tool is preferred over the \"sendKeybordInputToComputer\" tool, but if you are not succeeding try using then try the \"sendKeybordInputToComputer\" tool.";
+
+    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
+        await keyboard.type(arg.keys);
+     
+        return {
+            text: "The keys have been sent to the computer.",
+        }
+    }
+}
 class TypeOnDesktop extends AgentTool {
     schema = z.object({
         keys: z.array(z.object({
@@ -542,7 +560,7 @@ class TypeOnDesktop extends AgentTool {
     });
 
     name: string = "sendKeybordInputToComputer";
-    description: string = "Send keyboard presses to the computer.";
+    description: string = "Send keyboard presses to the computer. Only use this tool to execute special keyboard actions, if you need to type a piece of text into the computer use the \"typeTextToComputer\" tool.";
 
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
 
@@ -553,17 +571,17 @@ class TypeOnDesktop extends AgentTool {
                 keyValue = Key[key.key.toUpperCase() as keyof typeof Key];
             }
             if (!keyValue) {
-                keyboard.type(key.key);
+                await keyboard.type(key.key);
                 return {
                     text: "The keys have been sent to the computer.",
                 }
             }
             if (key.action === "typeKey") {
-                keyboard.type(keyValue);
+                await keyboard.type(keyValue);
             } else if (key.action === "pressKey") {
-                keyboard.pressKey(keyValue);
+                await keyboard.pressKey(keyValue);
             } else if (key.action === "releaseKey") {
-                keyboard.releaseKey(keyValue);
+                await keyboard.releaseKey(keyValue);
             }
         }
         return {
