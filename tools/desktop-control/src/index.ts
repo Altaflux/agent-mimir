@@ -14,7 +14,7 @@ import { BaseChatModel } from "langchain/chat_models/base";
 import { LLMChain } from "langchain/chains";
 import { renderTemplate } from "langchain/prompts";
 import { simpleParseJson } from "agent-mimir/utils/json";
-import Tesseract from 'tesseract.js';
+import Tesseract, {PSM} from 'tesseract.js';
 export class DesktopControlPluginFactory implements MimirPluginFactory {
 
     name: string = "desktopControl";
@@ -258,10 +258,14 @@ class MoveMouseToText extends AgentTool {
         const tiles = await getScreenTiles(this.gridSize, false, false);
         const specificTile = tiles.tiles[arg.location.tileNumber - 1];
 
-        const { data: { symbols } } = await Tesseract.recognize(
-            specificTile,
-            'eng',
-        );
+
+        const worker  = await Tesseract.createWorker('eng');
+        await worker.setParameters({
+            tessedit_pageseg_mode: PSM.AUTO,
+        });
+   
+        const { data: { symbols } } = await worker.recognize(specificTile);
+        await worker.terminate();
 
         const fullText = symbols.map((symbol) => symbol.text).join('');
         const searchKeyword = arg.location.text.replaceAll(" ", "");
