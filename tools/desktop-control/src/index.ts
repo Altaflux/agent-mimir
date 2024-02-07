@@ -14,7 +14,8 @@ import { BaseChatModel } from "langchain/chat_models/base";
 import { LLMChain } from "langchain/chains";
 import { renderTemplate } from "langchain/prompts";
 import { simpleParseJson } from "agent-mimir/utils/json";
-import Tesseract, {PSM} from 'tesseract.js';
+import Tesseract, { PSM } from 'tesseract.js';
+
 export class DesktopControlPluginFactory implements MimirPluginFactory {
 
     name: string = "desktopControl";
@@ -44,7 +45,7 @@ class DesktopControlPlugin extends MimirAgentPlugin {
 
 
     async getInputs(context: AgentContext): Promise<Record<string, any>> {
-    
+
         await new Promise(r => setTimeout(r, 2000));
 
         const tiles = await getScreenTiles(this.gridSize, true);
@@ -61,7 +62,7 @@ class DesktopControlPlugin extends MimirAgentPlugin {
                     content: [
                         {
                             type: "text",
-                            text: "This image is the user's computer's screen. You can control the computer by moving the mouse, clicking and typing. "
+                            text: "This image is the user's computer's screen, you can control the computer by moving the mouse, clicking and typing. Make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks. "
                         },
                         {
                             type: "image_url",
@@ -262,12 +263,19 @@ class MoveMouseToText extends AgentTool {
         const specificTile = tiles.tiles[arg.location.tileNumber - 1];
 
 
-        const worker  = await Tesseract.createWorker('eng');
+        const worker = await Tesseract.createWorker('eng');
         await worker.setParameters({
             tessedit_pageseg_mode: PSM.AUTO,
         });
-   
-        const { data: { symbols } } = await worker.recognize(specificTile);
+
+        const { data: { symbols } } = await worker.recognize(specificTile, {}, {
+            pdf: false,
+            hocr: false,
+            tsv: false,
+            blocks: true,
+            text: true,
+        });
+
         await worker.terminate();
 
         const fullText = symbols.map((symbol) => symbol.text).join('');
@@ -296,7 +304,7 @@ class MoveMouseToText extends AgentTool {
         await mouse.setPosition(new Point(location.xPixelCoordinate, location.yPixelCoordinate));
 
         return {
-            text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location.",
+            text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location, if that is not the case try again with a different \"text\" value or use the \"moveMouseLocationOnComputerScreenToCoordinate\" tool. .",
         }
     }
 }
@@ -344,7 +352,7 @@ class MoveMouseToCoordinate extends AgentTool {
         }
 
         return {
-            text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location.",
+            text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location, if that is not the case try again using different coordinates.",
         }
     }
 
@@ -541,13 +549,14 @@ class TypeTextOnDesktop extends AgentTool {
     });
 
     name: string = "typeTextToComputer";
-    description: string = "Type a piece of text into the computer. Use this tool when you want to type a piece of text into the computer. This tool is preferred over the \"sendKeybordInputToComputer\" tool, but if you are not succeeding try using then try the \"sendKeybordInputToComputer\" tool.";
+    description: string = "Type a piece of text into the computer. Use this tool when you want to type a piece of text into the computer. IMPORTANT!!! Before calling this tool be sure that the text field where you want to type is clicked first and in focus, also verify that whatever you typed was correctly typed. This tool is preferred over the \"sendKeybordInputToComputer\" tool, but if you are not succeeding try using then try the \"sendKeybordInputToComputer\" tool.";
 
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
+
         await keyboard.type(arg.keys);
-     
+
         return {
-            text: "The keys have been sent to the computer.",
+            text: "The text has been sent to the computer, please verify they were typed as you expected.",
         }
     }
 }
