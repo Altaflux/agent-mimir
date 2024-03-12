@@ -14,18 +14,27 @@ import { BaseChatModel } from "langchain/chat_models/base";
 import { LLMChain } from "langchain/chains";
 import { renderTemplate } from "langchain/prompts";
 import { simpleParseJson } from "agent-mimir/utils/json";
-import Tesseract, { PSM } from 'tesseract.js';
+import { Coordinates, PythonServerControl, TextBlocks } from "./sam.js";
+
+type DesktopContext = {
+    coordinates: Coordinates
+    textBlocks: TextBlocks
+}
+export type DesktopControlOptions = {
+    mouseMode: 'SOM' | 'COORDINATES',
+    model?: BaseChatModel
+}
 
 export class DesktopControlPluginFactory implements MimirPluginFactory {
 
     name: string = "desktopControl";
 
-    constructor(private model: BaseChatModel) {
+    constructor(private options: DesktopControlOptions) {
 
     }
 
     create(context: PluginContext): MimirAgentPlugin {
-        return new DesktopControlPlugin(context, this.model);
+        return new DesktopControlPlugin(context, this.options);
     }
 }
 
@@ -33,8 +42,24 @@ class DesktopControlPlugin extends MimirAgentPlugin {
 
     private gridSize = 4;
 
-    constructor(private context: PluginContext, private model: BaseChatModel) {
+    private pythonServer: PythonServerControl = new PythonServerControl();
+
+    private readonly desktopContext: DesktopContext = {
+        coordinates: [],
+        textBlocks: []
+    };
+
+    constructor(private context: PluginContext, private options: DesktopControlOptions) {
         super();
+
+    }
+
+    async init(): Promise<void> {
+        await this.pythonServer.init()
+    }
+
+    async clear(): Promise<void> {
+        await this.pythonServer.close()
     }
 
     systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
@@ -47,46 +72,62 @@ class DesktopControlPlugin extends MimirAgentPlugin {
     async getInputs(context: AgentContext): Promise<Record<string, any>> {
 
         await new Promise(r => setTimeout(r, 2000));
+        const computerScreenshot = await getComputerScreenImage();
+        const tiles = await getScreenTiles(computerScreenshot, this.gridSize, true);
+        const labeledImage = await this.pythonServer.addSam(tiles.originalImage);
 
-        const tiles = await getScreenTiles(this.gridSize, true);
-        const tilesMessageContent = tiles.tiles.map((tile) => {
-            return {
-                type: "image_url" as const,
-                image_url: `data:image/png;base64,${tile.toString("base64")}`,
-            }
+        const sharpFinalImage = sharp(labeledImage.screenshot);
+        const metadata = await sharpFinalImage.metadata();
+        const finalImage = await sharpFinalImage.resize({ width: Math.floor(metadata.width! * (70 / 100)) }).toBuffer();
+        this.desktopContext.coordinates = labeledImage.coordinates;
+        this.desktopContext.textBlocks = labeledImage.textBlocks;
 
-        })
+        const tilesMessage = this.options.mouseMode === 'COORDINATES' ? [new SystemMessage({
+            content: [
+                {
+                    type: "text",
+                    text: `This images are the tiles of pieces of the user's computer's screen. They include a red plot overlay and there tile number to help you identify the coordinates of the screen. In total there are ${this.gridSize} tile images.`
+                },
+                ...tiles.tiles.map((tile) => {
+                    return {
+                        type: "image_url" as const,
+                        image_url: `data:image/png;base64,${tile.toString("base64")}`,
+                    }
+
+                })
+            ]
+        })] : [];
+
         return {
             desktopImage: [
                 new SystemMessage({
                     content: [
                         {
                             type: "text",
-                            text: "This image is the user's computer's screen, you can control the computer by moving the mouse, clicking and typing. Make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks. "
+                            text: `\nComputer Control Instruction:\nThis image is the user's computer's screen, you can control the computer by moving the mouse, clicking and typing. Make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks, do not ask me to confirm your executed actions, try to do so yourself.
+The screen's image includes labels of white boxes with numbers on top of elements you can click, you can move the mouse to the element being labeled by it by using the "moveMouseLocationOnComputerScreenToLabel" tool.`
                         },
                         {
                             type: "image_url",
-                            image_url: `data:image/png;base64,${tiles.originalImage.toString("base64")}`
+                            image_url: `data:image/png;base64,${finalImage.toString("base64")}`
                         }
                     ]
                 }),
-                new SystemMessage({
-                    content: [
-                        {
-                            type: "text",
-                            text: `This images are the tiles of pieces of the user's computer's screen. They include a red plot overlay and there tile number to help you identify the coordinates of the screen. In total there are ${this.gridSize} tile images.`
-                        },
-                        ...tilesMessageContent
-                    ]
-                })
+                ...tilesMessage
             ]
         };
     }
 
     tools(): AgentTool[] {
+        const mouseTools = this.options.mouseMode === 'COORDINATES' ? [
+            new MoveMouseToCoordinate(this.gridSize, this.options.model!)
+        ] : [
+            new MoveMouseToText(this.desktopContext, this.gridSize),
+            new MoveMouseToLabel(this.desktopContext),
+        ]
+
         return [
-            new MoveMouseToText(this.gridSize, this.model),
-            new MoveMouseToCoordinate(this.gridSize, this.model),
+            ...mouseTools,
             new ClickPositionOnDesktop(),
             new TypeTextOnDesktop(),
             new TypeOnDesktop(),
@@ -194,12 +235,19 @@ async function drawGridForTile(imageBuffer: Buffer, imageNumber: number, padding
     }
 }
 
-async function getScreenTiles(numberOfPieces: number, displayMouse: boolean, drawGrid: boolean = true) {
+async function getComputerScreenImage() {
 
     const graphics = await si.graphics();
     const displays = await screenshot.listDisplays();
     const mainDisplay = (displays.find((el) => (graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0]).deviceName === el.name) ?? displays[0]) as { id: number; name: string, height: number, width: number };
     const screenshotImage = sharp(await screenshot({ screen: mainDisplay.id, format: 'png' }));
+
+    return await screenshotImage.toBuffer();
+}
+
+async function getScreenTiles(screenshot: Buffer, numberOfPieces: number, displayMouse: boolean, drawGrid: boolean = true) {
+
+    const screenshotImage = sharp(screenshot);
 
     let sharpImage = sharp(displayMouse ? await addMouse(screenshotImage) : await screenshotImage.toBuffer())
 
@@ -221,7 +269,7 @@ async function getScreenTiles(numberOfPieces: number, displayMouse: boolean, dra
             tiles.push(finalImage);
         }
     }
-    const fullImage = await sharpImage.resize({ width: Math.floor(metadata.width! * (70 / 100)) })
+    const fullImage = await sharpImage
         .toFormat('jpeg')
         .jpeg({
             quality: 100,
@@ -235,16 +283,54 @@ async function getScreenTiles(numberOfPieces: number, displayMouse: boolean, dra
         tiles: tiles
     };
 }
+
+class MoveMouseToLabel extends AgentTool {
+
+    constructor(private context: DesktopContext) {
+        super();
+    }
+
+    schema = z.object({
+        labelNumber: z.number().describe("The number of the label to which move the mouse over."),
+    })
+
+    name: string = "moveMouseLocationOnComputerScreenToLabel";
+    description: string = "Move the mouse to a location labeled on the computer screen. ";
+
+    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
+        const coordinates = this.context.coordinates.filter((el) => el.index === arg.labelNumber)[0];
+
+        if (!coordinates) {
+            return {
+                text: "The label number does not exist, please try again with a different label number.",
+            }
+        }
+        const graphics = await si.graphics();
+        const displays = await screenshot.listDisplays();
+        const mainDisplay = (displays.find((el) => (graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0]).deviceName === el.name) ?? displays[0]) as { id: number; name: string, height: number, width: number };
+        const mainScreen = graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0];
+
+        const scaledX = Math.floor(((((mainScreen.resolutionX ?? 0) / mainDisplay.width) * 100) * coordinates.x) / 100);
+        const scaledY = Math.floor(((((mainScreen.resolutionY ?? 0) / mainDisplay.height) * 100) * coordinates.y) / 100);
+        const location = convertToPixelCoordinates2(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, scaledX, scaledY, 1, 1);
+
+        await mouse.setPosition(new Point(location.xPixelCoordinate, location.yPixelCoordinate));
+        return {
+            text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location (look at the computer screen image).",
+            //text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location (look at the computer screen image), if that is not the case try again with a different \"text\" value or use the \"moveMouseLocationOnComputerScreenToCoordinate\" tool.",
+        }
+    }
+}
+
 class MoveMouseToText extends AgentTool {
 
-    constructor(private gridSize: number, private model: BaseChatModel) {
+    constructor(private context: DesktopContext, private gridSize: number) {
         super();
     }
 
     schema = z.object({
         elementDescription: z.string().describe("A description of the element to which you are moving the mouse over."),
         location: z.object({
-            tileNumber: z.number().int().describe("The tile number of the piece of the screen to click on."),
             text: z.string().describe("The text in the button or link to click.")
         }),
     })
@@ -253,30 +339,8 @@ class MoveMouseToText extends AgentTool {
     description: string = "Move the mouse to a location on the computer screen. This tool is preferred over the \"moveMouseLocationOnComputerScreenToCoordinate\" tool, but if you are not succeeding try using then try the \"moveMouseLocationOnComputerScreenToCoordinate\" tool. Use as input the text on the element to which you are want to move the mouse over. The text must be as precise as possible!";
 
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
-        if (arg.location.tileNumber > this.gridSize) {
-            return {
-                text: `The tile number must be between 1 and ${this.gridSize}`,
-            }
-        }
-
-        const tiles = await getScreenTiles(this.gridSize, false, false);
-        const specificTile = tiles.tiles[arg.location.tileNumber - 1];
-
-
-        const worker = await Tesseract.createWorker('eng');
-        await worker.setParameters({
-            tessedit_pageseg_mode: PSM.AUTO,
-        });
-
-        const { data: { symbols } } = await worker.recognize(specificTile, {}, {
-            pdf: false,
-            hocr: false,
-            tsv: false,
-            blocks: true,
-            text: true,
-        });
-
-        await worker.terminate();
+      
+        const symbols = this.context.textBlocks;
 
         const fullText = symbols.map((symbol) => symbol.text).join('');
         const searchKeyword = arg.location.text.replaceAll(" ", "");
@@ -300,11 +364,11 @@ class MoveMouseToText extends AgentTool {
         const scaledX = Math.floor(((((mainScreen.resolutionX ?? 0) / mainDisplay.width) * 100) * x) / 100);
         const scaledY = Math.floor(((((mainScreen.resolutionY ?? 0) / mainDisplay.height) * 100) * y) / 100);
 
-        const location = convertToPixelCoordinates2(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, scaledX, scaledY, arg.location.tileNumber, this.gridSize);
+        const location = convertToPixelCoordinates2(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, scaledX, scaledY, 1, 1);
         await mouse.setPosition(new Point(location.xPixelCoordinate, location.yPixelCoordinate));
 
         return {
-            text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location, if that is not the case try again with a different \"text\" value or use the \"moveMouseLocationOnComputerScreenToCoordinate\" tool. .",
+            text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location (look at the computer screen image), if that is not the case try again with a different \"text\" value or use the \"moveMouseLocationOnComputerScreenToCoordinate\" tool. .",
         }
     }
 }
@@ -352,13 +416,13 @@ class MoveMouseToCoordinate extends AgentTool {
         }
 
         return {
-            text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location, if that is not the case try again using different coordinates.",
+            text: "The mouse has moved to the new location, please make sure the mouse has moved to the expected location (look at the computer screen image), if that is not the case try again using different coordinates.",
         }
     }
 
     private async veryifyMousePosition(tileNumber: number, elementDescription: string, existingCoordinates: { x: number, y: number }): Promise<{ x: number, y: number }> {
 
-        const tiles = await getScreenTiles(this.gridSize, false);
+        const tiles = await getScreenTiles(await getComputerScreenImage(), this.gridSize, false);
         const specificTile = tiles.tiles[tileNumber - 1];
 
         const responseSchema = z.object({
@@ -444,7 +508,7 @@ Your JSON response:
         try {
             newCoordinates = responseSchema.parse((await simpleParseJson(functionResponse)));
         } catch (error) {
-            console.warn("Error parsing response from fact memory extractor.", error);
+            console.warn("Error parsing coordinates.", error);
         }
 
         console.log(`Element Description: ${elementDescription}, New coordinates:  ${newCoordinates.coordinates?.xCoordinate}, ${newCoordinates.coordinates?.yCoordinate}`)

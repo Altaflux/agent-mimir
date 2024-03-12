@@ -7,7 +7,7 @@ export type SerperParameters = {
   gl?: string;
   hl?: string;
 };
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 export type SerperResponseExtractor = (response: any) => Promise<string>;
 
 /**
@@ -76,7 +76,6 @@ export class Serper extends StructuredTool {
     "a search engine. useful for when you need to answer questions about current events.";
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function defaultResponseExtractor(json: any) {
     const links = json.organic.slice(0, 3).map((link: any) => {
     return `--- Site Title: ${link.title}` + "\nUrl: " + link.link + "\nSnippet: " + link.snippet + "\n";

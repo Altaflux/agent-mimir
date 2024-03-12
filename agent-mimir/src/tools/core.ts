@@ -30,7 +30,7 @@ export class TalkToUserTool extends AgentTool {
     }
 
     name: string = "respondBack";
-    description: string = "Use to answer back anything you want to respond such as ackownledging that you have completed a request, respond an answer back, ask me a question, or let me know about an issue you are facing.";
+    description: string = "Use to answer back anything you want to respond such as ackownledging that you have completed all the steps from a request, respond an answer back, ask me a question, or let me know about an issue you are facing.";
 }
 
 export class EndTool extends StructuredTool {

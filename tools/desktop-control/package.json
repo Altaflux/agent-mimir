@@ -4,7 +4,8 @@
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json "
+    "build": "tsc -p tsconfig.json ",
+    "install": "node scripts/install.js "
   },
   "author": "Altaflux",
   "keywords": [
@@ -22,7 +23,9 @@
     "@nut-tree/nut-js": "^3.1.2",
     "sharp": "^0.32.6",
     "systeminformation": "5.21.18",
-    "tesseract.js": "^5.0.4"
+    "tesseract.js": "^5.0.4",
+    "async-exit-hook": "^2.0.1",
+    "env-paths": "^3.0.0"
   },
   "peerDependencies": {
     "agent-mimir": "*"
