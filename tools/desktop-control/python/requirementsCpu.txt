@@ -1,0 +1,16 @@
+
+
+mobile_sam @ git+https://github.com/ChaoningZhang/MobileSAM.git@c12dd83cbe26dffdcc6a0f9e7be2f6fb024df0ed
+flask
+opencv-python
+numpy
+timm
+
+keras==2.15.0
+keras-ocr==0.9.3
+Keras-Applications==1.0.8
+matplotlib
+tensorflow
+
+torch
+torchvision

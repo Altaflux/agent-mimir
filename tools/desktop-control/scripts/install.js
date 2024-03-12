@@ -1,5 +1,5 @@
 
-import { spawn } from 'child_process';
+import { spawn, exec } from 'child_process';
 import { promises as fs } from 'fs';
 import path from "path";
 import envPaths from 'env-paths';
@@ -17,7 +17,10 @@ async function start() {
 
 
     const activeScriptCall = process.platform === "win32" ? `activate` : `. ./activate`;
-    const requirementsPath = path.resolve(process.cwd(), 'python', 'requirements.txt');
+    const cudaVersion = await getCudaMajorVersion();
+    const requirementFile = cudaVersion === 12 ? 'requirementsCuda12.txt' : cudaVersion === 11 ? 'requirementsCuda11.txt' : 'requirementsCpu.txt';
+
+    const requirementsPath = path.resolve(process.cwd(), 'python', requirementFile);
     console.log("Installing requirements: " + requirementsPath);
     const result = await executeShellCommand(`cd ${path.join(pythonEnvironmentDir, scriptsDir)} && ${activeScriptCall} && python -m pip install -r ${requirementsPath}`)
     console.log(result.output)
@@ -32,9 +35,36 @@ async function start() {
 
 }
 
-async function executeShellCommand2(command) {
-    const ls = spawn(command, [], { shell: true, env: process.env });
+
+async function getCudaMajorVersion() {
+    return new Promise((resolve, reject) => {
+        try {
+            let command = 'nvcc --version';
+
+            exec(command, { encoding: 'utf8' }, (error, stdout, stderr) => {
+                if (error) {
+                    console.error('CUDA is not installed or not found in the system PATH.');
+                    resolve(null);
+                    return;
+                }
+
+                const output = stdout.trim();
+                const match = output.match(/release (\d+)/);
+                if (match) {
+                    resolve(parseInt(match[1]));
+                } else {
+                    console.error('Unable to determine CUDA major version.');
+                    resolve(null);
+                }
+            });
+        } catch (error) {
+            console.error('An error occurred while checking CUDA version:', error);
+            reject(error);
+        }
+    });
 }
+
+
 
 async function executeShellCommand(command) {
     return await new Promise((resolve, reject) => {
