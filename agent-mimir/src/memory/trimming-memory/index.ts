@@ -1,6 +1,7 @@
 
+import { BaseMessage } from "@langchain/core/messages";
+import { InputValues } from "@langchain/core/utils/types";
 import { BaseChatMemory, ChatMessageHistory } from "langchain/memory";
-import { BaseMessage, InputValues } from "langchain/schema";
 
 
 export type MessagePair = { input: InputValues, output: Record<string, any> };

@@ -1,6 +1,6 @@
 import { MimirAgentTypes } from 'agent-mimir/agent';
-import { ChatOpenAI } from 'langchain/chat_models/openai';
-import { OpenAIEmbeddings } from 'langchain/embeddings/openai';
+import { ChatOpenAI } from '@langchain/openai';
+import { OpenAIEmbeddings } from '@langchain/openai';
 
 
 const openAIModelType = process.env.AGENT_OPENAI_MODEL ?? 'gpt-4-0613';
@@ -40,6 +40,7 @@ export default async function () {
     return {
         continuousMode: false,
         workingDirectory: workingDirectory,
+        embeddings: embeddings,
         agents: {
             'Assistant': {
                 mainAgent: true,

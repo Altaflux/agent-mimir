@@ -1,16 +1,16 @@
-import { BaseLLMOutputParser } from "langchain/schema/output_parser";
 import { MimirAgent, InternalAgentPlugin, MimirAIMessage } from "./base-agent.js";
-import { AIMessage, AgentAction, AgentFinish, BaseMessage, ChainValues, ChatGeneration, FunctionMessage, Generation, HumanMessage } from "langchain/schema";
-
-import { SystemMessagePromptTemplate } from "langchain/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
-
-import { AgentActionOutputParser } from "langchain/agents";
+import { AIMessage, BaseMessage, FunctionMessage, HumanMessage } from "@langchain/core/messages";
+import { AgentActionOutputParser, AgentFinish, AgentAction, } from "langchain/agents";
 import { AgentContext, LLMImageHandler, MimirAgentArgs, MimirHumanReplyMessage, ToolResponse, NextMessage } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { AiMessageSerializer, HumanMessageSerializer, TransformationalChatMessageHistory } from "../memory/transform-memory.js";
 import { callJsonRepair } from "../utils/json.js";
 import { MimirToolToLangchainTool } from "../utils/wrapper.js";
+import { BaseLLMOutputParser } from "@langchain/core/output_parsers";
+import { SystemMessagePromptTemplate } from "@langchain/core/prompts";
+import { ChatGeneration, Generation } from "@langchain/core/outputs";
+import { ChainValues } from "@langchain/core/utils/types";
 
 
 type AIMessageType = {
@@ -139,7 +139,7 @@ export class FunctionCallAiMessageSerializer extends AiMessageSerializer {
 }
 
 export class PlainTextHumanMessageSerializer extends HumanMessageSerializer {
-    constructor(private imageHandler: LLMImageHandler){
+    constructor(private imageHandler: LLMImageHandler) {
         super();
     }
     async deserialize(message: MimirHumanReplyMessage): Promise<BaseMessage> {
@@ -211,7 +211,7 @@ export async function createOpenAiFunctionAgent(args: MimirAgentArgs) {
         plainText: false,
     });
 
- 
+
     const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGeneratorBuilder(args.imageHandler), {
         constitutionMessages: [
             SystemMessagePromptTemplate.fromTemplate(IDENTIFICATION(args.name, args.description)),

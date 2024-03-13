@@ -1,5 +1,5 @@
 
-import { CallbackManagerForToolRun } from "langchain/callbacks";
+import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
 import { ImageType } from "../schema.js";
 

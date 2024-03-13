@@ -1,13 +1,13 @@
-import { BaseLanguageModel } from "langchain/base_language";
-
 import { BaseChatMemory, BaseChatMemoryInput, getInputValue, } from "langchain/memory";
-import { AIMessage, BaseMessage, HumanMessage, InputValues } from "langchain/schema";
 import { encode } from "gpt-3-encoder"
 import { LLMChain } from "langchain/chains";
 import { extractTextContent, messagesToString } from "../../utils/format.js";
 import { COMPACT_PROMPT } from "./prompt.js";
 import { MemoryCompactionCallback } from "../../schema.js";
-import { Embeddings } from "langchain/embeddings/base";
+import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
+import { InputValues } from "@langchain/core/utils/types";
+import { Embeddings } from "@langchain/core/embeddings";
+import { BaseLanguageModel } from "@langchain/core/language_models/base";
 
 type Payload = {
     participant: string,

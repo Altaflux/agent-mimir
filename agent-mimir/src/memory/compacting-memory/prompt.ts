@@ -1,4 +1,4 @@
-import { PromptTemplate } from "langchain/prompts";
+import { PromptTemplate } from "@langchain/core/prompts";
 
 const _DEFAULT_SUMMARIZER_TEMPLATE = `Compact the following conversation between two individuals. 
 

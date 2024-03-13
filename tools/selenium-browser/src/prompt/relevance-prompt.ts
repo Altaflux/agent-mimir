@@ -1,6 +1,4 @@
-import {
-    PromptTemplate,
-} from "langchain/prompts";
+import { PromptTemplate } from "@langchain/core/prompts";
 
 
 

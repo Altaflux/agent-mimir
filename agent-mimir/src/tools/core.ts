@@ -1,7 +1,7 @@
-import { StructuredTool } from "langchain/tools";
 import { z } from "zod";
 import { AgentUserMessage, AgentWorkspace, ToolResponse } from "../schema.js";
 import { AgentTool } from "./index.js";
+import { StructuredTool } from "@langchain/core/tools";
 
 export class TalkToUserTool extends AgentTool {
 

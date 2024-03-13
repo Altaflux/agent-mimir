@@ -1,6 +1,6 @@
-import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
+import { MessagesPlaceholder, SystemMessagePromptTemplate } from "@langchain/core/prompts";
 import { AgentWorkspace, FILES_TO_SEND_FIELD, MimirAgentPlugin, MimirPluginFactory, NextMessage, PluginContext } from "../schema.js";
-import { ChainValues } from "langchain/schema";
+import { ChainValues } from "@langchain/core/utils/types";
 
 export class WorkspacePluginFactory implements MimirPluginFactory {
 

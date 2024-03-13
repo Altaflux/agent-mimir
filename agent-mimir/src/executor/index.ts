@@ -1,9 +1,8 @@
-
-import { BaseSingleActionAgent, StoppingMethod } from "langchain/agents";
-import { BaseChain, ChainInputs, SerializedLLMChain } from "langchain/chains";
-import { AgentAction, AgentFinish, AgentStep, ChainValues } from "langchain/schema";
-import { StructuredTool } from "langchain/tools";
+import { StructuredTool, StructuredToolInterface } from "@langchain/core/tools";
+import { AgentAction, AgentFinish, AgentStep, BaseSingleActionAgent, StoppingMethod } from "langchain/agents";
+import { BaseChain, ChainInputs } from "langchain/chains";
 import { AgentToolRequest, FunctionResponseCallBack, ToolResponse } from "../schema.js";
+import { ChainValues } from "@langchain/core/utils/types";
 
 interface AgentExecutorInput extends ChainInputs {
     agent: BaseSingleActionAgent;
@@ -65,7 +64,7 @@ export class SteppedAgentExecutor extends BaseChain {
     }
 
 
-    async doTool(action: AgentAction, toolsByName: { [k: string]: StructuredTool }, steps: AgentStep[], getOutput: (finishStep: AgentFinish)
+    async doTool(action: AgentAction, toolsByName: { [k: string]: StructuredToolInterface }, steps: AgentStep[], getOutput: (finishStep: AgentFinish)
         => Promise<ChainValues>, functionInvokationListener: FunctionResponseCallBack) {
 
         const tool = toolsByName[action.tool?.toLowerCase()];
@@ -191,7 +190,5 @@ export class SteppedAgentExecutor extends BaseChain {
         return "stepped_agent_executor" as const;
     }
 
-    serialize(): SerializedLLMChain {
-        throw new Error("Cannot serialize an AgentExecutor");
-    }
+   
 }

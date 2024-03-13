@@ -1,16 +1,18 @@
-import { BaseLLMOutputParser } from "langchain/schema/output_parser";
 import { MimirAgent, InternalAgentPlugin, MimirAIMessage } from "./base-agent.js";
-import { AIMessage, AgentAction, AgentFinish, BaseMessage, BaseMessageFields, ChainValues, ChatGeneration, FunctionMessageFieldsWithName, Generation, HumanMessage } from "langchain/schema";
+import { AIMessage,   BaseMessage, BaseMessageFields,   FunctionMessageFieldsWithName,  HumanMessage } from "@langchain/core/messages";
 import { AiMessageSerializer, HumanMessageSerializer, TransformationalChatMessageHistory } from "../memory/transform-memory.js";
-import { PromptTemplate, SystemMessagePromptTemplate, renderTemplate } from "langchain/prompts";
+import { PromptTemplate, SystemMessagePromptTemplate, renderTemplate } from "@langchain/core/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
-import { AgentActionOutputParser } from "langchain/agents";
+import { AgentActionOutputParser, AgentFinish, AgentAction,  } from "langchain/agents";
 import { AgentContext, LLMImageHandler, MimirAgentArgs, MimirHumanReplyMessage, ToolResponse, NextMessage } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { callJsonRepair } from "../utils/json.js";
-import { renderTextDescriptionAndArgs } from "langchain/tools/render";
 import { MimirToolToLangchainTool } from "../utils/wrapper.js";
+import { renderTextDescriptionAndArgs } from "../utils/render.js";
+import { ChatGeneration, Generation,  } from "@langchain/core/outputs";
+import { ChainValues } from "@langchain/core/utils/types";
+import { BaseLLMOutputParser } from "@langchain/core/output_parsers";
 
 
 const JSON_INSTRUCTIONS = `You must format your inputs to these functions to match their "JSON schema" definitions below.

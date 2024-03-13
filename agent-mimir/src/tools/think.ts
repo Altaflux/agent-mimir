@@ -1,11 +1,10 @@
 
-import { ConversationChain } from "langchain/chains";
 import { BaseMemory } from "langchain/memory";
-import { ChatPromptTemplate, HumanMessagePromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
-import { InputValues, } from "langchain/schema";
-import { Tool } from "langchain/tools";
-
-import { BaseLanguageModel } from "langchain/base_language";
+import { ChatPromptTemplate, HumanMessagePromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate } from "@langchain/core/prompts";
+import { Tool } from "@langchain/core/tools";
+import { BaseLanguageModel } from "@langchain/core/language_models/base";
+import { InputValues } from "@langchain/core/utils/types";
+import { ConversationChain } from "langchain/chains";
 
 type OutputValues = Record<string, any>;
 type MemoryVariables = Record<string, any>;

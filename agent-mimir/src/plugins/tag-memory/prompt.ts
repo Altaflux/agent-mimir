@@ -1,4 +1,4 @@
-import { PromptTemplate } from "langchain/prompts";
+import { PromptTemplate } from "@langchain/core/prompts";
 
 
 const _TAG_EXTRACTION_TEMPLATE = `The following is a previous conversation we had (you are AI and I am the Human). From the following new lines of conversation, extract relevant and important facts. 

@@ -1,14 +1,14 @@
-import { AgentActionOutputParser, BaseSingleActionAgent, StoppingMethod } from "langchain/agents";
-import { CallbackManager } from "langchain/callbacks";
-import { AgentAction, AgentFinish, AgentStep, BaseMessage, ChainValues } from "langchain/schema";
-import { BaseChatMemory, getInputValue } from "langchain/memory";
-import { ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
+import { AgentAction, AgentActionOutputParser, AgentFinish, AgentStep, BaseSingleActionAgent, StoppingMethod } from "langchain/agents";
 import { TrimmingMemory } from "./../memory/trimming-memory/index.js";
 import { LLMChain } from "langchain/chains";
-import { BaseLLMOutputParser, BaseOutputParser } from "langchain/schema/output_parser";
 import { BaseLanguageModel } from "langchain/base_language";
-import { HumanMessage } from "langchain/schema";
 import { AgentContext, AgentUserMessage, MimirHumanReplyMessage, NextMessage, ToolResponse } from "../schema.js";
+import { CallbackManager } from "@langchain/core/callbacks/manager";
+import { BaseLLMOutputParser, BaseOutputParser } from "@langchain/core/output_parsers";
+import { ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate } from "@langchain/core/prompts";
+import { BaseChatMemory, getInputValue } from "langchain/memory";
+import { BaseMessage, HumanMessage } from "@langchain/core/messages";
+import { ChainValues } from "@langchain/core/utils/types";
 
 
 const BAD_MESSAGE_TEXT = `I could not understand your response, please rememeber to use the correct response format using the appropiate functions. If you need to tell me something, please use the "respondBack" function.`;

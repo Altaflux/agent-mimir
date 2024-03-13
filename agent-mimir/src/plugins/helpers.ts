@@ -1,12 +1,11 @@
-
-import { StructuredTool } from "langchain/tools";
 import { AgentManager } from "../agent-manager/index.js";
-import { BaseChatModel } from "langchain/chat_models/base";
 import { z } from "zod";
 import { AgentContext, AgentUserMessage, AgentWorkspace, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../schema.js";
-import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
 import { AgentTool } from "../tools/index.js";
 import { LangchainToolToMimirTool } from "../utils/wrapper.js";
+import { MessagesPlaceholder, SystemMessagePromptTemplate } from "@langchain/core/prompts";
+import { StructuredTool } from "@langchain/core/tools";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 export class TalkToHelper extends StructuredTool {
 

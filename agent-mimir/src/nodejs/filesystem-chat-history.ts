@@ -1,4 +1,5 @@
-import { AIMessage, BaseListChatMessageHistory, BaseMessage, ChatMessage, ChatMessageFieldsWithRole, FunctionMessage, HumanMessage, StoredMessage, SystemMessage } from "langchain/schema";
+import { BaseListChatMessageHistory } from '@langchain/core/chat_history';
+import { AIMessage, BaseMessage, ChatMessage, ChatMessageFieldsWithRole, FunctionMessage, HumanMessage, StoredMessage, SystemMessage } from '@langchain/core/messages';
 import { promises as fs } from 'fs';
 import path from "path";
 export class FileSystemChatHistory extends BaseListChatMessageHistory {

@@ -1,20 +1,23 @@
 import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentContext } from "agent-mimir/schema";
-import { CallbackManagerForToolRun } from "langchain/callbacks";
+import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
-import { ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
+
 import { AgentTool, ToolResponse } from "agent-mimir/tools";
 import screenshot, { DisplayID } from 'screenshot-desktop';
 import si from 'systeminformation';
-import { JsonSchema7ObjectType } from "zod-to-json-schema/src/parsers/object.js";
+import { JsonSchema7ObjectType } from "zod-to-json-schema";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { HumanMessage, SystemMessage } from "langchain/schema";
+
 import { Key, keyboard, mouse, Button, Point } from "@nut-tree/nut-js";
 import sharp from 'sharp';
-import { BaseChatModel } from "langchain/chat_models/base";
+
 import { LLMChain } from "langchain/chains";
-import { renderTemplate } from "langchain/prompts";
+
 import { simpleParseJson } from "agent-mimir/utils/json";
 import { Coordinates, PythonServerControl, TextBlocks } from "./sam.js";
+import { ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate, renderTemplate } from "@langchain/core/prompts";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 type DesktopContext = {
     coordinates: Coordinates

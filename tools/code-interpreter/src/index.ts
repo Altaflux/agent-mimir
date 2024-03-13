@@ -1,7 +1,7 @@
 import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentWorkspace } from "agent-mimir/schema";
-import { CallbackManagerForToolRun } from "langchain/callbacks";
+import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
-import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
+import { MessagesPlaceholder, SystemMessagePromptTemplate } from "@langchain/core/prompts";
 import { spawn } from 'child_process';
 import os from 'os';
 import { promises as fs } from 'fs';

@@ -1,5 +1,5 @@
+import { InputValues } from "@langchain/core/utils/types";
 import { BaseChatMemory, BaseChatMemoryInput } from "langchain/memory";
-import { InputValues } from "langchain/schema";
 
 export type NoopMemoryInput = BaseChatMemoryInput & {
     memoryKey?: string;

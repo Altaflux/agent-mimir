@@ -1,6 +1,5 @@
 import { NodeVM } from "vm2";
-
-import { StructuredTool } from "langchain/tools";
+import { StructuredTool } from "@langchain/core/tools";
 import { CallbackManagerForToolRun } from "langchain/dist/callbacks";
 import { z } from "zod";
 

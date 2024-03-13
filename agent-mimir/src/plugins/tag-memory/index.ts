@@ -6,13 +6,13 @@ import { Document } from 'langchain/document'
 import { BaseChatModel } from "langchain/chat_models/base";
 import { TAG_EXTRACTION_PROMPT, TAG_FINDER_PROMPT } from "./prompt.js";
 import { LLMChain } from "langchain/chains";
-import { BaseMessage } from "langchain/schema";
 import { messagesToString } from "../../utils/format.js";
-import { JsonSchema7ObjectType } from "zod-to-json-schema/src/parsers/object.js";
+import { JsonSchema7ObjectType } from "zod-to-json-schema";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import path from "path";
 import { promises as fs } from 'fs';
 import { callJsonRepair } from "../../utils/json.js";
+import { BaseMessage } from "@langchain/core/messages";
 
 export class TagMemoryManager {
 

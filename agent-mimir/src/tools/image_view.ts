@@ -1,4 +1,3 @@
-import { StructuredTool } from "langchain/tools";
 import { MimirAgentPlugin, MimirPluginFactory, ToolResponse, PluginContext, SupportedImageTypes } from "../schema.js";
 import { z } from "zod";
 import { AgentTool } from "./index.js";

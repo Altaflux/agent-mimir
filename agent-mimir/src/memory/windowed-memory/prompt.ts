@@ -1,6 +1,5 @@
-// eslint-disable-next-line tree-shaking/no-side-effects-in-initialization
+import { PromptTemplate } from "@langchain/core/prompts";
 
-import { PromptTemplate } from "langchain/prompts";
 
 const _DEFAULT_SUMMARIZER_TEMPLATE = `Progressively summarize the lines of conversation provided, adding onto the previous summary returning a new summary.
 

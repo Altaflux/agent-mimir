@@ -1,6 +1,4 @@
-import { OpenAIEmbeddings } from "langchain/embeddings/openai";
-
-import { StructuredTool, Tool } from "langchain/tools";
+import { StructuredTool, Tool } from "@langchain/core/tools";
 import { TalkToUserTool } from '../tools/core.js';
 import { SteppedAgentExecutor } from '../executor/index.js';
 import { ChatMemoryChain } from '../memory/transactional-memory-chain.js';
@@ -15,15 +13,14 @@ import { HelpersPluginFactory } from '../plugins/helpers.js';
 import { MimirAgentTypes } from '../agent/index.js';
 import { ManualTagMemoryPluginFactory } from '../plugins/tag-memory/plugins.js';
 import { CompactingConversationSummaryMemory } from '../memory/compacting-memory/index.js';
-import { BaseChatMessageHistory } from 'langchain/schema';
 import { NoopMemory } from '../memory/noopMemory.js';
 import { WorkspacePluginFactory } from "../plugins/workspace.js";
 import { ViewPluginFactory } from "../tools/image_view.js";
 import { AgentTool } from "../tools/index.js";
 import { MimirToolToLangchainTool, LangchainToolToMimirTool } from "../utils/wrapper.js";
 import { noopImageHandler, openAIImageHandler } from "../vision/index.js";
-import { ChatMessageHistory } from "langchain/memory";
-
+import { Embeddings } from "@langchain/core/embeddings";
+import { BaseChatMessageHistory } from "@langchain/core/chat_history";
 
 export type CreateAgentOptions = {
     profession: string,
@@ -48,11 +45,13 @@ export type CreateAgentOptions = {
 export type ManagerConfig = {
 
     workspaceManagerFactory: WorkspaceManagerFactory,
+    embeddings: Embeddings
 }
 export class AgentManager {
 
     private map: Map<string, Agent> = new Map();
     public constructor(private managerConfig: ManagerConfig) { }
+    
     public async createAgent(config: CreateAgentOptions): Promise<Agent> {
        const agent = await this.createAgentNoRegister(config);
        this.map.set(agent.name, agent);
@@ -63,7 +62,7 @@ export class AgentManager {
 
         const shortName = config.name;
 
-        const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY });
+        const embeddings = this.managerConfig.embeddings;
         const model = config.model;
 
         const summarizingModel = config.chatHistory?.summaryModel ?? model;

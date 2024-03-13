@@ -1,5 +1,5 @@
 
-import { CallbackManagerForToolRun } from "langchain/callbacks";
+import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { Document as VectorDocument } from 'langchain/document'
 import { VectorStore } from "langchain/vectorstores/base";
 import { Embeddings } from "langchain/embeddings/base";

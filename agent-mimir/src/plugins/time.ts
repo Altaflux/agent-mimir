@@ -1,4 +1,4 @@
-import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
+import { MessagesPlaceholder, SystemMessagePromptTemplate } from "@langchain/core/prompts";
 import { MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../schema.js";
 
 export class TimePluginFactory implements MimirPluginFactory {

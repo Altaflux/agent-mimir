@@ -1,6 +1,4 @@
-import { BaseMessage, ChatMessage, MessageContent } from "langchain/schema";
-
-
+import { BaseMessage, MessageContent } from "@langchain/core/messages";
 
 export function messagesToString(
   messages: BaseMessage[],

@@ -2,8 +2,8 @@
 import pkg from 'ring-buffer-ts';
 import { AgentContext, MimirAgentPlugin } from '../schema.js';
 import { AttributeDescriptor, ResponseFieldMapper } from '../agent/instruction-mapper.js';
-import { MessagesPlaceholder, SystemMessagePromptTemplate } from 'langchain/prompts';
 import { MimirAIMessage } from '../agent/base-agent.js';
+import { MessagesPlaceholder, SystemMessagePromptTemplate } from '@langchain/core/prompts';
 const { RingBuffer } = pkg;
 
 class ScratchPadManager {

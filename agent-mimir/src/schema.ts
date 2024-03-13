@@ -1,10 +1,13 @@
-import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
+
+import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { MimirAIMessage } from "./agent/base-agent.js";
 import { AttributeDescriptor, ResponseFieldMapper } from "./agent/instruction-mapper.js";
-import { BaseLanguageModel } from "langchain/base_language";
-import { BaseChatMemory } from "langchain/memory";
-import { BaseChatMessageHistory, BaseMessage, ChainValues, MessageContent } from "langchain/schema";
 import { AgentTool } from "./tools/index.js";
+import { BaseChatMessageHistory } from "@langchain/core/chat_history";
+import { BaseChatMemory } from "langchain/memory";
+import { BaseMessage, MessageContent } from "@langchain/core/messages";
+import { MessagesPlaceholder, SystemMessagePromptTemplate } from "@langchain/core/prompts";
+import { ChainValues } from "@langchain/core/utils/types";
 
 
 export const FILES_TO_SEND_FIELD = "filesToSend";

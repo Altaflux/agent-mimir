@@ -1,7 +1,6 @@
+import { ChainValues, InputValues } from "@langchain/core/utils/types";
 import { BaseChain, SerializedBaseChain } from "langchain/chains";
-
 import { BaseChatMemory } from "langchain/memory";
-import { ChainValues, InputValues } from "langchain/schema";
 
 type OutputValues = Record<string, any>;
 type ChainMessage = {

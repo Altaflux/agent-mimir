@@ -1,7 +1,5 @@
-import { BaseMessage } from "langchain/schema";
-import { StructuredTool } from "langchain/tools";
+
 import { AgentContext, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../../schema.js";
-import { MessagesPlaceholder, SystemMessagePromptTemplate } from "langchain/prompts";
 import { TagMemoryManager } from "./index.js";
 import { z } from "zod";
 import { messagesToString } from "../../utils/format.js";
@@ -9,6 +7,9 @@ import { Embeddings } from "langchain/embeddings/base";
 import { BaseChatModel } from "langchain/chat_models/base";
 import { LangchainToolToMimirTool } from "../../utils/wrapper.js";
 import { AgentTool } from "../../tools/index.js";
+import { MessagesPlaceholder, SystemMessagePromptTemplate } from "@langchain/core/prompts";
+import { StructuredTool } from "@langchain/core/tools";
+import { BaseMessage } from "@langchain/core/messages";
 
 export class ManualTagMemoryPluginFactory implements MimirPluginFactory {
 

@@ -1,7 +1,7 @@
-import { StructuredTool } from "langchain/tools";
 import { AgentTool } from "../tools/index.js";
 import { z } from "zod";
 import { ToolResponse } from "../schema.js";
+import { StructuredTool } from "@langchain/core/tools";
 
 export class MimirToolToLangchainTool extends StructuredTool {
 

@@ -4,13 +4,14 @@ import { MimirPluginFactory } from "agent-mimir/schema";
 import chalk from "chalk";
 import { BaseChatModel } from 'langchain/chat_models/base';
 import { BaseLanguageModel } from "langchain/base_language";
-import { Tool } from "langchain/tools";
+import { Tool } from "@langchain/core/tools";
 import { BaseChain } from "langchain/chains";
 import { chatWithAgent } from "./chat.js";
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from "path";
 import { FileSystemChatHistory, FileSystemAgentWorkspace } from "agent-mimir/nodejs";
+import { Embeddings } from "langchain/embeddings/base";
 
 
 export type AgentDefinition = {
@@ -37,6 +38,7 @@ export type AgentDefinition = {
 }
 type AgentMimirConfig = {
     agents: Record<string, AgentDefinition>;
+    embeddings: Embeddings,
     workingDirectory?: string;
     continuousMode?: boolean;
 }
@@ -62,6 +64,7 @@ export const run = async () => {
     await fs.mkdir(workingDirectory, { recursive: true });
 
     const agentManager = new AgentManager({
+        embeddings: agentConfig.embeddings,
         workspaceManagerFactory: async (agent) => {
             const tempDir = path.join(workingDirectory, agent);
             await fs.mkdir(tempDir, { recursive: true });

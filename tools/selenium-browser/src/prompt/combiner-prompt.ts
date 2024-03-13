@@ -1,8 +1,5 @@
+import { PromptTemplate } from "@langchain/core/prompts";
 
-
-import {
-    PromptTemplate,
-} from "langchain/prompts";
 //Combine the following two parts of a markdown document into one.
 const _DEFAULT_SUMMARIZER_TEMPLATE =`Combine the contents of "part 2" of a markdown document with "part 1" of the document.
 The document is a representation of the contents of a website.

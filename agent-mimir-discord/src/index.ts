@@ -1,11 +1,11 @@
 import { MimirAgentTypes } from "agent-mimir/agent";
 import { AgentManager } from "agent-mimir/agent-manager"
-import { Agent, AgentUserMessage, AgentUserMessageResponse, FILES_TO_SEND_FIELD, MimirPluginFactory } from "agent-mimir/schema";
+import { Agent, AgentUserMessageResponse, FILES_TO_SEND_FIELD, MimirPluginFactory } from "agent-mimir/schema";
 import chalk from "chalk";
-import { BaseChatModel } from 'langchain/chat_models/base';
-import { BaseLanguageModel } from "langchain/base_language";
-import { Tool } from "langchain/tools";
-import { BaseChain } from "langchain/chains";
+// import { BaseChatModel } from 'langchain/chat_models/base';
+// import { BaseLanguageModel } from "langchain/base_language";
+import { Tool } from "@langchain/core/tools";
+
 import { promises as fs } from 'fs';
 import normalFs from 'fs';
 import os from 'os';
@@ -16,6 +16,10 @@ import { finished } from "stream/promises";
 import { SlashCommandBuilder } from "discord.js";
 import { FileSystemChatHistory, FileSystemAgentWorkspace } from "agent-mimir/nodejs";
 import { Retry } from "./utils.js";
+import { Embeddings } from "@langchain/core/embeddings";
+import { BaseLanguageModel } from "@langchain/core/language_models/base";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import {} from "@langchain/core/singletons"
 
 function splitStringInChunks(str: string) {
     const chunkSize = 1900;
@@ -31,7 +35,6 @@ function splitStringInChunks(str: string) {
 export type AgentDefinition = {
     mainAgent?: boolean;
     description: string;
-    chain?: BaseChain;
     definition?: {
         profession: string;
         agentType?: MimirAgentTypes;
@@ -52,6 +55,7 @@ export type AgentDefinition = {
 }
 type AgentMimirConfig = {
     agents: Record<string, AgentDefinition>;
+    embeddings: Embeddings;
     continuousMode?: boolean;
     workingDirectory?: string;
 }
@@ -79,19 +83,6 @@ async function downloadFile(filename: string, link: string) {
     return destination
 }
 
-function convertToPixelCoordinates(
-    imageTotalXSize: number,
-    imageTotalYSize: number,
-    xPercentageCoordinate: number,
-    yPercentageCoordinate: number
-): { xPixelCoordinate: number, yPixelCoordinate: number } {
-    // Calculate pixel coordinates
-    let xPixelCoordinate = (xPercentageCoordinate / 100) * imageTotalXSize;
-    let yPixelCoordinate = (yPercentageCoordinate / 100) * imageTotalYSize;
-
-    return { xPixelCoordinate, yPixelCoordinate };
-}
-
 
 export const run = async () => {
 
@@ -101,6 +92,7 @@ export const run = async () => {
     await fs.mkdir(workingDirectory, { recursive: true });
 
     const agentManager = new AgentManager({
+        embeddings: agentConfig.embeddings,
         workspaceManagerFactory: async (agent) => {
             const tempDir = path.join(workingDirectory, agent);
             await fs.mkdir(tempDir, { recursive: true });

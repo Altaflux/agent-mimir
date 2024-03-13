@@ -1,6 +1,7 @@
-import { BaseMessage, BaseChatMessageHistory } from "langchain/schema";
+import { BaseMessage } from "@langchain/core/messages";
 import { MimirAIMessage } from "../agent/base-agent.js";
 import { MimirHumanReplyMessage } from "../schema.js";
+import { BaseChatMessageHistory } from "@langchain/core/chat_history";
 
 export abstract class HumanMessageSerializer {
     abstract deserialize(message: MimirHumanReplyMessage): Promise<BaseMessage>;

@@ -1,5 +1,5 @@
 
-import { CallbackManagerForToolRun } from "langchain/callbacks";
+import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { By } from 'selenium-webdriver';
 import { WebDriverManager } from "./driver-manager.js";
 import { z } from "zod";
