@@ -1,5 +1,4 @@
-import { MessagesPlaceholder, SystemMessagePromptTemplate } from "@langchain/core/prompts";
-import { MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../schema.js";
+import { AgentContext, AgentSystemMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../schema.js";
 
 export class TimePluginFactory implements MimirPluginFactory {
 
@@ -13,16 +12,14 @@ export class TimePluginFactory implements MimirPluginFactory {
 
 class TimePlugin extends MimirAgentPlugin {
 
-    systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
-        return [
-            SystemMessagePromptTemplate.fromTemplate(`The current time is: {currentTime}`),
-        ];
-    }
-
-    async getInputs(): Promise<Record<string, any>> {
+    async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
         return {
-            currentTime: new Date().toISOString(),
+            content: [
+                {
+                    type: "text",
+                    text: `The current time is: ${new Date().toISOString()}`
+                }
+            ]
         };
     }
-
 }

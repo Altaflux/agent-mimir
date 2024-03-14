@@ -1,9 +1,9 @@
 
 import pkg from 'ring-buffer-ts';
-import { AgentContext, MimirAgentPlugin } from '../schema.js';
+import { AgentContext, AgentSystemMessage, MimirAgentPlugin } from '../schema.js';
 import { AttributeDescriptor, ResponseFieldMapper } from '../agent/instruction-mapper.js';
 import { MimirAIMessage } from '../agent/base-agent.js';
-import { MessagesPlaceholder, SystemMessagePromptTemplate } from '@langchain/core/prompts';
+
 const { RingBuffer } = pkg;
 
 class ScratchPadManager {
@@ -50,22 +50,23 @@ export class ScratchPadPlugin extends MimirAgentPlugin {
         ];
     }
 
+    async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
+        const items = await this.scratchPadManager.buildScratchPadList();
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: `You have the following items in your scratchpad:\n${items}\n`
+                }
+            ]
+        }
+    }
+
     async readResponse(context: AgentContext, aiMessage: MimirAIMessage, responseFieldMapper: ResponseFieldMapper<any>): Promise<void> {
         const message = await responseFieldMapper.readInstructionsFromResponse(aiMessage.text ?? "");
         if (message.saveToScratchPad && message.saveToScratchPad.length > 1) {
             await this.scratchPadManager.storeMessage(message.saveToScratchPad);
         }
-    }
-    systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
-        return [
-            SystemMessagePromptTemplate.fromTemplate(`You have the following items in your scratchpad:\n{scratchpad_items}\n`),
-        ];
-    }
-
-    async getInputs(): Promise<Record<string, any>> {
-        return {
-            "scratchpad_items": await this.scratchPadManager.buildScratchPadList()
-        };
     }
 
     async clear(): Promise<void> {

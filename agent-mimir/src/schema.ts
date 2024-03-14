@@ -6,7 +6,6 @@ import { AgentTool } from "./tools/index.js";
 import { BaseChatMessageHistory } from "@langchain/core/chat_history";
 import { BaseChatMemory } from "langchain/memory";
 import { BaseMessage, MessageContent } from "@langchain/core/messages";
-import { MessagesPlaceholder, SystemMessagePromptTemplate } from "@langchain/core/prompts";
 import { ChainValues } from "@langchain/core/utils/types";
 
 
@@ -106,8 +105,10 @@ export abstract class MimirAgentPlugin {
         return message;
     }
 
-    systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
-        return [];
+    async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
+        return {
+            content: []
+        };
     }
 
     async readResponse(context: AgentContext, aiMessage: MimirAIMessage, responseFieldMapper: ResponseFieldMapper): Promise<void> {
@@ -116,9 +117,7 @@ export abstract class MimirAgentPlugin {
     async clear(): Promise<void> {
     }
 
-    async getInputs(context: AgentContext): Promise<Record<string, any>> {
-        return {};
-    }
+
 
     attributes(): AttributeDescriptor[] {
         return [];
@@ -162,3 +161,22 @@ export type AgentUserMessage = {
 export type AgentToolRequest = { toolName: string, toolArguments: string }
 
 export type FunctionResponseCallBack = (name: string, input: string, response: string) => Promise<void>;
+
+
+type ImageDetail = "auto" | "low" | "high";
+
+export type MessageContentText = {
+    type: "text";
+    text: string;
+};
+export type MessageContentImageUrl = {
+    type: "image_url";
+    image_url: string | {
+        url: string;
+        detail?: ImageDetail;
+    };
+};
+export type AgentSystemMessageContent = MessageContentText | MessageContentImageUrl;
+export type AgentSystemMessage = {
+    content: AgentSystemMessageContent[]
+}

@@ -17,7 +17,7 @@ export class ThinkTool extends Tool {
 
     protected async _call(arg: string): Promise<string> {
        
-        const chatPrompt = ChatPromptTemplate.fromPromptMessages([
+        const chatPrompt = ChatPromptTemplate.fromMessages([
             SystemMessagePromptTemplate.fromTemplate("You are ChatGPT, a large language model trained by OpenAI. Carefully heed the user's instructions. Response format is plain english."),
             new MessagesPlaceholder("history"),
             HumanMessagePromptTemplate.fromTemplate(

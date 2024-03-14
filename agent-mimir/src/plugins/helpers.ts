@@ -1,9 +1,8 @@
 import { AgentManager } from "../agent-manager/index.js";
 import { z } from "zod";
-import { AgentContext, AgentUserMessage, AgentWorkspace, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../schema.js";
+import { AgentContext, AgentSystemMessage, AgentUserMessage, AgentWorkspace, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../schema.js";
 import { AgentTool } from "../tools/index.js";
 import { LangchainToolToMimirTool } from "../utils/wrapper.js";
-import { MessagesPlaceholder, SystemMessagePromptTemplate } from "@langchain/core/prompts";
 import { StructuredTool } from "@langchain/core/tools";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
@@ -76,7 +75,8 @@ export class HelpersPlugin extends MimirAgentPlugin {
         this.workSpace = workDirectory;
     }
 
-    async getInputs(_: AgentContext): Promise<Record<string, any>> {
+    async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
+
         const helpers = this.helperSingleton?.getAllAgents() ?? [];
         const whiteList = this.communicationWhitelist ?? helpers.map((helper) => helper.name) ?? [];
         const helperList = helpers.filter((helper) => helper.name !== this.agentName)
@@ -84,15 +84,15 @@ export class HelpersPlugin extends MimirAgentPlugin {
             .map((helper) => `${helper.name}: ${helper.description}`)
             .join("\n") ?? "";
         const helpersMessage = helperList !== "" ? `You have the following helpers that can be used to assist you in your task:\n${helperList}` : ``;
-        return {
-            helpersMessage: helpersMessage
-        };
-    }
 
-    systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
-        return [
-            SystemMessagePromptTemplate.fromTemplate(`{helpersMessage}\n`),
-        ];
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: helpersMessage
+                }
+            ]
+        }
     }
 
 

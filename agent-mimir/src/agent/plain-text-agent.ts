@@ -1,16 +1,16 @@
 import { MimirAgent, InternalAgentPlugin, MimirAIMessage } from "./base-agent.js";
-import { AIMessage,   BaseMessage, BaseMessageFields,   FunctionMessageFieldsWithName,  HumanMessage } from "@langchain/core/messages";
+import { AIMessage, BaseMessage, BaseMessageFields, FunctionMessageFieldsWithName, HumanMessage } from "@langchain/core/messages";
 import { AiMessageSerializer, HumanMessageSerializer, TransformationalChatMessageHistory } from "../memory/transform-memory.js";
-import { PromptTemplate, SystemMessagePromptTemplate, renderTemplate } from "@langchain/core/prompts";
+import { PromptTemplate, renderTemplate } from "@langchain/core/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
-import { AgentActionOutputParser, AgentFinish, AgentAction,  } from "langchain/agents";
-import { AgentContext, LLMImageHandler, MimirAgentArgs, MimirHumanReplyMessage, ToolResponse, NextMessage } from "../schema.js";
+import { AgentActionOutputParser, AgentFinish, AgentAction, } from "langchain/agents";
+import { AgentContext, LLMImageHandler, MimirAgentArgs, MimirHumanReplyMessage, ToolResponse, NextMessage, AgentSystemMessage } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { callJsonRepair } from "../utils/json.js";
 import { MimirToolToLangchainTool } from "../utils/wrapper.js";
 import { renderTextDescriptionAndArgs } from "../utils/render.js";
-import { ChatGeneration, Generation,  } from "@langchain/core/outputs";
+import { ChatGeneration, Generation, } from "@langchain/core/outputs";
 import { ChainValues } from "@langchain/core/utils/types";
 import { BaseLLMOutputParser } from "@langchain/core/output_parsers";
 
@@ -118,7 +118,7 @@ class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
 
 function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
 
-    const messageGenerator:  (nextMessage: NextMessage, ) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage, ) => {
+    const messageGenerator: (nextMessage: NextMessage,) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage,) => {
 
         const messageToAi = nextMessage;
         if (nextMessage.type === "USER_MESSAGE") {
@@ -126,7 +126,7 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
                 input: messageToAi.message,
             });
             return {
-            
+
                 message: new HumanMessage({
                     content: [
                         {
@@ -227,7 +227,7 @@ export async function createPlainTextMimirAgent(args: MimirAgentArgs) {
 
     const internalPlugins = args.plugins.map(plugin => {
         const agentPlugin: InternalAgentPlugin = {
-            getInputs: (context) => plugin.getInputs(context),
+            getSystemMessages: async (context) => await plugin.getSystemMessages(context),
             readResponse: async (context: AgentContext, response: MimirAIMessage) => {
                 await plugin.readResponse(context, response, formatManager);
             },
@@ -243,23 +243,37 @@ export async function createPlainTextMimirAgent(args: MimirAgentArgs) {
 
     const tools = (await Promise.all(args.plugins.map(async plugin => await plugin.tools()))).flat();
     const talkToUserTools = args.talkToUserTool ? [args.talkToUserTool] : [];
-    const toolsSystemMessage = new SystemMessagePromptTemplate(
-        new PromptTemplate({
-            template: SUFFIX,
-            inputVariables: [],
-            partialVariables: {
-                toolList: renderTextDescriptionAndArgs([...tools, ...talkToUserTools].map(tool => new MimirToolToLangchainTool(tool))),
-                tool_names: [...tools, ...talkToUserTools].map((tool) => tool.name).join(", "),
-                json_instructions: JSON_INSTRUCTIONS,
+
+    const toolsSystemMessagePrompt = new PromptTemplate({
+        template: SUFFIX,
+        inputVariables: [],
+        partialVariables: {
+            toolList: renderTextDescriptionAndArgs([...tools, ...talkToUserTools].map(tool => new MimirToolToLangchainTool(tool))),
+            tool_names: [...tools, ...talkToUserTools].map((tool) => tool.name).join(", "),
+            json_instructions: JSON_INSTRUCTIONS,
+        },
+    });
+
+    const toolsSystemMessage = {
+        content: [
+            {
+                type: "text",
+                text: IDENTIFICATION(args.name, args.description),
             },
-        })
-    );
-    const systemMessages = [
-       
-        SystemMessagePromptTemplate.fromTemplate(formatManager.createFieldInstructions()),
-        toolsSystemMessage,
-        ...args.plugins.map(plugin => plugin.systemMessages()).flat(),
-    ];
+            {
+                type: "text",
+                text: args.constitution,
+            },
+            {
+                type: "text",
+                text: formatManager.createFieldInstructions(),
+            },
+            {
+                type: "text",
+                text: await toolsSystemMessagePrompt.format({}),
+            }
+        ]
+    } as AgentSystemMessage;
 
     const chatHistory = new TransformationalChatMessageHistory(args.chatMemory, new DefaultAiMessageSerializer(), new PlainTextHumanMessageSerializer(args.imageHandler));
     const finalMemory = args.memoryBuilder({
@@ -267,11 +281,7 @@ export async function createPlainTextMimirAgent(args: MimirAgentArgs) {
         plainText: true,
     });
     const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(formatManager), messageGeneratorBuilder(args.imageHandler), {
-        constitutionMessages:[
-            SystemMessagePromptTemplate.fromTemplate(IDENTIFICATION(args.name, args.description)),
-            SystemMessagePromptTemplate.fromTemplate(args.constitution),
-        ],
-        systemMessage: systemMessages,
+        systemMessage: toolsSystemMessage,
         outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName),
         taskCompleteCommandName: args.taskCompleteCommandName,
         memory: finalMemory,
@@ -285,3 +295,4 @@ export async function createPlainTextMimirAgent(args: MimirAgentArgs) {
     return agent;
 
 }
+

@@ -2,12 +2,12 @@ import { AgentAction, AgentActionOutputParser, AgentFinish, AgentStep, BaseSingl
 import { TrimmingMemory } from "./../memory/trimming-memory/index.js";
 import { LLMChain } from "langchain/chains";
 import { BaseLanguageModel } from "langchain/base_language";
-import { AgentContext, AgentUserMessage, MimirHumanReplyMessage, NextMessage, ToolResponse } from "../schema.js";
+import { AgentContext, AgentSystemMessage, AgentUserMessage, MimirHumanReplyMessage, NextMessage, ToolResponse } from "../schema.js";
 import { CallbackManager } from "@langchain/core/callbacks/manager";
 import { BaseLLMOutputParser, BaseOutputParser } from "@langchain/core/output_parsers";
 import { ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate } from "@langchain/core/prompts";
 import { BaseChatMemory, getInputValue } from "langchain/memory";
-import { BaseMessage, HumanMessage } from "@langchain/core/messages";
+import { BaseMessage, HumanMessage, MessageContentComplex, MessageContentText, SystemMessage } from "@langchain/core/messages";
 import { ChainValues } from "@langchain/core/utils/types";
 
 
@@ -20,7 +20,8 @@ export type MimirChatConversationalAgentInput = {
 
 
 export type InternalAgentPlugin = {
-    getInputs: (context: AgentContext) => Promise<Record<string, any>>,
+
+    getSystemMessages: (context: AgentContext) => Promise<AgentSystemMessage>,
     readResponse: (context: AgentContext, aiMessage: MimirAIMessage) => Promise<void>,
     clear: () => Promise<void>,
     processMessage: (nextMessage: NextMessage, inputs: ChainValues) => Promise<NextMessage | undefined>
@@ -44,7 +45,6 @@ export class MimirAgent extends BaseSingleActionAgent {
     llmChain: LLMChain<MimirAIMessage>;
     defaultInputs?: Record<string, any>;
     plugins: InternalAgentPlugin[];
-
     reset: () => Promise<void>;
     messageGenerator: (arg: NextMessage,) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>;
 
@@ -54,8 +54,6 @@ export class MimirAgent extends BaseSingleActionAgent {
         input: MimirChatConversationalAgentInput,
         outputParser: BaseOutputParser<AgentAction | AgentFinish>,
         messageGenerator: (arg: NextMessage,) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
-
-
         reset: () => Promise<void>,
         plugins?: InternalAgentPlugin[],
         defaultInputs?: Record<string, any>,
@@ -122,12 +120,14 @@ export class MimirAgent extends BaseSingleActionAgent {
 
         const { message: langChainMessage, messageToSave } = await this.messageGenerator(message);
 
-        const pluginInputs = (await Promise.all(this.plugins.map(async plugin => await plugin.getInputs(context))))
-            .reduce((acc, val) => ({ ...acc, ...val }), {})
+        const pluginInputs = (await Promise.all(
+            this.plugins.map(async (plugin) => await plugin.getSystemMessages(context))
+        ))
 
+        const systemMessage = buildSystemMessage(pluginInputs);
         const agentResponse = await this.executePlanWithRetry({
             ...this.defaultInputs,
-            ...pluginInputs,
+            system_message: systemMessage,
             ...inputs,
             realInput: langChainMessage,
             inputToSave: messageToSave
@@ -218,11 +218,9 @@ export class MimirAgent extends BaseSingleActionAgent {
 
     static createPrompt(args: CreatePromptArgs) {
         const messages = [
-            ...args.constitutionMessages,
-            ...args.systemMessage,
+            new MessagesPlaceholder("system_message"),
             new MessagesPlaceholder("chat_history"),
             new MessagesPlaceholder("history"),
-
             new MessagesPlaceholder("realInput")
         ];
         const prompt = ChatPromptTemplate.fromMessages(messages);
@@ -259,7 +257,7 @@ export class MimirAgent extends BaseSingleActionAgent {
             outputParser,
             messageGenerator,
             args.resetFunction,
-            args.plugins,
+            [systemMessageToPlugin(args.systemMessage), ...args.plugins],
             args.defaultInputs,
         );
     }
@@ -268,9 +266,7 @@ export class MimirAgent extends BaseSingleActionAgent {
 
 export type CreatePromptArgs = {
 
-    constitutionMessages: (SystemMessagePromptTemplate | MessagesPlaceholder)[];
-
-    systemMessage: (SystemMessagePromptTemplate | MessagesPlaceholder)[];
+    systemMessage: AgentSystemMessage;
 
     outputParser: AgentActionOutputParser;
 
@@ -285,4 +281,46 @@ export type CreatePromptArgs = {
     resetFunction: () => Promise<void>;
 
 };
+
+
+function mergeSystemMessages(messages: SystemMessage[]) {
+    return messages.reduce((prev, next) => {
+        const prevContent = (prev.content instanceof String) ? [{
+            type: "text",
+            text: prev.content
+        }] as MessageContentText[] : prev.content as MessageContentComplex[];
+        const nextContent = (next.content instanceof String) ? [{
+            type: "text",
+            text: next.content
+        }] as MessageContentText[] : next.content as MessageContentComplex[];
+
+        return new SystemMessage({ content: [...prevContent, ...nextContent] });
+    }, new SystemMessage({ content: [] }))
+
+}
+const dividerSystemMessage = new SystemMessage({content: [
+    {
+        type:"text",
+        text: "\n\n--------------------------------------------------\n\n"
+    }
+]});
+function buildSystemMessage(agentSystemMessages: AgentSystemMessage[]) {
+    const messages = agentSystemMessages.map((m) => {
+        return mergeSystemMessages([dividerSystemMessage,  new SystemMessage({ content: m.content })])
+    });
+
+    const finalMessage = mergeSystemMessages(messages);
+    return finalMessage;
+}
+
+function systemMessageToPlugin(systemMessage: AgentSystemMessage): InternalAgentPlugin {
+    return {
+        getSystemMessages: async (context) => systemMessage,
+        readResponse: async (context: AgentContext, response: MimirAIMessage) => { },
+        clear: async () => { },
+        processMessage: async function (nextMessage: NextMessage, inputs: ChainValues): Promise<NextMessage | undefined> {
+            return nextMessage;
+        }
+    }
+}
 

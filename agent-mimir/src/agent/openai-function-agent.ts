@@ -2,7 +2,7 @@ import { MimirAgent, InternalAgentPlugin, MimirAIMessage } from "./base-agent.js
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 import { AIMessage, BaseMessage, FunctionMessage, HumanMessage } from "@langchain/core/messages";
 import { AgentActionOutputParser, AgentFinish, AgentAction, } from "langchain/agents";
-import { AgentContext, LLMImageHandler, MimirAgentArgs, MimirHumanReplyMessage, ToolResponse, NextMessage } from "../schema.js";
+import { AgentContext, LLMImageHandler, MimirAgentArgs, MimirHumanReplyMessage, ToolResponse, NextMessage, AgentSystemMessage } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { AiMessageSerializer, HumanMessageSerializer, TransformationalChatMessageHistory } from "../memory/transform-memory.js";
 import { callJsonRepair } from "../utils/json.js";
@@ -182,16 +182,29 @@ export async function createOpenAiFunctionAgent(args: MimirAgentArgs) {
     const pluginAttributes = args.plugins.map(plugin => plugin.attributes()).flat();
     const formatManager = new ResponseFieldMapper([...DEFAULT_ATTRIBUTES, ...pluginAttributes, ...OPENAI_FUNCTION_AGENT_ATTRIBUTES]);
 
-    const systemMessages = [
-        SystemMessagePromptTemplate.fromTemplate(formatManager.createFieldInstructions()),
-        ...args.plugins.map(plugin => plugin.systemMessages()).flat(),
-    ];
+    const systemMessages = {
+        content: [
+            {
+                type: "text",
+                text: IDENTIFICATION(args.name, args.description),
+            },
+            {
+                type: "text",
+                text: args.constitution,
+            },
+            {
+                type: "text",
+                text: formatManager.createFieldInstructions(),
+            }
+        ]
+    } as AgentSystemMessage;
+
     const talkToUserTools = args.talkToUserTool ? [args.talkToUserTool] : [];
 
     const internalPlugins = args.plugins.map(plugin => {
 
         const agentPlugin: InternalAgentPlugin = {
-            getInputs: (context) => plugin.getInputs(context),
+            getSystemMessages: async (context) => await plugin.getSystemMessages(context),
             readResponse: async (context: AgentContext, response: MimirAIMessage) => {
                 await plugin.readResponse(context, response, formatManager);
             },
@@ -213,10 +226,6 @@ export async function createOpenAiFunctionAgent(args: MimirAgentArgs) {
 
 
     const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGeneratorBuilder(args.imageHandler), {
-        constitutionMessages: [
-            SystemMessagePromptTemplate.fromTemplate(IDENTIFICATION(args.name, args.description)),
-            SystemMessagePromptTemplate.fromTemplate(args.constitution),
-        ],
         systemMessage: systemMessages,
         outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName, args.talkToUserTool?.name),
         taskCompleteCommandName: args.taskCompleteCommandName,

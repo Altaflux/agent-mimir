@@ -1,7 +1,7 @@
 
 
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
-import { AgentContext, MimirAgentPlugin } from "../schema.js";
+import { AgentContext, AgentSystemMessage, MimirAgentPlugin } from "../schema.js";
 
 import { MimirAIMessage } from "../agent/base-agent.js";
 import { ResponseFieldMapper } from "../agent/instruction-mapper.js";
@@ -45,11 +45,18 @@ export class LongTermMemoryPlugin extends MimirAgentPlugin {
         this.longTermMemoryManager = new LongTermMemoryManager(embeddings)
     }
 
-    systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
-        return [
-            SystemMessagePromptTemplate.fromTemplate("This reminds you of these events from your past:\n{relevantMemory}"),
-        ];
+    async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
+        const relevantMemory = await this.longTermMemoryManager.retrieveMessages(context.input.message, 3);
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: `This reminds you of these events from your past:\n${relevantMemory}`
+                }
+            ]
+        }
     }
+
 
     async readResponse(context: AgentContext, aiMessage: MimirAIMessage, responseFieldMapper: ResponseFieldMapper): Promise<void> {
         if (aiMessage.text && aiMessage.text.length > 0) {
@@ -59,13 +66,6 @@ export class LongTermMemoryPlugin extends MimirAgentPlugin {
 
             await this.longTermMemoryManager?.storeMessage(messageToStore, aiMessage.text);
         }
-    }
-
-    async getInputs(context: AgentContext): Promise<Record<string, any>> {
-
-        return {
-            relevantMemory: await this.longTermMemoryManager.retrieveMessages(context.input.message, 3)
-        };
     }
 
     async clear() {

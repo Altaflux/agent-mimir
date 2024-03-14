@@ -1,5 +1,5 @@
 
-import { AgentContext, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../../schema.js";
+import { AgentContext, AgentSystemMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../../schema.js";
 import { TagMemoryManager } from "./index.js";
 import { z } from "zod";
 import { messagesToString } from "../../utils/format.js";
@@ -7,7 +7,6 @@ import { Embeddings } from "langchain/embeddings/base";
 import { BaseChatModel } from "langchain/chat_models/base";
 import { LangchainToolToMimirTool } from "../../utils/wrapper.js";
 import { AgentTool } from "../../tools/index.js";
-import { MessagesPlaceholder, SystemMessagePromptTemplate } from "@langchain/core/prompts";
 import { StructuredTool } from "@langchain/core/tools";
 import { BaseMessage } from "@langchain/core/messages";
 
@@ -44,16 +43,16 @@ export class ManualTagMemoryPlugin extends MimirAgentPlugin {
         await this.manager.extractConversationInformation(newLines, previousConversation);
     }
 
-    systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
-        return [
-            SystemMessagePromptTemplate.fromTemplate(`You can recall memories by using the following tags and the "recallMemories" function: {memoryTags}\n`),
-        ];
-    }
-
-    async getInputs(_: AgentContext): Promise<Record<string, any>> {
+    async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
+        const memoryTags = this.manager.getAllTags().map(tag => `"${tag}"`).join(", ");
         return {
-            memoryTags: this.manager.getAllTags().map(tag => `"${tag}"`).join(", ")
-        };
+            content: [
+                {
+                    type: "text",
+                    text: `You can recall memories by using the following tags and the "recallMemories" function: ${memoryTags}\n`
+                }
+            ]
+        }
     }
 
     tools(): AgentTool[] {
@@ -127,22 +126,23 @@ class AutomaticTagMemoryPlugin extends MimirAgentPlugin {
         await this.tagManager.extractConversationInformation(newLines, previousConversation);
     }
 
-    systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
-        return [
-            SystemMessagePromptTemplate.fromTemplate(`You remember the following information:\n {recalledMemories}\n`),
-        ];
-    }
+    async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
 
-    async getInputs(context: AgentContext): Promise<Record<string, any>> {
         if (!context.memory) {
             throw new Error("No memory found in agent.");
         }
         const memoryVariables = await context.memory.loadMemoryVariables({});
         const messages = memoryVariables[context.memory.memoryKeys[0] ?? ""];
         if (this.tagManager.getAllTags().length === 0) {
+          
             return {
-                recalledMemories: "No memories yet.",
-            };
+                content: [
+                    {
+                        type: "text",
+                        text: "No memories yet."
+                    }
+                ]
+            }
         }
         const formattedMessages = context.memory.returnMessages ? messagesToString(messages as BaseMessage[], "AI", "Human") : messages as string;
         const relevantTags = (await this.tagManager.findRelevantTags(formattedMessages, context.input.message)).slice(0, 3);
@@ -159,9 +159,16 @@ class AutomaticTagMemoryPlugin extends MimirAgentPlugin {
         });
 
         const memories = memoriesByTag.join("\n\n");
+
         return {
-            recalledMemories: memories
-        };
+            content: [
+                {
+                    type: "text",
+                    text: `You remember the following information:\n ${memories}\n`
+                }
+            ]
+        }
     }
+
 
 }

@@ -1,5 +1,4 @@
-import { MessagesPlaceholder, SystemMessagePromptTemplate } from "@langchain/core/prompts";
-import { AgentWorkspace, FILES_TO_SEND_FIELD, MimirAgentPlugin, MimirPluginFactory, NextMessage, PluginContext } from "../schema.js";
+import { AgentContext, AgentSystemMessage, AgentWorkspace, FILES_TO_SEND_FIELD, MimirAgentPlugin, MimirPluginFactory, NextMessage, PluginContext } from "../schema.js";
 import { ChainValues } from "@langchain/core/utils/types";
 
 export class WorkspacePluginFactory implements MimirPluginFactory {
@@ -20,18 +19,17 @@ class WorkspacePlugin extends MimirAgentPlugin {
         this.workspace = workspace;
     }
 
-    systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
-        return [
-            SystemMessagePromptTemplate.fromTemplate(`{workspaceFiles}`),
-        ];
-    }
-
-    async getInputs(): Promise<Record<string, any>> {
+    async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
         const files = (await this.workspace.listFiles());
-        const message = files.length > 0 ? `You have the following files in your workspace: {workspaceFiles}` : "There are currently no files in your workspace. You cannot use the \"viewImageFromWorkspace\" tool.";
+        const message = files.length > 0 ? `You have the following files in your workspace: ${files.join(", ")}` : "There are currently no files in your workspace. You cannot use the \"viewImageFromWorkspace\" tool.";
         return {
-            workspaceFiles: message,
-        };
+            content: [
+                {
+                    type: "text",
+                    text: message
+                }
+            ]
+        }
     }
 
     async processMessage(nextMessage: NextMessage, inputs: ChainValues): Promise<NextMessage | undefined> {

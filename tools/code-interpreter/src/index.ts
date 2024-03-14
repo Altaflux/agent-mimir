@@ -1,23 +1,20 @@
-import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentWorkspace } from "agent-mimir/schema";
+import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentWorkspace, AgentSystemMessage, AgentContext } from "agent-mimir/schema";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
-import { MessagesPlaceholder, SystemMessagePromptTemplate } from "@langchain/core/prompts";
 import { spawn } from 'child_process';
 import os from 'os';
 import { promises as fs } from 'fs';
 import path from "path";
 import { AgentTool, ToolResponse } from "agent-mimir/tools";
 
-
-
 type CodeInterpreterArgs = {
     workSpace?: AgentWorkspace;
 }
 
-const CODE_INTERPRETER_PROMPT = function (args: CodeInterpreterArgs) {
+const CODE_INTERPRETER_PROMPT = function (args: CodeInterpreterArgs, interpreterInputFiles: string) {
     return `
 Code Interpreter Functions Instructions:
-{interpreterInputFiles}
+${interpreterInputFiles}
 
 If you are given the task to create a file or they ask you to save it then save the files inside the directory who's path is stored in the OS environment variable named "WORKSPACE" like \"os.getenv('WORKSPACE')\".
 Do not mention the workspace in your conversations.
@@ -26,7 +23,6 @@ End of Code Interpreter Functions Instructions.
 
 `
 };
-
 
 export class CodeInterpreterPluginFactory implements MimirPluginFactory {
 
@@ -50,30 +46,31 @@ class CodeInterpreterPlugin extends MimirAgentPlugin {
             console.debug(`Code Interpreter Plugin initialized with workspace ${this.workSpace.workingDirectory}`);
         }
     }
-    systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
-        return [
-            SystemMessagePromptTemplate.fromTemplate(CODE_INTERPRETER_PROMPT(this.args)),
-        ];
-    }
 
-    async getInputs(): Promise<Record<string, any>> {
-        if (!this.workSpace) {
-            return {
-                interpreterInputFiles: "",
-            };
+    async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
+        let interpreterInputFiles = ""
+        if (this.workSpace) {
+
+            const files = await fs.readdir(this.workSpace.workingDirectory);
+            if (files.length === 0) {
+                interpreterInputFiles = ""
+            }
+            const bulletedFiles = (files)
+                .map((fileName: string) => `- "${fileName}"`)
+                .join("\n");
+
+            interpreterInputFiles = `You have been given access to the following files for you to use with the code interpreter functions. The files can be found inside a directory path stored in the OS environment variable named "WORKSPACE" accessible like \"os.getenv('WORKSPACE')\". :\n${bulletedFiles}\n`
+
         }
-        const files = await fs.readdir(this.workSpace.workingDirectory);
-        if (files.length === 0) {
-            return {
-                interpreterInputFiles: "",
-            };
-        }
-        const bulletedFiles = (files)
-            .map((fileName: string) => `- "${fileName}"`)
-            .join("\n");
+
         return {
-            interpreterInputFiles: `You have been given access to the following files for you to use with the code interpreter functions. The files can be found inside a directory path stored in the OS environment variable named "WORKSPACE" accessible like \"os.getenv('WORKSPACE')\". :\n${bulletedFiles}\n`,
-        };
+            content: [
+                {
+                    type: "text",
+                    text: CODE_INTERPRETER_PROMPT(this.args, interpreterInputFiles)
+                }
+            ]
+        }
     }
 
     tools() {

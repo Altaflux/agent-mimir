@@ -1,4 +1,4 @@
-import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentContext } from "agent-mimir/schema";
+import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentContext, AgentSystemMessage } from "agent-mimir/schema";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
 
@@ -15,8 +15,8 @@ import { LLMChain } from "langchain/chains";
 
 import { simpleParseJson } from "agent-mimir/utils/json";
 import { Coordinates, PythonServerControl, TextBlocks } from "./sam.js";
-import { ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate, renderTemplate } from "@langchain/core/prompts";
-import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { ChatPromptTemplate, renderTemplate } from "@langchain/core/prompts";
+import { HumanMessage } from "@langchain/core/messages";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 type DesktopContext = {
@@ -65,16 +65,10 @@ class DesktopControlPlugin extends MimirAgentPlugin {
         await this.pythonServer.close()
     }
 
-    systemMessages(): (SystemMessagePromptTemplate | MessagesPlaceholder)[] {
-        return [
-            new MessagesPlaceholder("desktopImage")
-        ]
-    };
+    async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
 
 
-    async getInputs(context: AgentContext): Promise<Record<string, any>> {
-
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 1000));
         const computerScreenshot = await getComputerScreenImage();
         const tiles = await getScreenTiles(computerScreenshot, this.gridSize, true);
         const labeledImage = await this.pythonServer.addSam(tiles.originalImage);
@@ -85,40 +79,34 @@ class DesktopControlPlugin extends MimirAgentPlugin {
         this.desktopContext.coordinates = labeledImage.coordinates;
         this.desktopContext.textBlocks = labeledImage.textBlocks;
 
-        const tilesMessage = this.options.mouseMode === 'COORDINATES' ? [new SystemMessage({
+        const tilesMessage = this.options.mouseMode === 'COORDINATES' ?  [
+            {
+                type: "text" as const,
+                text: `This images are the tiles of pieces of the user's computer's screen. They include a red plot overlay and there tile number to help you identify the coordinates of the screen. In total there are ${this.gridSize} tile images.`
+            },
+            ...tiles.tiles.map((tile) => {
+                return {
+                    type: "image_url" as const,
+                    image_url: `data:image/png;base64,${tile.toString("base64")}`,
+                }
+
+            })
+        ] : [];
+
+        return {
             content: [
                 {
                     type: "text",
-                    text: `This images are the tiles of pieces of the user's computer's screen. They include a red plot overlay and there tile number to help you identify the coordinates of the screen. In total there are ${this.gridSize} tile images.`
-                },
-                ...tiles.tiles.map((tile) => {
-                    return {
-                        type: "image_url" as const,
-                        image_url: `data:image/png;base64,${tile.toString("base64")}`,
-                    }
-
-                })
-            ]
-        })] : [];
-
-        return {
-            desktopImage: [
-                new SystemMessage({
-                    content: [
-                        {
-                            type: "text",
-                            text: `\nComputer Control Instruction:\nThis image is the user's computer's screen, you can control the computer by moving the mouse, clicking and typing. Make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks, do not ask me to confirm your executed actions, try to do so yourself.
+                    text: `\nComputer Control Instruction:\nThis image is the user's computer's screen, you can control the computer by moving the mouse, clicking and typing. Make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks, do not ask me to confirm your executed actions, try to do so yourself.
 The screen's image includes labels of white boxes with numbers on top of elements you can click, you can move the mouse to the element being labeled by it by using the "moveMouseLocationOnComputerScreenToLabel" tool.`
-                        },
-                        {
-                            type: "image_url",
-                            image_url: `data:image/png;base64,${finalImage.toString("base64")}`
-                        }
-                    ]
-                }),
+                },
+                {
+                    type: "image_url",
+                    image_url: `data:image/png;base64,${finalImage.toString("base64")}`
+                },
                 ...tilesMessage
             ]
-        };
+        }
     }
 
     tools(): AgentTool[] {
