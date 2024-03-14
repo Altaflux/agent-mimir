@@ -298,18 +298,29 @@ function mergeSystemMessages(messages: SystemMessage[]) {
     }, new SystemMessage({ content: [] }))
 
 }
-const dividerSystemMessage = new SystemMessage({content: [
-    {
-        type:"text",
-        text: "\n\n--------------------------------------------------\n\n"
-    }
-]});
+const dividerSystemMessage = new SystemMessage({
+    content: [
+        {
+            type: "text",
+            text: "\n\n--------------------------------------------------\n\n"
+        }
+    ]
+});
 function buildSystemMessage(agentSystemMessages: AgentSystemMessage[]) {
     const messages = agentSystemMessages.map((m) => {
-        return mergeSystemMessages([dividerSystemMessage,  new SystemMessage({ content: m.content })])
+        return mergeSystemMessages([dividerSystemMessage, new SystemMessage({ content: m.content })])
     });
 
     const finalMessage = mergeSystemMessages(messages);
+    const content = finalMessage.content as MessageContentComplex[];
+    const containsOnlyText = content.find((f) => f.type !== "text") === undefined;
+    if (containsOnlyText) {
+        const systemMessageText = content.reduce((prev, next) => {
+            return prev + (next as MessageContentText).text
+        }, "");
+
+        return new SystemMessage(systemMessageText);
+    }
     return finalMessage;
 }
 
