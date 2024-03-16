@@ -187,15 +187,18 @@ export class PlainTextHumanMessageSerializer extends HumanMessageSerializer {
         super();
     }
     async deserialize(message: MimirHumanReplyMessage): Promise<BaseMessage> {
-        return new HumanMessage({
-            content: [
-                {
-                    type: "text",
-                    text: message.message ?? "",
-                },
-                ...this.imageHandler(message.image_url ?? [], "high"),
-            ]
-        });
+        if (message.type === "USER_MESSAGE"){
+            return new HumanMessage({
+                content: [
+                    {
+                        type: "text",
+                        text: message.message ?? "",
+                    },
+                    ...this.imageHandler(message.image_url ?? [], "high"),
+                ]
+            });
+        }
+        throw new Error("Unexpected message type" + JSON.stringify(message))
     }
 }
 

@@ -142,8 +142,11 @@ export type AgentContext = {
 };
 
 export type MimirHumanReplyMessage = {
-    type: "USER_MESSAGE" | "FUNCTION_REPLY",
+    type: "USER_MESSAGE",
     message?: string,
+    image_url?: ImageType[],
+} | {
+    type: "FUNCTION_REPLY",
     image_url?: ImageType[],
     functionReply?: {
         name: string,

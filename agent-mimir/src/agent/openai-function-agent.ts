@@ -75,17 +75,7 @@ class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
 
 function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
     const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage) => {
-        const mimirMessage = nextMessage.type === "USER_MESSAGE" ? ({
-            type: "USER_MESSAGE",
-            message: nextMessage.message,
-            image_url: nextMessage.image_url,
-        } as MimirHumanReplyMessage) : {
-            type: "FUNCTION_REPLY",
-            functionReply: {
-                name: nextMessage.tool!,
-                arguments: nextMessage.jsonPayload,
-            }
-        } as MimirHumanReplyMessage;
+    
 
         if (nextMessage.type === "USER_MESSAGE") {
             const text = { type: "text" as const, text: nextMessage.message };
@@ -96,13 +86,24 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
                         ...imageHandler(nextMessage.image_url ?? [], "high")
                     ]
                 }),
-                messageToSave: mimirMessage,
+                messageToSave: {
+                    type: "USER_MESSAGE" as const,
+                    message: nextMessage.message,
+                    image_url: nextMessage.image_url,
+                },
             }
         } else {
             const toolResponse = convert(nextMessage.jsonPayload);
+            const mimirFunctionMessage = {
+                type: "FUNCTION_REPLY" as const,
+                functionReply: {
+                    name: nextMessage.tool!,
+                    arguments: nextMessage.jsonPayload,
+                }
+            } 
             return {
                 message: new FunctionMessage({
-                    name: mimirMessage.functionReply!.name,
+                    name: mimirFunctionMessage.functionReply.name,
                     content: [
                         {
                             type: "text",
@@ -111,7 +112,7 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
                         ...imageHandler(toolResponse.image_url ?? [], "high")
                     ]
                 }),
-                messageToSave: mimirMessage,
+                messageToSave: mimirFunctionMessage,
             }
         }
     }
@@ -123,7 +124,7 @@ function convert(toolResponse: string): ToolResponse {
 
 export class FunctionCallAiMessageSerializer extends AiMessageSerializer {
     async deserialize(aiMessage: MimirAIMessage): Promise<BaseMessage> {
-        const output = aiMessage as MimirAIMessage;
+        const output = aiMessage;
         const functionCall = output.functionCall ? {
             function_call: {
                 name: output.functionCall?.name,
