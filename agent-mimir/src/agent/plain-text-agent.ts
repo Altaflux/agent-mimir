@@ -120,10 +120,9 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
 
     const messageGenerator: (nextMessage: NextMessage,) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage,) => {
 
-        const messageToAi = nextMessage;
         if (nextMessage.type === "USER_MESSAGE") {
             const renderedHumanMessage = renderTemplate(USER_INPUT, "f-string", {
-                input: messageToAi.message,
+                input: nextMessage.message,
             });
             return {
 
@@ -133,7 +132,7 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
                             type: "text",
                             text: renderedHumanMessage,
                         },
-                        ...imageHandler(messageToAi.image_url ?? [], "high"),
+                        ...imageHandler(nextMessage.image_url ?? [], "high"),
                     ]
                 }),
                 messageToSave: {
@@ -143,8 +142,8 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
                 },
             };
         } else {
-            const toolResponse = convert(nextMessage.message);
-            const toolResponsePostProcess = convert(messageToAi.message);
+            const toolResponse = convert(nextMessage.jsonPayload);
+            const toolResponsePostProcess = convert(nextMessage.jsonPayload);
             return {
                 message: new HumanMessage(extractToolResponse(toolResponsePostProcess, imageHandler)),
                 messageToSave: {

@@ -46,14 +46,19 @@ export class LongTermMemoryPlugin extends MimirAgentPlugin {
     }
 
     async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
-        const relevantMemory = await this.longTermMemoryManager.retrieveMessages(context.input.message, 3);
+        if (context.input.type === "USER_MESSAGE") {
+            const relevantMemory = await this.longTermMemoryManager.retrieveMessages(context.input.message, 3);
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `This reminds you of these events from your past:\n${relevantMemory}`
+                    }
+                ]
+            }
+        }
         return {
-            content: [
-                {
-                    type: "text",
-                    text: `This reminds you of these events from your past:\n${relevantMemory}`
-                }
-            ]
+            content: []
         }
     }
 
@@ -62,7 +67,7 @@ export class LongTermMemoryPlugin extends MimirAgentPlugin {
         if (aiMessage.text && aiMessage.text.length > 0) {
             const messageToStore = context.input.type === "USER_MESSAGE"
                 ? ("User Message: " + context.input.message)
-                : ("Function Response: " + context.input.message);
+                : ("Function Response: " + context.input.jsonPayload);
 
             await this.longTermMemoryManager?.storeMessage(messageToStore, aiMessage.text);
         }

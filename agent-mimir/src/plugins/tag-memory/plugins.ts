@@ -131,6 +131,12 @@ class AutomaticTagMemoryPlugin extends MimirAgentPlugin {
         if (!context.memory) {
             throw new Error("No memory found in agent.");
         }
+        if (context.input.type !== "USER_MESSAGE") {
+            return {
+                content: []
+            }
+        }
+        
         const memoryVariables = await context.memory.loadMemoryVariables({});
         const messages = memoryVariables[context.memory.memoryKeys[0] ?? ""];
         if (this.tagManager.getAllTags().length === 0) {

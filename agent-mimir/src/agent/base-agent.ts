@@ -211,7 +211,7 @@ export class MimirAgent extends BaseSingleActionAgent {
             message: inputs.input
         } : {
             type: "ACTION",
-            message: steps.slice(-1)[0].observation,
+            jsonPayload: steps.slice(-1)[0].observation,
             tool: steps.slice(-1)[0].action.tool,
         }
     }

@@ -74,14 +74,18 @@ type MessageContentObject = MessageContent extends string | infer MessageContent
 
 export type LLMImageHandler = (images: ImageType[], detail: "high" | "low") => MessageContentObject;
 
+
 export type NextMessage = {
-    type: "ACTION" | "USER_MESSAGE",
+    type: "ACTION",
+    tool: string,
+    jsonPayload: string
+} | {
+    type: "USER_MESSAGE",
     message: string,
     image_url?: {
         url: string,
         type: SupportedImageTypes
     }[],
-    tool?: string,
 }
 
 export type ImageType = {

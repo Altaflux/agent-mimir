@@ -83,13 +83,12 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
             type: "FUNCTION_REPLY",
             functionReply: {
                 name: nextMessage.tool!,
-                arguments: nextMessage.message,
-                image_url: nextMessage.image_url,
+                arguments: nextMessage.jsonPayload,
             }
         } as MimirHumanReplyMessage;
 
-        const text = { type: "text" as const, text: nextMessage.message };
         if (nextMessage.type === "USER_MESSAGE") {
+            const text = { type: "text" as const, text: nextMessage.message };
             return {
                 message: new HumanMessage({
                     content: [
@@ -100,7 +99,7 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
                 messageToSave: mimirMessage,
             }
         } else {
-            const toolResponse = convert(nextMessage.message);
+            const toolResponse = convert(nextMessage.jsonPayload);
             return {
                 message: new FunctionMessage({
                     name: mimirMessage.functionReply!.name,
