@@ -5,7 +5,7 @@ import { AttributeDescriptor, ResponseFieldMapper } from "./agent/instruction-ma
 import { AgentTool } from "./tools/index.js";
 import { BaseChatMessageHistory } from "@langchain/core/chat_history";
 import { BaseChatMemory } from "langchain/memory";
-import { BaseMessage, MessageContent } from "@langchain/core/messages";
+import { BaseMessage, MessageContentImageUrl } from "@langchain/core/messages";
 import { ChainValues } from "@langchain/core/utils/types";
 
 
@@ -70,9 +70,7 @@ export interface MimirPluginFactory {
     create(context: PluginContext): MimirAgentPlugin
 }
 
-type MessageContentObject = MessageContent extends string | infer MessageContentArg ? MessageContentArg : never;
-
-export type LLMImageHandler = (images: ImageType[], detail: "high" | "low") => MessageContentObject;
+export type LLMImageHandler = (images: ImageType[], detail: "high" | "low") =>  MessageContentImageUrl[];
 
 
 export type NextMessage = {
@@ -92,6 +90,8 @@ export type ImageType = {
     url: string,
     type: SupportedImageTypes
 }
+
+
 
 export type SupportedImageTypes = "url" | "jpeg" | "png";
 export type ToolResponse = {
@@ -172,18 +172,18 @@ export type FunctionResponseCallBack = (name: string, input: string, response: s
 
 type ImageDetail = "auto" | "low" | "high";
 
-export type MessageContentText = {
+export type AgentMessageContentText = {
     type: "text";
     text: string;
 };
-export type MessageContentImageUrl = {
+export type AgentMessageContentImageUrl = {
     type: "image_url";
     image_url: string | {
         url: string;
         detail?: ImageDetail;
     };
 };
-export type AgentSystemMessageContent = MessageContentText | MessageContentImageUrl;
+export type AgentMessageContent = AgentMessageContentText | AgentMessageContentImageUrl;
 export type AgentSystemMessage = {
-    content: AgentSystemMessageContent[]
+    content: AgentMessageContent[]
 }
