@@ -39,3 +39,6 @@ yarn-error.log*
 .temp_custom_deps/
 
 mimir-config/
+
+# Doocker
+.dockerignore
