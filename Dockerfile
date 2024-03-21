@@ -5,13 +5,12 @@ RUN mkdir -p /home/node/app/node_modules && chown -R node:node /home/node/app
 WORKDIR /home/node/app
 # copy package.json and package-lock.json
 COPY package*.json ./
+# copy app source
+COPY --chown=node:node . .
 # swtich to node user
 USER node
 # install dependencies
-RUN npm install
-# copy app source]
-COPY --chown=node:node . .
-# wirte .env file
-RUN echo printenv > .env
-# run start-cli
+# RUN npm install
+CMD ["npm", "install"]
+# # run start-cli
 CMD ["npm", "run", "start-cli"]

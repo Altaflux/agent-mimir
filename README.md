@@ -266,6 +266,24 @@ If you declare multiple agents in your configuration you can enable communicatio
 
 You can enable communication be setting `canCommunicateWithAgents` to either `true` if you want the agent to be able to communicate with every other agent or pass an array of the names of the agents it is allowed to talk to (`['Mr_Chef', 'Artist']`).
 
+## Docker
+### Build Docker Image
+```sh
+docker build -t agent-mimir .
+```
+### Run Container
+```sh
+docker run --rm -d -t -i -e OPENAI_API_KEY='YOUR_KEY' --name agent-mimir agent-mimir
+```
+### Shell Interact
+```sh
+docker exec -it agent-mimir /bin/bash
+```
+### Run CLI
+```sh
+npm run start-cli
+```
+
 ## Roadmap
 
 * Configurable memory types to allow persistent memory or different use cases.
