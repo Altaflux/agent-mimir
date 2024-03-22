@@ -34,33 +34,19 @@ The functions and the JSON schemas of their argument you can use are:
 
 `;
 
-const USER_INPUT = `USER'S INPUT
---------------------
-Here is the user's input (remember to respond with using the format instructions above):
 
-{input}`;
-
-const USER_INPUT_NEW = `USER'S INPUT
+const USER_INPUT_HEADER = `USER'S INPUT
 --------------------
 Here is the user's input (remember to respond with using the format instructions above):
 
 `;
 
-const TEMPLATE_TOOL_RESPONSE = `FUNCTION RESPONSE, (Note from user: I cannot see the function's response, any information from the function's response you must tell me explicitly): 
----------------------
-{observation}
 
-USER'S INPUT
---------------------
-Modify the current plan as needed to achieve my request and proceed with it. 
-
-`;
-
-const TEMPLATE_TOOL_RESPONSE_NEW_HEADER = `FUNCTION RESPONSE, (Note from user: I cannot see the function's response, any information from the function's response you must tell me explicitly): 
+const TEMPLATE_TOOL_RESPONSE_HEADER = `FUNCTION RESPONSE, (Note from user: I cannot see the function's response, any information from the function's response you must tell me explicitly): 
 ---------------------
 
 `;
-const TEMPLATE_TOOL_RESPONSE_NEW_FOOTER = `USER'S INPUT
+const TEMPLATE_TOOL_RESPONSE_FOOTER = `USER'S INPUT
 --------------------
 Modify the current plan as needed to achieve my request and proceed with it. 
 
@@ -140,7 +126,7 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
       
             const userInputHeader = {
                 type: "text",
-                text: USER_INPUT_NEW
+                text: USER_INPUT_HEADER
             } satisfies ResponseContentText;
          
             return {
@@ -179,11 +165,11 @@ function extractToolResponse(toolResponse: ToolResponse, imageHandler: LLMImageH
 
     const toolResponseHeader = {
         type: "text",
-        text: TEMPLATE_TOOL_RESPONSE_NEW_HEADER
+        text: TEMPLATE_TOOL_RESPONSE_HEADER
     } satisfies ResponseContentText;
     const toolResponseFooter = {
         type: "text",
-        text: TEMPLATE_TOOL_RESPONSE_NEW_FOOTER
+        text: TEMPLATE_TOOL_RESPONSE_FOOTER
     } satisfies ResponseContentText;
 
     const stuff: BaseMessageFields = {
