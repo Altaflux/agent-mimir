@@ -82,13 +82,11 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
             const text = { type: "text" as const, text: nextMessage.content };
             return {
                 message: new HumanMessage({
-                    content: complexResponseToLangchainMessageContent(nextMessage.content, imageHandler) //TODO WRONG???
+                    content: complexResponseToLangchainMessageContent(nextMessage.content, imageHandler) 
                 }),
                 messageToSave: {
                     type: "USER_MESSAGE" as const,
                     content: nextMessage.content
-                    // message: nextMessage.message,
-                    // image_url: nextMessage.image_url,
                 } satisfies MimirHumanReplyMessage,
             }
         } else {
@@ -146,13 +144,6 @@ export class PlainTextHumanMessageSerializer extends HumanMessageSerializer {
         }
         return new HumanMessage({
             content: complexResponseToLangchainMessageContent(message.content, this.imageHandler)
-            // content: [
-            //     {
-            //         type: "text",
-            //         text: message.message ?? "",
-            //     },
-            //     ...this.imageHandler(message.image_url ?? [], "high"),
-            // ]
         });
     }
 }

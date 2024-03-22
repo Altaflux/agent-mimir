@@ -146,19 +146,10 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
             return {
                 message: new HumanMessage({
                     content: complexResponseToLangchainMessageContent([userInputHeader, ...nextMessage.content], imageHandler)
-                    // content: [
-                    //     {
-                    //         type: "text",
-                    //         text: renderedHumanMessage,
-                    //     },
-                    //     ...(nextMessage.image_url ?? []).map((im)=>imageHandler(im, "high"))
-                    // ]
                 }),
                 messageToSave: {
                     type: "USER_MESSAGE",
                     content: nextMessage.content
-                    //message: nextMessage.message,
-                    //image_url: nextMessage.image_url
                 } satisfies MimirHumanReplyMessage,
             };
         } else {
