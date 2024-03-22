@@ -200,7 +200,7 @@ export class AgentManager {
             workspace: workspace,
             reset: reset,
             call: async (continuousMode, input, callback) => {
-                const out = await chatMemoryChain.call({ continuousMode, ...input, functionResponseCallBack: callback });
+                const out = await chatMemoryChain.invoke({ continuousMode, ...input, functionResponseCallBack: callback });
                 const agentResponse: ToolResponse | AgentToolRequest = JSON.parse(out.output);
                 if (continuousMode) {
                     return {

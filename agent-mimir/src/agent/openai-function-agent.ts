@@ -8,7 +8,6 @@ import { AiMessageSerializer, HumanMessageSerializer, TransformationalChatMessag
 import { callJsonRepair } from "../utils/json.js";
 import { MimirToolToLangchainTool } from "../utils/wrapper.js";
 import { BaseLLMOutputParser } from "@langchain/core/output_parsers";
-import { SystemMessagePromptTemplate } from "@langchain/core/prompts";
 import { ChatGeneration, Generation } from "@langchain/core/outputs";
 import { ChainValues } from "@langchain/core/utils/types";
 import { complexResponseToLangchainMessageContent } from "../utils/format.js";
