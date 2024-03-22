@@ -35,18 +35,22 @@ export class ViewTool extends AgentTool {
         const file = (await this.context.workspace.fileAsBuffer(arg.fileName));
         if (file) {
             const imageType = arg.fileName.split('.').pop()! as SupportedImageTypes;
-            const response: ToolResponse = {
-                image_url: [{
-                    type: imageType,
-                    url: file.toString("base64"),
-                }],
-            };
-
-            return response;
+            return [
+                {
+                    type: "image_url",
+                    image_url: {
+                        type: imageType,
+                        url: file.toString("base64"),
+                    }
+                }
+            ];
         }
-        const response: ToolResponse = {
-            text: `The file named ${arg.fileName} does not exist in your workspace.`,
-        };
+        const response: ToolResponse = [
+            {
+                type: "text",
+                text: `The file named ${arg.fileName} does not exist in your workspace.`
+            }
+        ];
         return response;
     }
 

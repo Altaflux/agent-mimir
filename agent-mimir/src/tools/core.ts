@@ -24,9 +24,12 @@ export class TalkToUserTool extends AgentTool {
             message: arg.messageToSend,
             sharedFiles: files,
         }
-        return {
-            text: JSON.stringify(result),
-        };
+        return [
+            {
+                type: "text",
+                text: JSON.stringify(result)
+            }
+        ]
     }
 
     name: string = "respondBack";

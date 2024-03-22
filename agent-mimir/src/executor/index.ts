@@ -70,7 +70,12 @@ export class SteppedAgentExecutor extends BaseChain {
         const tool = toolsByName[action.tool?.toLowerCase()];
         const observation = tool
             ? await tool.call(action.toolInput)
-            : JSON.stringify({ text: `"${action.tool}" is not a valid tool, try another one.` } as ToolResponse);
+            : JSON.stringify([
+                {
+                    type: "text",
+                    text: `"${action.tool}" is not a valid tool, try another one.`
+                }
+            ] as ToolResponse);
 
         if (!tool?.returnDirect) {
             functionInvokationListener(action.tool?.toLowerCase() ?? "", JSON.stringify(action.toolInput, null, 2), observation);
@@ -190,5 +195,5 @@ export class SteppedAgentExecutor extends BaseChain {
         return "stepped_agent_executor" as const;
     }
 
-   
+
 }

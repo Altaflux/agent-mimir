@@ -1,11 +1,11 @@
 import { MimirAgent, InternalAgentPlugin, MimirAIMessage } from "./base-agent.js";
-import { AIMessage, BaseMessage, BaseMessageFields, FunctionMessageFieldsWithName, HumanMessage } from "@langchain/core/messages";
+import { AIMessage, BaseMessage, BaseMessageFields, FunctionMessageFieldsWithName, HumanMessage, MessageContentImageUrl, MessageContentText } from "@langchain/core/messages";
 import { AiMessageSerializer, HumanMessageSerializer, TransformationalChatMessageHistory } from "../memory/transform-memory.js";
 import { PromptTemplate, renderTemplate } from "@langchain/core/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
 import { AgentActionOutputParser, AgentFinish, AgentAction, } from "langchain/agents";
-import { AgentContext, LLMImageHandler, MimirAgentArgs, MimirHumanReplyMessage, ToolResponse, NextMessage, AgentSystemMessage } from "../schema.js";
+import { AgentContext, LLMImageHandler, MimirAgentArgs, MimirHumanReplyMessage, ToolResponse, NextMessage, AgentSystemMessage, ResponseContentText } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { callJsonRepair } from "../utils/json.js";
 import { MimirToolToLangchainTool } from "../utils/wrapper.js";
@@ -13,6 +13,7 @@ import { renderTextDescriptionAndArgs } from "../utils/render.js";
 import { ChatGeneration, Generation, } from "@langchain/core/outputs";
 import { ChainValues } from "@langchain/core/utils/types";
 import { BaseLLMOutputParser } from "@langchain/core/output_parsers";
+import { complexResponseToLangchainMessageContent } from "../utils/format.js";
 
 
 const JSON_INSTRUCTIONS = `You must format your inputs to these functions to match their "JSON schema" definitions below.
@@ -39,6 +40,12 @@ Here is the user's input (remember to respond with using the format instructions
 
 {input}`;
 
+const USER_INPUT_NEW = `USER'S INPUT
+--------------------
+Here is the user's input (remember to respond with using the format instructions above):
+
+`;
+
 const TEMPLATE_TOOL_RESPONSE = `FUNCTION RESPONSE, (Note from user: I cannot see the function's response, any information from the function's response you must tell me explicitly): 
 ---------------------
 {observation}
@@ -49,6 +56,15 @@ Modify the current plan as needed to achieve my request and proceed with it.
 
 `;
 
+const TEMPLATE_TOOL_RESPONSE_NEW_HEADER = `FUNCTION RESPONSE, (Note from user: I cannot see the function's response, any information from the function's response you must tell me explicitly): 
+---------------------
+
+`;
+const TEMPLATE_TOOL_RESPONSE_NEW_FOOTER = `USER'S INPUT
+--------------------
+Modify the current plan as needed to achieve my request and proceed with it. 
+
+`;
 type AIMessageType = {
     functionName?: string,
     functionArguments?: string,
@@ -121,36 +137,42 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
     const messageGenerator: (nextMessage: NextMessage,) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage,) => {
 
         if (nextMessage.type === "USER_MESSAGE") {
-            const renderedHumanMessage = renderTemplate(USER_INPUT, "f-string", {
-                input: nextMessage.message,
-            });
+      
+            const userInputHeader = {
+                type: "text",
+                text: USER_INPUT_NEW
+            } satisfies ResponseContentText;
+         
             return {
-
                 message: new HumanMessage({
-                    content: [
-                        {
-                            type: "text",
-                            text: renderedHumanMessage,
-                        },
-                        ...imageHandler(nextMessage.image_url ?? [], "high"),
-                    ]
+                    content: complexResponseToLangchainMessageContent([userInputHeader, ...nextMessage.content], imageHandler)
+                    // content: [
+                    //     {
+                    //         type: "text",
+                    //         text: renderedHumanMessage,
+                    //     },
+                    //     ...(nextMessage.image_url ?? []).map((im)=>imageHandler(im, "high"))
+                    // ]
                 }),
                 messageToSave: {
                     type: "USER_MESSAGE",
-                    message: nextMessage.message,
-                    image_url: nextMessage.image_url
-                },
+                    content: nextMessage.content
+                    //message: nextMessage.message,
+                    //image_url: nextMessage.image_url
+                } satisfies MimirHumanReplyMessage,
             };
         } else {
             const toolResponse = convert(nextMessage.jsonPayload);
             const toolResponsePostProcess = convert(nextMessage.jsonPayload);
+            
             return {
                 message: new HumanMessage(extractToolResponse(toolResponsePostProcess, imageHandler)),
                 messageToSave: {
                     type: "USER_MESSAGE",
-                    message: toolResponse.text ?? "",
-                    image_url: toolResponse.image_url,
-                },
+                    content: toolResponse
+                    // message: toolResponse.text ?? "",
+                    // image_url: toolResponse.image_url,
+                } satisfies MimirHumanReplyMessage,
             };
         }
 
@@ -164,16 +186,17 @@ function convert(toolResponse: string): ToolResponse {
 
 function extractToolResponse(toolResponse: ToolResponse, imageHandler: LLMImageHandler): BaseMessageFields {
 
+    const toolResponseHeader = {
+        type: "text",
+        text: TEMPLATE_TOOL_RESPONSE_NEW_HEADER
+    } satisfies ResponseContentText;
+    const toolResponseFooter = {
+        type: "text",
+        text: TEMPLATE_TOOL_RESPONSE_NEW_FOOTER
+    } satisfies ResponseContentText;
+
     const stuff: BaseMessageFields = {
-        content: [
-            {
-                type: "text",
-                text: renderTemplate(TEMPLATE_TOOL_RESPONSE, "f-string", {
-                    observation: toolResponse.text ?? "",
-                })
-            },
-            ...imageHandler(toolResponse.image_url ?? [], "high"),
-        ]
+        content: complexResponseToLangchainMessageContent([toolResponseHeader, ...toolResponse, toolResponseFooter], imageHandler)
     }
     return stuff as FunctionMessageFieldsWithName;
 }
@@ -189,13 +212,7 @@ export class PlainTextHumanMessageSerializer extends HumanMessageSerializer {
     async deserialize(message: MimirHumanReplyMessage): Promise<BaseMessage> {
         if (message.type === "USER_MESSAGE"){
             return new HumanMessage({
-                content: [
-                    {
-                        type: "text",
-                        text: message.message ?? "",
-                    },
-                    ...this.imageHandler(message.image_url ?? [], "high"),
-                ]
+                content: complexResponseToLangchainMessageContent(message.content, this.imageHandler)
             });
         }
         throw new Error("Unexpected message type" + JSON.stringify(message))

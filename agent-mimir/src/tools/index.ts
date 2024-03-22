@@ -1,12 +1,8 @@
 
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
-import { ImageType } from "../schema.js";
+import { ImageType, ToolResponse } from "../schema.js";
 
-export type ToolResponse = {
-    text?: string;
-    image_url?: ImageType[];
-};
 
 export abstract class AgentTool<
     T extends z.ZodObject<any, any, any, any> = z.ZodObject<any, any, any, any>> {

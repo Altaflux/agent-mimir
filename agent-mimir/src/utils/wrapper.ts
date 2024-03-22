@@ -24,13 +24,18 @@ export class LangchainToolToMimirTool extends AgentTool {
     name: string = this.tool.name;
     description: string = this.tool.description;
     returnDirect: boolean = this.tool.returnDirect;
-    
+
     constructor(private tool: StructuredTool) {
         super();
     }
+
     protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
-        return {
-            text: await this.tool.call(arg),
-        };
+        return [
+            {
+                type: "text",
+                text: await this.tool.call(arg)
+            }
+        ]
+
     }
 }

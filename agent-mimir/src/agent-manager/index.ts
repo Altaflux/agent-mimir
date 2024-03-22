@@ -51,11 +51,11 @@ export class AgentManager {
 
     private map: Map<string, Agent> = new Map();
     public constructor(private managerConfig: ManagerConfig) { }
-    
+
     public async createAgent(config: CreateAgentOptions): Promise<Agent> {
-       const agent = await this.createAgentNoRegister(config);
-       this.map.set(agent.name, agent);
-       return agent;
+        const agent = await this.createAgentNoRegister(config);
+        this.map.set(agent.name, agent);
+        return agent;
     }
 
     private async createAgentNoRegister(config: CreateAgentOptions): Promise<Agent> {
@@ -204,13 +204,13 @@ export class AgentManager {
                 const agentResponse: ToolResponse | AgentToolRequest = JSON.parse(out.output);
                 if (continuousMode) {
                     return {
-                        output: JSON.parse((agentResponse as ToolResponse).text ?? "") as AgentUserMessage,
+                        output: toolResponseToAgentUserMessage(agentResponse as ToolResponse),
                         toolStep: () => false,
                         agentResponse: () => true
                     } as any
                 } else {
                     return {
-                        output: out.toolStep ? agentResponse as AgentToolRequest : JSON.parse((agentResponse as ToolResponse).text ?? "") as AgentUserMessage,
+                        output: out.toolStep ? agentResponse as AgentToolRequest : toolResponseToAgentUserMessage(agentResponse as ToolResponse),
                         toolStep: () => out.toolStep === true,
                         agentResponse: () => out.toolStep !== true
                     } as AgentResponse
@@ -231,6 +231,13 @@ export class AgentManager {
 
 }
 
+function toolResponseToAgentUserMessage(toolResponse: ToolResponse) {
+    const firstEntry = toolResponse[0];
+    if (firstEntry.type === 'text') {
+        return JSON.parse(firstEntry.text) as AgentUserMessage
+    }
+    throw new Error("Cannot convert response to AgentUserMessage: " + JSON.stringify(toolResponse))
+}
 
 class LangchainToolWrapperPluginFactory implements MimirPluginFactory {
 

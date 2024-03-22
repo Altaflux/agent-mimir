@@ -2,7 +2,7 @@
 import { AgentContext, AgentSystemMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../../schema.js";
 import { TagMemoryManager } from "./index.js";
 import { z } from "zod";
-import { messagesToString } from "../../utils/format.js";
+import { extractAllTextFromComplexResponse, messagesToString } from "../../utils/format.js";
 import { Embeddings } from "langchain/embeddings/base";
 import { BaseChatModel } from "langchain/chat_models/base";
 import { LangchainToolToMimirTool } from "../../utils/wrapper.js";
@@ -136,11 +136,11 @@ class AutomaticTagMemoryPlugin extends MimirAgentPlugin {
                 content: []
             }
         }
-        
+
         const memoryVariables = await context.memory.loadMemoryVariables({});
         const messages = memoryVariables[context.memory.memoryKeys[0] ?? ""];
         if (this.tagManager.getAllTags().length === 0) {
-          
+
             return {
                 content: [
                     {
@@ -151,7 +151,7 @@ class AutomaticTagMemoryPlugin extends MimirAgentPlugin {
             }
         }
         const formattedMessages = context.memory.returnMessages ? messagesToString(messages as BaseMessage[], "AI", "Human") : messages as string;
-        const relevantTags = (await this.tagManager.findRelevantTags(formattedMessages, context.input.message)).slice(0, 3);
+        const relevantTags = (await this.tagManager.findRelevantTags(formattedMessages, extractAllTextFromComplexResponse(context.input.content))).slice(0, 3);
 
         const memoriesByTagList = (await Promise.all(relevantTags.map(async (tag) => {
             return await this.tagManager.rememberTagFacts(tag);

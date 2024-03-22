@@ -7,6 +7,7 @@ import { MimirAIMessage } from "../agent/base-agent.js";
 import { ResponseFieldMapper } from "../agent/instruction-mapper.js";
 import { MessagesPlaceholder, SystemMessagePromptTemplate } from "@langchain/core/prompts";
 import { Embeddings } from "@langchain/core/embeddings";
+import { extractAllTextFromComplexResponse } from "../utils/format.js";
 
 class LongTermMemoryManager {
 
@@ -47,7 +48,7 @@ export class LongTermMemoryPlugin extends MimirAgentPlugin {
 
     async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
         if (context.input.type === "USER_MESSAGE") {
-            const relevantMemory = await this.longTermMemoryManager.retrieveMessages(context.input.message, 3);
+            const relevantMemory = await this.longTermMemoryManager.retrieveMessages(extractAllTextFromComplexResponse(context.input.content), 3);
             return {
                 content: [
                     {
@@ -66,7 +67,7 @@ export class LongTermMemoryPlugin extends MimirAgentPlugin {
     async readResponse(context: AgentContext, aiMessage: MimirAIMessage, responseFieldMapper: ResponseFieldMapper): Promise<void> {
         if (aiMessage.text && aiMessage.text.length > 0) {
             const messageToStore = context.input.type === "USER_MESSAGE"
-                ? ("User Message: " + context.input.message)
+                ? ("User Message: " + extractAllTextFromComplexResponse(context.input.content))
                 : ("Function Response: " + context.input.jsonPayload);
 
             await this.longTermMemoryManager?.storeMessage(messageToStore, aiMessage.text);

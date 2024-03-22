@@ -186,7 +186,12 @@ export class MimirAgent extends BaseSingleActionAgent {
                     realInput: errMessage,
                     inputToSave: {
                         type: "USER_MESSAGE",
-                        message: BAD_MESSAGE_TEXT,
+                        content: [
+                            {
+                                type: "text",
+                                text: BAD_MESSAGE_TEXT
+                            }
+                        ],
                     } as MimirHumanReplyMessage,
                 });
 
@@ -208,7 +213,12 @@ export class MimirAgent extends BaseSingleActionAgent {
     private getMessageForAI(steps: AgentStep[], inputs: ChainValues): NextMessage {
         return steps.length === 0 ? {
             type: "USER_MESSAGE",
-            message: inputs.input
+            content: [
+                {
+                    type: "text" as const,
+                    text: (inputs.input as string) // TODO THIS IS PROBABLY WRONG!!!!
+                }
+            ],
         } : {
             type: "ACTION",
             jsonPayload: steps.slice(-1)[0].observation,

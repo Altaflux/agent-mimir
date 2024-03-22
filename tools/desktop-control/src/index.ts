@@ -2,7 +2,8 @@ import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentContext, Agen
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
 
-import { AgentTool, ToolResponse } from "agent-mimir/tools";
+import { ToolResponse } from "agent-mimir/schema";
+import { AgentTool } from "agent-mimir/tools";
 import screenshot, { DisplayID } from 'screenshot-desktop';
 import si from 'systeminformation';
 import { JsonSchema7ObjectType } from "zod-to-json-schema";
@@ -79,7 +80,7 @@ class DesktopControlPlugin extends MimirAgentPlugin {
         this.desktopContext.coordinates = labeledImage.coordinates;
         this.desktopContext.textBlocks = labeledImage.textBlocks;
 
-        const tilesMessage = this.options.mouseMode === 'COORDINATES' ?  [
+        const tilesMessage = this.options.mouseMode === 'COORDINATES' ? [
             {
                 type: "text" as const,
                 text: `This images are the tiles of pieces of the user's computer's screen. They include a red plot overlay and there tile number to help you identify the coordinates of the screen. In total there are ${this.gridSize} tile images.`
@@ -292,9 +293,13 @@ class MoveMouseToLabel extends AgentTool {
         const coordinates = this.context.coordinates.filter((el) => el.index === arg.labelNumber)[0];
 
         if (!coordinates) {
-            return {
-                text: "The label number does not exist, please try again with a different label number.",
-            }
+            return [
+                {
+                    type: "text",
+                    text: "The label number does not exist, please try again with a different label number.",
+                }
+            ]
+
         }
         const graphics = await si.graphics();
         const displays = await screenshot.listDisplays();
@@ -306,10 +311,12 @@ class MoveMouseToLabel extends AgentTool {
         const location = convertToPixelCoordinates2(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, scaledX, scaledY, 1, 1);
 
         await mouse.setPosition(new Point(location.xPixelCoordinate, location.yPixelCoordinate));
-        return {
-            text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location (look at the computer screen image).",
-            //text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location (look at the computer screen image), if that is not the case try again with a different \"text\" value or use the \"moveMouseLocationOnComputerScreenToCoordinate\" tool.",
-        }
+        return [
+            {
+                type: "text",
+                text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location (look at the computer screen image).",
+            }
+        ]
     }
 }
 
@@ -330,18 +337,20 @@ class MoveMouseToText extends AgentTool {
     description: string = "Move the mouse to a location on the computer screen. This tool is preferred over the \"moveMouseLocationOnComputerScreenToCoordinate\" tool, but if you are not succeeding try using then try the \"moveMouseLocationOnComputerScreenToCoordinate\" tool. Use as input the text on the element to which you are want to move the mouse over. The text must be as precise as possible!";
 
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
-      
+
         const symbols = this.context.textBlocks;
 
         const fullText = symbols.map((symbol) => symbol.text).join('');
         const searchKeyword = arg.location.text.replaceAll(" ", "");
         const searchLocation = fullText.indexOf(searchKeyword);
         if (searchLocation === -1) {
-            return {
-                text: "Could not find the element to which move the mouse to, please try again by using the \"moveMouseLocationOnComputerScreenToCoordinate\" tool.",
-            }
-        }
-        const startingLocation = symbols[searchLocation].bbox;
+            return [
+                {
+                    type: "text",
+                    text: "Could not find the element to which move the mouse to, please try again by using the \"moveMouseLocationOnComputerScreenToCoordinate\" tool.",
+                }
+            ]
+        } const startingLocation = symbols[searchLocation].bbox;
         const endingLocation = symbols[searchLocation + searchKeyword.length - 1].bbox;
 
         const graphics = await si.graphics();
@@ -358,9 +367,12 @@ class MoveMouseToText extends AgentTool {
         const location = convertToPixelCoordinates2(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, scaledX, scaledY, 1, 1);
         await mouse.setPosition(new Point(location.xPixelCoordinate, location.yPixelCoordinate));
 
-        return {
-            text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location (look at the computer screen image), if that is not the case try again with a different \"text\" value or use the \"moveMouseLocationOnComputerScreenToCoordinate\" tool. .",
-        }
+        return [
+            {
+                type: "text",
+                text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location (look at the computer screen image), if that is not the case try again with a different \"text\" value or use the \"moveMouseLocationOnComputerScreenToCoordinate\" tool. .",
+            }
+        ]
     }
 }
 
@@ -386,9 +398,12 @@ class MoveMouseToCoordinate extends AgentTool {
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
 
         if (arg.coordinates.tileNumber > this.gridSize) {
-            return {
-                text: `The tile number must be between 1 and ${this.gridSize}`,
-            }
+            return [
+                {
+                    type: "text",
+                    text: `The tile number must be between 1 and ${this.gridSize}`,
+                }
+            ]
         }
 
         const graphics = await si.graphics();
@@ -405,10 +420,12 @@ class MoveMouseToCoordinate extends AgentTool {
         } catch (error) {
             console.warn("Error verifying mouse position.", error);
         }
-
-        return {
-            text: "The mouse has moved to the new location, please make sure the mouse has moved to the expected location (look at the computer screen image), if that is not the case try again using different coordinates.",
-        }
+        return [
+            {
+                type: "text",
+                text: "The mouse has moved to the new location, please make sure the mouse has moved to the expected location (look at the computer screen image), if that is not the case try again using different coordinates.",
+            }
+        ]
     }
 
     private async veryifyMousePosition(tileNumber: number, elementDescription: string, existingCoordinates: { x: number, y: number }): Promise<{ x: number, y: number }> {
@@ -538,10 +555,13 @@ class ClickPositionOnDesktop extends AgentTool {
             await mouse.doubleClick(button);
         }
 
-        return {
-            text: "The mouse has moved to the new location and clicked.",
+        return [
+            {
+                type: "text",
+                text: "The mouse has moved to the new location and clicked.",
+            }
+        ]
 
-        }
     }
 }
 function convertToPixelCoordinates2(
@@ -610,9 +630,12 @@ class TypeTextOnDesktop extends AgentTool {
 
         await keyboard.type(arg.keys);
 
-        return {
-            text: "The text has been sent to the computer, please verify they were typed as you expected.",
-        }
+        return [
+            {
+                type: "text",
+                text: "The text has been sent to the computer, please verify they were typed as you expected.",
+            }
+        ]
     }
 }
 class TypeOnDesktop extends AgentTool {
@@ -636,9 +659,13 @@ class TypeOnDesktop extends AgentTool {
             }
             if (!keyValue) {
                 await keyboard.type(key.key);
-                return {
-                    text: "The keys have been sent to the computer.",
-                }
+
+                return [
+                    {
+                        type: "text",
+                        text: "The keys have been sent to the computer.",
+                    }
+                ]
             }
             if (key.action === "typeKey") {
                 await keyboard.type(keyValue);
@@ -648,8 +675,12 @@ class TypeOnDesktop extends AgentTool {
                 await keyboard.releaseKey(keyValue);
             }
         }
-        return {
-            text: "The keys have been sent to the computer.",
-        }
+        return [
+            {
+                type: "text",
+                text: "The keys have been sent to the computer.",
+            }
+        ]
+
     }
 }

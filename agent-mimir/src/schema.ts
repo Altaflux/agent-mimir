@@ -70,7 +70,7 @@ export interface MimirPluginFactory {
     create(context: PluginContext): MimirAgentPlugin
 }
 
-export type LLMImageHandler = (images: ImageType[], detail: "high" | "low") =>  MessageContentImageUrl[];
+export type LLMImageHandler = (images: ImageType, detail: "high" | "low") =>  MessageContentImageUrl;
 
 
 export type NextMessage = {
@@ -79,11 +79,7 @@ export type NextMessage = {
     jsonPayload: string
 } | {
     type: "USER_MESSAGE",
-    message: string,
-    image_url?: {
-        url: string,
-        type: SupportedImageTypes
-    }[],
+    content: ComplexResponse[]
 }
 
 export type ImageType = {
@@ -94,10 +90,22 @@ export type ImageType = {
 
 
 export type SupportedImageTypes = "url" | "jpeg" | "png";
-export type ToolResponse = {
-    text?: string,
-    image_url?: ImageType[],
-}
+
+export type ResponseContentText = {
+    type: "text";
+    text: string;
+};
+export type ResponseContentImage = {
+    type: "image_url";
+    image_url:  {
+        url: string;
+        type: SupportedImageTypes;
+    };
+};
+
+export type ComplexResponse = ResponseContentText | ResponseContentImage
+export type ToolResponse = ComplexResponse[];
+
 
 export abstract class MimirAgentPlugin {
 
@@ -143,14 +151,13 @@ export type AgentContext = {
 
 export type MimirHumanReplyMessage = {
     type: "USER_MESSAGE",
-    message?: string,
-    image_url?: ImageType[],
+    content:  ComplexResponse[],
 } | {
     type: "FUNCTION_REPLY",
-    image_url?: ImageType[],
+
     functionReply?: {
         name: string,
-        arguments: string,
+        arguments: ComplexResponse[],
     },
 }
 

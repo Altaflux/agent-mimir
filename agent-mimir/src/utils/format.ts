@@ -1,4 +1,5 @@
-import { BaseMessage, MessageContent } from "@langchain/core/messages";
+import { BaseMessage, MessageContent, MessageContentComplex, MessageContentText } from "@langchain/core/messages";
+import { ComplexResponse, LLMImageHandler, ResponseContentText } from "../schema.js";
 
 export function messagesToString(
   messages: BaseMessage[],
@@ -43,4 +44,23 @@ export function extractTextContent(messageContent: MessageContent) {
   } else {
     throw new Error(`Got unsupported text type: ${JSON.stringify(messageContent)}`);
   }
+}
+
+
+export function complexResponseToLangchainMessageContent(toolResponse: ComplexResponse[], imageHandler: LLMImageHandler): MessageContentComplex[] {
+  return toolResponse.map((en) => {
+    if (en.type === "text") {
+      return {
+        type: "text",
+        text: en.text
+      } satisfies MessageContentText
+    } else if (en.type === "image_url") {
+      return imageHandler(en.image_url, "high")
+    }
+    throw new Error(`Unsupported type: ${JSON.stringify(en)}`)
+  })
+}
+
+export function extractAllTextFromComplexResponse(toolResponse: ComplexResponse[]) {
+  return toolResponse.filter((r) => r.type === "text").map((r)=> (r as ResponseContentText).text).join("\n");
 }

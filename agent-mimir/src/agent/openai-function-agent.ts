@@ -11,6 +11,7 @@ import { BaseLLMOutputParser } from "@langchain/core/output_parsers";
 import { SystemMessagePromptTemplate } from "@langchain/core/prompts";
 import { ChatGeneration, Generation } from "@langchain/core/outputs";
 import { ChainValues } from "@langchain/core/utils/types";
+import { complexResponseToLangchainMessageContent } from "../utils/format.js";
 
 
 type AIMessageType = {
@@ -75,22 +76,20 @@ class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
 
 function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
     const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage) => {
-    
+
 
         if (nextMessage.type === "USER_MESSAGE") {
-            const text = { type: "text" as const, text: nextMessage.message };
+            const text = { type: "text" as const, text: nextMessage.content };
             return {
                 message: new HumanMessage({
-                    content: [
-                        text,
-                        ...imageHandler(nextMessage.image_url ?? [], "high")
-                    ]
+                    content: complexResponseToLangchainMessageContent(nextMessage.content, imageHandler) //TODO WRONG???
                 }),
                 messageToSave: {
                     type: "USER_MESSAGE" as const,
-                    message: nextMessage.message,
-                    image_url: nextMessage.image_url,
-                },
+                    content: nextMessage.content
+                    // message: nextMessage.message,
+                    // image_url: nextMessage.image_url,
+                } satisfies MimirHumanReplyMessage,
             }
         } else {
             const toolResponse = convert(nextMessage.jsonPayload);
@@ -98,19 +97,13 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
                 type: "FUNCTION_REPLY" as const,
                 functionReply: {
                     name: nextMessage.tool!,
-                    arguments: nextMessage.jsonPayload,
+                    arguments: toolResponse,
                 }
-            } 
+            } satisfies MimirHumanReplyMessage
             return {
                 message: new FunctionMessage({
                     name: mimirFunctionMessage.functionReply.name,
-                    content: [
-                        {
-                            type: "text",
-                            text: toolResponse.text ?? "",
-                        },
-                        ...imageHandler(toolResponse.image_url ?? [], "high")
-                    ]
+                    content: complexResponseToLangchainMessageContent(toolResponse, imageHandler)
                 }),
                 messageToSave: mimirFunctionMessage,
             }
@@ -121,6 +114,8 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
 function convert(toolResponse: string): ToolResponse {
     return JSON.parse(toolResponse) as ToolResponse
 }
+
+
 
 export class FunctionCallAiMessageSerializer extends AiMessageSerializer {
     async deserialize(aiMessage: MimirAIMessage): Promise<BaseMessage> {
@@ -146,23 +141,18 @@ export class PlainTextHumanMessageSerializer extends HumanMessageSerializer {
         if (message.type === "FUNCTION_REPLY") {
             return new FunctionMessage({
                 name: message.functionReply!.name,
-                content: [
-                    {
-                        type: "text",
-                        text: message.functionReply?.arguments ?? "",
-                    },
-                    ...this.imageHandler(message.image_url ?? [], "high"),
-                ],
+                content: complexResponseToLangchainMessageContent(message.functionReply?.arguments ?? [], this.imageHandler)
             });
         }
         return new HumanMessage({
-            content: [
-                {
-                    type: "text",
-                    text: message.message ?? "",
-                },
-                ...this.imageHandler(message.image_url ?? [], "high"),
-            ]
+            content: complexResponseToLangchainMessageContent(message.content, this.imageHandler)
+            // content: [
+            //     {
+            //         type: "text",
+            //         text: message.message ?? "",
+            //     },
+            //     ...this.imageHandler(message.image_url ?? [], "high"),
+            // ]
         });
     }
 }

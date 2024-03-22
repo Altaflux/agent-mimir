@@ -1,11 +1,11 @@
-import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentWorkspace, AgentSystemMessage, AgentContext } from "agent-mimir/schema";
+import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentWorkspace, AgentSystemMessage, AgentContext, ToolResponse } from "agent-mimir/schema";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
 import { spawn } from 'child_process';
 import os from 'os';
 import { promises as fs } from 'fs';
 import path from "path";
-import { AgentTool, ToolResponse } from "agent-mimir/tools";
+import { AgentTool } from "agent-mimir/tools";
 
 type CodeInterpreterArgs = {
     workSpace?: AgentWorkspace;
@@ -155,13 +155,20 @@ If you are given the task to create a file or they ask you to save it then save 
                 fileList = files.length === 0 ? "" : `The following files were created in the workspace: ${files.map((fileName: string) => `"${fileName}"`).join(" ")}`;
             }
             const dependenciesWarning = libraryInstallationResult?.exitCode !== 0 ? `\nWARNING: Failed to install libraries, if your script failed try to use an alternative library:\n ${libraryInstallationResult?.output}` : "";
-            return {
-                text: `Exit Code: ${result.exitCode} \n${fileList} \nScript Output:\n${result.output}` + dependenciesWarning
-            };
+            return [
+                {
+                    type: "text",
+                    text: `Exit Code: ${result.exitCode} \n${fileList} \nScript Output:\n${result.output}` + dependenciesWarning
+                }
+            ]
         } catch (e) {
-            return {
-                text: "Failed to execute the script." + e
-            };
+
+            return [
+                {
+                    type: "text",
+                    text: "Failed to execute the script." + e
+                }
+            ]
         } finally {
             await fs.rm(tempDir, { recursive: true, force: true });
         }

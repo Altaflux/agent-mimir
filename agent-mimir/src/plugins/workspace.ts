@@ -40,12 +40,21 @@ class WorkspacePlugin extends MimirAgentPlugin {
                     await this.workspace.loadFileToWorkspace(file.fileName, file.url);
                 }
                 const filesToSendMessage = inputs[FILES_TO_SEND_FIELD].map((file: any) => `"${file.fileName}"`).join(", ");
-                message = {
-                    ...nextMessage,
-                    message: `I am sending the following files into your workspace: ${filesToSendMessage} \n\n ${nextMessage.message}`
+                return {
+                    type: "USER_MESSAGE",
+                    content: [
+                        {
+                            type: "text",
+                            text: `I am sending the following files into your workspace: ${filesToSendMessage} \n\n`
+                        },
+                        ...nextMessage.content,
+
+                    ]
                 }
             }
         }
         return message;
     }
+
+
 }
