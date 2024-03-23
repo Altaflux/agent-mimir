@@ -1,7 +1,7 @@
 import { MimirAgent, InternalAgentPlugin, MimirAIMessage } from "./base-agent.js";
-import { AIMessage, BaseMessage, BaseMessageFields, FunctionMessageFieldsWithName, HumanMessage, MessageContentImageUrl, MessageContentText } from "@langchain/core/messages";
+import { AIMessage, BaseMessage, BaseMessageFields, FunctionMessageFieldsWithName, HumanMessage } from "@langchain/core/messages";
 import { AiMessageSerializer, HumanMessageSerializer, TransformationalChatMessageHistory } from "../memory/transform-memory.js";
-import { PromptTemplate, renderTemplate } from "@langchain/core/prompts";
+import { PromptTemplate } from "@langchain/core/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
 import { AgentActionOutputParser, AgentFinish, AgentAction, } from "langchain/agents";
@@ -139,26 +139,21 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
                 } satisfies MimirHumanReplyMessage,
             };
         } else {
-            const toolResponse = convert(nextMessage.jsonPayload);
-            const toolResponsePostProcess = convert(nextMessage.jsonPayload);
+
+            const toolResponse = nextMessage.content;
+            const toolResponsePostProcess = nextMessage.content;
 
             return {
                 message: new HumanMessage(extractToolResponse(toolResponsePostProcess, imageHandler)),
                 messageToSave: {
                     type: "USER_MESSAGE",
                     content: toolResponse
-                    // message: toolResponse.text ?? "",
-                    // image_url: toolResponse.image_url,
                 } satisfies MimirHumanReplyMessage,
             };
         }
 
     };
     return messageGenerator;
-}
-
-function convert(toolResponse: string): ToolResponse {
-    return JSON.parse(toolResponse) as ToolResponse
 }
 
 function extractToolResponse(toolResponse: ToolResponse, imageHandler: LLMImageHandler): BaseMessageFields {

@@ -76,7 +76,7 @@ export type LLMImageHandler = (images: ImageType, detail: "high" | "low") =>  Me
 export type NextMessage = {
     type: "ACTION",
     tool: string,
-    jsonPayload: string
+    content: ComplexResponse[]
 } | {
     type: "USER_MESSAGE",
     content: ComplexResponse[]

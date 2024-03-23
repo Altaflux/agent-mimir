@@ -2,7 +2,7 @@ import { MimirAgent, InternalAgentPlugin, MimirAIMessage } from "./base-agent.js
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 import { AIMessage, BaseMessage, FunctionMessage, HumanMessage } from "@langchain/core/messages";
 import { AgentActionOutputParser, AgentFinish, AgentAction, } from "langchain/agents";
-import { AgentContext, LLMImageHandler, MimirAgentArgs, MimirHumanReplyMessage, ToolResponse, NextMessage, AgentSystemMessage } from "../schema.js";
+import { AgentContext, LLMImageHandler, MimirAgentArgs, MimirHumanReplyMessage, NextMessage, AgentSystemMessage } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { AiMessageSerializer, HumanMessageSerializer, TransformationalChatMessageHistory } from "../memory/transform-memory.js";
 import { callJsonRepair } from "../utils/json.js";
@@ -89,7 +89,7 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
                 } satisfies MimirHumanReplyMessage,
             }
         } else {
-            const toolResponse = convert(nextMessage.jsonPayload);
+            const toolResponse = nextMessage.content;
             const mimirFunctionMessage = {
                 type: "FUNCTION_REPLY" as const,
                 functionReply: {
@@ -107,9 +107,6 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
         }
     }
     return messageGenerator;
-}
-function convert(toolResponse: string): ToolResponse {
-    return JSON.parse(toolResponse) as ToolResponse
 }
 
 

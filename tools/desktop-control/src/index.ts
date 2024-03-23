@@ -74,18 +74,6 @@ class DesktopControlPlugin extends MimirAgentPlugin {
 
     async processMessage(message: NextMessage, inputs: ChainValues): Promise<NextMessage> {
         const computerImages = await this.generateComputerImagePrompt();
-
-        if (message.type === "ACTION") {
-            const toolPayload = JSON.parse(message.jsonPayload) as ToolResponse
-            return {
-                type: "ACTION",
-                tool: message.tool,
-                jsonPayload: JSON.stringify([
-                    ...computerImages,
-                    ...toolPayload
-                ])
-            }
-        }
         return {
             ...message,
             content: [

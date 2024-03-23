@@ -5,7 +5,7 @@ import { BaseLanguageModel } from "langchain/base_language";
 import { AgentContext, AgentSystemMessage, AgentUserMessage, LLMImageHandler, MimirHumanReplyMessage, NextMessage, ToolResponse } from "../schema.js";
 import { CallbackManager } from "@langchain/core/callbacks/manager";
 import { BaseLLMOutputParser, BaseOutputParser } from "@langchain/core/output_parsers";
-import { ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate } from "@langchain/core/prompts";
+import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";
 import { BaseChatMemory, getInputValue } from "langchain/memory";
 import { BaseMessage, HumanMessage, MessageContentComplex, MessageContentText, SystemMessage } from "@langchain/core/messages";
 import { ChainValues } from "@langchain/core/utils/types";
@@ -225,7 +225,7 @@ export class MimirAgent extends BaseSingleActionAgent {
             ],
         } : {
             type: "ACTION",
-            jsonPayload: steps.slice(-1)[0].observation,
+            content: JSON.parse(steps.slice(-1)[0].observation),
             tool: steps.slice(-1)[0].action.tool,
         }
     }

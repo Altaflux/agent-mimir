@@ -68,7 +68,7 @@ export class LongTermMemoryPlugin extends MimirAgentPlugin {
         if (aiMessage.text && aiMessage.text.length > 0) {
             const messageToStore = context.input.type === "USER_MESSAGE"
                 ? ("User Message: " + extractAllTextFromComplexResponse(context.input.content))
-                : ("Function Response: " + context.input.jsonPayload);
+                : ("Function Response: " + extractAllTextFromComplexResponse(context.input.content));
 
             await this.longTermMemoryManager?.storeMessage(messageToStore, aiMessage.text);
         }
