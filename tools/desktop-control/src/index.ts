@@ -1,4 +1,4 @@
-import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentContext, AgentSystemMessage } from "agent-mimir/schema";
+import { MimirAgentPlugin, PluginContext, MimirPluginFactory, ComplexResponse, NextMessage } from "agent-mimir/schema";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
 
@@ -19,6 +19,7 @@ import { Coordinates, PythonServerControl, TextBlocks } from "./sam.js";
 import { ChatPromptTemplate, renderTemplate } from "@langchain/core/prompts";
 import { HumanMessage } from "@langchain/core/messages";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { ChainValues } from "@langchain/core/utils/types";
 
 type DesktopContext = {
     coordinates: Coordinates
@@ -66,8 +67,35 @@ class DesktopControlPlugin extends MimirAgentPlugin {
         await this.pythonServer.close()
     }
 
-    async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
+    // async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
 
+
+    // }
+
+    async processMessage(message: NextMessage, inputs: ChainValues): Promise<NextMessage> {
+        const computerImages = await this.generateComputerImagePrompt();
+
+        if (message.type === "ACTION") {
+            const toolPayload = JSON.parse(message.jsonPayload) as ToolResponse
+            return {
+                type: "ACTION",
+                tool: message.tool,
+                jsonPayload: JSON.stringify([
+                    ...computerImages,
+                    ...toolPayload
+                ])
+            }
+        }
+        return {
+            ...message,
+            content: [
+                ...computerImages,
+                ...message.content
+            ]
+        }
+    }
+
+    async generateComputerImagePrompt(): Promise<ComplexResponse[]> {
 
         await new Promise(r => setTimeout(r, 1000));
         const computerScreenshot = await getComputerScreenImage();
@@ -89,7 +117,7 @@ class DesktopControlPlugin extends MimirAgentPlugin {
                 return {
                     type: "image_url" as const,
                     image_url: {
-                        type: "png" as const,
+                        type: "jpeg" as const,
                         url: tile.toString("base64")
                     },
 
@@ -98,25 +126,28 @@ class DesktopControlPlugin extends MimirAgentPlugin {
             })
         ] : [];
 
-        return {
-            content: [
-                {
-                    type: "text",
-                    text: `\nComputer Control Instruction:\nThis image is the user's computer's screen, you can control the computer by moving the mouse, clicking and typing. Make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks, do not ask me to confirm your executed actions, try to do so yourself.
+        return [
+            {
+                type: "text",
+                text: `\nComputer Control Instruction:\nThis image is the user's computer's screen, you can control the computer by moving the mouse, clicking and typing. Make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks, do not ask me to confirm your executed actions, try to do so yourself.
 The screen's image includes labels of white boxes with numbers on top of elements you can click, you can move the mouse to the element being labeled by it by using the "moveMouseLocationOnComputerScreenToLabel" tool.`
-                },
-                {
-                    type: "image_url",
-                    image_url: {
-                        type: "png",
-                        url: finalImage.toString("base64")
-                    }
-                },
-                ...tilesMessage
-            ]
-        }
+            },
+            {
+                type: "image_url",
+                image_url: {
+                    type: "jpeg",
+                    url: finalImage.toString("base64")
+                }
+            },
+            ...tilesMessage,
+            {
+                type: "text",
+                text: "--------------------------------\n\n"
+            },
+
+        ]
     }
-    
+
     tools(): AgentTool[] {
         const mouseTools = this.options.mouseMode === 'COORDINATES' ? [
             new MoveMouseToCoordinate(this.gridSize, this.options.model!)
