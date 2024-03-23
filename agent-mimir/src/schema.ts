@@ -87,8 +87,6 @@ export type ImageType = {
     type: SupportedImageTypes
 }
 
-
-
 export type SupportedImageTypes = "url" | "jpeg" | "png";
 
 export type ResponseContentText = {
@@ -177,20 +175,7 @@ export type AgentToolRequest = { toolName: string, toolArguments: string }
 export type FunctionResponseCallBack = (name: string, input: string, response: string) => Promise<void>;
 
 
-type ImageDetail = "auto" | "low" | "high";
-
-export type AgentMessageContentText = {
-    type: "text";
-    text: string;
-};
-export type AgentMessageContentImageUrl = {
-    type: "image_url";
-    image_url: string | {
-        url: string;
-        detail?: ImageDetail;
-    };
-};
-export type AgentMessageContent = AgentMessageContentText | AgentMessageContentImageUrl;
+export type AgentMessageContent = ComplexResponse;
 export type AgentSystemMessage = {
     content: AgentMessageContent[]
 }

@@ -2,13 +2,14 @@ import { AgentAction, AgentActionOutputParser, AgentFinish, AgentStep, BaseSingl
 import { TrimmingMemory } from "./../memory/trimming-memory/index.js";
 import { LLMChain } from "langchain/chains";
 import { BaseLanguageModel } from "langchain/base_language";
-import { AgentContext, AgentSystemMessage, AgentUserMessage, MimirHumanReplyMessage, NextMessage, ToolResponse } from "../schema.js";
+import { AgentContext, AgentSystemMessage, AgentUserMessage, LLMImageHandler, MimirHumanReplyMessage, NextMessage, ToolResponse } from "../schema.js";
 import { CallbackManager } from "@langchain/core/callbacks/manager";
 import { BaseLLMOutputParser, BaseOutputParser } from "@langchain/core/output_parsers";
 import { ChatPromptTemplate, MessagesPlaceholder, SystemMessagePromptTemplate } from "@langchain/core/prompts";
 import { BaseChatMemory, getInputValue } from "langchain/memory";
 import { BaseMessage, HumanMessage, MessageContentComplex, MessageContentText, SystemMessage } from "@langchain/core/messages";
 import { ChainValues } from "@langchain/core/utils/types";
+import { complexResponseToLangchainMessageContent } from "../utils/format.js";
 
 
 const BAD_MESSAGE_TEXT = `I could not understand your response, please rememeber to use the correct response format using the appropiate functions. If you need to tell me something, please use the "respondBack" function.`;
@@ -45,6 +46,7 @@ export class MimirAgent extends BaseSingleActionAgent {
     llmChain: LLMChain<MimirAIMessage>;
     defaultInputs?: Record<string, any>;
     plugins: InternalAgentPlugin[];
+    imageHandler: LLMImageHandler;
     reset: () => Promise<void>;
     messageGenerator: (arg: NextMessage,) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>;
 
@@ -55,6 +57,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         outputParser: BaseOutputParser<AgentAction | AgentFinish>,
         messageGenerator: (arg: NextMessage,) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
         reset: () => Promise<void>,
+        imageHandler: LLMImageHandler,
         plugins?: InternalAgentPlugin[],
         defaultInputs?: Record<string, any>,
 
@@ -68,6 +71,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         this.defaultInputs = defaultInputs;
         this.plugins = plugins ?? [];
         this.reset = reset;
+        this.imageHandler = imageHandler;
     }
 
     get inputKeys(): string[] {
@@ -124,7 +128,7 @@ export class MimirAgent extends BaseSingleActionAgent {
             this.plugins.map(async (plugin) => await plugin.getSystemMessages(context))
         ))
 
-        const systemMessage = buildSystemMessage(pluginInputs);
+        const systemMessage = buildSystemMessage(pluginInputs, this.imageHandler);
         const agentResponse = await this.executePlanWithRetry({
             ...this.defaultInputs,
             system_message: systemMessage,
@@ -241,6 +245,7 @@ export class MimirAgent extends BaseSingleActionAgent {
         llm: BaseLanguageModel,
         mimirOutputParser: BaseLLMOutputParser<MimirAIMessage>,
         messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
+        imageHandler: LLMImageHandler,
         args: CreatePromptArgs,
     ) {
 
@@ -267,6 +272,7 @@ export class MimirAgent extends BaseSingleActionAgent {
             outputParser,
             messageGenerator,
             args.resetFunction,
+            imageHandler,
             [systemMessageToPlugin(args.systemMessage), ...args.plugins],
             args.defaultInputs,
         );
@@ -316,9 +322,9 @@ const dividerSystemMessage = new SystemMessage({
         }
     ]
 });
-function buildSystemMessage(agentSystemMessages: AgentSystemMessage[]) {
+function buildSystemMessage(agentSystemMessages: AgentSystemMessage[], imageHandler: LLMImageHandler) {
     const messages = agentSystemMessages.map((m) => {
-        return mergeSystemMessages([dividerSystemMessage, new SystemMessage({ content: m.content })])
+        return mergeSystemMessages([dividerSystemMessage, new SystemMessage({ content: complexResponseToLangchainMessageContent(m.content, imageHandler) })])
     });
 
     const finalMessage = mergeSystemMessages(messages);

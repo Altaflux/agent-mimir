@@ -205,7 +205,7 @@ export async function createOpenAiFunctionAgent(args: MimirAgentArgs) {
     });
 
 
-    const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGeneratorBuilder(args.imageHandler), {
+    const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(), messageGeneratorBuilder(args.imageHandler), args.imageHandler, {
         systemMessage: systemMessages,
         outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName, args.talkToUserTool?.name),
         taskCompleteCommandName: args.taskCompleteCommandName,

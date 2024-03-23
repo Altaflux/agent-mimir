@@ -88,7 +88,11 @@ class DesktopControlPlugin extends MimirAgentPlugin {
             ...tiles.tiles.map((tile) => {
                 return {
                     type: "image_url" as const,
-                    image_url: `data:image/png;base64,${tile.toString("base64")}`,
+                    image_url: {
+                        type: "png" as const,
+                        url: tile.toString("base64")
+                    },
+
                 }
 
             })
@@ -103,13 +107,16 @@ The screen's image includes labels of white boxes with numbers on top of element
                 },
                 {
                     type: "image_url",
-                    image_url: `data:image/png;base64,${finalImage.toString("base64")}`
+                    image_url: {
+                        type: "png",
+                        url: finalImage.toString("base64")
+                    }
                 },
                 ...tilesMessage
             ]
         }
     }
-
+    
     tools(): AgentTool[] {
         const mouseTools = this.options.mouseMode === 'COORDINATES' ? [
             new MoveMouseToCoordinate(this.gridSize, this.options.model!)

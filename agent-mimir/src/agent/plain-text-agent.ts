@@ -123,12 +123,12 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
     const messageGenerator: (nextMessage: NextMessage,) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage,) => {
 
         if (nextMessage.type === "USER_MESSAGE") {
-      
+
             const userInputHeader = {
                 type: "text",
                 text: USER_INPUT_HEADER
             } satisfies ResponseContentText;
-         
+
             return {
                 message: new HumanMessage({
                     content: complexResponseToLangchainMessageContent([userInputHeader, ...nextMessage.content], imageHandler)
@@ -141,7 +141,7 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
         } else {
             const toolResponse = convert(nextMessage.jsonPayload);
             const toolResponsePostProcess = convert(nextMessage.jsonPayload);
-            
+
             return {
                 message: new HumanMessage(extractToolResponse(toolResponsePostProcess, imageHandler)),
                 messageToSave: {
@@ -187,7 +187,7 @@ export class PlainTextHumanMessageSerializer extends HumanMessageSerializer {
         super();
     }
     async deserialize(message: MimirHumanReplyMessage): Promise<BaseMessage> {
-        if (message.type === "USER_MESSAGE"){
+        if (message.type === "USER_MESSAGE") {
             return new HumanMessage({
                 content: complexResponseToLangchainMessageContent(message.content, this.imageHandler)
             });
@@ -276,7 +276,7 @@ export async function createPlainTextMimirAgent(args: MimirAgentArgs) {
         messageHistory: chatHistory,
         plainText: true,
     });
-    const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(formatManager), messageGeneratorBuilder(args.imageHandler), {
+    const agent = MimirAgent.fromLLMAndTools(args.llm, new AIMessageLLMOutputParser(formatManager), messageGeneratorBuilder(args.imageHandler), args.imageHandler, {
         systemMessage: toolsSystemMessage,
         outputParser: new ChatConversationalAgentOutputParser(formatManager, args.taskCompleteCommandName),
         taskCompleteCommandName: args.taskCompleteCommandName,
