@@ -39,7 +39,6 @@ class WebBrowserPlugin extends MimirAgentPlugin {
             new WebBrowserTool(this.driverManager),
             new ScrollTool(this.driverManager),
             new ClickWebSiteLinkOrButton(this.driverManager),
-            new AskSiteQuestion(this.driverManager),
             new PassValueToInput(this.driverManager),
         ];
     }
@@ -54,9 +53,8 @@ class WebBrowserPlugin extends MimirAgentPlugin {
         await this.driverManager.refreshPageState();
         const title = await this.driverManager.getTitle();
         const realDimensions = await this.driverManager.getScreenDimensions();
-        const resizedImaged  = await resizeToDimensions(Buffer.from(screenshot, "base64"), realDimensions);
+        const resizedImaged = await resizeToDimensions(Buffer.from(screenshot, "base64"), realDimensions);
         const imageWithLabels = await addLabels(resizedImaged, this.driverManager.interactableElements)
-       
         const result = await this.driverManager.obtainSummaryOfPage("", "");
 
         return [
@@ -73,10 +71,15 @@ class WebBrowserPlugin extends MimirAgentPlugin {
                             type: "png",
                             url: imageWithLabels.toString("base64")
                         }
-                    },
+                    }
+                ]
+            },
+            {
+                persistable: true,
+                content: [
                     {
                         type: "text",
-                        text: `The following image is a page summary in markdown format of the website in the browser. You can use the IDs in the elements to click or type on them:\n\n${result}`
+                        text: `The following is a page summary in markdown format of the website in the browser. You can use the IDs in the elements to click or type on them:\n\n${result}`
                     },
                 ]
             }
