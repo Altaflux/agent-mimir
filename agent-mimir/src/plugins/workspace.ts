@@ -32,7 +32,7 @@ class WorkspacePlugin extends MimirAgentPlugin {
         }
     }
 
-    async additionalMessageContent(nextMessage: NextMessage, inputs: ChainValues): Promise<AdditionalContent> {
+    async additionalMessageContent(nextMessage: NextMessage, inputs: ChainValues): Promise<AdditionalContent[]> {
 
         if (nextMessage.type === "USER_MESSAGE") {
             if (inputs[FILES_TO_SEND_FIELD] && inputs[FILES_TO_SEND_FIELD] instanceof Array && inputs[FILES_TO_SEND_FIELD].length > 0) {
@@ -40,21 +40,20 @@ class WorkspacePlugin extends MimirAgentPlugin {
                     await this.workspace.loadFileToWorkspace(file.fileName, file.url);
                 }
                 const filesToSendMessage = inputs[FILES_TO_SEND_FIELD].map((file: any) => `"${file.fileName}"`).join(", ");
-                return {
-                    persistable: true,
-                    content: [
-                        {
-                            type: "text",
-                            text: `I am sending the following files into your workspace: ${filesToSendMessage} \n\n`
-                        }
-                    ]
-                }
+                return [
+                    {
+                        persistable: true,
+                        content: [
+                            {
+                                type: "text",
+                                text: `I am sending the following files into your workspace: ${filesToSendMessage} \n\n`
+                            }
+                        ]
+                    }
+                ]
             }
         }
-        return {
-            persistable: false,
-            content: []
-        }
+        return []
     }
 
 }

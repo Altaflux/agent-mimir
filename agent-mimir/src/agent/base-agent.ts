@@ -25,7 +25,7 @@ export type InternalAgentPlugin = {
     getSystemMessages: (context: AgentContext) => Promise<AgentSystemMessage>,
     readResponse: (context: AgentContext, aiMessage: MimirAIMessage) => Promise<void>,
     clear: () => Promise<void>,
-    additionalContent: (nextMessage: NextMessage, inputs: ChainValues) => Promise<AdditionalContent>
+    additionalContent: (nextMessage: NextMessage, inputs: ChainValues) => Promise<AdditionalContent[]>
 }
 
 export type MimirAIMessage = {
@@ -116,10 +116,12 @@ export class MimirAgent extends BaseSingleActionAgent {
             memory: this.memory,
         }
         for (const plugin of this.plugins) {
-            const customization = await plugin.additionalContent(transientMessageCopy, inputs);
-            transientMessageCopy.content.unshift(...customization.content);
-            if (customization.persistable) {
-                nextMessage.content.unshift(...customization.content);
+            const customizations = await plugin.additionalContent(transientMessageCopy, inputs);
+            for (const customization of customizations) {
+                transientMessageCopy.content.unshift(...customization.content);
+                if (customization.persistable) {
+                    nextMessage.content.unshift(...customization.content);
+                }
             }
         }
 
@@ -346,11 +348,8 @@ function systemMessageToPlugin(systemMessage: AgentSystemMessage): InternalAgent
         getSystemMessages: async (context) => systemMessage,
         readResponse: async (context: AgentContext, response: MimirAIMessage) => { },
         clear: async () => { },
-        additionalContent: async function (nextMessage: NextMessage, inputs: ChainValues): Promise<AdditionalContent> {
-            return {
-                persistable: false,
-                content: []
-            };
+        additionalContent: async function (nextMessage: NextMessage, inputs: ChainValues): Promise<AdditionalContent[]> {
+            return [];
         }
     }
 }

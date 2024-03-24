@@ -116,11 +116,8 @@ export abstract class MimirAgentPlugin {
         return Promise.resolve();
     }
 
-    async additionalMessageContent(message: NextMessage, inputs: ChainValues): Promise<AdditionalContent> {
-        return {
-            persistable: false,
-            content: []
-        };
+    async additionalMessageContent(message: NextMessage, inputs: ChainValues): Promise<AdditionalContent[]> {
+        return [];
     }
 
     async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {

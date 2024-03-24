@@ -67,12 +67,14 @@ class DesktopControlPlugin extends MimirAgentPlugin {
         await this.pythonServer.close()
     }
 
-    async additionalMessageContent(message: NextMessage, inputs: ChainValues): Promise<AdditionalContent> {
+    async additionalMessageContent(message: NextMessage, inputs: ChainValues): Promise<AdditionalContent[]> {
         const computerImages = await this.generateComputerImagePrompt();
-        return {
-            persistable: false,
-            content: computerImages
-        }
+        return [
+            {
+                persistable: false,
+                content: computerImages
+            }
+        ]
     }
 
     async generateComputerImagePrompt(): Promise<ComplexResponse[]> {

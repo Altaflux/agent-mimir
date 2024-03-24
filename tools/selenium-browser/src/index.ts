@@ -42,14 +42,10 @@ class WebBrowserPlugin extends MimirAgentPlugin {
         ];
     }
 
-    async additionalMessageContent(message: NextMessage, inputs: ChainValues): Promise<AdditionalContent> {
+    async additionalMessageContent(message: NextMessage, inputs: ChainValues): Promise<AdditionalContent[]> {
 
         if (!this.driverManager.currentPage) {
-            return {
-                persistable: false,
-                content: [
-                ]
-            }
+            return []
         }
         await this.driverManager.refreshPageState();
         const screenshot = await this.driverManager.getScreenshot();
@@ -57,26 +53,28 @@ class WebBrowserPlugin extends MimirAgentPlugin {
 
         const result = await this.driverManager.obtainSummaryOfPage("", "");
 
-        return {
-            persistable: false,
-            content: [
-                {
-                    type: "text",
-                    text: `The following image is a screenshot of the browser which is currently at page ${title}:`
-                },
-                {
-                    type: "image_url",
-                    image_url: {
-                        type: "png",
-                        url: screenshot
-                    }
-                },
-                {
-                    type: "text",
-                    text: `The following image is a page summary in markdown format of the website in the browser. You can use the IDs in the elements to click or type on them:\n\n${result}`
-                },
-            ]
-        }
+        return [
+            {
+                persistable: false,
+                content: [
+                    {
+                        type: "text",
+                        text: `The following image is a screenshot of the browser which is currently at page ${title}:`
+                    },
+                    {
+                        type: "image_url",
+                        image_url: {
+                            type: "png",
+                            url: screenshot
+                        }
+                    },
+                    {
+                        type: "text",
+                        text: `The following image is a page summary in markdown format of the website in the browser. You can use the IDs in the elements to click or type on them:\n\n${result}`
+                    },
+                ]
+            }
+        ]
 
     }
 

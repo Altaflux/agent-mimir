@@ -209,7 +209,7 @@ export async function createPlainTextMimirAgent(args: MimirAgentArgs) {
             clear: async () => {
                 await plugin.clear();
             },
-            additionalContent: async function (nextMessage: NextMessage, inputs: ChainValues): Promise<AdditionalContent> {
+            additionalContent: async function (nextMessage: NextMessage, inputs: ChainValues): Promise<AdditionalContent[]> {
                 return await plugin.additionalMessageContent(nextMessage, inputs);
             }
         }
