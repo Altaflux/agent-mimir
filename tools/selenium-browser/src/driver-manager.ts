@@ -63,6 +63,9 @@ export class WebDriverManager {
         this.driver = undefined;
     }
 
+    async isActive() {
+        return this.driver !== undefined;
+    }
     async getDriver() {
         if (this.driver) {
             return this.driver;
@@ -91,12 +94,18 @@ export class WebDriverManager {
     async navigateToUrl(url: string) {
         let driver = await this.getDriver();
         await driver!.get(url);
-        await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    async getScreenDimensions() {
+        const height: number = await this.driver?.executeScript("return window.innerHeight")!;
+        const width: number = await this.driver?.executeScript("return window.innerWidth")!;
+        return {
+            height,
+            width
+        }
     }
 
     async refreshPageState() {
-
-        await new Promise(resolve => setTimeout(resolve, 1000));
         let driver = await this.getDriver();
         let webPage = await extractHtml(await driver!.getPageSource(), driver);
         this.currentPage = webPage.html;

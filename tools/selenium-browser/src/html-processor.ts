@@ -99,8 +99,8 @@ async function findAllRelevantElements(doc: Element, driver: WebDriver) {
                 function getOffset(el) {
                     const rect = el.getBoundingClientRect();
                     return {
-                      left: rect.left + window.scrollX,
-                      top: rect.top + window.scrollY
+                      left: rect.left,
+                      top: rect.top
                     };
                 }
                 let element = arguments[0];
@@ -125,7 +125,6 @@ async function findAllRelevantElements(doc: Element, driver: WebDriver) {
         }));
     for (const foundElement of htmlElementInformation) {
         if (!foundElement.location.isViewable) {
-            // let elementToRemove = foundElement.element.querySelector(`[x-interactableId="${foundElement.id}"]`);
             let elementToRemove = foundElement.element;
             if (elementToRemove) {
                 elementToRemove.remove();
