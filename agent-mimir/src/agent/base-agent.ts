@@ -23,6 +23,7 @@ export type MimirChatConversationalAgentInput = {
 export type InternalAgentPlugin = {
 
     getSystemMessages: (context: AgentContext) => Promise<AgentSystemMessage>,
+    readyToProceed(nextMessage: NextMessage, context: AgentContext): Promise<void>;
     readResponse: (context: AgentContext, aiMessage: MimirAIMessage) => Promise<void>,
     clear: () => Promise<void>,
     additionalContent: (nextMessage: NextMessage, inputs: ChainValues) => Promise<AdditionalContent[]>
@@ -107,14 +108,15 @@ export class MimirAgent extends BaseSingleActionAgent {
         callbackManager?: CallbackManager,
     ): Promise<AgentAction | AgentFinish> {
 
-
-
         const nextMessage = this.getMessageForAI(steps, inputs);
         const transientMessageCopy = JSON.parse(JSON.stringify(nextMessage)) as NextMessage;
         const context: AgentContext = {
             input: nextMessage,
             memory: this.memory,
         }
+
+        await Promise.all(this.plugins.map(p => p.readyToProceed(transientMessageCopy, context)));
+        
         for (const plugin of this.plugins) {
             const customizations = await plugin.additionalContent(transientMessageCopy, inputs);
             for (const customization of customizations) {
@@ -348,6 +350,8 @@ function systemMessageToPlugin(systemMessage: AgentSystemMessage): InternalAgent
         getSystemMessages: async (context) => systemMessage,
         readResponse: async (context: AgentContext, response: MimirAIMessage) => { },
         clear: async () => { },
+        readyToProceed: async () => {
+        },
         additionalContent: async function (nextMessage: NextMessage, inputs: ChainValues): Promise<AdditionalContent[]> {
             return [];
         }

@@ -116,6 +116,10 @@ export abstract class MimirAgentPlugin {
         return Promise.resolve();
     }
 
+    async readyToProceed(nextMessage: NextMessage, context: AgentContext): Promise<void> {
+
+    }
+
     async additionalMessageContent(message: NextMessage, inputs: ChainValues): Promise<AdditionalContent[]> {
         return [];
     }

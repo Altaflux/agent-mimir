@@ -3,7 +3,7 @@ import { WebDriverManager } from "./driver-manager.js";
 import { WebBrowserOptions } from "./driver-manager.js";
 import { Embeddings } from "@langchain/core/embeddings";
 import { WebBrowserTool, PassValueToInput, AskSiteQuestion, ClickWebSiteLinkOrButton, ScrollTool } from "./tools.js";
-import { MimirAgentPlugin, PluginContext, MimirPluginFactory, NextMessage, AdditionalContent } from "agent-mimir/schema";
+import { MimirAgentPlugin, PluginContext, MimirPluginFactory, NextMessage, AdditionalContent, AgentContext } from "agent-mimir/schema";
 import { AgentTool } from "agent-mimir/tools";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { ChainValues } from "@langchain/core/utils/types";
@@ -43,12 +43,16 @@ class WebBrowserPlugin extends MimirAgentPlugin {
         ];
     }
 
+    async readyToProceed(nextMessage: NextMessage, context: AgentContext): Promise<void> {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
     async additionalMessageContent(message: NextMessage, inputs: ChainValues): Promise<AdditionalContent[]> {
 
         if (!await this.driverManager.isActive()) {
             return []
         }
-        await new Promise(resolve => setTimeout(resolve, 1000));
+
         const screenshot = await this.driverManager.getScreenshot();
         await this.driverManager.refreshPageState();
         const title = await this.driverManager.getTitle();
