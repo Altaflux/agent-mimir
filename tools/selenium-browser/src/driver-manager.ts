@@ -91,7 +91,7 @@ export class WebDriverManager {
     async navigateToUrl(url: string) {
         let driver = await this.getDriver();
         await driver!.get(url);
-        await this.refreshPageState()
+        await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
     async refreshPageState() {

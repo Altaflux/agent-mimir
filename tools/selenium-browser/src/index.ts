@@ -54,7 +54,6 @@ class WebBrowserPlugin extends MimirAgentPlugin {
         await this.driverManager.refreshPageState();
         const screenshot = await this.driverManager.getScreenshot();
         const title = await this.driverManager.getTitle();
-        const buffer = Buffer.from(screenshot, 'base64')
 
         const result = await this.driverManager.obtainSummaryOfPage("", "");
 
