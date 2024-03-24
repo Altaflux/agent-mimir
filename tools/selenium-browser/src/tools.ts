@@ -7,7 +7,6 @@ import { AgentTool } from "agent-mimir/tools";
 import { ToolResponse } from "agent-mimir/schema";
 export { WebDriverManager, SeleniumDriverOptions } from "./driver-manager.js";
 
-
 export class WebBrowserTool extends AgentTool {
     schema = z.object({
         url: z.string().describe("The url to navigate to."),
@@ -26,11 +25,11 @@ export class WebBrowserTool extends AgentTool {
         }
         await this.toolManager.navigateToUrl(formattedBaseUrl);
         const driver = await this.toolManager.getDriver();
-        const result = await this.toolManager.obtainSummaryOfPage(keywords.join(" "), searchDescription, runManager);
+              
         return [
             {
                 type: "text",
-                text: `You are currently in page: ${await driver.getTitle()}\n ${result}`,
+                text: `You are currently in page: "${await driver.getTitle()}".\n`,
             }
         ]
     }
@@ -70,7 +69,7 @@ export class ClickWebSiteLinkOrButton extends AgentTool {
             return [
                 {
                     type: "text",
-                    text: `Button or link not found for id: ${id}.\n The current page is: ${await driver.getTitle()}\n ${this.toolManager.currentPageView}`
+                    text: `Button or link not found for id: ${id}.\n The current page is: ${await driver.getTitle()}\n`
                 }
             ]
         }
@@ -82,13 +81,11 @@ export class ClickWebSiteLinkOrButton extends AgentTool {
                 await driver.actions().move({ origin: elementFound }).perform();
                 await driver!.executeScript(`arguments[0].click()`, elementFound);
                 await new Promise(res => setTimeout(res, 500));
-                await this.toolManager.refreshPageState();
-                const result = await this.toolManager.obtainSummaryOfPage(keywords.join(" "), searchDescription, runManager);
 
                 return [
                     {
                         type: "text",
-                        text: `You are currently in page: ${await driver.getTitle()}\n ${result}`
+                        text: `You are currently in page: ${await driver.getTitle()}`
                     }
                 ]
             } catch (e) {
@@ -96,7 +93,7 @@ export class ClickWebSiteLinkOrButton extends AgentTool {
                 return [
                     {
                         type: "text",
-                        text: `Click failed for id: ${id}.\n The current page is: ${await driver.getTitle()}\n ${this.toolManager.currentPageView}`
+                        text: `Click failed for id: ${id}.\n The current page is: ${await driver.getTitle()}\n `
                     }
                 ]
             }
@@ -105,7 +102,7 @@ export class ClickWebSiteLinkOrButton extends AgentTool {
             return [
                 {
                     type: "text",
-                    text: `Button or link not found for id: ${id}.\n The current page is: ${await driver.getTitle()}\n ${this.toolManager.currentPageView}`
+                    text: `Button or link not found for id: ${id}.\n The current page is: ${await driver.getTitle()}\n `
                 }
             ]
         }
@@ -114,6 +111,42 @@ export class ClickWebSiteLinkOrButton extends AgentTool {
     description = `useful for when you need to click on an element from the current page you are on.`;
 
 }
+
+
+
+export class ScrollTool extends AgentTool {
+
+    schema = z.object({
+        direction: z.enum(["up", "down"]).describe(`The direction to which scroll the website.`),
+    })
+
+    constructor(private toolManager: WebDriverManager) {
+        super();
+    }
+    protected async _call(inputs: z.input<this["schema"]>): Promise<ToolResponse> {
+        const height: number = await this.toolManager.driver?.executeScript("window.innerHeight")!;
+        const adjustedHeight = height - 100;
+        if (inputs.direction === "up") {
+            await this.toolManager.driver?.executeScript(`window.scrollBy(0,-${adjustedHeight})`, "")
+        } else {
+            await this.toolManager.driver?.executeScript(`window.scrollBy(0,${adjustedHeight})`, "")
+        }
+
+        return [
+            {
+                type: "text",
+                text: "The browser has been scrolled."
+            }
+        ]
+
+    }
+    name = "scroll-in-browser";
+    description = `Use when you need to scroll up or down in the browser to see more information.`;
+
+}
+
+
+
 
 export class PassValueToInput extends AgentTool {
 
@@ -150,7 +183,7 @@ export class PassValueToInput extends AgentTool {
             ]
         }
         const byExpression = By.xpath(clickableElement.xpath);
-        await driver!.executeScript(`window.scrollTo({top: arguments[0], behavior: 'instant'});`, clickableElement.location.top);
+        //await driver!.executeScript(`window.scrollTo({top: arguments[0], behavior: 'instant'});`, clickableElement.location.top);
         const elementFound = await driver!.findElement(byExpression);
         if (elementFound) {
             await driver.actions().move({ origin: elementFound }).clear();

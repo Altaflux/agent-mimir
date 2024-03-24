@@ -73,7 +73,7 @@ async function findAllRelevantElements(doc: Element, driver: WebDriver) {
             try {
                 const webDriverElement = await driver!.findElement(byExpression);
                 location = await driver.executeScript(`
-                window.document.documentElement.style.setProperty("scroll-behavior", "auto", "important");
+                //window.document.documentElement.style.setProperty("scroll-behavior", "auto", "important");
                 function isElementUnderOverlay(element) {
                     const rect = element.getBoundingClientRect();
                     const topElement = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
@@ -84,6 +84,16 @@ async function findAllRelevantElements(doc: Element, driver: WebDriver) {
                     const styles = getComputedStyle(element);
                     return styles.pointerEvents !== 'none';
                 }
+
+                const elementIsVisibleInViewport = (el, partiallyVisible = false) => {
+                    const { top, left, bottom, right } = el.getBoundingClientRect();
+                    const { innerHeight, innerWidth } = window;
+                    return partiallyVisible
+                      ? ((top > 0 && top < innerHeight) ||
+                          (bottom > 0 && bottom < innerHeight)) &&
+                          ((left > 0 && left < innerWidth) || (right > 0 && right < innerWidth))
+                      : top >= 0 && left >= 0 && bottom <= innerHeight && right <= innerWidth;
+                };
                 
                 function getOffset(el) {
                     const rect = el.getBoundingClientRect();
@@ -93,12 +103,12 @@ async function findAllRelevantElements(doc: Element, driver: WebDriver) {
                     };
                 }
                 let element = arguments[0];
-                element.scrollIntoView({ behavior: "instant", block: "center", inline: "nearest" });
+                //element.scrollIntoView({ behavior: "instant", block: "center", inline: "nearest" });
                 const rect = getOffset(element);
                 return {
                     top: rect.top,
                     left: rect.left,
-                    isViewable: !isElementUnderOverlay(element) && isElementClickable(element)
+                    isViewable: !isElementUnderOverlay(element) && isElementClickable(element) && elementIsVisibleInViewport(element)
                 };
                 `, webDriverElement);
             } catch (e) {

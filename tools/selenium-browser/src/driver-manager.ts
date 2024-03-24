@@ -19,6 +19,7 @@ import exitHook from 'async-exit-hook';
 import { IS_RELEVANT_PROMPT } from "./prompt/relevance-prompt.js";
 import { encode } from "gpt-3-encoder"
 
+
 export type SeleniumDriverOptions = {
     browserName?: 'chrome' | 'firefox' | 'edge';
     disableHeadless?: boolean;
@@ -74,6 +75,19 @@ export class WebDriverManager {
         }
     }
 
+    async getScreenshot(): Promise<string> {
+        let driver = await this.getDriver();
+        const base64Image = await driver.takeScreenshot();
+        return base64Image;
+    }
+
+    
+    async getTitle(): Promise<string> {
+        let driver = await this.getDriver();
+        const title = await driver.getTitle();
+        return title;
+    }
+
     async navigateToUrl(url: string) {
         let driver = await this.getDriver();
         await driver!.get(url);
@@ -82,7 +96,7 @@ export class WebDriverManager {
 
     async refreshPageState() {
 
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 1000));
         let driver = await this.getDriver();
         let webPage = await extractHtml(await driver!.getPageSource(), driver);
         this.currentPage = webPage.html;

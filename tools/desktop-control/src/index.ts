@@ -102,7 +102,6 @@ class DesktopControlPlugin extends MimirAgentPlugin {
                     },
 
                 }
-
             })
         ] : [];
 

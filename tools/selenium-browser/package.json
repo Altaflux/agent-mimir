@@ -26,6 +26,7 @@
     "async-exit-hook": "^2.0.1",
     "cheerio": "^1.0.0-rc.12",
     "jsdom": "22.0.0",
+    "sharp": "^0.32.6",
     "selenium-webdriver": "4.9.0",
     "turndown": "^7.1.2",
     "webdriver-manager": "^13.0.2",
