@@ -2,7 +2,7 @@ import { AgentAction, AgentActionOutputParser, AgentFinish, AgentStep, BaseSingl
 import { TrimmingMemory } from "./../memory/trimming-memory/index.js";
 import { LLMChain } from "langchain/chains";
 import { BaseLanguageModel } from "langchain/base_language";
-import { AgentContext, AgentSystemMessage, AgentUserMessage, LLMImageHandler, MimirHumanReplyMessage, NextMessage, ToolResponse } from "../schema.js";
+import { AgentContext, AgentSystemMessage, AgentUserMessage, LLMImageHandler, NextMessage, AdditionalContent, ToolResponse } from "../schema.js";
 import { CallbackManager } from "@langchain/core/callbacks/manager";
 import { BaseLLMOutputParser, BaseOutputParser } from "@langchain/core/output_parsers";
 import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";
@@ -25,7 +25,7 @@ export type InternalAgentPlugin = {
     getSystemMessages: (context: AgentContext) => Promise<AgentSystemMessage>,
     readResponse: (context: AgentContext, aiMessage: MimirAIMessage) => Promise<void>,
     clear: () => Promise<void>,
-    processMessage: (nextMessage: NextMessage, inputs: ChainValues) => Promise<NextMessage | undefined>
+    additionalContent: (nextMessage: NextMessage, inputs: ChainValues) => Promise<AdditionalContent>
 }
 
 export type MimirAIMessage = {
@@ -48,14 +48,14 @@ export class MimirAgent extends BaseSingleActionAgent {
     plugins: InternalAgentPlugin[];
     imageHandler: LLMImageHandler;
     reset: () => Promise<void>;
-    messageGenerator: (arg: NextMessage,) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>;
+    messageGenerator: (arg: NextMessage,) => Promise<{ message: BaseMessage }>;
 
     constructor(
         memory: BaseChatMemory,
         taskCompleteCommandName: string,
         input: MimirChatConversationalAgentInput,
         outputParser: BaseOutputParser<AgentAction | AgentFinish>,
-        messageGenerator: (arg: NextMessage,) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
+        messageGenerator: (arg: NextMessage,) => Promise<{ message: BaseMessage }>,
         reset: () => Promise<void>,
         imageHandler: LLMImageHandler,
         plugins?: InternalAgentPlugin[],
@@ -110,19 +110,20 @@ export class MimirAgent extends BaseSingleActionAgent {
 
 
         const nextMessage = this.getMessageForAI(steps, inputs);
+        const transientMessageCopy = JSON.parse(JSON.stringify(nextMessage)) as NextMessage;
         const context: AgentContext = {
             input: nextMessage,
             memory: this.memory,
         }
-        let message = nextMessage;
         for (const plugin of this.plugins) {
-            const newMessage = await plugin.processMessage(message, inputs);
-            if (newMessage) {
-                message = newMessage;
+            const customization = await plugin.additionalContent(transientMessageCopy, inputs);
+            transientMessageCopy.content.unshift(...customization.content);
+            if (customization.persistable) {
+                nextMessage.content.unshift(...customization.content);
             }
         }
 
-        const { message: langChainMessage, messageToSave } = await this.messageGenerator(message);
+        const { message: langChainMessage } = await this.messageGenerator(transientMessageCopy);
 
         const pluginInputs = (await Promise.all(
             this.plugins.map(async (plugin) => await plugin.getSystemMessages(context))
@@ -134,7 +135,7 @@ export class MimirAgent extends BaseSingleActionAgent {
             system_message: systemMessage,
             ...inputs,
             realInput: langChainMessage,
-            inputToSave: messageToSave
+            inputToSave: nextMessage
         });
 
         this.plugins.forEach(plugin => plugin.readResponse(context, agentResponse));
@@ -196,7 +197,7 @@ export class MimirAgent extends BaseSingleActionAgent {
                                 text: BAD_MESSAGE_TEXT
                             }
                         ],
-                    } as MimirHumanReplyMessage,
+                    } satisfies NextMessage,
                 });
 
             } else {
@@ -244,7 +245,7 @@ export class MimirAgent extends BaseSingleActionAgent {
     public static fromLLMAndTools(
         llm: BaseLanguageModel,
         mimirOutputParser: BaseLLMOutputParser<MimirAIMessage>,
-        messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }>,
+        messageGenerator: (arg: NextMessage) => Promise<{ message: BaseMessage }>,
         imageHandler: LLMImageHandler,
         args: CreatePromptArgs,
     ) {
@@ -345,8 +346,11 @@ function systemMessageToPlugin(systemMessage: AgentSystemMessage): InternalAgent
         getSystemMessages: async (context) => systemMessage,
         readResponse: async (context: AgentContext, response: MimirAIMessage) => { },
         clear: async () => { },
-        processMessage: async function (nextMessage: NextMessage, inputs: ChainValues): Promise<NextMessage | undefined> {
-            return nextMessage;
+        additionalContent: async function (nextMessage: NextMessage, inputs: ChainValues): Promise<AdditionalContent> {
+            return {
+                persistable: false,
+                content: []
+            };
         }
     }
 }

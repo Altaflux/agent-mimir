@@ -1,4 +1,4 @@
-import { MimirAgentPlugin, PluginContext, MimirPluginFactory, ComplexResponse, NextMessage } from "agent-mimir/schema";
+import { MimirAgentPlugin, PluginContext, MimirPluginFactory, ComplexResponse, NextMessage, AdditionalContent } from "agent-mimir/schema";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
 
@@ -67,19 +67,11 @@ class DesktopControlPlugin extends MimirAgentPlugin {
         await this.pythonServer.close()
     }
 
-    // async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
-
-
-    // }
-
-    async processMessage(message: NextMessage, inputs: ChainValues): Promise<NextMessage> {
+    async additionalMessageContent(message: NextMessage, inputs: ChainValues): Promise<AdditionalContent> {
         const computerImages = await this.generateComputerImagePrompt();
         return {
-            ...message,
-            content: [
-                ...computerImages,
-                ...message.content
-            ]
+            persistable: false,
+            content: computerImages
         }
     }
 

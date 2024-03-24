@@ -1,10 +1,10 @@
 import { BaseMessage } from "@langchain/core/messages";
 import { MimirAIMessage } from "../agent/base-agent.js";
-import { MimirHumanReplyMessage } from "../schema.js";
+import { NextMessage } from "../schema.js";
 import { BaseChatMessageHistory } from "@langchain/core/chat_history";
 
 export abstract class HumanMessageSerializer {
-    abstract deserialize(message: MimirHumanReplyMessage): Promise<BaseMessage>;
+    abstract deserialize(message: NextMessage): Promise<BaseMessage>;
 }
 
 export abstract class AiMessageSerializer {
@@ -26,7 +26,7 @@ export class TransformationalChatMessageHistory extends BaseChatMessageHistory {
     }
 
     async addUserMessage(message: string): Promise<void> {
-        const formattedMessage = await this.humanMessageSerializer.deserialize((message) as any as MimirHumanReplyMessage)
+        const formattedMessage = await this.humanMessageSerializer.deserialize((message) as any as NextMessage)
         return await this.addMessage(formattedMessage);
     }
     async addAIChatMessage(message: string): Promise<void> {

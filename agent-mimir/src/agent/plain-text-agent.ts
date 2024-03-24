@@ -5,7 +5,7 @@ import { PromptTemplate } from "@langchain/core/prompts";
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 
 import { AgentActionOutputParser, AgentFinish, AgentAction, } from "langchain/agents";
-import { AgentContext, LLMImageHandler, MimirAgentArgs, MimirHumanReplyMessage, ToolResponse, NextMessage, AgentSystemMessage, ResponseContentText } from "../schema.js";
+import { AgentContext, LLMImageHandler, MimirAgentArgs, ToolResponse, NextMessage, AgentSystemMessage, ResponseContentText, AdditionalContent } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { callJsonRepair } from "../utils/json.js";
 import { MimirToolToLangchainTool } from "../utils/wrapper.js";
@@ -120,10 +120,9 @@ class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
 
 function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
 
-    const messageGenerator: (nextMessage: NextMessage,) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage,) => {
+    const messageGenerator: (nextMessage: NextMessage,) => Promise<{ message: BaseMessage }> = async (nextMessage: NextMessage,) => {
 
         if (nextMessage.type === "USER_MESSAGE") {
-
             const userInputHeader = {
                 type: "text",
                 text: USER_INPUT_HEADER
@@ -133,22 +132,10 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
                 message: new HumanMessage({
                     content: complexResponseToLangchainMessageContent([userInputHeader, ...nextMessage.content], imageHandler)
                 }),
-                messageToSave: {
-                    type: "USER_MESSAGE",
-                    content: nextMessage.content
-                } satisfies MimirHumanReplyMessage,
             };
         } else {
-
-            const toolResponse = nextMessage.content;
-            const toolResponsePostProcess = nextMessage.content;
-
             return {
-                message: new HumanMessage(extractToolResponse(toolResponsePostProcess, imageHandler)),
-                messageToSave: {
-                    type: "USER_MESSAGE",
-                    content: toolResponse
-                } satisfies MimirHumanReplyMessage,
+                message: new HumanMessage(extractToolResponse(nextMessage.content, imageHandler))
             };
         }
 
@@ -181,13 +168,10 @@ export class PlainTextHumanMessageSerializer extends HumanMessageSerializer {
     constructor(private imageHandler: LLMImageHandler) {
         super();
     }
-    async deserialize(message: MimirHumanReplyMessage): Promise<BaseMessage> {
-        if (message.type === "USER_MESSAGE") {
-            return new HumanMessage({
-                content: complexResponseToLangchainMessageContent(message.content, this.imageHandler)
-            });
-        }
-        throw new Error("Unexpected message type" + JSON.stringify(message))
+    async deserialize(message: NextMessage): Promise<BaseMessage> {
+        return new HumanMessage({
+            content: complexResponseToLangchainMessageContent(message.content, this.imageHandler)
+        });
     }
 }
 
@@ -225,8 +209,8 @@ export async function createPlainTextMimirAgent(args: MimirAgentArgs) {
             clear: async () => {
                 await plugin.clear();
             },
-            processMessage: async function (nextMessage: NextMessage, inputs: ChainValues): Promise<NextMessage | undefined> {
-                return await plugin.processMessage(nextMessage, inputs);
+            additionalContent: async function (nextMessage: NextMessage, inputs: ChainValues): Promise<AdditionalContent> {
+                return await plugin.additionalMessageContent(nextMessage, inputs);
             }
         }
         return agentPlugin;

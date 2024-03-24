@@ -82,6 +82,7 @@ export type NextMessage = {
     content: ComplexResponse[]
 }
 
+
 export type ImageType = {
     url: string,
     type: SupportedImageTypes
@@ -104,6 +105,10 @@ export type ResponseContentImage = {
 export type ComplexResponse = ResponseContentText | ResponseContentImage
 export type ToolResponse = ComplexResponse[];
 
+export type AdditionalContent = {
+    persistable: boolean
+    content: ComplexResponse[]
+}
 
 export abstract class MimirAgentPlugin {
 
@@ -111,8 +116,11 @@ export abstract class MimirAgentPlugin {
         return Promise.resolve();
     }
 
-    async processMessage(message: NextMessage, inputs: ChainValues): Promise<NextMessage | undefined> {
-        return message;
+    async additionalMessageContent(message: NextMessage, inputs: ChainValues): Promise<AdditionalContent> {
+        return {
+            persistable: false,
+            content: []
+        };
     }
 
     async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
@@ -147,18 +155,6 @@ export type AgentContext = {
     memory?: BaseChatMemory,
 };
 
-export type MimirHumanReplyMessage = {
-    type: "USER_MESSAGE",
-    content:  ComplexResponse[],
-} | {
-    type: "FUNCTION_REPLY",
-
-    functionReply?: {
-        name: string,
-        arguments: ComplexResponse[],
-    },
-}
-
 export type MemoryCompactionCallback = (newMessage: BaseMessage[], previousConversation: BaseMessage[]) => Promise<void>;
 
 export type AgentUserMessage = {
@@ -174,8 +170,6 @@ export type AgentToolRequest = { toolName: string, toolArguments: string }
 
 export type FunctionResponseCallBack = (name: string, input: string, response: string) => Promise<void>;
 
-
-export type AgentMessageContent = ComplexResponse;
 export type AgentSystemMessage = {
-    content: AgentMessageContent[]
+    content: ComplexResponse[]
 }

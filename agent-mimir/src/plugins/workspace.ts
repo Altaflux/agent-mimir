@@ -1,4 +1,4 @@
-import { AgentContext, AgentSystemMessage, AgentWorkspace, FILES_TO_SEND_FIELD, MimirAgentPlugin, MimirPluginFactory, NextMessage, PluginContext } from "../schema.js";
+import { AgentContext, AgentSystemMessage, AgentWorkspace, FILES_TO_SEND_FIELD, MimirAgentPlugin, MimirPluginFactory, NextMessage, PluginContext, AdditionalContent } from "../schema.js";
 import { ChainValues } from "@langchain/core/utils/types";
 
 export class WorkspacePluginFactory implements MimirPluginFactory {
@@ -32,8 +32,8 @@ class WorkspacePlugin extends MimirAgentPlugin {
         }
     }
 
-    async processMessage(nextMessage: NextMessage, inputs: ChainValues): Promise<NextMessage | undefined> {
-        let message = nextMessage;
+    async additionalMessageContent(nextMessage: NextMessage, inputs: ChainValues): Promise<AdditionalContent> {
+
         if (nextMessage.type === "USER_MESSAGE") {
             if (inputs[FILES_TO_SEND_FIELD] && inputs[FILES_TO_SEND_FIELD] instanceof Array && inputs[FILES_TO_SEND_FIELD].length > 0) {
                 for (const file of inputs[FILES_TO_SEND_FIELD]) {
@@ -41,20 +41,20 @@ class WorkspacePlugin extends MimirAgentPlugin {
                 }
                 const filesToSendMessage = inputs[FILES_TO_SEND_FIELD].map((file: any) => `"${file.fileName}"`).join(", ");
                 return {
-                    type: "USER_MESSAGE",
+                    persistable: true,
                     content: [
                         {
                             type: "text",
                             text: `I am sending the following files into your workspace: ${filesToSendMessage} \n\n`
-                        },
-                        ...nextMessage.content,
-
+                        }
                     ]
                 }
             }
         }
-        return message;
+        return {
+            persistable: false,
+            content: []
+        }
     }
-
 
 }

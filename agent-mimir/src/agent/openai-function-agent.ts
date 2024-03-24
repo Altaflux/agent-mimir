@@ -2,7 +2,7 @@ import { MimirAgent, InternalAgentPlugin, MimirAIMessage } from "./base-agent.js
 import { AttributeDescriptor, ResponseFieldMapper } from "./instruction-mapper.js";
 import { AIMessage, BaseMessage, FunctionMessage, HumanMessage } from "@langchain/core/messages";
 import { AgentActionOutputParser, AgentFinish, AgentAction, } from "langchain/agents";
-import { AgentContext, LLMImageHandler, MimirAgentArgs, MimirHumanReplyMessage, NextMessage, AgentSystemMessage } from "../schema.js";
+import { AgentContext, LLMImageHandler, MimirAgentArgs, NextMessage, AgentSystemMessage, AdditionalContent } from "../schema.js";
 import { DEFAULT_ATTRIBUTES, IDENTIFICATION } from "./prompt.js";
 import { AiMessageSerializer, HumanMessageSerializer, TransformationalChatMessageHistory } from "../memory/transform-memory.js";
 import { callJsonRepair } from "../utils/json.js";
@@ -74,19 +74,12 @@ class AIMessageLLMOutputParser extends BaseLLMOutputParser<MimirAIMessage> {
 
 
 function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
-    const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMessage, messageToSave: MimirHumanReplyMessage, }> = async (nextMessage: NextMessage) => {
-
-
+    const messageGenerator: (nextMessage: NextMessage) => Promise<{ message: BaseMessage, }> = async (nextMessage: NextMessage) => {
         if (nextMessage.type === "USER_MESSAGE") {
-            const text = { type: "text" as const, text: nextMessage.content };
             return {
                 message: new HumanMessage({
-                    content: complexResponseToLangchainMessageContent(nextMessage.content, imageHandler) 
-                }),
-                messageToSave: {
-                    type: "USER_MESSAGE" as const,
-                    content: nextMessage.content
-                } satisfies MimirHumanReplyMessage,
+                    content: complexResponseToLangchainMessageContent(nextMessage.content, imageHandler)
+                })
             }
         } else {
             const toolResponse = nextMessage.content;
@@ -96,13 +89,12 @@ function messageGeneratorBuilder(imageHandler: LLMImageHandler) {
                     name: nextMessage.tool!,
                     arguments: toolResponse,
                 }
-            } satisfies MimirHumanReplyMessage
+            }
             return {
                 message: new FunctionMessage({
                     name: mimirFunctionMessage.functionReply.name,
                     content: complexResponseToLangchainMessageContent(toolResponse, imageHandler)
-                }),
-                messageToSave: mimirFunctionMessage,
+                })
             }
         }
     }
@@ -131,11 +123,11 @@ export class PlainTextHumanMessageSerializer extends HumanMessageSerializer {
     constructor(private imageHandler: LLMImageHandler) {
         super();
     }
-    async deserialize(message: MimirHumanReplyMessage): Promise<BaseMessage> {
-        if (message.type === "FUNCTION_REPLY") {
+    async deserialize(message: NextMessage): Promise<BaseMessage> {
+        if (message.type === "ACTION") {
             return new FunctionMessage({
-                name: message.functionReply!.name,
-                content: complexResponseToLangchainMessageContent(message.functionReply?.arguments ?? [], this.imageHandler)
+                name: message.tool,
+                content: complexResponseToLangchainMessageContent(message.content, this.imageHandler)
             });
         }
         return new HumanMessage({
@@ -188,8 +180,8 @@ export async function createOpenAiFunctionAgent(args: MimirAgentArgs) {
             clear: async () => {
                 await plugin.clear();
             },
-            processMessage: async function (nextMessage: NextMessage, inputs: ChainValues): Promise<NextMessage | undefined> {
-                return await plugin.processMessage(nextMessage, inputs);
+            additionalContent: async function (nextMessage: NextMessage, inputs: ChainValues): Promise<AdditionalContent> {
+                return await plugin.additionalMessageContent(nextMessage, inputs);
             },
         }
         return agentPlugin;
