@@ -56,7 +56,7 @@ class WebBrowserPlugin extends MimirAgentPlugin {
         const realDimensions = await this.driverManager.getScreenDimensions();
         const resizedImaged  = await resizeToDimensions(Buffer.from(screenshot, "base64"), realDimensions);
         const imageWithLabels = await addLabels(resizedImaged, this.driverManager.interactableElements)
-        
+       
         const result = await this.driverManager.obtainSummaryOfPage("", "");
 
         return [
@@ -71,7 +71,7 @@ class WebBrowserPlugin extends MimirAgentPlugin {
                         type: "image_url",
                         image_url: {
                             type: "png",
-                            url: screenshot
+                            url: imageWithLabels.toString("base64")
                         }
                     },
                     {
@@ -105,13 +105,13 @@ async function addLabels(buffer: Buffer, coordinates: Map<string, InteractableEl
     const height = metadata.height!;
 
     const svgElements: string[] = [];
-    const blockWidth = width / 70;
-    const blockHeight = height / 60;
+    const blockWidth = width / 50;
+    const blockHeight = height / 40;
 
     for (const [i, mask] of coordinates.entries()) {
         svgElements.push(`<svg width="${blockWidth}px" height="${blockHeight}px" preserveAspectRatio="xMinYMin" x="${mask.location.left}"  y="${mask.location.top}">
             <rect width="100%" height="100%" fill="white" fill-opacity="0.7" style="stroke-width:3;stroke:rgb(0,0,0)" /> 
-            <text  x="50%" y="60%" width="100%" height="100%" text-anchor="middle"  alignment-baseline="central" font-family="monospace" dominant-baseline="central" font-weight="bold" font-size="${blockWidth / 2.5}px">${i}</text>
+            <text x="50%" y="60%" width="100%" height="100%" text-anchor="middle"  alignment-baseline="central" font-family="monospace" dominant-baseline="central" font-weight="bold" font-size="${blockWidth / 2.5}px">${i}</text>
         
     </svg>`)
     }
