@@ -105,6 +105,35 @@ export class WebDriverManager {
         }
     }
 
+    async getTotalPageDimensions() {
+        const height: number = await this.driver?.executeScript("return (document.height !== undefined) ? document.height : document.body.offsetHeight")!;
+        const width: number = await this.driver?.executeScript("return (document.width !== undefined) ? document.width : document.body.offsetWidth")!;
+        return {
+            height,
+            width
+        }
+    }
+
+    async calculateCurrentScrollBlock() {
+        const viewDimensions = await this.getScreenDimensions();
+        const totalDimensions = await this.getTotalPageDimensions();
+
+        const scrollPosition =  await this.driver?.executeScript("return window.pageYOffset")! as number;
+        const windowSize  = viewDimensions.height;
+        const bodyHeight   = totalDimensions.height;
+        const scrollPercentage = (scrollPosition / (bodyHeight - windowSize)) * 100;
+
+        const actualPosition = (bodyHeight * scrollPercentage) / 100;
+
+        const totalNumberOfBlocks = Math.ceil(bodyHeight / windowSize);
+        const currentBlockPosition = Math.ceil(actualPosition / windowSize);
+
+        return {
+            totalBlocks: totalNumberOfBlocks,
+            currentBlock: currentBlockPosition
+        }
+    }
+
     async refreshPageState() {
         let driver = await this.getDriver();
         let webPage = await extractHtml(await driver!.getPageSource(), driver);

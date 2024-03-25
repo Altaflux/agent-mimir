@@ -2,7 +2,7 @@ import { AgentAction, AgentActionOutputParser, AgentFinish, AgentStep, BaseSingl
 import { TrimmingMemory } from "./../memory/trimming-memory/index.js";
 import { LLMChain } from "langchain/chains";
 import { BaseLanguageModel } from "langchain/base_language";
-import { AgentContext, AgentSystemMessage, AgentUserMessage, LLMImageHandler, NextMessage, AdditionalContent, ToolResponse } from "../schema.js";
+import { AgentContext, AgentSystemMessage, AgentUserMessage, LLMImageHandler, NextMessage, AdditionalContent, ToolResponse, ComplexResponse } from "../schema.js";
 import { CallbackManager } from "@langchain/core/callbacks/manager";
 import { BaseLLMOutputParser, BaseOutputParser } from "@langchain/core/output_parsers";
 import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";
@@ -108,24 +108,33 @@ export class MimirAgent extends BaseSingleActionAgent {
         callbackManager?: CallbackManager,
     ): Promise<AgentAction | AgentFinish> {
 
-        const nextMessage = this.getMessageForAI(steps, inputs);
-        const transientMessageCopy = JSON.parse(JSON.stringify(nextMessage)) as NextMessage;
+        const persistentMessage = this.getMessageForAI(steps, inputs);
+        const transientMessageCopy = JSON.parse(JSON.stringify(persistentMessage)) as NextMessage;
         const context: AgentContext = {
-            input: nextMessage,
+            input: persistentMessage,
             memory: this.memory,
         }
 
         await Promise.all(this.plugins.map(p => p.readyToProceed(transientMessageCopy, context)));
-        
+        const spacing: ComplexResponse = {
+            type: "text",
+            text: "\n-----------------------------------------------\n\n"
+        }
+        const additionalContent: ComplexResponse[] = [];
+        const persistentAdditionalContent: ComplexResponse[] = [];
         for (const plugin of this.plugins) {
             const customizations = await plugin.additionalContent(transientMessageCopy, inputs);
             for (const customization of customizations) {
-                transientMessageCopy.content.unshift(...customization.content);
+                additionalContent.push(...customization.content)
+                additionalContent.push(spacing)
                 if (customization.persistable) {
-                    nextMessage.content.unshift(...customization.content);
+                    persistentAdditionalContent.push(...customization.content);
+                    persistentAdditionalContent.push(spacing)
                 }
             }
         }
+        transientMessageCopy.content.unshift(...additionalContent);
+        persistentMessage.content.unshift(...persistentAdditionalContent);
 
         const { message: langChainMessage } = await this.messageGenerator(transientMessageCopy);
 
@@ -139,7 +148,7 @@ export class MimirAgent extends BaseSingleActionAgent {
             system_message: systemMessage,
             ...inputs,
             realInput: langChainMessage,
-            inputToSave: nextMessage
+            inputToSave: persistentMessage
         });
 
         this.plugins.forEach(plugin => plugin.readResponse(context, agentResponse));

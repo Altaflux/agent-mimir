@@ -60,6 +60,7 @@ class WebBrowserPlugin extends MimirAgentPlugin {
         const resizedImaged = await resizeToDimensions(Buffer.from(screenshot, "base64"), realDimensions);
         const imageWithLabels = await addLabels(resizedImaged, this.driverManager.interactableElements)
         const result = await this.driverManager.obtainSummaryOfPage("", "");
+        const currentScrollBlock = await this.driverManager.calculateCurrentScrollBlock();
 
         return [
             {
@@ -81,9 +82,14 @@ class WebBrowserPlugin extends MimirAgentPlugin {
             {
                 persistable: true,
                 content: [
+                 
                     {
                         type: "text",
-                        text: `The following is a page summary in markdown format of the website in the browser. You can use the IDs in the elements to click or type on them:\n\n${result}`
+                        text: `The following is a page summary in markdown format of the website in the browser. You can use the IDs in the elements to click or type on them:\n\nSTART OF SITE MARKDOWN:\n${result}\n\nEND OF SITE MARKDOWN\n\n`
+                    },
+                    {
+                        type: "text",
+                        text: `You are currently viewing part "${currentScrollBlock.currentBlock}" of "${currentScrollBlock.totalBlocks}", you can use the scroll tool to view other parts of the page.`
                     },
                 ]
             }
