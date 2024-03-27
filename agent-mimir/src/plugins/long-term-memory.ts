@@ -2,10 +2,8 @@
 
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { AgentContext, AgentSystemMessage, MimirAgentPlugin } from "../schema.js";
-
 import { MimirAIMessage } from "../agent/base-agent.js";
 import { ResponseFieldMapper } from "../agent/instruction-mapper.js";
-import { MessagesPlaceholder, SystemMessagePromptTemplate } from "@langchain/core/prompts";
 import { Embeddings } from "@langchain/core/embeddings";
 import { extractAllTextFromComplexResponse } from "../utils/format.js";
 
