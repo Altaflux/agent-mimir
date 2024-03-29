@@ -58,14 +58,19 @@ function convertPicturesToImages(doc: Element) {
 async function findAllRelevantElements(doc: Element, driver: WebDriver) {
     const allElements = doc.querySelectorAll('*');
 
-    const htmlElements = await Promise.all(Array.from(allElements)
+    const htmlElements = (await Promise.all(Array.from(allElements)
         .filter((e) => isRelevantElement(e))
         .map(async (element) => {
             const tag = element.tagName.toLowerCase();
             const type = (selectableElements.includes(tag) ? 'input' : interactableElements.includes(tag) ? 'clickable' : 'text') as RelevantElement;
             const xpath = getXPath(element);
             const byExpression = By.xpath(xpath);
-            const webDriverElement = await driver!.findElement(byExpression);
+            let webDriverElement = undefined;
+            try {
+                webDriverElement = await driver!.findElement(byExpression)
+            } catch (e) {
+                //
+            }
             return {
                 id: element.getAttribute('x-interactableId')!,
                 xpath: getXPath(element),
@@ -73,7 +78,7 @@ async function findAllRelevantElements(doc: Element, driver: WebDriver) {
                 type: type,
                 webDriverElement: webDriverElement,
             }
-        }));
+        }))).filter(e => e.webDriverElement !== undefined);
 
     const htmlElementInformation: {
         id: string, xpath: string, element: Element, webDriverElement: WebElement, type: RelevantElement, location: { top: number, left: number, isViewable: boolean }
