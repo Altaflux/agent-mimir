@@ -2,8 +2,6 @@ import { MimirAgentTypes } from "agent-mimir/agent";
 import { AgentManager } from "agent-mimir/agent-manager"
 import { Agent, AgentUserMessageResponse, FILES_TO_SEND_FIELD, MimirPluginFactory } from "agent-mimir/schema";
 import chalk from "chalk";
-// import { BaseChatModel } from 'langchain/chat_models/base';
-// import { BaseLanguageModel } from "langchain/base_language";
 import { Tool } from "@langchain/core/tools";
 
 import { promises as fs } from 'fs';

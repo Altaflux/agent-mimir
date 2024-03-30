@@ -58,9 +58,9 @@ function convertPicturesToImages(doc: Element) {
 async function findAllRelevantElements(doc: Element, driver: WebDriver, document: Document) {
     const allElements = doc.querySelectorAll('*');
 
-    const htmlElements = (await Promise.all(Array.from(allElements)
+    const htmlElements = ((Array.from(allElements)
         .filter((e) => isRelevantElement(e))
-        .map(async (element) => {
+        .map((element) => {
             const tag = element.tagName.toLowerCase();
             const type = (selectableElements.includes(tag) ? 'input' : interactableElements.includes(tag) ? 'clickable' : 'text') as RelevantElement;
             return {

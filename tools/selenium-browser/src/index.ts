@@ -8,6 +8,7 @@ import { AgentTool } from "agent-mimir/tools";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { ChainValues } from "@langchain/core/utils/types";
 import { promises as fs } from "fs";
+import path from "path";
 import sharp from "sharp";
 import { InteractableElement } from "html-processor.js";
 
@@ -23,7 +24,7 @@ export class WebBrowserPluginFactory implements MimirPluginFactory {
     }
 
     create(context: PluginContext): MimirAgentPlugin {
-        return new WebBrowserPlugin(this.config, this.model, this.embeddings);
+        return new WebBrowserPlugin(this.config, this.model, this.embeddings, context);
     }
 
 }
@@ -32,7 +33,7 @@ class WebBrowserPlugin extends MimirAgentPlugin {
 
     driverManager: WebDriverManager;
     toolList: AgentTool[];
-    constructor(config: WebBrowserOptions, model: BaseLanguageModel, embeddings: Embeddings) {
+    constructor(private config: WebBrowserOptions, model: BaseLanguageModel, embeddings: Embeddings, private context: PluginContext) {
         super();
         this.driverManager = new WebDriverManager(config, model, embeddings);
         this.toolList = [
@@ -58,7 +59,8 @@ class WebBrowserPlugin extends MimirAgentPlugin {
         const title = await this.driverManager.getTitle();
         const realDimensions = await this.driverManager.getScreenDimensions();
         const resizedImaged = await resizeToDimensions(Buffer.from(screenshot, "base64"), realDimensions);
-        const imageWithLabels = await addLabels(resizedImaged, this.driverManager.interactableElements)
+        const imageWithLabels = await addLabels(resizedImaged, this.driverManager.interactableElements);
+        await fs.writeFile(path.join(this.context.persistenceDirectory, "browser-screenshot.png"), imageWithLabels);
         const result = await this.driverManager.obtainSummaryOfPage("", "");
         const currentScrollBlock = await this.driverManager.calculateCurrentScrollBlock();
         console.log(result);

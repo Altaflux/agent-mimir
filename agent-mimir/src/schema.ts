@@ -37,7 +37,7 @@ export type AgentWorkspace = {
     reset(): Promise<void>,
     getUrlForFile(fileName: string): Promise<string | undefined>,
     fileAsBuffer(fileName: string): Promise<Buffer | undefined>,
-    pluginDirectory(pluginName: string): string,
+    pluginDirectory(pluginName: string): Promise<string>,
     workingDirectory: string,
 }
 
