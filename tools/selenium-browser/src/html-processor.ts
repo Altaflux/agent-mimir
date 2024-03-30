@@ -63,22 +63,13 @@ async function findAllRelevantElements(doc: Element, driver: WebDriver, document
         .map(async (element) => {
             const tag = element.tagName.toLowerCase();
             const type = (selectableElements.includes(tag) ? 'input' : interactableElements.includes(tag) ? 'clickable' : 'text') as RelevantElement;
-            const xpath = getXPath(element);
-            const byExpression = By.xpath(xpath);
-            let webDriverElement = undefined;
-            try {
-                webDriverElement = await driver!.findElement(byExpression)
-            } catch (e) {
-                //
-            }
             return {
                 id: element.getAttribute('x-interactableId')!,
                 xpath: getXPath(element),
                 element: element,
                 type: type,
-                webDriverElement: webDriverElement,
             }
-        }))).filter(e => e.webDriverElement !== undefined);
+        })));
 
 
     //const map = new Map<string, Element>();
@@ -89,9 +80,10 @@ async function findAllRelevantElements(doc: Element, driver: WebDriver, document
 
         return map;
     }, new Map);
+
     const htmlElementInformation: {
         id: string, xpath: string, element: Element, webDriverElement: WebElement, type: RelevantElement, location: { top: number, left: number, isViewable: boolean }
-    }[] = await driver.executeScript(`
+    }[] = ((await driver.executeScript(`
             function isElementUnderOverlay(element) {
                 const rect = element.getBoundingClientRect();
                 const topElement = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
@@ -102,7 +94,9 @@ async function findAllRelevantElements(doc: Element, driver: WebDriver, document
                 const styles = getComputedStyle(element);
                 return styles.pointerEvents !== 'none';
             }
-            
+            function getElementByXpath(path) {
+               return document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+            }
             const elementIsVisibleInViewport = (el, partiallyVisible = false) => {
                 const { top, left, bottom, right } = el.getBoundingClientRect();
                 const { innerHeight, innerWidth } = window;
@@ -126,17 +120,21 @@ async function findAllRelevantElements(doc: Element, driver: WebDriver, document
             let elements = arguments[0];
             
             return elements.map((info) => {
-                const rect = getOffset(info.webDriverElement);
+                const webDriverElement = getElementByXpath(info.xpath);
+                if (!webDriverElement) {
+                    return null;
+                }
+                const rect = getOffset(webDriverElement);
                 return {
                     ...info,
                     location: {
                         top: rect.top,
                         left: rect.left,
-                        isViewable: !isElementUnderOverlay(info.webDriverElement) && isElementClickable(info.webDriverElement) && elementIsVisibleInViewport(info.webDriverElement)
+                        isViewable: !isElementUnderOverlay(webDriverElement) && isElementClickable(webDriverElement) && elementIsVisibleInViewport(webDriverElement)
                     }
                 };
             });
-        `, htmlElements)
+        `, htmlElements)) as any[]).filter((e) => e !== null);
 
     const elements = htmlElementInformation.map((el) => ({ ...el, element: map.get(el.id)! }));
 
