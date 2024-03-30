@@ -3,7 +3,7 @@ import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { Document as VectorDocument } from 'langchain/document'
 import { VectorStore } from "langchain/vectorstores/base";
 import { Embeddings } from "langchain/embeddings/base";
-import { Builder, ThenableWebDriver } from 'selenium-webdriver';
+import { Builder, ThenableWebDriver, logging } from 'selenium-webdriver';
 import { BaseLanguageModel } from "langchain/base_language";
 import { LLMChain } from "langchain/chains";
 import { InteractableElement, extractHtml } from "./html-processor.js";
@@ -273,8 +273,9 @@ const configureDriver = async (options: SeleniumDriverOptions) => {
             throw new Error(`Browser ${options.browserName} not supported`);
         }
     }
-
-    return builder;
+    const prefs = new logging.Preferences();
+    prefs.setLevel(logging.Type.BROWSER, logging.Level.SEVERE);
+    return builder.setLoggingPrefs(prefs);
 }
 
 const downloadDrivers = async (browserName: string | undefined) => {

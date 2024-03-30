@@ -55,7 +55,7 @@ function convertPicturesToImages(doc: Element) {
     return doc;
 }
 
-async function findAllRelevantElements(doc: Element, driver: WebDriver) {
+async function findAllRelevantElements(doc: Element, driver: WebDriver, document: Document) {
     const allElements = doc.querySelectorAll('*');
 
     const htmlElements = (await Promise.all(Array.from(allElements)
@@ -80,6 +80,15 @@ async function findAllRelevantElements(doc: Element, driver: WebDriver) {
             }
         }))).filter(e => e.webDriverElement !== undefined);
 
+
+    //const map = new Map<string, Element>();
+    const map: Map<string, Element> = htmlElements.reduce(function (map, object) {
+        if (!map.has(object.id)) {
+            return map.set(object.id, object.element);
+        }
+
+        return map;
+    }, new Map);
     const htmlElementInformation: {
         id: string, xpath: string, element: Element, webDriverElement: WebElement, type: RelevantElement, location: { top: number, left: number, isViewable: boolean }
     }[] = await driver.executeScript(`
@@ -128,7 +137,8 @@ async function findAllRelevantElements(doc: Element, driver: WebDriver) {
                 };
             });
         `, htmlElements)
-    const elements = htmlElementInformation.map((el) => ({ ...el, element: doc.querySelector(`[x-interactableId="${el.id}"]`) }))
+
+    const elements = htmlElementInformation.map((el) => ({ ...el, element: map.get(el.id)! }));
 
     for (const foundElement of elements) {
         if (!foundElement.location.isViewable) {
@@ -160,9 +170,10 @@ export type InteractableElement = {
 }
 export async function extractHtml(html: string, driver: WebDriver) {
     const ogDoc = new JSDOM(html).window.document;
+
     let cleanHtml = convertPicturesToImages(ogDoc.body);
     cleanHtml = addRandomIdToElements(ogDoc.body);
-    let allRelevantElements = await findAllRelevantElements(cleanHtml, driver);
+    let allRelevantElements = await findAllRelevantElements(cleanHtml, driver, ogDoc);
 
     let interactables = allRelevantElements
         .filter((relevant) => (relevant.element !== null) && interactableElements.includes(relevant.element.tagName.toLowerCase()))

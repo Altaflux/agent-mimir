@@ -61,7 +61,7 @@ class WebBrowserPlugin extends MimirAgentPlugin {
         const imageWithLabels = await addLabels(resizedImaged, this.driverManager.interactableElements)
         const result = await this.driverManager.obtainSummaryOfPage("", "");
         const currentScrollBlock = await this.driverManager.calculateCurrentScrollBlock();
-
+        console.log(result);
         return [
             {
                 persistable: false,
