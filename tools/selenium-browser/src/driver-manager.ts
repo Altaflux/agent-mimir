@@ -274,7 +274,7 @@ const configureDriver = async (options: SeleniumDriverOptions) => {
         }
     }
     const prefs = new logging.Preferences();
-    prefs.setLevel(logging.Type.BROWSER, logging.Level.SEVERE);
+    prefs.setLevel(logging.Type.DRIVER, logging.Level.SEVERE);
     return builder.setLoggingPrefs(prefs);
 }
 

@@ -71,18 +71,20 @@ async function findAllRelevantElements(doc: Element, driver: WebDriver, document
             }
         })));
 
-
-    //const map = new Map<string, Element>();
     const map: Map<string, Element> = htmlElements.reduce(function (map, object) {
         if (!map.has(object.id)) {
             return map.set(object.id, object.element);
         }
-
         return map;
     }, new Map);
+    const minimalHtmlInformation = htmlElements.map(e => ({
+        id: e.id,
+        type: e.type,
+        xpath: e.xpath
+    }));
 
     const htmlElementInformation: {
-        id: string, xpath: string, element: Element, webDriverElement: WebElement, type: RelevantElement, location: { top: number, left: number, isViewable: boolean }
+        id: string, xpath: string, type: RelevantElement, location: { top: number, left: number, isViewable: boolean }
     }[] = ((await driver.executeScript(`
             function isElementUnderOverlay(element) {
                 const rect = element.getBoundingClientRect();
@@ -134,7 +136,7 @@ async function findAllRelevantElements(doc: Element, driver: WebDriver, document
                     }
                 };
             });
-        `, htmlElements)) as any[]).filter((e) => e !== null);
+        `, minimalHtmlInformation)) as any[]).filter((e) => e !== null);
 
     const elements = htmlElementInformation.map((el) => ({ ...el, element: map.get(el.id)! }));
 
