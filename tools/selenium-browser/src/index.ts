@@ -48,6 +48,7 @@ class WebBrowserPlugin extends MimirAgentPlugin {
         await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
+
     async additionalMessageContent(message: NextMessage, inputs: ChainValues): Promise<AdditionalContent[]> {
 
         if (!await this.driverManager.isActive()) {
@@ -60,11 +61,13 @@ class WebBrowserPlugin extends MimirAgentPlugin {
         const realDimensions = await this.driverManager.getScreenDimensions();
         const resizedImaged = await resizeToDimensions(Buffer.from(screenshot, "base64"), realDimensions);
         const imageWithLabels = await addLabels(resizedImaged, this.driverManager.interactableElements);
-        
+
         const result = await this.driverManager.obtainSummaryOfPage("", "");
+        const resultWithoutIds = removeIdAttribute(result);
         const currentScrollBlock = await this.driverManager.calculateCurrentScrollBlock();
-        
+
         await fs.writeFile(path.join(this.context.persistenceDirectory, "browser-screenshot.png"), imageWithLabels);
+        await fs.writeFile(path.join(this.context.persistenceDirectory, "summary.txt"), result);
 
         return [
             {
@@ -86,9 +89,20 @@ class WebBrowserPlugin extends MimirAgentPlugin {
             },
             {
                 saveToChatHistory: true,
+                displayOnCurrentMessage: false,
+                content: [
+                    {
+                        type: "text",
+                        text: `The following is a page summary in markdown format of the website in the browser.:\n\nSTART OF SITE MARKDOWN:\n${resultWithoutIds}\n\nEND OF SITE MARKDOWN\n\n`
+                    },
+
+                ]
+            },
+            {
+                saveToChatHistory: false,
                 displayOnCurrentMessage: true,
                 content: [
-                 
+
                     {
                         type: "text",
                         text: `The following is a page summary in markdown format of the website in the browser. You can use the IDs in the elements to click or type on them:\n\nSTART OF SITE MARKDOWN:\n${result}\n\nEND OF SITE MARKDOWN\n\n`
@@ -140,4 +154,8 @@ async function addLabels(buffer: Buffer, coordinates: Map<string, InteractableEl
     return await img
         .composite([{ input: overlayBuffer, top: 0, left: 0 }])
         .toBuffer();
+}
+
+function removeIdAttribute(str: string) {
+    return str.replace(/id="\d+"/g, '');
 }

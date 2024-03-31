@@ -152,12 +152,7 @@ export class WebDriverManager {
         const documents = texts.map((pageContent, index) => new VectorDocument({ pageContent: pageContent, metadata: { pageNumber: index } }));
 
         this.documents = documents;
-        this.vectorStore = await MemoryVectorStore.fromDocuments(this.documents, this.embeddings);;
-
-    }
-
-    async getDocumentsBySimilarity(question: string, maxEntries: number) {
-        return await this.vectorStore!.similaritySearch(question, maxEntries);
+        this.vectorStore = await MemoryVectorStore.fromDocuments(this.documents, this.embeddings);
     }
 
     async obtainSummaryOfPage(keywords: string, question: string, runManager?: CallbackManagerForToolRun) {
@@ -168,7 +163,7 @@ export class WebDriverManager {
         else if (!keywords || keywords === "") {
             results = this.documents.slice(0, this.numberOfRelevantDocuments);
         } else {
-            const similaritySearchResults = await this.getDocumentsBySimilarity(keywords, this.numberOfRelevantDocuments)
+            const similaritySearchResults = await this.vectorStore!.similaritySearch(keywords, this.numberOfRelevantDocuments)
             results = similaritySearchResults.length > 0 ? similaritySearchResults : this.documents.slice(0, this.numberOfRelevantDocuments);
         }
 
