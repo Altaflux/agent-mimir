@@ -109,13 +109,13 @@ export class MimirAgent extends BaseSingleActionAgent {
     ): Promise<AgentAction | AgentFinish> {
 
         const persistentMessage = this.getMessageForAI(steps, inputs);
-        const transientMessageCopy = JSON.parse(JSON.stringify(persistentMessage)) as NextMessage;
+        const displayMessage = JSON.parse(JSON.stringify(persistentMessage)) as NextMessage;
         const context: AgentContext = {
             input: persistentMessage,
             memory: this.memory,
         }
 
-        await Promise.all(this.plugins.map(p => p.readyToProceed(transientMessageCopy, context)));
+        await Promise.all(this.plugins.map(p => p.readyToProceed(displayMessage, context)));
         const spacing: ComplexResponse = {
             type: "text",
             text: "\n-----------------------------------------------\n\n"
@@ -123,20 +123,22 @@ export class MimirAgent extends BaseSingleActionAgent {
         const additionalContent: ComplexResponse[] = [];
         const persistentAdditionalContent: ComplexResponse[] = [];
         for (const plugin of this.plugins) {
-            const customizations = await plugin.additionalContent(transientMessageCopy, inputs);
+            const customizations = await plugin.additionalContent(displayMessage, inputs);
             for (const customization of customizations) {
-                additionalContent.push(...customization.content)
-                additionalContent.push(spacing)
-                if (customization.persistable) {
+                if (customization.displayOnCurrentMessage) {
+                    additionalContent.push(...customization.content)
+                    additionalContent.push(spacing)
+                }
+                if (customization.saveToChatHistory) {
                     persistentAdditionalContent.push(...customization.content);
                     persistentAdditionalContent.push(spacing)
                 }
             }
         }
-        transientMessageCopy.content.unshift(...additionalContent);
+        displayMessage.content.unshift(...additionalContent);
         persistentMessage.content.unshift(...persistentAdditionalContent);
 
-        const { message: langChainMessage } = await this.messageGenerator(transientMessageCopy);
+        const { message: langChainMessage } = await this.messageGenerator(displayMessage);
 
         const pluginInputs = (await Promise.all(
             this.plugins.map(async (plugin) => await plugin.getSystemMessages(context))

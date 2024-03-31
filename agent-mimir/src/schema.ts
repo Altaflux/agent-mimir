@@ -70,7 +70,7 @@ export interface MimirPluginFactory {
     create(context: PluginContext): MimirAgentPlugin
 }
 
-export type LLMImageHandler = (images: ImageType, detail: "high" | "low") =>  MessageContentImageUrl;
+export type LLMImageHandler = (images: ImageType, detail: "high" | "low") => MessageContentImageUrl;
 
 
 export type NextMessage = {
@@ -96,7 +96,7 @@ export type ResponseContentText = {
 };
 export type ResponseContentImage = {
     type: "image_url";
-    image_url:  {
+    image_url: {
         url: string;
         type: SupportedImageTypes;
     };
@@ -106,7 +106,8 @@ export type ComplexResponse = ResponseContentText | ResponseContentImage
 export type ToolResponse = ComplexResponse[];
 
 export type AdditionalContent = {
-    persistable: boolean
+    saveToChatHistory: boolean,
+    displayOnCurrentMessage: boolean,
     content: ComplexResponse[]
 }
 

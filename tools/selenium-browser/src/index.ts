@@ -60,13 +60,16 @@ class WebBrowserPlugin extends MimirAgentPlugin {
         const realDimensions = await this.driverManager.getScreenDimensions();
         const resizedImaged = await resizeToDimensions(Buffer.from(screenshot, "base64"), realDimensions);
         const imageWithLabels = await addLabels(resizedImaged, this.driverManager.interactableElements);
-        await fs.writeFile(path.join(this.context.persistenceDirectory, "browser-screenshot.png"), imageWithLabels);
+        
         const result = await this.driverManager.obtainSummaryOfPage("", "");
         const currentScrollBlock = await this.driverManager.calculateCurrentScrollBlock();
-        console.log(result);
+        
+        await fs.writeFile(path.join(this.context.persistenceDirectory, "browser-screenshot.png"), imageWithLabels);
+
         return [
             {
-                persistable: false,
+                saveToChatHistory: false,
+                displayOnCurrentMessage: true,
                 content: [
                     {
                         type: "text",
@@ -82,7 +85,8 @@ class WebBrowserPlugin extends MimirAgentPlugin {
                 ]
             },
             {
-                persistable: true,
+                saveToChatHistory: true,
+                displayOnCurrentMessage: true,
                 content: [
                  
                     {

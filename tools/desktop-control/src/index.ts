@@ -71,7 +71,8 @@ class DesktopControlPlugin extends MimirAgentPlugin {
         const computerImages = await this.generateComputerImagePrompt();
         return [
             {
-                persistable: false,
+                saveToChatHistory: false,
+                displayOnCurrentMessage: true,
                 content: computerImages
             }
         ]

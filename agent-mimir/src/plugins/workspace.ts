@@ -42,7 +42,8 @@ class WorkspacePlugin extends MimirAgentPlugin {
                 const filesToSendMessage = inputs[FILES_TO_SEND_FIELD].map((file: any) => `"${file.fileName}"`).join(", ");
                 return [
                     {
-                        persistable: true,
+                        saveToChatHistory: true,
+                        displayOnCurrentMessage: true,
                         content: [
                             {
                                 type: "text",
