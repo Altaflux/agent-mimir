@@ -25,7 +25,7 @@ export class WebBrowserTool extends AgentTool {
         }
         await this.toolManager.navigateToUrl(formattedBaseUrl);
         const driver = await this.toolManager.getDriver();
-              
+
         return [
             {
                 type: "text",
@@ -77,11 +77,7 @@ export class ClickWebSiteLinkOrButton extends AgentTool {
         const elementFound = await driver!.findElement(byExpression);
         if (elementFound) {
             try {
-                await driver!.executeScript(`window.scrollTo({top: arguments[0], behavior: 'instant'});`, clickableElement.location.top);
-                await driver.actions().move({ origin: elementFound }).perform();
                 await driver!.executeScript(`arguments[0].click()`, elementFound);
-                await new Promise(res => setTimeout(res, 500));
-
                 return [
                     {
                         type: "text",
@@ -151,7 +147,7 @@ export class ScrollTool extends AgentTool {
 export class PassValueToInput extends AgentTool {
 
     schema = z.object({
-        id: z.string().describe("A valid id of a input"),
+        id: z.string().describe("A valid id of a input."),
         value: (z.string()).describe("the value to set to the input."),
     })
 
@@ -183,18 +179,18 @@ export class PassValueToInput extends AgentTool {
             ]
         }
         const byExpression = By.xpath(clickableElement.xpath);
-        //await driver!.executeScript(`window.scrollTo({top: arguments[0], behavior: 'instant'});`, clickableElement.location.top);
         const elementFound = await driver!.findElement(byExpression);
         if (elementFound) {
             await driver.actions().move({ origin: elementFound }).clear();
-            await driver.actions().move({ origin: elementFound }).sendKeys(inputs.value).perform();
+            await elementFound.sendKeys(inputs.value);
 
             return [
                 {
                     type: "text",
-                    text: `Input's value has been updated successfully.`
+                    text: `Input's has been sent, verify that the field was updated correctly..`
                 }
-            ]
+            ];
+
         } else {
 
             return [
