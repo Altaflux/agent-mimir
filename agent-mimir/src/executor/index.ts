@@ -1,4 +1,4 @@
-import { StructuredTool, StructuredToolInterface } from "@langchain/core/tools";
+import { StructuredTool, StructuredToolInterface, ToolInputParsingException } from "@langchain/core/tools";
 import { AgentAction, AgentFinish, AgentStep, BaseSingleActionAgent, StoppingMethod } from "langchain/agents";
 import { BaseChain, ChainInputs } from "langchain/chains";
 import { AgentToolRequest, FunctionResponseCallBack, ToolResponse } from "../schema.js";
@@ -63,19 +63,39 @@ export class SteppedAgentExecutor extends BaseChain {
         return this.maxIterations === undefined || iterations < this.maxIterations;
     }
 
-
+    async invokeTool(tool: StructuredToolInterface, action: AgentAction) {
+        try {
+            return await tool.call(action.toolInput);
+        } catch (e: any) {
+            if (e instanceof ToolInputParsingException) {
+                console.error(`Error invoking tool ${tool.name} with input: ${JSON.stringify(action.toolInput)}`, e);
+                return JSON.stringify([
+                    {
+                        type: "text",
+                        text: `The input of the tool did not match the expected schema.`
+                    }
+                ] satisfies ToolResponse);
+            }
+            return JSON.stringify([
+                {
+                    type: "text",
+                    text: `There was an error invoking tool "${action.tool}".`
+                }
+            ] satisfies ToolResponse);
+        }
+    }
     async doTool(action: AgentAction, toolsByName: { [k: string]: StructuredToolInterface }, steps: AgentStep[], getOutput: (finishStep: AgentFinish)
         => Promise<ChainValues>, functionInvokationListener: FunctionResponseCallBack) {
 
         const tool = toolsByName[action.tool?.toLowerCase()];
         const observation = tool
-            ? await tool.call(action.toolInput)
+            ? await this.invokeTool(tool, action)
             : JSON.stringify([
                 {
                     type: "text",
                     text: `"${action.tool}" is not a valid tool, try another one.`
                 }
-            ] as ToolResponse);
+            ] satisfies ToolResponse);
 
         if (!tool?.returnDirect) {
             functionInvokationListener(action.tool?.toLowerCase() ?? "", JSON.stringify(action.toolInput, null, 2), observation);
