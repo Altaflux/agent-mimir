@@ -18,7 +18,7 @@ import { Options as EdgeOptions } from 'selenium-webdriver/edge.js';
 import exitHook from 'async-exit-hook';
 import { IS_RELEVANT_PROMPT } from "./prompt/relevance-prompt.js";
 import { encode } from "gpt-3-encoder"
-
+import { chromium, devices } from 'playwright';
 
 export type SeleniumDriverOptions = {
     browserName?: 'chrome' | 'firefox' | 'edge';
@@ -37,7 +37,7 @@ const EMPTY_DOCUMENT_TAG = "(Empty the following piece is the beginning of the w
 
 export class WebDriverManager {
 
-    driver?: ThenableWebDriver;
+    private driver?: ThenableWebDriver;
     maximumChunkSize: number
     numberOfRelevantDocuments: number | 'all'
     relevanceCheck: boolean = false;
@@ -67,6 +67,7 @@ export class WebDriverManager {
         return this.driver !== undefined;
     }
     async getDriver() {
+
         if (this.driver) {
             return this.driver;
         } else {
@@ -84,7 +85,11 @@ export class WebDriverManager {
         return base64Image;
     }
 
-    
+    async executeScript<T>(script: string|Function, ...var_args: any[]): Promise<T> {
+        let driver = await this.getDriver();
+        return driver.executeScript(script, ...var_args);
+    }
+
     async getTitle(): Promise<string> {
         let driver = await this.getDriver();
         const title = await driver.getTitle();

@@ -120,12 +120,12 @@ export class ScrollTool extends AgentTool {
         super();
     }
     protected async _call(inputs: z.input<this["schema"]>): Promise<ToolResponse> {
-        const height: number = await this.toolManager.driver?.executeScript("return window.innerHeight")!;
+        const height: number = await this.toolManager.executeScript("return window.innerHeight")!;
         const adjustedHeight = height - 100;
         if (inputs.direction === "up") {
-            await this.toolManager.driver?.executeScript(`window.scrollBy(0,-${adjustedHeight})`, "")
+            await this.toolManager.executeScript(`window.scrollBy(0,-${adjustedHeight})`, "")
         } else {
-            await this.toolManager.driver?.executeScript(`window.scrollBy(0,${adjustedHeight})`, "")
+            await this.toolManager.executeScript(`window.scrollBy(0,${adjustedHeight})`, "")
         }
 
         return [
