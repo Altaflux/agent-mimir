@@ -3,7 +3,6 @@ import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { Document as VectorDocument } from 'langchain/document'
 import { VectorStore } from "langchain/vectorstores/base";
 import { Embeddings } from "langchain/embeddings/base";
-import { Builder, ThenableWebDriver, logging } from 'selenium-webdriver';
 import { BaseLanguageModel } from "langchain/base_language";
 import { LLMChain } from "langchain/chains";
 import { InteractableElement, extractHtml } from "./html-processor.js";
@@ -11,22 +10,19 @@ import { htmlToMarkdown } from "./to-markdown.js";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { MemoryVectorStore, } from "langchain/vectorstores/memory";
 import { COMBINE_PROMPT } from "./prompt/combiner-prompt.js";
-import { Options, update, } from 'webdriver-manager';
-import { Options as ChromeOptions } from 'selenium-webdriver/chrome.js';
-import { Options as FireFoxOptions } from 'selenium-webdriver/firefox.js';
-import { Options as EdgeOptions } from 'selenium-webdriver/edge.js';
 import exitHook from 'async-exit-hook';
 import { IS_RELEVANT_PROMPT } from "./prompt/relevance-prompt.js";
 import { encode } from "gpt-3-encoder"
+import { chromium, firefox, Browser, Page, webkit } from 'playwright';
 
-export type SeleniumDriverOptions = {
-    browserName?: 'chrome' | 'firefox' | 'edge';
+export type PlaywrightDriverOptions = {
+    browserName?: 'chrome' | 'webkit' | 'firefox';
     disableHeadless?: boolean;
-    driver?: ThenableWebDriver
+
 }
 
 export type WebBrowserOptions = {
-    browserConfig: SeleniumDriverOptions
+    browserConfig: PlaywrightDriverOptions
     maximumChunkSize?: number
     doRelevanceCheck?: boolean
     numberOfRelevantDocuments?: number | 'all'
@@ -36,7 +32,7 @@ const EMPTY_DOCUMENT_TAG = "(Empty the following piece is the beginning of the w
 
 export class WebDriverManager {
 
-    private driver?: ThenableWebDriver;
+    private browser?: Browser;
     maximumChunkSize: number
     numberOfRelevantDocuments: number | 'all'
     relevanceCheck: boolean = false;
@@ -45,6 +41,7 @@ export class WebDriverManager {
     currentPage?: Document;
     interactableElements: Map<string, InteractableElement> = new Map();
     currentPageView?: string;
+    page?: { page: Page, browser: Browser };
 
     constructor(private config: WebBrowserOptions, private model: BaseLanguageModel, private embeddings: Embeddings) {
         this.maximumChunkSize = config.maximumChunkSize || 3000;
@@ -58,51 +55,54 @@ export class WebDriverManager {
     }
 
     async close() {
-        await this.driver?.quit();
-        this.driver = undefined;
+        await this.page?.browser.close();
+        this.page = undefined;
     }
 
     async isActive() {
-        return this.driver !== undefined;
+        return this.page !== undefined;
     }
-    async getDriver() {
 
-        if (this.driver) {
-            return this.driver;
+    async getBrowser() {
+
+        if (this.page) {
+            return this.page.page;
         } else {
-            const driverConfiguration = await configureDriver(this.config.browserConfig);
-            await downloadDrivers(this.config.browserConfig?.browserName);
-            let driver = driverConfiguration.build();
-            this.driver = driver;
-            return driver;
+            const driverConfiguration = await configureBrowser(this.config.browserConfig);
+            this.page = driverConfiguration;
+            return driverConfiguration.page;
         }
     }
 
+
     async getScreenshot(): Promise<string> {
-        let driver = await this.getDriver();
-        const base64Image = await driver.takeScreenshot();
-        return base64Image;
+        let driver = await this.getBrowser();
+        const base64Image = await driver.screenshot({
+            timeout: 30000
+        });
+        return base64Image.toString("base64");
     }
 
-    async executeScript<T>(script: string|Function, ...var_args: any[]): Promise<T> {
-        let driver = await this.getDriver();
-        return driver.executeScript(script, ...var_args);
+    async executeScript<T>(funk:any, arg?: any): Promise<T> {
+        let driver = await this.getBrowser();
+        return driver.evaluate(funk, ...arg);
     }
 
     async getTitle(): Promise<string> {
-        let driver = await this.getDriver();
-        const title = await driver.getTitle();
+        let driver = await this.getBrowser();
+        const title = await driver.title();
         return title;
     }
 
     async navigateToUrl(url: string) {
-        let driver = await this.getDriver();
-        await driver!.get(url);
+        let driver = await this.getBrowser();
+        await driver!.goto(url);
     }
 
     async getScreenDimensions() {
-        const height: number = await this.driver?.executeScript("return window.innerHeight")!;
-        const width: number = await this.driver?.executeScript("return window.innerWidth")!;
+        let driver = await this.getBrowser();
+        const height: number = await driver?.evaluate(()=> window.innerHeight)!;
+        const width: number = await driver?.evaluate(()=>  window.innerWidth)!;
         return {
             height,
             width
@@ -110,8 +110,9 @@ export class WebDriverManager {
     }
 
     async getTotalPageDimensions() {
-        const height: number = await this.driver?.executeScript("return (document.height !== undefined) ? document.height : document.body.offsetHeight")!;
-        const width: number = await this.driver?.executeScript("return (document.width !== undefined) ? document.width : document.body.offsetWidth")!;
+        let driver = await this.getBrowser();
+        const height: number = await driver?.evaluate(() => ((document as any).height !== undefined) ? (document as any).height : document.body.offsetHeight)!;
+        const width: number = await driver?.evaluate(()=> ((document as any).width !== undefined) ? (document as any).width : document.body.offsetWidth)!;
         return {
             height,
             width
@@ -119,12 +120,13 @@ export class WebDriverManager {
     }
 
     async calculateCurrentScrollBlock() {
+        let driver = await this.getBrowser();
         const viewDimensions = await this.getScreenDimensions();
         const totalDimensions = await this.getTotalPageDimensions();
 
-        const scrollPosition =  await this.driver?.executeScript("return window.pageYOffset")! as number;
-        const windowSize  = viewDimensions.height;
-        const bodyHeight   = totalDimensions.height;
+        const scrollPosition = await driver?.evaluate(() => window.scrollY)! as number;
+        const windowSize = viewDimensions.height;
+        const bodyHeight = totalDimensions.height;
         const scrollPercentage = (scrollPosition / (bodyHeight - windowSize)) * 100;
 
         const actualPosition = (bodyHeight * scrollPercentage) / 100;
@@ -139,8 +141,8 @@ export class WebDriverManager {
     }
 
     async refreshPageState() {
-        let driver = await this.getDriver();
-        let webPage = await extractHtml(await driver!.getPageSource(), driver);
+        let driver = await this.getBrowser();
+        let webPage = await extractHtml(await driver!.content(), driver);
         this.currentPage = webPage.html;
         this.interactableElements = webPage.interactableElements;
 
@@ -184,7 +186,7 @@ export class WebDriverManager {
                 .sort((doc1, doc2) => doc1.metadata.pageNumber - doc2.metadata.pageNumber)
                 , "Important information on the site.", runManager);
         }
-        ///Save the current view of the browser.
+
         this.currentPageView = summarizedPageView;
         return summarizedPageView;
     }
@@ -192,7 +194,8 @@ export class WebDriverManager {
 
     private async isPageRelevant(page: string, question: string, runManager?: CallbackManagerForToolRun) {
         const llmChain = new LLMChain({ prompt: IS_RELEVANT_PROMPT, llm: this.model, verbose: false });
-        const title = await this.driver!.getTitle()
+        let driver = await this.getBrowser();
+        const title = await driver.title();
         const llmResponse = (await llmChain.call({
             title: title,
             document: page,
@@ -208,8 +211,8 @@ export class WebDriverManager {
         if (!question || question === "") {
             focus = "Main content of the page";
         }
-
-        const title = await this.driver!.getTitle();
+        let driver = await this.getBrowser();
+        const title = await driver.title();
         return (await documents.map((doc) => Promise.resolve(doc))
             .reduce(async (prev, current) => {
                 const previousDocument = await prev;
@@ -241,65 +244,28 @@ export class WebDriverManager {
             }, Promise.resolve(new VectorDocument({ pageContent: EMPTY_DOCUMENT_TAG, metadata: { pageNumber: 0 } })))).pageContent;
     }
 }
-
-const configureDriver = async (options: SeleniumDriverOptions) => {
-    let builder = new Builder();
+const configureBrowser = async (options: PlaywrightDriverOptions) => {
     switch (options.browserName) {
         case 'chrome': {
-            builder = builder.forBrowser("chrome");
-            if (!options.disableHeadless) {
-                builder = builder.setChromeOptions(new ChromeOptions().addArguments('--headless=new'))
-            }
-
-            break
+            const browser = await chromium.launch({ headless: !(options.disableHeadless) });
+            const page = await browser.newPage();
+            return { page, browser }
+        }
+        case 'webkit': {
+            const browser = await webkit.launch({ headless: !(options.disableHeadless) });
+            const page = await browser.newPage();
+            return { page, browser }
         }
         case 'firefox': {
-            builder = builder.forBrowser("firefox");
-            if (!options.disableHeadless) {
-                builder = builder.setFirefoxOptions(new FireFoxOptions().headless())
-            }
-            break;
-        }
-        case 'edge': {
-            builder = builder.forBrowser("MicrosoftEdge");
-            if (!options.disableHeadless) {
-                builder = builder.setEdgeOptions(new EdgeOptions().headless());
-            }
-
-            break;
+            const browser = await firefox.launch({ headless: !(options.disableHeadless),  });
+            const page = await browser.newPage();
+            return { page, browser }
         }
         default: {
             throw new Error(`Browser ${options.browserName} not supported`);
         }
     }
-    const prefs = new logging.Preferences();
-    prefs.setLevel(logging.Type.DRIVER, logging.Level.SEVERE);
-    return builder.setLoggingPrefs(prefs);
 }
 
-const downloadDrivers = async (browserName: string | undefined) => {
-    let driverName: "chromedriver" | "geckodriver" | undefined = undefined;
-    if (!browserName) {
-        return;
-    }
-    switch (browserName) {
-        case 'chrome': {
-            driverName = 'chromedriver'
-            break
-        }
-        case 'firefox': {
-            driverName = 'geckodriver'
-            break;
-        }
-    }
-    if (driverName) {
-        try {
-            const optionsSel: Options = {
-                browserDrivers: [{ name: driverName }]
-            };
-            await update(optionsSel);
-        } catch (e) {
-            console.warn(`Failed to download web driver ${driverName}`, e);
-        }
-    }
-}
+
+
