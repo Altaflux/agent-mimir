@@ -67,7 +67,7 @@ class WebBrowserPlugin extends MimirAgentPlugin {
         const resultWithoutIds = removeIdAttribute(result);
         const currentScrollBlock = await this.driverManager.calculateCurrentScrollBlock();
 
-        await fs.writeFile(path.join(this.context.persistenceDirectory, "browser-screenshot.png"), imageWithLabels);
+        await fs.writeFile(path.join(this.context.persistenceDirectory, "browser-screenshot.jpg"), imageWithLabels);
         await fs.writeFile(path.join(this.context.persistenceDirectory, "summary.txt"), result);
 
         return [

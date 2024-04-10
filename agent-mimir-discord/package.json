@@ -27,7 +27,7 @@
     },
     "dependencies": {
       "agent-mimir": "*",
-      "@langchain/openai": "0.0.19",
+      "@langchain/openai": "0.0.26",
       "@agent-mimir/code-interpreter": "*",
       "@agent-mimir/selenium-browser": "*",
       "chalk": "^5.2.0",

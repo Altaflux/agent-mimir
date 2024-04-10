@@ -1,10 +1,5 @@
-import { MimirAgentTypes } from 'agent-mimir/agent';
 import { ChatOpenAI } from '@langchain/openai';
 import { OpenAIEmbeddings } from '@langchain/openai';
-
-
-const openAIModelType = process.env.AGENT_OPENAI_MODEL ?? 'gpt-4-0613';
-const agentType: MimirAgentTypes = openAIModelType.includes('0613') ? 'openai-function-agent' : 'plain-text-agent';
 
 const embeddings = new OpenAIEmbeddings({
     openAIApiKey: process.env.OPENAI_API_KEY,
@@ -13,7 +8,7 @@ const embeddings = new OpenAIEmbeddings({
 const chatModel = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY,
     temperature: !isNaN(Number(process.env.AGENT_OPENAI_CHAT_TEMPERATURE)) ? Number(process.env.AGENT_OPENAI_CHAT_TEMPERATURE) : 0.0,
-    modelName: process.env.AGENT_OPENAI_MODEL
+    modelName: process.env.AGENT_OPENAI_MODEL ?? 'gpt-4-turbo'
 });
 
 const summaryModel = new ChatOpenAI({
@@ -46,7 +41,8 @@ export default async function () {
                 mainAgent: true,
                 description: 'An assistant',
                 definition: {
-                    agentType: agentType,
+                    agentType: 'openai-function-agent' as const,
+                    visionSupport: 'openai' as const,
                     chatModel: chatModel,
                     profession: 'an Assistant',
                     chatHistory: {

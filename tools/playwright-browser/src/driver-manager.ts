@@ -83,7 +83,7 @@ export class WebDriverManager {
         return base64Image.toString("base64");
     }
 
-    async executeScript<T>(funk:any, arg?: any): Promise<T> {
+    async executeScript<T>(funk: any, arg?: any): Promise<T> {
         let driver = await this.getBrowser();
         return driver.evaluate(funk, ...arg);
     }
@@ -101,8 +101,8 @@ export class WebDriverManager {
 
     async getScreenDimensions() {
         let driver = await this.getBrowser();
-        const height: number = await driver?.evaluate(()=> window.innerHeight)!;
-        const width: number = await driver?.evaluate(()=>  window.innerWidth)!;
+        const height: number = await driver?.evaluate(() => window.innerHeight)!;
+        const width: number = await driver?.evaluate(() => window.innerWidth)!;
         return {
             height,
             width
@@ -112,7 +112,7 @@ export class WebDriverManager {
     async getTotalPageDimensions() {
         let driver = await this.getBrowser();
         const height: number = await driver?.evaluate(() => ((document as any).height !== undefined) ? (document as any).height : document.body.offsetHeight)!;
-        const width: number = await driver?.evaluate(()=> ((document as any).width !== undefined) ? (document as any).width : document.body.offsetWidth)!;
+        const width: number = await driver?.evaluate(() => ((document as any).width !== undefined) ? (document as any).width : document.body.offsetWidth)!;
         return {
             height,
             width
@@ -247,18 +247,22 @@ export class WebDriverManager {
 const configureBrowser = async (options: PlaywrightDriverOptions) => {
     switch (options.browserName) {
         case 'chrome': {
-            const browser = await chromium.launch({ headless: !(options.disableHeadless) });
-            const page = await browser.newPage();
+
+            const browser = (await chromium.launch({ headless: !(options.disableHeadless), }));
+            const ctx = await browser.newContext({ screen: { height: 2048, width: 2048 }, viewport: { height: 2048, width: 2048 } });
+            const page = await ctx.newPage();
             return { page, browser }
         }
         case 'webkit': {
             const browser = await webkit.launch({ headless: !(options.disableHeadless) });
-            const page = await browser.newPage();
+            const ctx = await browser.newContext({ screen: { height: 2048, width: 2048 }, viewport: { height: 2048, width: 2048 } });
+            const page = await ctx.newPage();
             return { page, browser }
         }
         case 'firefox': {
-            const browser = await firefox.launch({ headless: !(options.disableHeadless),  });
-            const page = await browser.newPage();
+            const browser = await firefox.launch({ headless: !(options.disableHeadless), });
+            const ctx = await browser.newContext({ screen: { height: 2048, width: 2048 }, viewport: { height: 2048, width: 2048 } });
+            const page = await ctx.newPage();
             return { page, browser }
         }
         default: {

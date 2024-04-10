@@ -67,8 +67,8 @@ export class SteppedAgentExecutor extends BaseChain {
         try {
             return await tool.call(action.toolInput);
         } catch (e: any) {
+            console.error(`Error invoking tool ${tool.name} with input: ${JSON.stringify(action.toolInput)}`, e);
             if (e instanceof ToolInputParsingException) {
-                console.error(`Error invoking tool ${tool.name} with input: ${JSON.stringify(action.toolInput)}`, e);
                 return JSON.stringify([
                     {
                         type: "text",
