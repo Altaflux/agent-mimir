@@ -39,5 +39,5 @@ export function renderTextDescriptionAndArgs(
           (zodToJsonSchema(tool.schema) as JsonSchema7ObjectType).properties
         )}`
     )
-    .join("\n");
+    .join("\n\n");
 }

@@ -3,6 +3,7 @@ import { AgentAction, AgentFinish, AgentStep, BaseSingleActionAgent, StoppingMet
 import { BaseChain, ChainInputs } from "langchain/chains";
 import { AgentToolRequest, FunctionResponseCallBack, ToolResponse } from "../schema.js";
 import { ChainValues } from "@langchain/core/utils/types";
+import { zodToJsonSchema, JsonSchema7ObjectType } from "zod-to-json-schema";
 
 interface AgentExecutorInput extends ChainInputs {
     agent: BaseSingleActionAgent;
@@ -72,7 +73,9 @@ export class SteppedAgentExecutor extends BaseChain {
                 return JSON.stringify([
                     {
                         type: "text",
-                        text: `The input of the tool did not match the expected schema.`
+                        text: `The input of the tool did not match the expected schema. Please use input that matches the expected schema of the tool: ${JSON.stringify(
+                            (zodToJsonSchema(tool.schema) as JsonSchema7ObjectType).properties
+                          )}`
                     }
                 ] satisfies ToolResponse);
             }

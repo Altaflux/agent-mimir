@@ -2,7 +2,8 @@
 import { jsonrepair } from 'jsonrepair'
 
 export function callJsonRepair(input: string) {
-    return (jsonrepair(input));
+    const cleanedInput =input.substring(0, input.lastIndexOf('}') + 1);
+    return (jsonrepair(cleanedInput));
 }
 
 export async function simpleParseJson(input: string) {

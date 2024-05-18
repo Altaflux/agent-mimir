@@ -249,19 +249,19 @@ const configureBrowser = async (options: PlaywrightDriverOptions) => {
         case 'chrome': {
 
             const browser = (await chromium.launch({ headless: !(options.disableHeadless), }));
-            const ctx = await browser.newContext({ screen: { height: 2048, width: 2048 }, viewport: { height: 2048, width: 2048 } });
+            const ctx = await browser.newContext({ screen: { height: 1200, width: 1200 }, viewport: { height: 1200, width: 1200 } });
             const page = await ctx.newPage();
             return { page, browser }
         }
         case 'webkit': {
             const browser = await webkit.launch({ headless: !(options.disableHeadless) });
-            const ctx = await browser.newContext({ screen: { height: 2048, width: 2048 }, viewport: { height: 2048, width: 2048 } });
+            const ctx = await browser.newContext({ screen: { height: 1200, width: 1200 }, viewport: { height: 1200, width: 1200 } });
             const page = await ctx.newPage();
             return { page, browser }
         }
         case 'firefox': {
             const browser = await firefox.launch({ headless: !(options.disableHeadless), });
-            const ctx = await browser.newContext({ screen: { height: 2048, width: 2048 }, viewport: { height: 2048, width: 2048 } });
+            const ctx = await browser.newContext({ screen: { height: 1200, width: 1200 }, viewport: { height: 1200, width: 1200 } });
             const page = await ctx.newPage();
             return { page, browser }
         }
