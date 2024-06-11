@@ -1,6 +1,6 @@
 import { NodeVM } from "vm2";
 import { StructuredTool } from "@langchain/core/tools";
-import { CallbackManagerForToolRun } from "langchain/dist/callbacks";
+
 import { z } from "zod";
 
 export class JavascriptCodeRunner extends StructuredTool {
@@ -8,7 +8,7 @@ export class JavascriptCodeRunner extends StructuredTool {
         code: z.string().describe("The javascript code to run. Always use a \"return\" statement to return the result."),
     });
 
-    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<string> {
+    protected async _call(arg: z.input<this["schema"]>): Promise<string> {
         const vm = new NodeVM({
             allowAsync: false,
             wrapper: "none",

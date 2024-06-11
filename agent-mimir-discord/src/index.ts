@@ -17,7 +17,6 @@ import { Retry } from "./utils.js";
 import { Embeddings } from "@langchain/core/embeddings";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import {} from "@langchain/core/singletons"
 
 function splitStringInChunks(str: string) {
     const chunkSize = 1900;

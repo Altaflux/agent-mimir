@@ -1,9 +1,8 @@
-import { Embeddings } from "langchain/embeddings/base";
-import { VectorStore } from "langchain/vectorstores/base";
+
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { z } from "zod";
 import { Document } from 'langchain/document'
-import { BaseChatModel } from "langchain/chat_models/base";
+
 import { TAG_EXTRACTION_PROMPT, TAG_FINDER_PROMPT } from "./prompt.js";
 import { LLMChain } from "langchain/chains";
 import { messagesToString } from "../../utils/format.js";
@@ -13,6 +12,9 @@ import path from "path";
 import { promises as fs } from 'fs';
 import { callJsonRepair } from "../../utils/json.js";
 import { BaseMessage } from "@langchain/core/messages";
+import { VectorStore } from "@langchain/core/vectorstores";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { Embeddings } from "@langchain/core/embeddings";
 
 export class TagMemoryManager {
 

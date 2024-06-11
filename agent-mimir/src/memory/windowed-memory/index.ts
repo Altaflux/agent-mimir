@@ -1,4 +1,3 @@
-import { BaseLanguageModel } from "langchain/base_language";
 import { BasePromptTemplate } from "@langchain/core/prompts";
 import { SUMMARY_PROMPT } from "./prompt.js";
 import { LLMChain } from "langchain/chains";
@@ -7,6 +6,7 @@ import { MemoryCompactionCallback } from "../../schema.js";
 import { AIMessage, BaseMessage, SystemMessage } from "@langchain/core/messages";
 import { InputValues } from "@langchain/core/utils/types";
 import { BaseChatMemory, BaseChatMemoryInput, getInputValue } from "langchain/memory";
+import { BaseLanguageModel } from "@langchain/core/language_models/base";
 
 export type WindowedConversationSummaryMemoryInput = BaseChatMemoryInput & {
     memoryKey?: string;

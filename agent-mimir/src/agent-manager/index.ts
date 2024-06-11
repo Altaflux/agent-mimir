@@ -3,7 +3,6 @@ import { TalkToUserTool } from '../tools/core.js';
 import { SteppedAgentExecutor } from '../executor/index.js';
 import { ChatMemoryChain } from '../memory/transactional-memory-chain.js';
 
-import { BaseChatModel } from 'langchain/chat_models/base';
 import { Agent, AgentResponse, AgentToolRequest, AgentUserMessage, MimirAgentPlugin, MimirPluginFactory, ToolResponse, PluginContext, WorkspaceManagerFactory } from '../schema.js';
 
 import { initializeAgent } from '../agent/index.js'
@@ -21,6 +20,7 @@ import { MimirToolToLangchainTool, LangchainToolToMimirTool } from "../utils/wra
 import { noopImageHandler, openAIImageHandler } from "../vision/index.js";
 import { Embeddings } from "@langchain/core/embeddings";
 import { BaseChatMessageHistory } from "@langchain/core/chat_history";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 export type CreateAgentOptions = {
     profession: string,

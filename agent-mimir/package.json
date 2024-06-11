@@ -67,7 +67,7 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "langchain": "0.1.32",
+    "langchain": "0.2.5",
     "jsonrepair": "^3.0.2",
     "ring-buffer-ts": "^1.2.0",
     "gpt-3-encoder": "v1.1.4"

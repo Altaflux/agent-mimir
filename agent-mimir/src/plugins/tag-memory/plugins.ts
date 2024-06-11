@@ -3,12 +3,13 @@ import { AgentContext, AgentSystemMessage, MimirAgentPlugin, MimirPluginFactory,
 import { TagMemoryManager } from "./index.js";
 import { z } from "zod";
 import { extractAllTextFromComplexResponse, messagesToString } from "../../utils/format.js";
-import { Embeddings } from "langchain/embeddings/base";
-import { BaseChatModel } from "langchain/chat_models/base";
+
 import { LangchainToolToMimirTool } from "../../utils/wrapper.js";
 import { AgentTool } from "../../tools/index.js";
 import { StructuredTool } from "@langchain/core/tools";
 import { BaseMessage } from "@langchain/core/messages";
+import { Embeddings } from "@langchain/core/embeddings";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 export class ManualTagMemoryPluginFactory implements MimirPluginFactory {
 

@@ -1,7 +1,7 @@
 import { AgentAction, AgentActionOutputParser, AgentFinish, AgentStep, BaseSingleActionAgent, StoppingMethod } from "langchain/agents";
 import { TrimmingMemory } from "./../memory/trimming-memory/index.js";
 import { LLMChain } from "langchain/chains";
-import { BaseLanguageModel } from "langchain/base_language";
+
 import { AgentContext, AgentSystemMessage, AgentUserMessage, LLMImageHandler, NextMessage, AdditionalContent, ToolResponse, ComplexResponse } from "../schema.js";
 import { CallbackManager } from "@langchain/core/callbacks/manager";
 import { BaseLLMOutputParser, BaseOutputParser } from "@langchain/core/output_parsers";
@@ -10,6 +10,7 @@ import { BaseChatMemory, getInputValue } from "langchain/memory";
 import { BaseMessage, HumanMessage, MessageContentComplex, MessageContentText, SystemMessage } from "@langchain/core/messages";
 import { ChainValues } from "@langchain/core/utils/types";
 import { complexResponseToLangchainMessageContent } from "../utils/format.js";
+import { BaseLanguageModel } from "@langchain/core/language_models/base";
 
 
 const BAD_MESSAGE_TEXT = `I could not understand your response, please rememeber to use the correct response format using the appropiate functions. If you need to tell me something, please use the "respondBack" function.`;

@@ -39,6 +39,6 @@
         ".temp_custom_deps"
     ],
     "dependencies": {
-        "@langchain/core": "0.1.55"
+        "@langchain/core": "0.2.6"
     }
 }

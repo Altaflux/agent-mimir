@@ -2,8 +2,7 @@ import { MimirAgentTypes } from "agent-mimir/agent";
 import { AgentManager } from "agent-mimir/agent-manager"
 import { MimirPluginFactory } from "agent-mimir/schema";
 import chalk from "chalk";
-import { BaseChatModel } from 'langchain/chat_models/base';
-import { BaseLanguageModel } from "langchain/base_language";
+
 import { Tool } from "@langchain/core/tools";
 import { BaseChain } from "langchain/chains";
 import { chatWithAgent } from "./chat.js";
@@ -11,8 +10,10 @@ import { promises as fs } from 'fs';
 import os from 'os';
 import path from "path";
 import { FileSystemChatHistory, FileSystemAgentWorkspace } from "agent-mimir/nodejs";
-import { Embeddings } from "langchain/embeddings/base";
 
+import { BaseLanguageModel } from "@langchain/core/language_models/base";
+import { Embeddings } from "@langchain/core/embeddings";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 export type AgentDefinition = {
     mainAgent?: boolean;

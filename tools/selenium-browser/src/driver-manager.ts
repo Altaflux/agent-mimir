@@ -1,10 +1,10 @@
 
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { Document as VectorDocument } from 'langchain/document'
-import { VectorStore } from "langchain/vectorstores/base";
-import { Embeddings } from "langchain/embeddings/base";
+import { VectorStore } from "@langchain/core/vectorstores";
+import { BaseLanguageModel } from "@langchain/core/language_models/base";
+import { Embeddings } from "@langchain/core/embeddings";
 import { Builder, ThenableWebDriver, logging } from 'selenium-webdriver';
-import { BaseLanguageModel } from "langchain/base_language";
 import { LLMChain } from "langchain/chains";
 import { InteractableElement, extractHtml } from "./html-processor.js";
 import { htmlToMarkdown } from "./to-markdown.js";
