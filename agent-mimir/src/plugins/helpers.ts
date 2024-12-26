@@ -44,7 +44,6 @@ export type HelperPluginConfig = {
     name: string,
     helperSingleton: AgentManager,
     communicationWhitelist: string[] | null,
-    model: BaseChatModel,
 }
 
 export class HelpersPluginFactory implements MimirPluginFactory {
