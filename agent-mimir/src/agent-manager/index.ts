@@ -282,7 +282,7 @@ export class AgentManager {
                 while (true) {
                     let stream = await graph.stream(graphInput, stateConfig);
                     for await (const event of stream) {
-                       
+
                     }
 
                     const state = await graph.getState(stateConfig);
@@ -367,13 +367,13 @@ function parseMessage(aiMessage: AIMessage, responseAttributes: Record<string, a
             message: textContent
         }
 
-        return new AgentToolRequestResponse(resp);
+        return new AgentToolRequestResponse(resp, responseAttributes);
     } else {
         let resp: AgentUserMessage = {
             message: textContent
         }
 
-        return new AgentUserMessageResponse(resp);;
+        return new AgentUserMessageResponse(resp, responseAttributes);
     }
 }
 

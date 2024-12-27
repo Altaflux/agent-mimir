@@ -27,7 +27,7 @@ export type Agent = {
 };
 
 export class AgentToolRequestResponse implements AgentResponse {
-    constructor(public output: AgentToolRequest) { }
+    constructor(public output: AgentToolRequest, public responseAttributes:Record<string, any>) { }
     toolStep(): this is AgentToolRequestResponse {
         return true;
     }
@@ -36,7 +36,7 @@ export class AgentToolRequestResponse implements AgentResponse {
     }
 }
 export class AgentUserMessageResponse implements AgentResponse {
-    constructor(public output: AgentUserMessage) { }
+    constructor(public output: AgentUserMessage, public responseAttributes:Record<string, any>) { }
     toolStep(): this is AgentToolRequestResponse {
         return false;
     }

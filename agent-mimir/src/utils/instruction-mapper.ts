@@ -1,4 +1,4 @@
-import { ComplexResponse } from "../schema.js";
+import { ComplexResponse, ResponseContentText } from "../schema.js";
 
 const responseHeader = `RESPONSE FORMAT INSTRUCTIONS
 ----------------------------
@@ -36,6 +36,7 @@ export class ResponseFieldMapper<T = any> {
     async readInstructionsFromResponse(complexResponse: ComplexResponse[]): Promise<Record<string, any>> {
 
         const response = complexResponse.filter(c => c.type === "text")
+            .map(t => t as ResponseContentText)
             .map(t => t.text)
             .reduce((prev, next) => {
                 return prev + next;

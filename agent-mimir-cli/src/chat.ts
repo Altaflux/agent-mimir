@@ -28,7 +28,7 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
       })]);
 
       if (answers.message.toLowerCase() === "y" || answers.message === "") {
-        aiResponse = await Retry(() => executor.call(continuousMode, { continue: true }));
+        aiResponse = await Retry(() => executor.call(continuousMode, null, {}));
       } else {
         const parsedMessage = extractContentAndText(answers.message);
         if (parsedMessage.type === "command") {
@@ -39,7 +39,7 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
           const filename = path.basename(file);
           return { fileName: filename, url: file };
         });
-        aiResponse = await Retry(() => executor.call(continuousMode, { input: parsedMessage.message?.text, [FILES_TO_SEND_FIELD]: files }));
+        aiResponse = await Retry(() => executor.call(continuousMode, parsedMessage.message?.text!, { [FILES_TO_SEND_FIELD]: files }));
       }
     } else {
 
@@ -69,11 +69,14 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
       }
 
 
-      aiResponse = await Retry(() => executor.call(continuousMode, { input: messageToAgent!.message, [FILES_TO_SEND_FIELD]: messageToAgent?.sharedFiles ?? [] }));
+      aiResponse = await Retry(() => executor.call(continuousMode, messageToAgent!.message!, { [FILES_TO_SEND_FIELD]: messageToAgent?.sharedFiles ?? [] }));
     }
     if (aiResponse?.toolStep()) {
       const response = aiResponse?.output;
-      const responseMessage = `Agent: "${executor.name}" is requesting permission to use tool: "${response.toolName}" with input:\n"${response.toolArguments}"`
+      const toolList = response.toolRequests.map(t => {
+        return `- Tool Name: "${t.toolName}"\n- Tool Input: ${t.toolArguments}`
+      }).join("----\n");
+      const responseMessage = `Agent: "${executor.name}" is requesting permission to use tools: \n${toolList}\n`
       console.log(chalk.red("AI Response: ", chalk.blue(responseMessage)));
 
     } else if (aiResponse?.agentResponse()) {
@@ -81,7 +84,7 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
       if (response.agentName) {
         const currentAgent = executor;
         const newAgent = agentManager.getAgent(response.agentName);
-        if(!newAgent) {
+        if (!newAgent) {
           pendingMessage = {
             message: "No agent found with that name.",
             sharedFiles: []

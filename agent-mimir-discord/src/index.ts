@@ -1,4 +1,3 @@
-import { MimirAgentTypes } from "agent-mimir/agent";
 import { AgentManager } from "agent-mimir/agent-manager"
 import { Agent, AgentUserMessageResponse, FILES_TO_SEND_FIELD, MimirPluginFactory } from "agent-mimir/schema";
 import chalk from "chalk";
@@ -12,7 +11,7 @@ import { ChannelType, Client, GatewayIntentBits, Partials, REST, Routes, Events,
 import { Readable } from "stream";
 import { finished } from "stream/promises";
 import { SlashCommandBuilder } from "discord.js";
-import { FileSystemChatHistory, FileSystemAgentWorkspace } from "agent-mimir/nodejs";
+import { FileSystemAgentWorkspace } from "agent-mimir/nodejs";
 import { Retry } from "./utils.js";
 import { Embeddings } from "@langchain/core/embeddings";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
@@ -34,7 +33,6 @@ export type AgentDefinition = {
     description: string;
     definition?: {
         profession: string;
-        agentType?: MimirAgentTypes;
         chatModel: BaseChatModel;
         taskModel?: BaseLanguageModel;
         constitution?: string;
@@ -73,10 +71,10 @@ const getConfig = async () => {
 
 async function downloadFile(filename: string, link: string) {
     const response = await fetch(link);
-    const body = Readable.fromWeb(response.body as any);
+    const body = Readable.fromWeb(response.body! as any);
     const destination = path.join(os.tmpdir(), filename);
     const download_write_stream = normalFs.createWriteStream(destination);
-    await finished(body.pipe(download_write_stream));
+    await finished(body.pipe(download_write_stream as any));
     return destination
 }
 
@@ -106,16 +104,13 @@ export const run = async () => {
                 name: agentName,
                 agent: await agentManager.createAgent({
                     name: agentName,
-                    messageHistory: new FileSystemChatHistory(path.join(workingDirectory, agentName, "chat-history.json")),
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,
                     tools: agentDefinition.definition.tools ?? [],
                     model: agentDefinition.definition.chatModel,
                     visionSupport: agentDefinition.definition.visionSupport,
-                    chatHistory: agentDefinition.definition.chatHistory,
                     communicationWhitelist: agentDefinition.definition.communicationWhitelist,
                     constitution: agentDefinition.definition.constitution,
-                    agentType: agentDefinition.definition.agentType,
                     plugins: agentDefinition.definition.plugins
                 })
             }
@@ -254,7 +249,7 @@ export const run = async () => {
                     sharedFiles: pendingMessage.sharedFiles
                 } : { message: messageToAi, sharedFiles: loadedFiles };
 
-                let chainResponse = await Retry(() => currentAgent.call(false, { input: messasgeToSend.message, [FILES_TO_SEND_FIELD]: messasgeToSend.sharedFiles }, async (name, input, functionResponse) => {
+                let chainResponse = await Retry(() => currentAgent.call(false, messasgeToSend.message, { [FILES_TO_SEND_FIELD]: messasgeToSend.sharedFiles }, async (name, input, functionResponse) => {
                     const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse.substring(0, 3000)}\`\`\``;
                     await sendDiscordResponse(msg, toolResponse);
                 }));
@@ -267,7 +262,7 @@ export const run = async () => {
                     }
                 }
                 while (chainResponse.toolStep()) {
-                    chainResponse = await Retry(() => currentAgent.call(false, { continuousMode: false, continue: true }, async (name, input, functionResponse) => {
+                    chainResponse = await Retry(() => currentAgent.call(false, null, {}, async (name, input, functionResponse) => {
                         const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse.substring(0, 3000)}\`\`\``;
                         await sendDiscordResponse(msg, toolResponse);
                     }));
