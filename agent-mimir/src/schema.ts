@@ -3,6 +3,7 @@ import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { BaseCheckpointSaver } from "@langchain/langgraph";
 import { StateAnnotation } from "./agent-manager/index.js";
 import { AgentTool } from "./tools/index.js";
+import { AttributeDescriptor } from "./utils/instruction-mapper.js";
 
 export type ToolResponse = ComplexResponse[];
 export type MessageContentToolUse = {
@@ -142,10 +143,15 @@ export abstract class MimirAgentPlugin {
         };
     }
 
-    async readResponse(aiMessage: MimirAiMessage, context: AgentContext): Promise<void> {
+    async readResponse(aiMessage: MimirAiMessage, context: AgentContext, responseAttributes: Record<string, any>): Promise<Record<string, any>> {
+        return {}
     }
 
     async clear(): Promise<void> {
+    }
+
+    async attributes(context: AgentContext): Promise<AttributeDescriptor[]> {
+        return [];
     }
 
     tools(): Promise<(AgentTool)[]> | (AgentTool)[] {

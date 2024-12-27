@@ -1,4 +1,4 @@
-import {  tool, Tool } from "@langchain/core/tools";
+import { tool, Tool } from "@langchain/core/tools";
 import { AdditionalContent, Agent, AgentContext, AgentResponse, AgentSystemMessage, AgentToolRequest, AgentToolRequestResponse, AgentUserMessage, AgentUserMessageResponse, ComplexResponse, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, WorkspaceManagerFactory } from "../schema.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { Embeddings } from "@langchain/core/embeddings";
@@ -12,6 +12,7 @@ import { v4 } from "uuid";
 import { Annotation } from "@langchain/langgraph";
 import { AgentTool } from "../tools/index.js";
 import { LangchainToolToMimirTool, MimirToolToLangchainTool } from "../utils/wrapper.js";
+import { AttributeDescriptor, ResponseFieldMapper } from "../utils/instruction-mapper.js";
 export type CreateAgentOptions = {
     profession: string,
     description: string,
@@ -33,6 +34,7 @@ export type ManagerConfig = {
 export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
     requestAttributes: Annotation<Record<string, any>>,
+    responseAttributes: Annotation<Record<string, any>>,
 });
 
 
@@ -63,7 +65,7 @@ export class AgentManager {
             agentName: shortName,
             persistenceDirectory: await workspace.pluginDirectory(factory.name),
         })));
-   //     const allCreatedPlugins: MimirAgentPlugin[] = [new WeatherPlugin()];
+        //     const allCreatedPlugins: MimirAgentPlugin[] = [new WeatherPlugin()];
 
 
         const allTools = (await Promise.all(allCreatedPlugins.map(async plugin => await plugin.tools()))).flat();
@@ -73,6 +75,17 @@ export class AgentManager {
 
 
         const modelWithTools = model.bindTools!(langChainTools);
+
+        const defaultAttributes: AttributeDescriptor[] = [
+            {
+                attributeType: "string",
+                description: "The message in markdown format you want to tell the user.",
+                variableName: "messageToSend",
+                name: "messageToSend",
+                example: "Hi, how can I help you?"
+            }
+        ]
+
 
 
         const callLLM = async (state: typeof StateAnnotation.State) => {
@@ -84,7 +97,22 @@ export class AgentManager {
                 allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages(state))
             ))
 
-            const systemMessage = buildSystemMessage(pluginInputs);
+            const pluginAttributes = (await Promise.all(
+                allCreatedPlugins.map(async (plugin) => await plugin.attributes(state))
+            )).flatMap(e => e);
+            const fieldMapper = new ResponseFieldMapper([...pluginAttributes, ...defaultAttributes]);
+            const responseFormatSystemMessage: AgentSystemMessage = {
+                content: [
+                    {
+                        text: fieldMapper.createFieldInstructions(),
+                        type: "text"
+                    }
+                ]
+            }
+
+
+            const systemMessage = buildSystemMessage([...pluginInputs, responseFormatSystemMessage]);
+
 
             let response: AIMessageChunk;
             let messageToStore: BaseMessage;
@@ -110,10 +138,19 @@ export class AgentManager {
 
 
             let mimirAiMessage = aiMessageToMimirAiMessage(response);
-            for (const plugin of allCreatedPlugins) {
-                plugin.readResponse(mimirAiMessage, state);
-            }
-            return { messages: [messageToStore, response], requestAttributes: {} };
+            const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(mimirAiMessage.content);
+            const responseAttributes = (await Promise.all(
+                allCreatedPlugins.map(async (plugin) => await plugin.readResponse(mimirAiMessage, state, rawResponseAttributes))
+            )).reduce((acc, d) => {
+                return {
+                    ...acc,
+                    [d.variableName]: d.regex.exec(response)?.[0]?.trim()
+                }
+            }, {
+                messageToSend: rawResponseAttributes["messageToSend"]
+            });
+
+            return { messages: [messageToStore, response], requestAttributes: {}, responseAttributes: responseAttributes };
         };
 
         function routeAfterLLM(
@@ -235,7 +272,9 @@ export class AgentManager {
                                     text: message,
                                 }
                             ]
-                        })], requestAttributes: input
+                        })],
+                        requestAttributes: input,
+                        responseAttributes: {}
                     } : null;
                 }
 
@@ -243,12 +282,13 @@ export class AgentManager {
                 while (true) {
                     let stream = await graph.stream(graphInput, stateConfig);
                     for await (const event of stream) {
-                        const recentMsg = event.messages[event.messages.length - 1];
+                       
                     }
 
                     const state = await graph.getState(stateConfig);
                     const aiMessage: AIMessage = state.values["messages"][state.values["messages"].length - 1];
-                    let responseMessage = parseMessage(aiMessage);
+                    const responseAttributes: Record<string, any> = state.values["responseAttributes"];
+                    let responseMessage = parseMessage(aiMessage, responseAttributes);
                     if (continuousMode && state.next.length > 0 && state.next[0] === "human_review_node") {
                         graphInput = new Command({ resume: { action: "continue" } })
                         continue;
@@ -301,17 +341,20 @@ async function addAdditionalContentToUserMessage(message: NextMessageUser, plugi
     }
 }
 
-function parseMessage(aiMessage: AIMessage): AgentResponse {
+function parseMessage(aiMessage: AIMessage, responseAttributes: Record<string, any>): AgentResponse {
     let content = aiMessage.content;
     let textContent: string;
-    if (typeof content === 'string' || content instanceof String) {
-        textContent = content as string;
+    if (responseAttributes["messageToSend"]) {
+        textContent = responseAttributes["messageToSend"] as string;
     } else {
-        textContent = (content as MessageContentComplex[]).filter(e => e.type === "text")
-            .map(e => (e as MessageContentText).text)
-            .join("\n");
+        if (typeof content === 'string' || content instanceof String) {
+            textContent = content as string;
+        } else {
+            textContent = (content as MessageContentComplex[]).filter(e => e.type === "text")
+                .map(e => (e as MessageContentText).text)
+                .join("\n");
+        }
     }
-
 
     if ((aiMessage.tool_calls?.length ?? 0) > 0) {
         let resp: AgentToolRequest = {

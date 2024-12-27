@@ -1,4 +1,5 @@
-import { AgentContext, AgentSystemMessage, AgentWorkspace, FILES_TO_SEND_FIELD, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, PluginContext, AdditionalContent } from "../schema.js";
+import { AgentContext, AgentSystemMessage, AgentWorkspace, FILES_TO_SEND_FIELD, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, PluginContext, AdditionalContent, MimirAiMessage } from "../schema.js";
+import { AttributeDescriptor } from "../utils/instruction-mapper.js";
 export class WorkspacePluginFactory implements MimirPluginFactory {
 
     name: string = "workspace";
@@ -30,7 +31,29 @@ class WorkspacePlugin extends MimirAgentPlugin {
         }
     }
 
-    async additionalMessageContent(nextMessage: NextMessageUser,  context: AgentContext): Promise<AdditionalContent[]> {
+    async attributes(): Promise<AttributeDescriptor[]> {
+        return [
+            {
+                attributeType: "string[]",
+                description: "The list of files from your workspace you want to respond back. Respond back files you want to send me or I have requested.",
+                name: "workspaceFilesToShare",
+                example: `["image.jpg", "textFile.txt", "movie.avi"]`,
+                variableName: "workspaceFilesToShare"
+            }
+        ];
+    }
+
+    async readResponse(aiMessage: MimirAiMessage, context: AgentContext, responseAttributes: Record<string, any>): Promise<Record<string, any>> {
+        if (responseAttributes["workspaceFilesToShare"]) {
+            return {
+                "filesToSend": JSON.parse(responseAttributes["workspaceFilesToShare"])
+            };
+        }
+        return {}
+    }
+
+
+    async additionalMessageContent(nextMessage: NextMessageUser, context: AgentContext): Promise<AdditionalContent[]> {
 
         if (context.requestAttributes[FILES_TO_SEND_FIELD] && context.requestAttributes[FILES_TO_SEND_FIELD] instanceof Array && context.requestAttributes[FILES_TO_SEND_FIELD].length > 0) {
             for (const file of context.requestAttributes[FILES_TO_SEND_FIELD]) {
