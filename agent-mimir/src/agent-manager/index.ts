@@ -77,13 +77,13 @@ export class AgentManager {
         const modelWithTools = model.bindTools!(langChainTools);
 
         const defaultAttributes: AttributeDescriptor[] = [
-            {
-                attributeType: "string",
-                description: "The message in markdown format you want to tell the user.",
-                variableName: "messageToSend",
-                name: "messageToSend",
-                example: "Hi, how can I help you?"
-            }
+            // {
+            //     attributeType: "string",
+            //     description: "The message in markdown format you want to tell the user.",
+            //     variableName: "messageToSend",
+            //     name: "messageToSend",
+            //     example: "Hi, how can I help you?"
+            // }
         ]
 
 
@@ -147,7 +147,7 @@ export class AgentManager {
                     [d.variableName]: d.regex.exec(response)?.[0]?.trim()
                 }
             }, {
-                messageToSend: rawResponseAttributes["messageToSend"]
+                messageToSend: rawResponseAttributes["userMessage"]
             });
 
             return { messages: [messageToStore, response], requestAttributes: {}, responseAttributes: responseAttributes };
