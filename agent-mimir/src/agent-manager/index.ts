@@ -70,20 +70,12 @@ export class AgentManager {
 
         const allTools = (await Promise.all(allCreatedPlugins.map(async plugin => await plugin.tools()))).flat();
         const langChainTools = allTools.map(t => new MimirToolToLangchainTool(t));
-        //const allTools = [getWeather];
 
 
 
         const modelWithTools = model.bindTools!(langChainTools);
 
         const defaultAttributes: AttributeDescriptor[] = [
-            // {
-            //     attributeType: "string",
-            //     description: "The message in markdown format you want to tell the user.",
-            //     variableName: "messageToSend",
-            //     name: "messageToSend",
-            //     example: "Hi, how can I help you?"
-            // }
         ]
 
 

@@ -3,7 +3,6 @@ import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { BaseCheckpointSaver } from "@langchain/langgraph";
 import { StateAnnotation } from "./agent-manager/index.js";
 import { AgentTool } from "./tools/index.js";
-import { AttributeDescriptor } from "./utils/instruction-mapper.js";
 
 export type ToolResponse = ComplexResponse[];
 export type MessageContentToolUse = {
@@ -17,6 +16,14 @@ export type MimirAiMessage = {
 }
 
 export const FILES_TO_SEND_FIELD = "filesToSend";
+
+export type AttributeDescriptor = {
+    name: string,
+    attributeType: string,
+    variableName: string,
+    description: string,
+    example?: string,
+}
 
 export type Agent = {
     name: string,

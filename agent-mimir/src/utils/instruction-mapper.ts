@@ -1,4 +1,4 @@
-import { ComplexResponse, ResponseContentText } from "../schema.js";
+import { AttributeDescriptor, ComplexResponse, ResponseContentText } from "../schema.js";
 
 const responseHeader = `RESPONSE FORMAT INSTRUCTIONS
 ----------------------------
@@ -15,13 +15,6 @@ RESPONSE TO USER:
 Hi, I am a helpful assistant, how can I help you?\n`;
 
 
-export type AttributeDescriptor = {
-    name: string,
-    attributeType: string,
-    variableName: string,
-    description: string,
-    example?: string,
-}
 
 const USER_RESPONSE = `RESPONSE TO USER:`;
 
@@ -80,13 +73,7 @@ function extractImportantText(text: string, cutPoint:string) {
     const index = text.indexOf(marker);
     
     if (index === -1) {
-        return null; // or "" depending on your preference
+        return ""; 
     }
-    
-    // Get everything after "IMPORTANT:" and trim any leading/trailing whitespace
     return text.substring(index + marker.length).trim();
 }
-function takeUntil<T>(array: T[], predicate: (v:T)=> boolean) {
-    const index = array.findIndex(predicate);
-    return index === -1 ? array : array.slice(0, index);
-  }

@@ -1,5 +1,5 @@
 import { AgentContext, AgentSystemMessage, AgentWorkspace, FILES_TO_SEND_FIELD, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, PluginContext, AdditionalContent, MimirAiMessage } from "../schema.js";
-import { AttributeDescriptor } from "../utils/instruction-mapper.js";
+import { AttributeDescriptor } from "../schema.js";
 export class WorkspacePluginFactory implements MimirPluginFactory {
 
     name: string = "workspace";
@@ -46,7 +46,7 @@ class WorkspacePlugin extends MimirAgentPlugin {
     async readResponse(aiMessage: MimirAiMessage, context: AgentContext, responseAttributes: Record<string, any>): Promise<Record<string, any>> {
         if (responseAttributes["workspaceFilesToShare"]) {
             return {
-                "filesToSend": JSON.parse(responseAttributes["workspaceFilesToShare"])
+                [FILES_TO_SEND_FIELD]: JSON.parse(responseAttributes["workspaceFilesToShare"])
             };
         }
         return {}
