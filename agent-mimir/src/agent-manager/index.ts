@@ -1,5 +1,5 @@
 import { tool, Tool } from "@langchain/core/tools";
-import { AdditionalContent, Agent, AgentContext, AgentResponse, AgentSystemMessage, AgentToolRequest, AgentToolRequestResponse, AgentUserMessage, AgentUserMessageResponse, ComplexResponse, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, WorkspaceManagerFactory } from "../schema.js";
+import { AdditionalContent, Agent, AgentContext, AgentResponse, AgentSystemMessage, AgentToolRequest, AgentToolRequestResponse, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, ComplexResponse, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, WorkspaceManagerFactory } from "../schema.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { Embeddings } from "@langchain/core/embeddings";
 import { END, MemorySaver, MessagesAnnotation, START, StateGraph, interrupt, Command } from "@langchain/langgraph";
@@ -12,7 +12,7 @@ import { v4 } from "uuid";
 import { Annotation } from "@langchain/langgraph";
 import { AgentTool } from "../tools/index.js";
 import { LangchainToolToMimirTool, MimirToolToLangchainTool } from "../utils/wrapper.js";
-import { AttributeDescriptor, ResponseFieldMapper } from "../utils/instruction-mapper.js";
+import { ResponseFieldMapper } from "../utils/instruction-mapper.js";
 export type CreateAgentOptions = {
     profession: string,
     description: string,
@@ -60,12 +60,12 @@ export class AgentManager {
         const workspace = await this.managerConfig.workspaceManagerFactory(shortName);
 
         const allPluginFactories = (config.plugins ?? []);
-        const allCreatedPlugins = await Promise.all(allPluginFactories.map(async factory => factory.create({
-            workspace: workspace,
-            agentName: shortName,
-            persistenceDirectory: await workspace.pluginDirectory(factory.name),
-        })));
-        //     const allCreatedPlugins: MimirAgentPlugin[] = [new WeatherPlugin()];
+        // const allCreatedPlugins = await Promise.all(allPluginFactories.map(async factory => factory.create({
+        //     workspace: workspace,
+        //     agentName: shortName,
+        //     persistenceDirectory: await workspace.pluginDirectory(factory.name),
+        // })));
+        const allCreatedPlugins: MimirAgentPlugin[] = [new WeatherPlugin()];
 
 
         const allTools = (await Promise.all(allCreatedPlugins.map(async plugin => await plugin.tools()))).flat();
@@ -128,17 +128,12 @@ export class AgentManager {
                 response = await modelWithTools.invoke([systemMessage, ...state.messages]);
             }
 
-
             let mimirAiMessage = aiMessageToMimirAiMessage(response);
             const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(mimirAiMessage.content);
+
             const responseAttributes = (await Promise.all(
                 allCreatedPlugins.map(async (plugin) => await plugin.readResponse(mimirAiMessage, state, rawResponseAttributes))
-            )).reduce((acc, d) => {
-                return {
-                    ...acc,
-                    [d.variableName]: d.regex.exec(response)?.[0]?.trim()
-                }
-            }, {
+            )).reduce((acc, d) => ({ ...acc, ...d }), {
                 messageToSend: rawResponseAttributes["userMessage"]
             });
 

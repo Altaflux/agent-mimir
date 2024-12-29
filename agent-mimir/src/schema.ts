@@ -4,7 +4,12 @@ import { BaseCheckpointSaver } from "@langchain/langgraph";
 import { StateAnnotation } from "./agent-manager/index.js";
 import { AgentTool } from "./tools/index.js";
 
-export type ToolResponse = ComplexResponse[];
+export type ToolResponse = ComplexResponse[] | AgentUserMessage | {
+    rawResponse: any
+};
+
+
+
 export type MessageContentToolUse = {
     name: string;
     input: Record<string, any>,

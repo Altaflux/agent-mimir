@@ -1,7 +1,9 @@
 import { AgentTool } from "../tools/index.js";
 import { z } from "zod";
-import { ToolResponse } from "../schema.js";
+import { AgentUserMessage, ComplexResponse, ToolResponse } from "../schema.js";
 import { StructuredTool } from "@langchain/core/tools";
+import { complexResponseToLangchainMessageContent } from "./format.js";
+import { Command } from "@langchain/langgraph";
 
 export class MimirToolToLangchainTool extends StructuredTool {
 
@@ -13,9 +15,30 @@ export class MimirToolToLangchainTool extends StructuredTool {
     constructor(private tool: AgentTool) {
         super();
     }
-    protected async _call(arg: z.input<this["schema"]>): Promise<string> {
-        return JSON.stringify(await this.tool.call(arg));
+    protected async _call(arg: z.input<this["schema"]>): Promise<any> {
+        const response = await this.tool.call(arg);
+        // if (isUserAgentMessage(response)) {
+        //     return new Command({
+        //         update: {
+        //           foo: "baz",
+        //         },
+        //         goto: "myOtherNode",
+        //       });
+        // } else {
+           
+        // }
+        if ((response as any).rawResponse) {
+            return (response as any).rawResponse;
+        }
+        return complexResponseToLangchainMessageContent(response as ComplexResponse[]);
     }
+}
+
+export function isUserAgentMessage(x: ToolResponse): x is AgentUserMessage {
+    if ((x as any).message) {
+        return true;
+    }
+    return false;
 }
 
 export class LangchainToolToMimirTool extends AgentTool {
@@ -30,12 +53,9 @@ export class LangchainToolToMimirTool extends AgentTool {
     }
 
     protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
-        return [
-            {
-                type: "text",
-                text: await this.tool.call(arg)
-            }
-        ]
+        return {
+            rawResponse:  await this.tool.invoke(arg)
+        }
 
     }
 }

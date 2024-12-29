@@ -1,10 +1,9 @@
 import { AgentManager } from "../agent-manager/index.js";
 import { z } from "zod";
-import { AgentContext, AgentSystemMessage, AgentUserMessage, AgentWorkspace, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../schema.js";
+import { AgentContext, AgentSystemMessage, AgentUserMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../schema.js";
 import { AgentTool } from "../tools/index.js";
 import { LangchainToolToMimirTool } from "../utils/wrapper.js";
 import { StructuredTool } from "@langchain/core/tools";
-import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 export class TalkToHelper extends StructuredTool {
 
@@ -55,7 +54,7 @@ export class HelpersPluginFactory implements MimirPluginFactory {
 
     create(context: PluginContext): MimirAgentPlugin {
 
-        return new HelpersPlugin(this.config, context.workspace);
+        return new HelpersPlugin(this.config);
     }
 }
 
@@ -64,14 +63,12 @@ export class HelpersPlugin extends MimirAgentPlugin {
     private helperSingleton: AgentManager;
     private communicationWhitelist: string[] | null;
     private agentName: string;
-    private workSpace: AgentWorkspace;
 
-    constructor(config: HelperPluginConfig, workDirectory: AgentWorkspace) {
+    constructor(config: HelperPluginConfig) {
         super();
         this.helperSingleton = config.helperSingleton;
         this.communicationWhitelist = config.communicationWhitelist;
         this.agentName = config.name;
-        this.workSpace = workDirectory;
     }
 
     async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
