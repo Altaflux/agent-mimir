@@ -25,7 +25,7 @@ export class MimirToolToLangchainTool extends StructuredTool {
         //         goto: "myOtherNode",
         //       });
         // } else {
-           
+
         // }
         if ((response as any).rawResponse) {
             return (response as any).rawResponse;
@@ -53,8 +53,9 @@ export class LangchainToolToMimirTool extends AgentTool {
     }
 
     protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
+        const response = await this.tool.invoke(arg);
         return {
-            rawResponse:  await this.tool.invoke(arg)
+            rawResponse: response
         }
 
     }

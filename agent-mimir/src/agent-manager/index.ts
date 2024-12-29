@@ -35,6 +35,7 @@ export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
     requestAttributes: Annotation<Record<string, any>>,
     responseAttributes: Annotation<Record<string, any>>,
+    output: Annotation<AgentUserMessage>
 });
 
 
@@ -157,19 +158,13 @@ export class AgentManager {
         function humanReviewNode(state: typeof MessagesAnnotation.State) {
             const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
             const toolCall = lastMessage.tool_calls![lastMessage.tool_calls!.length - 1];
-
+            const toolRequest = parseToolMessage(lastMessage, {});
             const humanReview = interrupt<
-                {
-                    question: string;
-                    toolCall: ToolCall;
-                },
+            AgentToolRequest,
                 {
                     action: string;
                     data: any;
-                }>({
-                    question: "Is this correct?",
-                    toolCall: toolCall
-                });
+                }>(toolRequest);
 
 
             const reviewAction = humanReview.action;
@@ -190,7 +185,17 @@ export class AgentManager {
             throw new Error("Unreachable");
         }
 
+        function dummyEnd(state: typeof StateAnnotation.State) {
 
+            if (state["messages"] && state["messages"].length > 0) {
+                const aiMessage: AIMessage = state["messages"][state["messages"].length - 1];
+                const responseAttributes: Record<string, any> = state["responseAttributes"];
+                let responseMessage = parseUserMessage(aiMessage, responseAttributes);
+    
+                return { output: responseMessage }
+            }
+            return {}
+        }
 
         const workflow = new StateGraph(StateAnnotation)
             .addNode("call_llm", callLLM)
@@ -198,7 +203,7 @@ export class AgentManager {
             .addNode("human_review_node", humanReviewNode, {
                 ends: ["run_tool", "call_llm"]
             })
-            .addNode("dummy_end", async () => { return {} })
+            .addNode("dummy_end", dummyEnd)
             .addEdge(START, "call_llm")
             .addConditionalEdges(
                 "call_llm",
@@ -273,15 +278,18 @@ export class AgentManager {
                     }
 
                     const state = await graph.getState(stateConfig);
-                    const aiMessage: AIMessage = state.values["messages"][state.values["messages"].length - 1];
                     const responseAttributes: Record<string, any> = state.values["responseAttributes"];
-                    let responseMessage = parseMessage(aiMessage, responseAttributes);
-                    if (continuousMode && state.next.length > 0 && state.next[0] === "human_review_node") {
-                        graphInput = new Command({ resume: { action: "continue" } })
-                        continue;
+                    if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
+                        if (continuousMode) {
+                            graphInput = new Command({ resume: { action: "continue" } })
+                            continue
+                        }
+                        const interruptState = state.tasks[0].interrupts[0];
+                        return new AgentToolRequestResponse(interruptState.value as AgentToolRequest, responseAttributes) as any;
+                     
                     }
-
-                    return responseMessage as any;
+                    let userResponse = (state.values["output"] as AgentUserMessage);
+                    return new AgentUserMessageResponse(userResponse, responseAttributes) as any;
                 }
             }
         }
@@ -327,7 +335,54 @@ async function addAdditionalContentToUserMessage(message: NextMessageUser, plugi
         persistentMessage
     }
 }
+function parseUserMessage(aiMessage: AIMessage, responseAttributes: Record<string, any>): AgentUserMessage {
+    let content = aiMessage.content;
+    let textContent: string;
+    if (responseAttributes["messageToSend"]) {
+        textContent = responseAttributes["messageToSend"] as string;
+    } else {
+        if (typeof content === 'string' || content instanceof String) {
+            textContent = content as string;
+        } else {
+            textContent = (content as MessageContentComplex[]).filter(e => e.type === "text")
+                .map(e => (e as MessageContentText).text)
+                .join("\n");
+        }
+    }
 
+    let resp: AgentUserMessage = {
+        message: textContent
+    }
+
+    return resp;
+}
+function parseToolMessage(aiMessage: AIMessage, responseAttributes: Record<string, any>): AgentToolRequest {
+    let content = aiMessage.content;
+    let textContent: string;
+    if (responseAttributes["messageToSend"]) {
+        textContent = responseAttributes["messageToSend"] as string;
+    } else {
+        if (typeof content === 'string' || content instanceof String) {
+            textContent = content as string;
+        } else {
+            textContent = (content as MessageContentComplex[]).filter(e => e.type === "text")
+                .map(e => (e as MessageContentText).text)
+                .join("\n");
+        }
+    }
+
+    let resp: AgentToolRequest = {
+        toolRequests: (aiMessage.tool_calls ?? []).map(t => {
+            return {
+                toolName: t.name,
+                toolArguments: JSON.stringify(t.args)
+            }
+        }),
+        message: textContent
+    }
+
+    return resp;
+}
 function parseMessage(aiMessage: AIMessage, responseAttributes: Record<string, any>): AgentResponse {
     let content = aiMessage.content;
     let textContent: string;
