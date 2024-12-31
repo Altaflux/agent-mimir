@@ -32,6 +32,7 @@ export class TalkToHelper extends StructuredTool {
             message: message,
             sharedFiles: filesToSend,
         }
+        //TODO THIS IS WRONG
         return JSON.stringify(result);
     }
     name: string = "talkToHelper";

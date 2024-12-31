@@ -1,9 +1,9 @@
 import { tool, Tool } from "@langchain/core/tools";
-import { AdditionalContent, Agent, AgentContext, AgentResponse, AgentSystemMessage, AgentToolRequest, AgentToolRequestResponse, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, ComplexResponse, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, WorkspaceManagerFactory } from "../schema.js";
+import { AdditionalContent, Agent, AgentContext, AgentResponse, AgentSystemMessage, AgentToolRequest, AgentToolRequestResponse, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, ComplexResponse, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, ToolResponse, WorkspaceManagerFactory } from "../schema.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { Embeddings } from "@langchain/core/embeddings";
-import { END, MemorySaver, MessagesAnnotation, START, StateGraph, interrupt, Command } from "@langchain/langgraph";
-import { AIMessage, AIMessageChunk, BaseMessage, HumanMessage, isHumanMessage, MessageContent, MessageContentComplex, MessageContentImageUrl, MessageContentText, RemoveMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
+import { END, MemorySaver, MessagesAnnotation, START, StateGraph, interrupt, Command, messagesStateReducer, Send } from "@langchain/langgraph";
+import { AIMessage, AIMessageChunk, BaseMessage, HumanMessage, isAIMessage, isHumanMessage, MessageContent, MessageContentComplex, MessageContentImageUrl, MessageContentText, RemoveMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { z } from "zod";
 import { ToolCall } from "@langchain/core/messages/tool";
@@ -13,6 +13,7 @@ import { Annotation } from "@langchain/langgraph";
 import { AgentTool } from "../tools/index.js";
 import { LangchainToolToMimirTool, MimirToolToLangchainTool } from "../utils/wrapper.js";
 import { ResponseFieldMapper } from "../utils/instruction-mapper.js";
+import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 export type CreateAgentOptions = {
     profession: string,
     description: string,
@@ -35,7 +36,11 @@ export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
     requestAttributes: Annotation<Record<string, any>>,
     responseAttributes: Annotation<Record<string, any>>,
-    output: Annotation<AgentUserMessage>
+    output: Annotation<AgentUserMessage>,
+    agentMessage: Annotation<BaseMessage[]>({
+        reducer: messagesStateReducer,
+        default: () => [],
+    }),
 });
 
 
@@ -78,12 +83,48 @@ export class AgentManager {
 
         const defaultAttributes: AttributeDescriptor[] = [
         ]
+        const agentCallCondition = async (state: typeof StateAnnotation.State) => {
+            if (state.agentMessage.length > 0) {
+                return state.agentMessage.map(am => {
+                    return new Send("agentCall", am);
+                })
+            }
+            return "call_llm";
+        }
+        const agentCall = async (state: ToolMessage) => {
+            const agenrM = state;
+            const aum: AgentUserMessage = JSON.parse(agenrM.content as string);
+            const humanReview = interrupt<
+                AgentUserMessage,
+                {
+                    response: string;
+                }>(aum);
 
+
+            const toolResponse = new ToolMessage({
+                id: v4(),
+                tool_call_id: agenrM.tool_call_id,
+                content: [
+                    {
+                        type: "text",
+                        text: humanReview.response
+                    }
+                ]
+
+            })
+            return { messages: [toolResponse], agentMessage: [new RemoveMessage({ id: agenrM.id! })] };
+
+        }
 
 
         const callLLM = async (state: typeof StateAnnotation.State) => {
 
             const lastMessage: BaseMessage = state.messages[state.messages.length - 1];
+
+            if (isAIMessage(lastMessage)) {
+                return {}
+            }
+
             await Promise.all(allCreatedPlugins.map(p => p.readyToProceed(state)));
 
             const pluginInputs = (await Promise.all(
@@ -160,7 +201,7 @@ export class AgentManager {
             const toolCall = lastMessage.tool_calls![lastMessage.tool_calls!.length - 1];
             const toolRequest = parseToolMessage(lastMessage, {});
             const humanReview = interrupt<
-            AgentToolRequest,
+                AgentToolRequest,
                 {
                     action: string;
                     data: any;
@@ -191,11 +232,27 @@ export class AgentManager {
                 const aiMessage: AIMessage = state["messages"][state["messages"].length - 1];
                 const responseAttributes: Record<string, any> = state["responseAttributes"];
                 let responseMessage = parseUserMessage(aiMessage, responseAttributes);
-    
+
                 return { output: responseMessage }
             }
             return {}
         }
+
+        // const workflow = new StateGraph(StateAnnotation)
+        //     .addNode("call_llm", callLLM)
+        //     .addNode("run_tool", new ToolNode(langChainTools))
+        //     .addNode("human_review_node", humanReviewNode, {
+        //         ends: ["run_tool", "call_llm"]
+        //     })
+        //     .addNode("dummy_end", dummyEnd)
+        //     .addEdge(START, "call_llm")
+        //     .addConditionalEdges(
+        //         "call_llm",
+        //         routeAfterLLM,
+        //         ["human_review_node", "dummy_end"]
+        //     )
+        //     .addEdge("run_tool", "call_llm")
+        //     .addEdge("dummy_end", END);
 
         const workflow = new StateGraph(StateAnnotation)
             .addNode("call_llm", callLLM)
@@ -204,13 +261,15 @@ export class AgentManager {
                 ends: ["run_tool", "call_llm"]
             })
             .addNode("dummy_end", dummyEnd)
+            .addNode("agentCall", agentCall)
             .addEdge(START, "call_llm")
             .addConditionalEdges(
                 "call_llm",
                 routeAfterLLM,
                 ["human_review_node", "dummy_end"]
             )
-            .addEdge("run_tool", "call_llm")
+            .addConditionalEdges("run_tool", agentCallCondition, ["agentCall", "call_llm"])
+            .addEdge("agentCall", "call_llm")
             .addEdge("dummy_end", END);
 
         for (const plugin of allCreatedPlugins) {
@@ -253,7 +312,12 @@ export class AgentManager {
                     } else {
                         graphInput = new Command({ resume: { action: "continue" } })
                     }
-                } else {
+                    
+                }
+                else   if (state.next.length > 0 && state.next[0] === "agentCall") {
+                    graphInput = new Command({ resume: { response: message } })
+                }
+                else {
 
                     graphInput = message != null ? {
                         messages: [new HumanMessage({
@@ -286,7 +350,14 @@ export class AgentManager {
                         }
                         const interruptState = state.tasks[0].interrupts[0];
                         return new AgentToolRequestResponse(interruptState.value as AgentToolRequest, responseAttributes) as any;
-                     
+                    }
+
+                    if (state.tasks.length > 0 && state.tasks[0].name === "agentCall") {
+                        const interruptState = state.tasks[0].interrupts[0];
+                        return new AgentUserMessageResponse(interruptState.value, {})
+                        // graphInput = new Command({ resume: { response: "It is raining!" } })
+                        // continue
+
                     }
                     let userResponse = (state.values["output"] as AgentUserMessage);
                     return new AgentUserMessageResponse(userResponse, responseAttributes) as any;
@@ -555,7 +626,27 @@ export class WeatherPlugin extends MimirAgentPlugin {
             }),
         });
 
-        return [new LangchainToolToMimirTool(getWeather)]
+        return [new WeatherTool()]
     }
+
+}
+
+class WeatherTool extends AgentTool {
+    schema = z.object({
+        city: z.string().describe("City to get the weather for."),
+    });
+    protected async _call(input: any, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
+        console.log("----");
+        console.log(`Searching for: ${input.city}`);
+        console.log("----");
+        return [
+            {
+                type: "text",
+                text: "It is rainy today!"
+            }
+        ]
+    }
+    name: string = "get_weather";
+    description: string = "Call to get the current weather.";
 
 }
