@@ -92,6 +92,7 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
         } else {
           agentStack.push(currentAgent);
           pendingMessage = response;
+          executor = newAgent;
         }
 
       } else {

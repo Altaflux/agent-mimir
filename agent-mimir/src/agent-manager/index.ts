@@ -1,5 +1,5 @@
-import { tool, Tool } from "@langchain/core/tools";
-import { AdditionalContent, Agent, AgentContext, AgentResponse, AgentSystemMessage, AgentToolRequest, AgentToolRequestResponse, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, ComplexResponse, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, ToolResponse, WorkspaceManagerFactory } from "../schema.js";
+import { StructuredTool, tool, Tool } from "@langchain/core/tools";
+import { AdditionalContent, Agent, AgentContext, AgentResponse, AgentSystemMessage, AgentToolRequest, AgentToolRequestResponse, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, ComplexResponse, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, PluginContext, ToolResponse, WorkspaceManagerFactory } from "../schema.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { Embeddings } from "@langchain/core/embeddings";
 import { END, MemorySaver, MessagesAnnotation, START, StateGraph, interrupt, Command, messagesStateReducer, Send } from "@langchain/langgraph";
@@ -14,6 +14,7 @@ import { AgentTool } from "../tools/index.js";
 import { LangchainToolToMimirTool, MimirToolToLangchainTool } from "../utils/wrapper.js";
 import { ResponseFieldMapper } from "../utils/instruction-mapper.js";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
+import { HelpersPluginFactory } from "../plugins/helpers.js";
 export type CreateAgentOptions = {
     profession: string,
     description: string,
@@ -66,15 +67,39 @@ export class AgentManager {
         const workspace = await this.managerConfig.workspaceManagerFactory(shortName);
 
         const allPluginFactories = (config.plugins ?? []);
-        // const allCreatedPlugins = await Promise.all(allPluginFactories.map(async factory => factory.create({
-        //     workspace: workspace,
-        //     agentName: shortName,
-        //     persistenceDirectory: await workspace.pluginDirectory(factory.name),
-        // })));
-        const allCreatedPlugins: MimirAgentPlugin[] = [new WeatherPlugin()];
+        const canCommunicateWithAgents = config.communicationWhitelist ?? false;
+        let communicationWhitelist = undefined;
+        if (Array.isArray(canCommunicateWithAgents)) {
+            communicationWhitelist = canCommunicateWithAgents
+        }
+
+        if (config.communicationWhitelist) {
+            const helpersPlugin = new HelpersPluginFactory({
+                name: shortName,
+                helperSingleton: this,
+                communicationWhitelist: communicationWhitelist ?? null
+            });
+
+            allPluginFactories.push(helpersPlugin);
+        }
+
+        const tools = [
+            ...(config.tools ?? []),
+        ];
+        const toolPlugins: MimirPluginFactory[] = [...tools.map(tool => new LangchainToolWrapperPluginFactory(tool))];
+
+        const allCreatedPlugins = await Promise.all([...allPluginFactories, ...toolPlugins].map(async factory => factory.create({
+            workspace: workspace,
+            agentName: shortName,
+            persistenceDirectory: await workspace.pluginDirectory(factory.name),
+        })));
+        //const allCreatedPlugins: MimirAgentPlugin[] = [new WeatherPlugin()];
 
 
         const allTools = (await Promise.all(allCreatedPlugins.map(async plugin => await plugin.tools()))).flat();
+        if (config.name === "WeatherChecker") {
+            allTools.push(new WeatherTool())
+        }
         const langChainTools = allTools.map(t => new MimirToolToLangchainTool(t));
 
 
@@ -649,4 +674,28 @@ class WeatherTool extends AgentTool {
     name: string = "get_weather";
     description: string = "Call to get the current weather.";
 
+}
+
+
+class LangchainToolWrapperPluginFactory implements MimirPluginFactory {
+
+    name: string;
+
+    constructor(private tool: StructuredTool) {
+        this.name = tool.name;
+    }
+    create(context: PluginContext): MimirAgentPlugin {
+        return new LangchainToolWrapper(this.tool);
+    }
+}
+
+class LangchainToolWrapper extends MimirAgentPlugin {
+
+    constructor(private tool: StructuredTool) {
+        super();
+    }
+
+    tools(): AgentTool[] {
+        return [new LangchainToolToMimirTool(this.tool)];
+    }
 }
