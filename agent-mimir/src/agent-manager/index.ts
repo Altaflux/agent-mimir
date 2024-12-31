@@ -93,13 +93,12 @@ export class AgentManager {
             agentName: shortName,
             persistenceDirectory: await workspace.pluginDirectory(factory.name),
         })));
-        //const allCreatedPlugins: MimirAgentPlugin[] = [new WeatherPlugin()];
 
 
         const allTools = (await Promise.all(allCreatedPlugins.map(async plugin => await plugin.tools()))).flat();
-        if (config.name === "WeatherChecker") {
-            allTools.push(new WeatherTool())
-        }
+        // if (config.name === "WeatherChecker") {
+        //     allTools.push(new WeatherTool())
+        // }
         const langChainTools = allTools.map(t => new MimirToolToLangchainTool(t));
 
 
@@ -111,7 +110,7 @@ export class AgentManager {
         const agentCallCondition = async (state: typeof StateAnnotation.State) => {
             if (state.agentMessage.length > 0) {
                 return state.agentMessage.map(am => {
-                    return new Send("agentCall", am);
+                    return new Send("agent_call", am);
                 })
             }
             return "call_llm";
@@ -209,13 +208,13 @@ export class AgentManager {
 
         function routeAfterLLM(
             state: typeof MessagesAnnotation.State,
-        ): "dummy_end" | "human_review_node" {
+        ): "output_convert" | "human_review_node" {
             const lastMessage: AIMessage = state.messages[state.messages.length - 1];
 
             if (
                 (lastMessage as AIMessage).tool_calls?.length === 0
             ) {
-                return "dummy_end";
+                return "output_convert";
             } else {
                 return "human_review_node";
             }
@@ -251,7 +250,7 @@ export class AgentManager {
             throw new Error("Unreachable");
         }
 
-        function dummyEnd(state: typeof StateAnnotation.State) {
+        function outputConvert(state: typeof StateAnnotation.State) {
 
             if (state["messages"] && state["messages"].length > 0) {
                 const aiMessage: AIMessage = state["messages"][state["messages"].length - 1];
@@ -263,39 +262,23 @@ export class AgentManager {
             return {}
         }
 
-        // const workflow = new StateGraph(StateAnnotation)
-        //     .addNode("call_llm", callLLM)
-        //     .addNode("run_tool", new ToolNode(langChainTools))
-        //     .addNode("human_review_node", humanReviewNode, {
-        //         ends: ["run_tool", "call_llm"]
-        //     })
-        //     .addNode("dummy_end", dummyEnd)
-        //     .addEdge(START, "call_llm")
-        //     .addConditionalEdges(
-        //         "call_llm",
-        //         routeAfterLLM,
-        //         ["human_review_node", "dummy_end"]
-        //     )
-        //     .addEdge("run_tool", "call_llm")
-        //     .addEdge("dummy_end", END);
-
         const workflow = new StateGraph(StateAnnotation)
             .addNode("call_llm", callLLM)
             .addNode("run_tool", new ToolNode(langChainTools))
             .addNode("human_review_node", humanReviewNode, {
                 ends: ["run_tool", "call_llm"]
             })
-            .addNode("dummy_end", dummyEnd)
-            .addNode("agentCall", agentCall)
+            .addNode("output_convert", outputConvert)
+            .addNode("agent_call", agentCall)
             .addEdge(START, "call_llm")
             .addConditionalEdges(
                 "call_llm",
                 routeAfterLLM,
-                ["human_review_node", "dummy_end"]
+                ["human_review_node", "output_convert"]
             )
-            .addConditionalEdges("run_tool", agentCallCondition, ["agentCall", "call_llm"])
-            .addEdge("agentCall", "call_llm")
-            .addEdge("dummy_end", END);
+            .addConditionalEdges("run_tool", agentCallCondition, ["agent_call", "call_llm"])
+            .addEdge("agent_call", "call_llm")
+            .addEdge("output_convert", END);
 
         for (const plugin of allCreatedPlugins) {
             await plugin.init();
@@ -317,7 +300,7 @@ export class AgentManager {
             const state = await graph.getState(stateConfig);
             const messages: BaseMessage[] = state.values["messages"] ?? [];
             const messagesToRemove = messages.map((m) => new RemoveMessage({ id: m.id! }))
-            await graph.updateState(stateConfig, { messages: messagesToRemove }, "dummy_end")
+            await graph.updateState(stateConfig, { messages: messagesToRemove }, "output_convert")
         };
 
 
@@ -339,7 +322,7 @@ export class AgentManager {
                     }
                     
                 }
-                else   if (state.next.length > 0 && state.next[0] === "agentCall") {
+                else   if (state.next.length > 0 && state.next[0] === "agent_call") {
                     graphInput = new Command({ resume: { response: message } })
                 }
                 else {
@@ -377,7 +360,7 @@ export class AgentManager {
                         return new AgentToolRequestResponse(interruptState.value as AgentToolRequest, responseAttributes) as any;
                     }
 
-                    if (state.tasks.length > 0 && state.tasks[0].name === "agentCall") {
+                    if (state.tasks.length > 0 && state.tasks[0].name === "agent_call") {
                         const interruptState = state.tasks[0].interrupts[0];
                         return new AgentUserMessageResponse(interruptState.value, {})
                         // graphInput = new Command({ resume: { response: "It is raining!" } })
