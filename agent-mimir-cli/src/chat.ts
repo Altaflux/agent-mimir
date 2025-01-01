@@ -19,7 +19,7 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
   console.log("Available commands:\n")
   console.log("/reset - resets all agents\n\n")
   while (true) {
-    if (aiResponse && aiResponse.toolStep()) {
+    if (aiResponse && aiResponse.type == "toolRequest") {
 
       let answers = await Promise.race([new Promise<{ message: string }>((resolve, reject) => {
         rl.question((chalk.blue("Should AI Continue? Type Y or click Enter to continue, otherwise type a message to the AI: ")), (answer) => {
@@ -71,7 +71,7 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
 
       aiResponse = await Retry(() => executor.call(continuousMode, messageToAgent!.message!, { [FILES_TO_SEND_FIELD]: messageToAgent?.sharedFiles ?? [] }));
     }
-    if (aiResponse?.toolStep()) {
+    if (aiResponse?.type == "toolRequest") {
       const response = aiResponse?.output;
       const toolList = response.toolRequests.map(t => {
         return `- Tool Name: "${t.toolName}"\n- Tool Input: ${t.toolArguments}`
@@ -79,7 +79,7 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
       const responseMessage = `Agent: "${executor.name}" is requesting permission to use tools: \n${toolList}\n`
       console.log(chalk.red("AI Response: ", chalk.blue(responseMessage)));
 
-    } else if (aiResponse?.agentResponse()) {
+    } else if (aiResponse?.type == "agentResponse") {
       const response: AgentUserMessage = aiResponse?.output;
       if (response.agentName) {
         const currentAgent = executor;

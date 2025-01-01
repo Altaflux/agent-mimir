@@ -320,9 +320,9 @@ export class AgentManager {
                     } else {
                         graphInput = new Command({ resume: { action: "continue" } })
                     }
-                    
+
                 }
-                else   if (state.next.length > 0 && state.next[0] === "agent_call") {
+                else if (state.next.length > 0 && state.next[0] === "agent_call") {
                     graphInput = new Command({ resume: { response: message } })
                 }
                 else {
@@ -355,20 +355,32 @@ export class AgentManager {
                         if (continuousMode) {
                             graphInput = new Command({ resume: { action: "continue" } })
                             continue
+                        } else {
+                            const interruptState = state.tasks[0].interrupts[0];
+                            return {
+                                type: "toolRequest",
+                                output: interruptState.value as AgentToolRequest,
+                                responseAttributes: responseAttributes
+                            } as any
                         }
-                        const interruptState = state.tasks[0].interrupts[0];
-                        return new AgentToolRequestResponse(interruptState.value as AgentToolRequest, responseAttributes) as any;
+
                     }
 
                     if (state.tasks.length > 0 && state.tasks[0].name === "agent_call") {
                         const interruptState = state.tasks[0].interrupts[0];
-                        return new AgentUserMessageResponse(interruptState.value, {})
-                        // graphInput = new Command({ resume: { response: "It is raining!" } })
-                        // continue
-
+                        return {
+                            type: "agentResponse",
+                            output: interruptState.value,
+                            responseAttributes: {}
+                        } as AgentUserMessageResponse
+                        
                     }
                     let userResponse = (state.values["output"] as AgentUserMessage);
-                    return new AgentUserMessageResponse(userResponse, responseAttributes) as any;
+                    return {
+                        type: "agentResponse",
+                        output: userResponse,
+                        responseAttributes: responseAttributes
+                    } as AgentUserMessageResponse
                 }
             }
         }
@@ -462,41 +474,7 @@ function parseToolMessage(aiMessage: AIMessage, responseAttributes: Record<strin
 
     return resp;
 }
-function parseMessage(aiMessage: AIMessage, responseAttributes: Record<string, any>): AgentResponse {
-    let content = aiMessage.content;
-    let textContent: string;
-    if (responseAttributes["messageToSend"]) {
-        textContent = responseAttributes["messageToSend"] as string;
-    } else {
-        if (typeof content === 'string' || content instanceof String) {
-            textContent = content as string;
-        } else {
-            textContent = (content as MessageContentComplex[]).filter(e => e.type === "text")
-                .map(e => (e as MessageContentText).text)
-                .join("\n");
-        }
-    }
 
-    if ((aiMessage.tool_calls?.length ?? 0) > 0) {
-        let resp: AgentToolRequest = {
-            toolRequests: (aiMessage.tool_calls ?? []).map(t => {
-                return {
-                    toolName: t.name,
-                    toolArguments: JSON.stringify(t.args)
-                }
-            }),
-            message: textContent
-        }
-
-        return new AgentToolRequestResponse(resp, responseAttributes);
-    } else {
-        let resp: AgentUserMessage = {
-            message: textContent
-        }
-
-        return new AgentUserMessageResponse(resp, responseAttributes);
-    }
-}
 
 function langChainHumanMessageToMimirHumanMessage(message: HumanMessage): NextMessageUser {
     return {

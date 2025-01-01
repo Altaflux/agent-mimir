@@ -38,28 +38,40 @@ export type Agent = {
     reset: () => Promise<void>,
 };
 
-export class AgentToolRequestResponse implements AgentResponse {
-    constructor(public output: AgentToolRequest, public responseAttributes:Record<string, any>) { }
-    toolStep(): this is AgentToolRequestResponse {
-        return true;
-    }
-    agentResponse(): this is AgentUserMessageResponse {
-        return false;
-    }
+export type AgentToolRequestResponse = {
+    type: "toolRequest",
+    output: AgentToolRequest,
+    responseAttributes:Record<string, any>
 }
-export class AgentUserMessageResponse implements AgentResponse {
-    constructor(public output: AgentUserMessage, public responseAttributes:Record<string, any>) { }
-    toolStep(): this is AgentToolRequestResponse {
-        return false;
-    }
-    agentResponse(): this is AgentUserMessageResponse {
-        return true;
-    }
+
+export type AgentUserMessageResponse = {
+    type: "agentResponse",
+    output: AgentUserMessage,
+    responseAttributes:Record<string, any>
 }
-export interface AgentResponse {
-    toolStep(): this is AgentToolRequestResponse,
-    agentResponse(): this is AgentUserMessageResponse,
-}
+export type AgentResponse = AgentToolRequestResponse | AgentUserMessageResponse;
+// export class AgentToolRequestResponse implements AgentResponse {
+//     constructor(public output: AgentToolRequest, public responseAttributes:Record<string, any>) { }
+//     toolStep(): this is AgentToolRequestResponse {
+//         return true;
+//     }
+//     agentResponse(): this is AgentUserMessageResponse {
+//         return false;
+//     }
+// }
+// export class AgentUserMessageResponse implements AgentResponse {
+//     constructor(public output: AgentUserMessage, public responseAttributes:Record<string, any>) { }
+//     toolStep(): this is AgentToolRequestResponse {
+//         return false;
+//     }
+//     agentResponse(): this is AgentUserMessageResponse {
+//         return true;
+//     }
+// }
+// export interface AgentResponse {
+//     toolStep(): this is AgentToolRequestResponse,
+//     agentResponse(): this is AgentUserMessageResponse,
+// }
 
 export type AgentWorkspace = {
     listFiles(): Promise<string[]>,

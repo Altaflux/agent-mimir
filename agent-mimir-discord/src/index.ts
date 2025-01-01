@@ -253,7 +253,7 @@ export const run = async () => {
                     const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse.substring(0, 3000)}\`\`\``;
                     await sendDiscordResponse(msg, toolResponse);
                 }));
-                if (chainResponse.agentResponse()) {
+                if (chainResponse.type == "agentResponse") {
                     const routedMessage = await handleMessage(chainResponse, agentStack);
                     currentAgent = routedMessage.currentAgent;
                     pendingMessage = routedMessage.pendingMessage;
@@ -261,12 +261,12 @@ export const run = async () => {
                         break mainLoop;
                     }
                 }
-                while (chainResponse.toolStep()) {
+                while (chainResponse.type == "toolRequest") {
                     chainResponse = await Retry(() => currentAgent.call(false, null, {}, async (name, input, functionResponse) => {
                         const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse.substring(0, 3000)}\`\`\``;
                         await sendDiscordResponse(msg, toolResponse);
                     }));
-                    if (chainResponse.agentResponse()) {
+                    if (chainResponse.type == "agentResponse") {
                         const routedMessage = await handleMessage(chainResponse, agentStack);
                         currentAgent = routedMessage.currentAgent;
                         pendingMessage = routedMessage.pendingMessage;
