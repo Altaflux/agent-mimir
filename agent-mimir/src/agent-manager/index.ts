@@ -118,11 +118,16 @@ export class AgentManager {
         const agentCall = async (state: ToolMessage) => {
             const agenrM = state;
             const aum: AgentUserMessage = JSON.parse(agenrM.content as string);
+            const response: AgentUserMessageResponse = {
+                type: "agentResponse",
+                output: aum,
+                responseAttributes: {}
+            }
             const humanReview = interrupt<
-                AgentUserMessage,
+                AgentUserMessageResponse,
                 {
                     response: string;
-                }>(aum);
+                }>(response);
 
 
             const toolResponse = new ToolMessage({
@@ -368,12 +373,8 @@ export class AgentManager {
 
                     if (state.tasks.length > 0 && state.tasks[0].name === "agent_call") {
                         const interruptState = state.tasks[0].interrupts[0];
-                        return {
-                            type: "agentResponse",
-                            output: interruptState.value,
-                            responseAttributes: {}
-                        } as AgentUserMessageResponse
-                        
+                        return interruptState.value as AgentUserMessageResponse
+
                     }
                     let userResponse = (state.values["output"] as AgentUserMessage);
                     return {
