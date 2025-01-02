@@ -44,9 +44,13 @@ class WorkspacePlugin extends MimirAgentPlugin {
     }
 
     async readResponse(aiMessage: MimirAiMessage, context: AgentContext, responseAttributes: Record<string, any>): Promise<Record<string, any>> {
+
         if (responseAttributes["workspaceFilesToShare"]) {
+            const files = await Promise.all((JSON.parse(responseAttributes["workspaceFilesToShare"]) || [])
+                .map(async (file: string) => ({ fileName: file, url: (await this.workspace.getUrlForFile(file))! })));
+
             return {
-                [FILES_TO_SEND_FIELD]: JSON.parse(responseAttributes["workspaceFilesToShare"])
+                [FILES_TO_SEND_FIELD]: files
             };
         }
         return {}
