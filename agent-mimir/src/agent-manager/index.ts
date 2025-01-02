@@ -15,6 +15,8 @@ import { LangchainToolToMimirTool, MimirToolToLangchainTool } from "../utils/wra
 import { ResponseFieldMapper } from "../utils/instruction-mapper.js";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { HelpersPluginFactory } from "../plugins/helpers.js";
+import { ViewPluginFactory } from "../tools/image_view.js";
+import { WorkspacePluginFactory } from "../plugins/workspace.js";
 export type CreateAgentOptions = {
     profession: string,
     description: string,
@@ -87,7 +89,8 @@ export class AgentManager {
             ...(config.tools ?? []),
         ];
         const toolPlugins: MimirPluginFactory[] = [...tools.map(tool => new LangchainToolWrapperPluginFactory(tool))];
-
+        toolPlugins.push(new WorkspacePluginFactory());
+        toolPlugins.push(new ViewPluginFactory());
         const allCreatedPlugins = await Promise.all([...allPluginFactories, ...toolPlugins].map(async factory => factory.create({
             workspace: workspace,
             agentName: shortName,
@@ -173,10 +176,6 @@ export class AgentManager {
                 ]
             }
 
-
-            const systemMessage = buildSystemMessage([...pluginInputs, responseFormatSystemMessage]);
-
-
             let response: AIMessageChunk;
             let messageToStore: BaseMessage;
             if (isHumanMessage(lastMessage)) {
@@ -192,10 +191,12 @@ export class AgentManager {
                     id: lastMessage.id,
                     content: complexResponseToLangchainMessageContent(persistentMessage.content)
                 });
+                const systemMessage = buildSystemMessage([...pluginInputs, responseFormatSystemMessage]);
                 response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
 
             } else {
                 messageToStore = lastMessage;
+                const systemMessage = buildSystemMessage([...pluginInputs, responseFormatSystemMessage]);
                 response = await modelWithTools.invoke([systemMessage, ...state.messages]);
             }
 

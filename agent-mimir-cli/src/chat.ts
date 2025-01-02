@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { Agent, AgentResponse, AgentUserMessage, FILES_TO_SEND_FIELD } from "agent-mimir/schema";
+import { Agent, AgentResponse, AgentUserMessage, AgentUserMessageResponse, FILES_TO_SEND_FIELD } from "agent-mimir/schema";
 import readline from 'readline';
 import { Retry } from "./utils.js";
 import path from "path";
@@ -64,7 +64,7 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
           sharedFiles: parsedMessage.message?.responseFiles.map((file) => {
             const filename = path.basename(file);
             return { fileName: filename, url: file };
-          })
+          }) ?? []
         };
       }
 
@@ -91,24 +91,31 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
           };
         } else {
           agentStack.push(currentAgent);
-          pendingMessage = response;
+          pendingMessage = userAgentResponseToPendingMessage(aiResponse);
           executor = newAgent;
         }
 
       } else {
         if (agentStack.length === 0) {
-          const responseMessage = `Files provided by AI: ${response.sharedFiles?.map(f => f.fileName).join(", ") || "None"}\n\n${response.message}`;
+          const responseMessage = `Files provided by AI: ${aiResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f:any) => f.fileName).join(", ") || "None"}\n\n${response.message}`;
           console.log(chalk.red("AI Response: ", chalk.blue(responseMessage)));
         } else {
           pendingMessage = {
             message: `${executor.name} responded with: ${response.message}`,
-            sharedFiles: response.sharedFiles
-          };
+            sharedFiles: aiResponse.responseAttributes[FILES_TO_SEND_FIELD] ?? []
+          } satisfies PendingMessage;
           executor = agentStack.pop()!;
         }
       }
 
     }
+  }
+}
+
+function userAgentResponseToPendingMessage(msg:AgentUserMessageResponse) : PendingMessage {
+  return {
+    message: msg.output.message,
+    sharedFiles: msg.responseAttributes[FILES_TO_SEND_FIELD] ?? []
   }
 }
 
@@ -124,7 +131,7 @@ async function handleCommands(command: string, assistant: Agent, agentManager: A
 }
 
 type PendingMessage = {
-  sharedFiles?: {
+  sharedFiles: {
     url: string;
     fileName: string;
   }[],

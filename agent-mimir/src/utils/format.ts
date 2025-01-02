@@ -71,11 +71,16 @@ export function extractAllTextFromComplexResponse(toolResponse: ComplexResponse[
 }
 
 export const openAIImageHandler = (image: ImageType, detail: "high" | "low" = "high") => {
-  return {
+  let type = image.type as string;
+  if (type === "jpg") {
+    type = "jpeg"
+  }
+  const res = {
     type: "image_url" as const,
     image_url: {
-      url: image.type === "url" ? image.url : `data:image/${image.type};base64,${image.url}`,
+      url: image.type === "url" ? image.url : `data:image/${type};base64,${image.url}`,
       detail: detail
     }
   }
+  return res;
 }

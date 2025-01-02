@@ -34,12 +34,12 @@ export class ViewTool extends AgentTool {
     protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
         const file = (await this.context.workspace.fileAsBuffer(arg.fileName));
         if (file) {
-            const imageType = arg.fileName.split('.').pop()! as SupportedImageTypes;
+            let imageType = arg.fileName.split('.').pop()!;
             return [
                 {
                     type: "image_url",
                     image_url: {
-                        type: imageType,
+                        type: imageType as SupportedImageTypes,
                         url: file.toString("base64"),
                     }
                 }
