@@ -3,7 +3,7 @@ import { AdditionalContent, Agent, AgentContext, AgentResponse, AgentSystemMessa
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { Embeddings } from "@langchain/core/embeddings";
 import { END, MemorySaver, MessagesAnnotation, START, StateGraph, interrupt, Command, messagesStateReducer, Send } from "@langchain/langgraph";
-import { AIMessage, AIMessageChunk, BaseMessage, HumanMessage, isAIMessage, isHumanMessage, MessageContent, MessageContentComplex, MessageContentImageUrl, MessageContentText, RemoveMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
+import { AIMessage, AIMessageChunk, BaseMessage, HumanMessage, isAIMessage, isHumanMessage, isToolMessage, MessageContent, MessageContentComplex, MessageContentImageUrl, MessageContentText, RemoveMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { z } from "zod";
 import { ToolCall } from "@langchain/core/messages/tool";
@@ -90,7 +90,7 @@ export class AgentManager {
         ];
         const toolPlugins: MimirPluginFactory[] = [...tools.map(tool => new LangchainToolWrapperPluginFactory(tool))];
         toolPlugins.push(new WorkspacePluginFactory());
-        toolPlugins.push(new ViewPluginFactory());
+     //   toolPlugins.push(new ViewPluginFactory());
         const allCreatedPlugins = await Promise.all([...allPluginFactories, ...toolPlugins].map(async factory => factory.create({
             workspace: workspace,
             agentName: shortName,
@@ -159,9 +159,7 @@ export class AgentManager {
 
             await Promise.all(allCreatedPlugins.map(p => p.readyToProceed(state)));
 
-            const pluginInputs = (await Promise.all(
-                allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages(state))
-            ))
+
 
             const pluginAttributes = (await Promise.all(
                 allCreatedPlugins.map(async (plugin) => await plugin.attributes(state))
@@ -191,11 +189,18 @@ export class AgentManager {
                     id: lastMessage.id,
                     content: complexResponseToLangchainMessageContent(persistentMessage.content)
                 });
+
+                const pluginInputs = (await Promise.all(
+                    allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages(state))
+                ));
                 const systemMessage = buildSystemMessage([...pluginInputs, responseFormatSystemMessage]);
                 response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
 
             } else {
                 messageToStore = lastMessage;
+                const pluginInputs = (await Promise.all(
+                    allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages(state))
+                ));
                 const systemMessage = buildSystemMessage([...pluginInputs, responseFormatSystemMessage]);
                 response = await modelWithTools.invoke([systemMessage, ...state.messages]);
             }
@@ -356,6 +361,9 @@ export class AgentManager {
                     }
 
                     const state = await graph.getState(stateConfig);
+
+                    const baseMessages: BaseMessage[] = state.values["messages"];
+            
                     const responseAttributes: Record<string, any> = state.values["responseAttributes"];
                     if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
                         if (continuousMode) {
@@ -377,6 +385,23 @@ export class AgentManager {
                         return interruptState.value as AgentUserMessageResponse
 
                     }
+                    //change to find las AI message with tool calls.
+                    let lastAiMessage: AIMessage = baseMessages[baseMessages.length - 1];
+                    let toolMessages: ToolMessage[] = takeWhile(baseMessages.slice(0, -1).reverse(), (a)=> isToolMessage(a)) as ToolMessage[];
+                    if (toolMessages.length > 0  && callback) {
+                        // callback(toolMessages.map((t)=> {
+                        //     let toolCalls = lastAiMessage.tool_calls ?? [];
+                        //     let toc = toolCalls.filter(tc => tc.id === t.id)[0];
+                            
+                        //     return {
+                        //         input: trimStringToMaxWithEllipsis(JSON.stringify(toc.args), 400),
+                        //         name: toc.name,
+                        //         response: trimStringToMaxWithEllipsis(JSON.stringify(t.content), 400)
+                        //     }
+                        // }))
+                    }
+
+
                     let userResponse = (state.values["output"] as AgentUserMessage);
                     return {
                         type: "agentResponse",
@@ -396,6 +421,14 @@ export class AgentManager {
     public getAllAgents(): Agent[] {
         return Array.from(this.map.values())
     }
+}
+function takeWhile<T>(a:T[] , predicate: (a:T)=> boolean) {
+    const i = a.findIndex(x => !predicate(x));                
+    return i >= 0 ? a.slice(0, i) : a;
+}
+
+function trimStringToMaxWithEllipsis(str: string, max: number) {
+    return str.length > max ? str.substring(0, max) + "..." : str;
 }
 
 async function addAdditionalContentToUserMessage(message: NextMessageUser, plugins: MimirAgentPlugin[], state: typeof StateAnnotation.State) {

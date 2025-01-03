@@ -228,17 +228,17 @@ export const run = async () => {
                         const isFinalUser = agentStack.length === 0;
                         if (!isFinalUser) {
                             const discordMessage = `\`${currentAgent.name}\` is replying back to \`${agentStack[agentStack.length - 1].name}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
-                                `\nFiles provided: ${chainResponse.output.sharedFiles?.map(f => `\`${f.fileName}\``).join(", ") || "None"}`;
+                                `\nFiles provided: ${chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f:any) => `\`${f.fileName}\``).join(", ") || "None"}`;
                             await sendDiscordResponse(msg, discordMessage);
                         } else {
-                            await sendDiscordResponse(msg, chainResponse.output.message, chainResponse.output.sharedFiles?.map(f => f.url));
+                            await sendDiscordResponse(msg, chainResponse.output.message, chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f:any) => f.url));
                         }
                         return {
                             conversationComplete: isFinalUser,
                             currentAgent: isFinalUser ? currentAgent : agentStack.pop()!,
                             pendingMessage: {
                                 message: isFinalUser ? chainResponse.output.message : `${currentAgent.name} responded with: ${chainResponse.output.message}`,
-                                sharedFiles: chainResponse.output.sharedFiles
+                                sharedFiles: chainResponse.responseAttributes[FILES_TO_SEND_FIELD]
                             }
                         }
                     }
@@ -249,9 +249,12 @@ export const run = async () => {
                     sharedFiles: pendingMessage.sharedFiles
                 } : { message: messageToAi, sharedFiles: loadedFiles };
 
-                let chainResponse = await Retry(() => currentAgent.call(false, messasgeToSend.message, { [FILES_TO_SEND_FIELD]: messasgeToSend.sharedFiles }, async (name, input, functionResponse) => {
-                    const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse.substring(0, 3000)}\`\`\``;
-                    await sendDiscordResponse(msg, toolResponse);
+                let chainResponse = await Retry(() => currentAgent.call(false, messasgeToSend.message, { [FILES_TO_SEND_FIELD]: messasgeToSend.sharedFiles }, async (calls) => {
+                    for (const call of calls ) {
+                        const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${call.name}\` \nInvoked with input: \n\`\`\`${call.input}\`\`\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
+                        await sendDiscordResponse(msg, toolResponse);
+                    }
+           
                 }));
                 if (chainResponse.type == "agentResponse") {
                     const routedMessage = await handleMessage(chainResponse, agentStack);
@@ -262,9 +265,13 @@ export const run = async () => {
                     }
                 }
                 while (chainResponse.type == "toolRequest") {
-                    chainResponse = await Retry(() => currentAgent.call(false, null, {}, async (name, input, functionResponse) => {
-                        const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse.substring(0, 3000)}\`\`\``;
-                        await sendDiscordResponse(msg, toolResponse);
+                    chainResponse = await Retry(() => currentAgent.call(false, null, {}, async (calls) => {
+                        for (const call of calls ) {
+                            const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${call.name}\` \nInvoked with input: \n\`\`\`${call.input}\`\`\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
+                            await sendDiscordResponse(msg, toolResponse);
+                        }
+                        // const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse.substring(0, 3000)}\`\`\``;
+                        // await sendDiscordResponse(msg, toolResponse);
                     }));
                     if (chainResponse.type == "agentResponse") {
                         const routedMessage = await handleMessage(chainResponse, agentStack);

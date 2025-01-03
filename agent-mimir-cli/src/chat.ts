@@ -102,6 +102,7 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
         } else {
           pendingMessage = {
             message: `${executor.name} responded with: ${response.message}`,
+            //sharedFiles: []
             sharedFiles: aiResponse.responseAttributes[FILES_TO_SEND_FIELD] ?? []
           } satisfies PendingMessage;
           executor = agentStack.pop()!;

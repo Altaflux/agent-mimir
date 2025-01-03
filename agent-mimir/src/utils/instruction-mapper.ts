@@ -51,12 +51,12 @@ export class ResponseFieldMapper<T = any> {
         const responseParts = this.attributeSetters.map((attributeSetter) => `- ${attributeSetter.name}`).join('|');
         const mappings = this.attributeSetters.map((attributeSetter) => {
             return {
-                regex: new RegExp(`(?<=- ${attributeSetter.name}:\\s)([\\s\\S]*?)` + '(?=\\s' + responseParts + `|\\n${USER_RESPONSE}$)`),
+                regex: new RegExp(`(?<=- ${attributeSetter.name}:\\s)([\\s\\S]*?)` + '(?=\\s' + responseParts + `|\\n|${USER_RESPONSE}$)`),
                 variableName: attributeSetter.variableName,
             }
         });
 
-        return mappings.reduce((acc, d) => {
+        const res = mappings.reduce((acc, d) => {
             return {
                 ...acc,
                 [d.variableName]: d.regex.exec(response)?.[0]?.trim()
@@ -64,7 +64,7 @@ export class ResponseFieldMapper<T = any> {
         }, {
             userMessage: userMessage?.trim()
         });
-
+        return res;
     }
 }
 
