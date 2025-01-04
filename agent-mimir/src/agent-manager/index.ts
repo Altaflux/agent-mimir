@@ -1,12 +1,11 @@
 import { StructuredTool, tool, Tool } from "@langchain/core/tools";
-import { AdditionalContent, Agent, AgentContext, AgentResponse, AgentSystemMessage, AgentToolRequest, AgentToolRequestResponse, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, ComplexResponse, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, PluginContext, ToolResponse, WorkspaceManagerFactory } from "../schema.js";
+import { AdditionalContent, Agent, AgentContext, AgentSystemMessage, AgentToolRequest, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, ComplexResponse, FunctionResponseCallBack, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, PluginContext, ToolResponse, WorkspaceManagerFactory } from "../schema.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { Embeddings } from "@langchain/core/embeddings";
 import { END, MemorySaver, MessagesAnnotation, START, StateGraph, interrupt, Command, messagesStateReducer, Send } from "@langchain/langgraph";
 import { AIMessage, AIMessageChunk, BaseMessage, HumanMessage, isAIMessage, isHumanMessage, isToolMessage, MessageContent, MessageContentComplex, MessageContentImageUrl, MessageContentText, RemoveMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { z } from "zod";
-import { ToolCall } from "@langchain/core/messages/tool";
 import { aiMessageToMimirAiMessage, complexResponseToLangchainMessageContent } from "../utils/format.js";
 import { v4 } from "uuid";
 import { Annotation } from "@langchain/langgraph";
@@ -90,7 +89,7 @@ export class AgentManager {
         ];
         const toolPlugins: MimirPluginFactory[] = [...tools.map(tool => new LangchainToolWrapperPluginFactory(tool))];
         toolPlugins.push(new WorkspacePluginFactory());
-     //   toolPlugins.push(new ViewPluginFactory());
+        //   toolPlugins.push(new ViewPluginFactory());
         const allCreatedPlugins = await Promise.all([...allPluginFactories, ...toolPlugins].map(async factory => factory.create({
             workspace: workspace,
             agentName: shortName,
@@ -148,74 +147,80 @@ export class AgentManager {
 
         }
 
+        const callbackHook: { callback: FunctionResponseCallBack | undefined } = { callback: undefined }
+        const callLLm2 = (callback: { callback: FunctionResponseCallBack | undefined }) => {
+            return async (state: typeof StateAnnotation.State) => {
 
-        const callLLM = async (state: typeof StateAnnotation.State) => {
+                const lastMessage: BaseMessage = state.messages[state.messages.length - 1];
 
-            const lastMessage: BaseMessage = state.messages[state.messages.length - 1];
+                if (isAIMessage(lastMessage)) {
+                    return {}
+                }
 
-            if (isAIMessage(lastMessage)) {
-                return {}
-            }
-
-            await Promise.all(allCreatedPlugins.map(p => p.readyToProceed(state)));
+                await Promise.all(allCreatedPlugins.map(p => p.readyToProceed(state)));
 
 
 
-            const pluginAttributes = (await Promise.all(
-                allCreatedPlugins.map(async (plugin) => await plugin.attributes(state))
-            )).flatMap(e => e);
-            const fieldMapper = new ResponseFieldMapper([...pluginAttributes, ...defaultAttributes]);
-            const responseFormatSystemMessage: AgentSystemMessage = {
-                content: [
-                    {
-                        text: fieldMapper.createFieldInstructions(),
-                        type: "text"
+                const pluginAttributes = (await Promise.all(
+                    allCreatedPlugins.map(async (plugin) => await plugin.attributes(state))
+                )).flatMap(e => e);
+                const fieldMapper = new ResponseFieldMapper([...pluginAttributes, ...defaultAttributes]);
+                const responseFormatSystemMessage: AgentSystemMessage = {
+                    content: [
+                        {
+                            text: fieldMapper.createFieldInstructions(),
+                            type: "text"
+                        }
+                    ]
+                }
+
+                let response: AIMessageChunk;
+                let messageToStore: BaseMessage;
+                if (isHumanMessage(lastMessage)) {
+                    const nextMessage = langChainHumanMessageToMimirHumanMessage(lastMessage);
+                    const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage(nextMessage, allCreatedPlugins, state);
+
+                    const messageListToSend = state.messages.slice(0, -1);
+                    messageListToSend.push(new HumanMessage({
+                        id: lastMessage.id,
+                        content: complexResponseToLangchainMessageContent(displayMessage.content)
+                    }));
+                    messageToStore = new HumanMessage({
+                        id: lastMessage.id,
+                        content: complexResponseToLangchainMessageContent(persistentMessage.content)
+                    });
+
+                    const pluginInputs = (await Promise.all(
+                        allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages(state))
+                    ));
+                    const systemMessage = buildSystemMessage([...pluginInputs, responseFormatSystemMessage]);
+                    response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
+
+                } else {
+                    if (callback.callback) {
+                        invokeToolCallback(state.messages, callback.callback)
                     }
-                ]
-            }
+                    messageToStore = lastMessage;
+                    const pluginInputs = (await Promise.all(
+                        allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages(state))
+                    ));
+                    const systemMessage = buildSystemMessage([...pluginInputs, responseFormatSystemMessage]);
+                    response = await modelWithTools.invoke([systemMessage, ...state.messages]);
+                }
 
-            let response: AIMessageChunk;
-            let messageToStore: BaseMessage;
-            if (isHumanMessage(lastMessage)) {
-                const nextMessage = langChainHumanMessageToMimirHumanMessage(lastMessage);
-                const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage(nextMessage, allCreatedPlugins, state);
+                let mimirAiMessage = aiMessageToMimirAiMessage(response);
+                const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(mimirAiMessage.content);
 
-                const messageListToSend = state.messages.slice(0, -1);
-                messageListToSend.push(new HumanMessage({
-                    id: lastMessage.id,
-                    content: complexResponseToLangchainMessageContent(displayMessage.content)
-                }));
-                messageToStore = new HumanMessage({
-                    id: lastMessage.id,
-                    content: complexResponseToLangchainMessageContent(persistentMessage.content)
+                const responseAttributes = (await Promise.all(
+                    allCreatedPlugins.map(async (plugin) => await plugin.readResponse(mimirAiMessage, state, rawResponseAttributes))
+                )).reduce((acc, d) => ({ ...acc, ...d }), {
+                    messageToSend: rawResponseAttributes["userMessage"]
                 });
 
-                const pluginInputs = (await Promise.all(
-                    allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages(state))
-                ));
-                const systemMessage = buildSystemMessage([...pluginInputs, responseFormatSystemMessage]);
-                response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
+                return { messages: [messageToStore, response], requestAttributes: {}, responseAttributes: responseAttributes };
+            };
+        }
 
-            } else {
-                messageToStore = lastMessage;
-                const pluginInputs = (await Promise.all(
-                    allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages(state))
-                ));
-                const systemMessage = buildSystemMessage([...pluginInputs, responseFormatSystemMessage]);
-                response = await modelWithTools.invoke([systemMessage, ...state.messages]);
-            }
-
-            let mimirAiMessage = aiMessageToMimirAiMessage(response);
-            const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(mimirAiMessage.content);
-
-            const responseAttributes = (await Promise.all(
-                allCreatedPlugins.map(async (plugin) => await plugin.readResponse(mimirAiMessage, state, rawResponseAttributes))
-            )).reduce((acc, d) => ({ ...acc, ...d }), {
-                messageToSend: rawResponseAttributes["userMessage"]
-            });
-
-            return { messages: [messageToStore, response], requestAttributes: {}, responseAttributes: responseAttributes };
-        };
 
         function routeAfterLLM(
             state: typeof MessagesAnnotation.State,
@@ -274,7 +279,7 @@ export class AgentManager {
         }
 
         const workflow = new StateGraph(StateAnnotation)
-            .addNode("call_llm", callLLM)
+            .addNode("call_llm", callLLm2(callbackHook))
             .addNode("run_tool", new ToolNode(langChainTools))
             .addNode("human_review_node", humanReviewNode, {
                 ends: ["run_tool", "call_llm"]
@@ -322,7 +327,7 @@ export class AgentManager {
             reset: reset,
             call: async (continuousMode, message, input, callback) => {
 
-
+                callbackHook.callback = callback;
                 let graphInput: any = null;
                 const state = await graph.getState(stateConfig);
                 if (state.next.length > 0 && state.next[0] === "human_review_node") {
@@ -363,7 +368,7 @@ export class AgentManager {
                     const state = await graph.getState(stateConfig);
 
                     const baseMessages: BaseMessage[] = state.values["messages"];
-            
+
                     const responseAttributes: Record<string, any> = state.values["responseAttributes"];
                     if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
                         if (continuousMode) {
@@ -386,20 +391,21 @@ export class AgentManager {
 
                     }
                     //change to find las AI message with tool calls.
-                    let lastAiMessage: AIMessage = baseMessages[baseMessages.length - 1];
-                    let toolMessages: ToolMessage[] = takeWhile(baseMessages.slice(0, -1).reverse(), (a)=> isToolMessage(a)) as ToolMessage[];
-                    if (toolMessages.length > 0  && callback) {
-                        // callback(toolMessages.map((t)=> {
-                        //     let toolCalls = lastAiMessage.tool_calls ?? [];
-                        //     let toc = toolCalls.filter(tc => tc.id === t.id)[0];
-                            
-                        //     return {
-                        //         input: trimStringToMaxWithEllipsis(JSON.stringify(toc.args), 400),
-                        //         name: toc.name,
-                        //         response: trimStringToMaxWithEllipsis(JSON.stringify(t.content), 400)
-                        //     }
-                        // }))
-                    }
+                    // let messageList = [...baseMessages].reverse();
+                    // let lastAiMessage: AIMessage = messageList.find(m => isAIMessage(m))!;
+                    // let toolMessages: ToolMessage[] = takeWhile(messageList.slice(1), (a) => isToolMessage(a)) as ToolMessage[];
+                    // if (toolMessages.length > 0 && callback) {
+                    //     callback(toolMessages.map((t) => {
+                    //         let toolCalls = lastAiMessage.tool_calls ?? [];
+                    //         let toc = toolCalls.filter(tc => tc.id === t.id)[0];
+
+                    //         return {
+                    //             input: trimStringToMaxWithEllipsis(JSON.stringify(toc.args), 400),
+                    //             name: toc.name,
+                    //             response: trimStringToMaxWithEllipsis(JSON.stringify(t.content), 400)
+                    //         }
+                    //     }))
+                    // }
 
 
                     let userResponse = (state.values["output"] as AgentUserMessage);
@@ -422,8 +428,8 @@ export class AgentManager {
         return Array.from(this.map.values())
     }
 }
-function takeWhile<T>(a:T[] , predicate: (a:T)=> boolean) {
-    const i = a.findIndex(x => !predicate(x));                
+function takeWhile<T>(a: T[], predicate: (a: T) => boolean) {
+    const i = a.findIndex(x => !predicate(x));
     return i >= 0 ? a.slice(0, i) : a;
 }
 
@@ -508,6 +514,24 @@ function parseToolMessage(aiMessage: AIMessage, responseAttributes: Record<strin
     }
 
     return resp;
+}
+
+function invokeToolCallback(messages: BaseMessage[], callback: FunctionResponseCallBack) {
+
+    let messageList = [...messages].reverse();
+    let lastAiMessage: AIMessage = messageList.find(m => isAIMessage(m))!;
+    let toolMessages: ToolMessage[] = takeWhile(messageList, (a) => isToolMessage(a)) as ToolMessage[];
+    if (toolMessages.length > 0 ) {
+        callback(toolMessages.map((t) => {
+            let toolCalls = lastAiMessage.tool_calls ?? [];
+            let toc = toolCalls.find(tc => tc.id === t.tool_call_id)!;
+            return {
+                input: trimStringToMaxWithEllipsis(JSON.stringify(toc.args), 400),
+                name: toc.name,
+                response: trimStringToMaxWithEllipsis(JSON.stringify(t.content), 400)
+            }
+        }))
+    }
 }
 
 
