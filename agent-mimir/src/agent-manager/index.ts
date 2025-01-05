@@ -1,5 +1,5 @@
 import { StructuredTool, tool, Tool } from "@langchain/core/tools";
-import { AdditionalContent, Agent, AgentContext, AgentSystemMessage, AgentToolRequest, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, ComplexResponse, FunctionResponseCallBack, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, PluginContext, ToolResponse, WorkspaceManagerFactory } from "../schema.js";
+import { AdditionalContent, Agent, AgentContext, AgentSystemMessage, AgentToolRequest, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, ComplexResponse, FunctionResponseCallBack, MimirAgentPlugin, MimirPluginFactory, NextMessageToolResponse, NextMessageUser, PluginContext, ToolResponse, WorkspaceManagerFactory } from "../schema.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { Embeddings } from "@langchain/core/embeddings";
 import { END, MemorySaver, MessagesAnnotation, START, StateGraph, interrupt, Command, messagesStateReducer, Send } from "@langchain/langgraph";
@@ -157,7 +157,10 @@ export class AgentManager {
                     return {}
                 }
 
-                await Promise.all(allCreatedPlugins.map(p => p.readyToProceed(state)));
+                let nextMessage = isHumanMessage(lastMessage) ?
+                    langChainHumanMessageToMimirHumanMessage(lastMessage) : isToolMessage(lastMessage) ?
+                        langChainToolMessageToMimirHumanMessage(lastMessage) : undefined;
+                await Promise.all(allCreatedPlugins.map(p => p.readyToProceed(nextMessage!, state)));
 
 
 
@@ -521,7 +524,7 @@ function invokeToolCallback(messages: BaseMessage[], callback: FunctionResponseC
     let messageList = [...messages].reverse();
     let lastAiMessage: AIMessage = messageList.find(m => isAIMessage(m))!;
     let toolMessages: ToolMessage[] = takeWhile(messageList, (a) => isToolMessage(a)) as ToolMessage[];
-    if (toolMessages.length > 0 ) {
+    if (toolMessages.length > 0) {
         callback(toolMessages.map((t) => {
             let toolCalls = lastAiMessage.tool_calls ?? [];
             let toc = toolCalls.find(tc => tc.id === t.tool_call_id)!;
@@ -538,6 +541,15 @@ function invokeToolCallback(messages: BaseMessage[], callback: FunctionResponseC
 function langChainHumanMessageToMimirHumanMessage(message: HumanMessage): NextMessageUser {
     return {
         type: "USER_MESSAGE",
+        content: lCmessageContentToContent(message.content)
+    }
+}
+
+function langChainToolMessageToMimirHumanMessage(message: ToolMessage): NextMessageToolResponse {
+    return {
+        type: "TOOL_CALL",
+        tool: message.name!,
+        toolCallId: message.tool_call_id,
         content: lCmessageContentToContent(message.content)
     }
 }

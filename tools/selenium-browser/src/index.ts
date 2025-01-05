@@ -3,7 +3,7 @@ import { WebDriverManager } from "./driver-manager.js";
 import { WebBrowserOptions } from "./driver-manager.js";
 import { Embeddings } from "@langchain/core/embeddings";
 import { WebBrowserTool, PassValueToInput, AskSiteQuestion, ClickWebSiteLinkOrButton, ScrollTool } from "./tools.js";
-import { MimirAgentPlugin, PluginContext, MimirPluginFactory, NextMessageUser, AdditionalContent, AgentContext } from "agent-mimir/schema";
+import { MimirAgentPlugin, PluginContext, MimirPluginFactory, NextMessageUser, AdditionalContent, AgentContext, NextMessage } from "agent-mimir/schema";
 import { AgentTool } from "agent-mimir/tools";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { ChainValues } from "@langchain/core/utils/types";
@@ -44,7 +44,7 @@ class WebBrowserPlugin extends MimirAgentPlugin {
         ];
     }
 
-    async readyToProceed(context: AgentContext): Promise<void> {
+    async readyToProceed(message: NextMessage, context: AgentContext): Promise<void> {
         await new Promise(resolve => setTimeout(resolve, 1000));
     }
 

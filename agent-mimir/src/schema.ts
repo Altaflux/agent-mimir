@@ -106,6 +106,7 @@ export interface MimirPluginFactory {
     create(context: PluginContext): MimirAgentPlugin
 }
 
+export type NextMessage = NextMessageUser | NextMessageToolResponse;
 export type NextMessageUser = {
     type: "USER_MESSAGE",
     content: ComplexResponse[]
@@ -154,7 +155,7 @@ export abstract class MimirAgentPlugin {
         return Promise.resolve();
     }
 
-    async readyToProceed(context: AgentContext): Promise<void> {
+    async readyToProceed(nextMessage: NextMessage, context: AgentContext): Promise<void> {
     }
 
     async additionalMessageContent(message: NextMessageUser, context: AgentContext): Promise<AdditionalContent[]> {

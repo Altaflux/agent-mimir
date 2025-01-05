@@ -1,4 +1,4 @@
-import { AgentContext, AgentSystemMessage, AgentWorkspace, FILES_TO_SEND_FIELD, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, PluginContext, AdditionalContent, MimirAiMessage } from "../schema.js";
+import { AgentContext, AgentSystemMessage, AgentWorkspace, FILES_TO_SEND_FIELD, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, PluginContext, AdditionalContent, MimirAiMessage, NextMessage } from "../schema.js";
 import { AttributeDescriptor } from "../schema.js";
 import { promises as fs } from 'fs';
 export class WorkspacePluginFactory implements MimirPluginFactory {
@@ -22,6 +22,14 @@ class WorkspacePlugin extends MimirAgentPlugin {
     async init(): Promise<void> {
         if (this.workspace.workingDirectory) {
             await fs.mkdir(this.workspace.workingDirectory, { recursive: true });
+        }
+    }
+
+    async readyToProceed(nextMessage: NextMessage, context: AgentContext): Promise<void> {
+        if (context.requestAttributes[FILES_TO_SEND_FIELD] && context.requestAttributes[FILES_TO_SEND_FIELD] instanceof Array && context.requestAttributes[FILES_TO_SEND_FIELD].length > 0) {
+            for (const file of context.requestAttributes[FILES_TO_SEND_FIELD]) {
+                await this.workspace.loadFileToWorkspace(file.fileName, file.url);
+            }
         }
     }
 
@@ -67,9 +75,6 @@ class WorkspacePlugin extends MimirAgentPlugin {
     async additionalMessageContent(nextMessage: NextMessageUser, context: AgentContext): Promise<AdditionalContent[]> {
 
         if (context.requestAttributes[FILES_TO_SEND_FIELD] && context.requestAttributes[FILES_TO_SEND_FIELD] instanceof Array && context.requestAttributes[FILES_TO_SEND_FIELD].length > 0) {
-            for (const file of context.requestAttributes[FILES_TO_SEND_FIELD]) {
-                await this.workspace.loadFileToWorkspace(file.fileName, file.url);
-            }
             const filesToSendMessage = context.requestAttributes[FILES_TO_SEND_FIELD].map((file: any) => `"${file.fileName}"`).join(", ");
             return [
                 {
