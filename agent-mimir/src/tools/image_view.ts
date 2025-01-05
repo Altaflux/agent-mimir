@@ -20,15 +20,15 @@ export class ViewPlugin extends MimirAgentPlugin {
 }
 export class ViewTool extends AgentTool {
 
-    name: string = "viewImageFromWorkspace";
+    name: string = "seeImageFromWorkspace";
 
     constructor(private context: PluginContext) {
         super();
     }
 
-    description: string = "Use to view the files in your workspace.";
+    description: string = "Allows you you to see any image currently available in your workspace. This tool does not shares the image with the user, only for you to see.Use it when the given task requires you to understand the contents of an image.";
     schema = z.object({
-        fileName: z.string().describe("The name of the file you want to view."),
+        fileName: z.string().describe("The name of the image file you want to see."),
     });
 
     protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {

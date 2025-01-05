@@ -112,7 +112,7 @@ export type NextMessageUser = {
 }
 
 export type NextMessageToolResponse = {
-    type: "ACTION",
+    type: "TOOL_CALL",
     toolCallId: string,
     tool: string,
     content: ComplexResponse[]

@@ -1,5 +1,6 @@
 import { AgentContext, AgentSystemMessage, AgentWorkspace, FILES_TO_SEND_FIELD, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, PluginContext, AdditionalContent, MimirAiMessage } from "../schema.js";
 import { AttributeDescriptor } from "../schema.js";
+import { promises as fs } from 'fs';
 export class WorkspacePluginFactory implements MimirPluginFactory {
 
     name: string = "workspace";
@@ -18,9 +19,15 @@ class WorkspacePlugin extends MimirAgentPlugin {
         this.workspace = workspace;
     }
 
+    async init(): Promise<void> {
+        if (this.workspace.workingDirectory) {
+            await fs.mkdir(this.workspace.workingDirectory, { recursive: true });
+        }
+    }
+
     async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
         const files = (await this.workspace.listFiles());
-        const message = files.length > 0 ? `You have the following files in your workspace: ${files.join(", ")}` : "There are currently no files in your workspace. You cannot use the \"viewImageFromWorkspace\" tool.";
+        const message = files.length > 0 ? `You have the following files in your workspace: ${files.join(", ")}` : "There are currently no files in your workspace.";
         return {
             content: [
                 {
@@ -35,7 +42,7 @@ class WorkspacePlugin extends MimirAgentPlugin {
         return [
             {
                 attributeType: "string[]",
-                description: "The list of files from your workspace you want to respond back. Respond back files you want to send me or I have requested.",
+                description: "The list of files from your workspace you want to send back to the user. Respond back files you want to send back or the user has requested.",
                 name: "workspaceFilesToShare",
                 example: `["image.jpg", "textFile.txt", "movie.avi"]`,
                 variableName: "workspaceFilesToShare"

@@ -89,7 +89,7 @@ export class AgentManager {
         ];
         const toolPlugins: MimirPluginFactory[] = [...tools.map(tool => new LangchainToolWrapperPluginFactory(tool))];
         toolPlugins.push(new WorkspacePluginFactory());
-        //   toolPlugins.push(new ViewPluginFactory());
+        toolPlugins.push(new ViewPluginFactory());
         const allCreatedPlugins = await Promise.all([...allPluginFactories, ...toolPlugins].map(async factory => factory.create({
             workspace: workspace,
             agentName: shortName,
