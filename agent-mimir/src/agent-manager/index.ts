@@ -2,7 +2,7 @@ import { StructuredTool, tool, Tool } from "@langchain/core/tools";
 import { AdditionalContent, Agent, AgentContext, AgentSystemMessage, AgentToolRequest, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, ComplexResponse, FunctionResponseCallBack, MimirAgentPlugin, MimirPluginFactory, NextMessageToolResponse, NextMessageUser, PluginContext, ToolResponse, WorkspaceManagerFactory } from "../schema.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { Embeddings } from "@langchain/core/embeddings";
-import { END, MemorySaver, MessagesAnnotation, START, StateGraph, interrupt, Command, messagesStateReducer, Send } from "@langchain/langgraph";
+import { END, MessagesAnnotation, START, StateGraph, interrupt, Command, messagesStateReducer, Send } from "@langchain/langgraph";
 import { AIMessage, AIMessageChunk, BaseMessage, HumanMessage, isAIMessage, isHumanMessage, isToolMessage, MessageContent, MessageContentComplex, MessageContentImageUrl, MessageContentText, RemoveMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { z } from "zod";
@@ -16,6 +16,7 @@ import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { HelpersPluginFactory } from "../plugins/helpers.js";
 import { ViewPluginFactory } from "../tools/image_view.js";
 import { WorkspacePluginFactory } from "../plugins/workspace.js";
+import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 export type CreateAgentOptions = {
     profession: string,
     description: string,
@@ -148,7 +149,7 @@ export class AgentManager {
         }
 
         const callbackHook: { callback: FunctionResponseCallBack | undefined } = { callback: undefined }
-        const callLLm2 = (callback: { callback: FunctionResponseCallBack | undefined }) => {
+        const callLLm = (callback: { callback: FunctionResponseCallBack | undefined }) => {
             return async (state: typeof StateAnnotation.State) => {
 
                 const lastMessage: BaseMessage = state.messages[state.messages.length - 1];
@@ -282,7 +283,7 @@ export class AgentManager {
         }
 
         const workflow = new StateGraph(StateAnnotation)
-            .addNode("call_llm", callLLm2(callbackHook))
+            .addNode("call_llm", callLLm(callbackHook))
             .addNode("run_tool", new ToolNode(langChainTools))
             .addNode("human_review_node", humanReviewNode, {
                 ends: ["run_tool", "call_llm"]
@@ -302,7 +303,7 @@ export class AgentManager {
         for (const plugin of allCreatedPlugins) {
             await plugin.init();
         }
-        const memory = new MemorySaver();
+        const memory = SqliteSaver.fromConnString(workspace.rootDirectory + "/agent-chat.db");
 
         let stateConfig = {
             configurable: { thread_id: "1" },

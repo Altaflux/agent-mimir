@@ -81,6 +81,7 @@ export type AgentWorkspace = {
     fileAsBuffer(fileName: string): Promise<Buffer | undefined>,
     pluginDirectory(pluginName: string): Promise<string>,
     workingDirectory: string,
+    rootDirectory: string,
 }
 
 export type WorkspaceManagerFactory = (workkDirectory: string) => Promise<AgentWorkspace>;
