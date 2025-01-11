@@ -393,23 +393,6 @@ export class AgentManager {
                         return interruptState.value as AgentUserMessageResponse
 
                     }
-                    //change to find las AI message with tool calls.
-                    // let messageList = [...baseMessages].reverse();
-                    // let lastAiMessage: AIMessage = messageList.find(m => isAIMessage(m))!;
-                    // let toolMessages: ToolMessage[] = takeWhile(messageList.slice(1), (a) => isToolMessage(a)) as ToolMessage[];
-                    // if (toolMessages.length > 0 && callback) {
-                    //     callback(toolMessages.map((t) => {
-                    //         let toolCalls = lastAiMessage.tool_calls ?? [];
-                    //         let toc = toolCalls.filter(tc => tc.id === t.id)[0];
-
-                    //         return {
-                    //             input: trimStringToMaxWithEllipsis(JSON.stringify(toc.args), 400),
-                    //             name: toc.name,
-                    //             response: trimStringToMaxWithEllipsis(JSON.stringify(t.content), 400)
-                    //         }
-                    //     }))
-                    // }
-
 
                     let userResponse = (state.values["output"] as AgentUserMessage);
                     return {
