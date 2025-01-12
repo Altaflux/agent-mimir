@@ -1,4 +1,4 @@
-import { MimirAgentPlugin, PluginContext, MimirPluginFactory, ComplexResponse, NextMessage, AdditionalContent } from "agent-mimir/schema";
+import { MimirAgentPlugin, PluginContext, MimirPluginFactory, ComplexResponse, NextMessageUser, AdditionalContent } from "agent-mimir/schema";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
 
@@ -6,15 +6,15 @@ import { ToolResponse } from "agent-mimir/schema";
 import { AgentTool } from "agent-mimir/tools";
 import screenshot, { DisplayID } from 'screenshot-desktop';
 import si from 'systeminformation';
-import { JsonSchema7ObjectType } from "zod-to-json-schema";
-import { zodToJsonSchema } from "zod-to-json-schema";
+// import { JsonSchema7ObjectType } from "zod-to-json-schema";
+// import { zodToJsonSchema } from "zod-to-json-schema";
 
 import { Key, keyboard, mouse, Button, Point } from "@nut-tree/nut-js";
 import sharp from 'sharp';
 
-import { LLMChain } from "langchain/chains";
+// import { LLMChain } from "langchain/chains";
 
-import { simpleParseJson } from "agent-mimir/utils/json";
+// import { simpleParseJson } from "agent-mimir/utils/json";
 import { Coordinates, PythonServerControl, TextBlocks } from "./sam.js";
 import { ChatPromptTemplate, renderTemplate } from "@langchain/core/prompts";
 import { HumanMessage } from "@langchain/core/messages";
@@ -67,7 +67,7 @@ class DesktopControlPlugin extends MimirAgentPlugin {
         await this.pythonServer.close()
     }
 
-    async additionalMessageContent(message: NextMessage, inputs: ChainValues): Promise<AdditionalContent[]> {
+    async additionalMessageContent(message: NextMessageUser, inputs: ChainValues): Promise<AdditionalContent[]> {
         const computerImages = await this.generateComputerImagePrompt();
         return [
             {
@@ -432,127 +432,127 @@ class MoveMouseToCoordinate extends AgentTool {
         console.log(`Moving mouse to: ${arg.coordinates.xCoordinate}, ${arg.coordinates.yCoordinate}`);
         await mouse.setPosition(new Point(location.xPixelCoordinate, location.yPixelCoordinate));
 
-        try {
-            const newCoordinates = await this.veryifyMousePosition(arg.coordinates.tileNumber, arg.elementDescription, { x: arg.coordinates.xCoordinate, y: arg.coordinates.yCoordinate });
-            const newLocation = convertToPixelCoordinates(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, newCoordinates.x, newCoordinates.y, arg.coordinates.tileNumber, this.gridSize);
-            await mouse.setPosition(new Point(newLocation.xPixelCoordinate, newLocation.yPixelCoordinate));
+        // try {
+        //     const newCoordinates = await this.veryifyMousePosition(arg.coordinates.tileNumber, arg.elementDescription, { x: arg.coordinates.xCoordinate, y: arg.coordinates.yCoordinate });
+        //     const newLocation = convertToPixelCoordinates(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, newCoordinates.x, newCoordinates.y, arg.coordinates.tileNumber, this.gridSize);
+        //     await mouse.setPosition(new Point(newLocation.xPixelCoordinate, newLocation.yPixelCoordinate));
 
-        } catch (error) {
-            console.warn("Error verifying mouse position.", error);
-        }
+        // } catch (error) {
+        //     console.warn("Error verifying mouse position.", error);
+        // }
         return [
             {
                 type: "text",
                 text: "The mouse has moved to the new location, please make sure the mouse has moved to the expected location (look at the computer screen image), if that is not the case try again using different coordinates.",
             }
         ]
-    }
+     }
 
-    private async veryifyMousePosition(tileNumber: number, elementDescription: string, existingCoordinates: { x: number, y: number }): Promise<{ x: number, y: number }> {
+//     private async veryifyMousePosition(tileNumber: number, elementDescription: string, existingCoordinates: { x: number, y: number }): Promise<{ x: number, y: number }> {
 
-        const tiles = await getScreenTiles(await getComputerScreenImage(), this.gridSize, false);
-        const specificTile = tiles.tiles[tileNumber - 1];
+//         const tiles = await getScreenTiles(await getComputerScreenImage(), this.gridSize, false);
+//         const specificTile = tiles.tiles[tileNumber - 1];
 
-        const responseSchema = z.object({
-            elementFound: z.boolean().describe("A boolean value indicating if you were able to find the element."),
-            coordinates: z.object({
-                xCoordinate: z.number().int().min(1).max(100).describe("The x axis coordinate of the of the position of the click on the screen, the axis can be any value between 1 and 100."),
-                yCoordinate: z.number().int().min(1).max(100).describe("The y axis coordinate of the of the position of the click on the screen, the axis can be any value between 1 and 100."),
-            }).nullable().describe("The coordinates of the element on the screen, be as precise as possible!")
+//         const responseSchema = z.object({
+//             elementFound: z.boolean().describe("A boolean value indicating if you were able to find the element."),
+//             coordinates: z.object({
+//                 xCoordinate: z.number().int().min(1).max(100).describe("The x axis coordinate of the of the position of the click on the screen, the axis can be any value between 1 and 100."),
+//                 yCoordinate: z.number().int().min(1).max(100).describe("The y axis coordinate of the of the position of the click on the screen, the axis can be any value between 1 and 100."),
+//             }).nullable().describe("The coordinates of the element on the screen, be as precise as possible!")
 
-        });
+//         });
 
-        const instrucction = `From the given image verify the existence and location of the following element: \"{elementDescription}\"
+//         const instrucction = `From the given image verify the existence and location of the following element: \"{elementDescription}\"
 
-Return the correct coordinates of location of the element, use x and y coordinates value as shown in the graph drawn over the image.
+// Return the correct coordinates of location of the element, use x and y coordinates value as shown in the graph drawn over the image.
 
-IMPORTANT! Your response must be conformed with the following JSON schema:
-\`\`\`json
-{tool_schema}
-\`\`\`
+// IMPORTANT! Your response must be conformed with the following JSON schema:
+// \`\`\`json
+// {tool_schema}
+// \`\`\`
 
-Example of a valid response when the element is found:
-\`\`\`json
-{{
-    "elementFound": true,
-    "coordinates": {{
-        "xCoordinate": 34,
-        "yCoordinate": 76
-    }}
-}}
-\`\`\`
+// Example of a valid response when the element is found:
+// \`\`\`json
+// {{
+//     "elementFound": true,
+//     "coordinates": {{
+//         "xCoordinate": 34,
+//         "yCoordinate": 76
+//     }}
+// }}
+// \`\`\`
 
-Example of a valid response when the element not is found:
-\`\`\`json
-{{
-    "elementFound": false,
-    "coordinates": null
-}}
-\`\`\`
+// Example of a valid response when the element not is found:
+// \`\`\`json
+// {{
+//     "elementFound": false,
+//     "coordinates": null
+// }}
+// \`\`\`
 
------------------
-Your JSON response:
-`;
-        const renderedHumanMessage = renderTemplate(instrucction, "f-string", {
-            tool_schema: JSON.stringify(
-                (zodToJsonSchema(responseSchema) as JsonSchema7ObjectType).properties
-            ),
-            elementDescription: elementDescription,
-            previousCoordinates: `x${existingCoordinates.x}, y${existingCoordinates.y}`
-        });
+// -----------------
+// Your JSON response:
+// `;
+//         const renderedHumanMessage = renderTemplate(instrucction, "f-string", {
+//             tool_schema: JSON.stringify(
+//                 (zodToJsonSchema(responseSchema) as JsonSchema7ObjectType).properties
+//             ),
+//             elementDescription: elementDescription,
+//             previousCoordinates: `x${existingCoordinates.x}, y${existingCoordinates.y}`
+//         });
 
-        const instructionMessage = new HumanMessage({
-            content: [
-                {
-                    type: "text",
-                    text: renderedHumanMessage
-                },
-                {
-                    type: "image_url",
-                    image_url: `data:image/png;base64,${specificTile.toString("base64")}`
-                }
-            ]
-        });
+//         const instructionMessage = new HumanMessage({
+//             content: [
+//                 {
+//                     type: "text",
+//                     text: renderedHumanMessage
+//                 },
+//                 {
+//                     type: "image_url",
+//                     image_url: `data:image/png;base64,${specificTile.toString("base64")}`
+//                 }
+//             ]
+//         });
 
-        const messagePrompt = ChatPromptTemplate.fromMessages([instructionMessage]);
-        const chain: LLMChain<string> = new LLMChain({
-            llm: this.model,
-            prompt: messagePrompt,
-        });
+//         const messagePrompt = ChatPromptTemplate.fromMessages([instructionMessage]);
+//         const chain: LLMChain<string> = new LLMChain({
+//             llm: this.model,
+//             prompt: messagePrompt,
+//         });
 
-        const functionResponse = await chain.predict({
-            tool_schema: JSON.stringify(
-                (zodToJsonSchema(responseSchema) as JsonSchema7ObjectType).properties
-            )
-        });
+//         const functionResponse = await chain.predict({
+//             tool_schema: JSON.stringify(
+//                 (zodToJsonSchema(responseSchema) as JsonSchema7ObjectType).properties
+//             )
+//         });
 
-        let newCoordinates: z.infer<typeof responseSchema> = {
-            elementFound: true,
-            coordinates: {
-                xCoordinate: existingCoordinates.x,
-                yCoordinate: existingCoordinates.y
-            }
-        };
-        try {
-            newCoordinates = responseSchema.parse((await simpleParseJson(functionResponse)));
-        } catch (error) {
-            console.warn("Error parsing coordinates.", error);
-        }
+//         let newCoordinates: z.infer<typeof responseSchema> = {
+//             elementFound: true,
+//             coordinates: {
+//                 xCoordinate: existingCoordinates.x,
+//                 yCoordinate: existingCoordinates.y
+//             }
+//         };
+//         try {
+//             newCoordinates = responseSchema.parse((await simpleParseJson(functionResponse)));
+//         } catch (error) {
+//             console.warn("Error parsing coordinates.", error);
+//         }
 
-        console.log(`Element Description: ${elementDescription}, New coordinates:  ${newCoordinates.coordinates?.xCoordinate}, ${newCoordinates.coordinates?.yCoordinate}`)
+//         console.log(`Element Description: ${elementDescription}, New coordinates:  ${newCoordinates.coordinates?.xCoordinate}, ${newCoordinates.coordinates?.yCoordinate}`)
 
-        if (newCoordinates.elementFound === false) {
-            return {
-                x: existingCoordinates.x,
-                y: existingCoordinates.y
-            }
-        }
-        return {
-            x: newCoordinates?.coordinates?.xCoordinate ?? 0,
-            y: newCoordinates.coordinates?.yCoordinate ?? 0
-        }
+//         if (newCoordinates.elementFound === false) {
+//             return {
+//                 x: existingCoordinates.x,
+//                 y: existingCoordinates.y
+//             }
+//         }
+//         return {
+//             x: newCoordinates?.coordinates?.xCoordinate ?? 0,
+//             y: newCoordinates.coordinates?.yCoordinate ?? 0
+//         }
 
-    }
+//     }
 }
 
 class ClickPositionOnDesktop extends AgentTool {

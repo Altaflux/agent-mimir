@@ -11,33 +11,13 @@
       "types": "./dist/schema.d.ts",
       "import": "./dist/schema.js"
     },
-    "./agent": {
-      "types": "./dist/agent/index.d.ts",
-      "import": "./dist/agent/index.js"
-    },
     "./agent-manager": {
       "types": "./dist/agent-manager/index.d.ts",
       "import": "./dist/agent-manager/index.js"
     },
-    "./memory/trimming-memory": {
-      "types": "./dist/memory/trimming-memory/index.d.ts",
-      "import": "./dist/memory/trimming-memory/index.js"
-    },
-    "./memory/windowed-memory": {
-      "types": "./dist/memory/windowed-memory/index.d.ts",
-      "import": "./dist/memory/windowed-memory/index.js"
-    },
-    "./memory/transform-memory": {
-      "types": "./dist/memory/transform-memory.d.ts",
-      "import": "./dist/memory/transform-memory.js"
-    },
     "./utils/format": {
       "types": "./dist/utils/format.d.ts",
       "import": "./dist/utils/format.js"
-    },
-    "./utils/json": {
-      "types": "./dist/utils/json.d.ts",
-      "import": "./dist/utils/json.js"
     },
     "./nodejs": {
       "types": "./dist/nodejs/index.d.ts",
@@ -67,7 +47,8 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "langchain": "0.2.5",
+    "@langchain/langgraph": "0.2.34",
+    "@langchain/langgraph-checkpoint-sqlite": "0.1.3",
     "jsonrepair": "^3.0.2",
     "ring-buffer-ts": "^1.2.0",
     "gpt-3-encoder": "v1.1.4"

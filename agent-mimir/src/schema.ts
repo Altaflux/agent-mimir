@@ -1,35 +1,77 @@
 
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
-import { MimirAIMessage } from "./agent/base-agent.js";
-import { AttributeDescriptor, ResponseFieldMapper } from "./agent/instruction-mapper.js";
+import { BaseCheckpointSaver } from "@langchain/langgraph";
+import { StateAnnotation } from "./agent-manager/index.js";
 import { AgentTool } from "./tools/index.js";
-import { BaseChatMessageHistory } from "@langchain/core/chat_history";
-import { BaseChatMemory } from "langchain/memory";
-import { BaseMessage, MessageContentImageUrl } from "@langchain/core/messages";
-import { ChainValues } from "@langchain/core/utils/types";
 
+export type ToolResponse = ComplexResponse[] | AgentUserMessage | {
+    rawResponse: any
+};
+
+
+
+export type MessageContentToolUse = {
+    name: string;
+    input: Record<string, any>,
+    id?: string,
+}
+export type MimirAiMessage = {
+    content: ResponseContentText[]
+    toolCalls: MessageContentToolUse[]
+}
 
 export const FILES_TO_SEND_FIELD = "filesToSend";
+
+export type AttributeDescriptor = {
+    name: string,
+    attributeType: string,
+    variableName: string,
+    description: string,
+    example?: string,
+}
 
 export type Agent = {
     name: string,
     description: string,
-    call: <T extends boolean>(continuousMode: T, input: Record<string, any>, callback?: FunctionResponseCallBack) => T extends true ? Promise<AgentUserMessageResponse> : Promise<AgentResponse>,
+    call: <T extends boolean>(continuousMode: T, message: string | null, input: Record<string, any>, callback?: FunctionResponseCallBack) => T extends true ? Promise<AgentUserMessageResponse> : Promise<AgentResponse>,
     workspace: AgentWorkspace,
     reset: () => Promise<void>,
 };
 
+export type AgentToolRequestResponse = {
+    type: "toolRequest",
+    output: AgentToolRequest,
+    responseAttributes:Record<string, any>
+}
 
-export interface AgentUserMessageResponse extends AgentResponse {
-    output: AgentUserMessage
+export type AgentUserMessageResponse = {
+    type: "agentResponse",
+    output: AgentUserMessage,
+    responseAttributes:Record<string, any>
 }
-export interface AgentToolRequestResponse extends AgentResponse {
-    output: AgentToolRequest
-}
-export interface AgentResponse {
-    toolStep(): this is AgentToolRequestResponse,
-    agentResponse(): this is AgentUserMessageResponse,
-}
+export type AgentResponse = AgentToolRequestResponse | AgentUserMessageResponse;
+// export class AgentToolRequestResponse implements AgentResponse {
+//     constructor(public output: AgentToolRequest, public responseAttributes:Record<string, any>) { }
+//     toolStep(): this is AgentToolRequestResponse {
+//         return true;
+//     }
+//     agentResponse(): this is AgentUserMessageResponse {
+//         return false;
+//     }
+// }
+// export class AgentUserMessageResponse implements AgentResponse {
+//     constructor(public output: AgentUserMessage, public responseAttributes:Record<string, any>) { }
+//     toolStep(): this is AgentToolRequestResponse {
+//         return false;
+//     }
+//     agentResponse(): this is AgentUserMessageResponse {
+//         return true;
+//     }
+// }
+// export interface AgentResponse {
+//     toolStep(): this is AgentToolRequestResponse,
+//     agentResponse(): this is AgentUserMessageResponse,
+// }
 
 export type AgentWorkspace = {
     listFiles(): Promise<string[]>,
@@ -39,6 +81,7 @@ export type AgentWorkspace = {
     fileAsBuffer(fileName: string): Promise<Buffer | undefined>,
     pluginDirectory(pluginName: string): Promise<string>,
     workingDirectory: string,
+    rootDirectory: string,
 }
 
 export type WorkspaceManagerFactory = (workkDirectory: string) => Promise<AgentWorkspace>;
@@ -47,17 +90,11 @@ export type MimirAgentArgs = {
     name: string,
     description: string,
     llm: BaseLanguageModel,
-    chatMemory: BaseChatMessageHistory
     taskCompleteCommandName: string,
-    imageHandler: LLMImageHandler
-    talkToUserTool?: AgentTool,
     plugins: MimirAgentPlugin[]
     constitution: string,
     resetFunction: () => Promise<void>,
-    memoryBuilder: (messageHistory: {
-        messageHistory: BaseChatMessageHistory,
-        plainText: boolean,
-    }) => BaseChatMemory,
+    checkpointer: BaseCheckpointSaver,
 }
 export type PluginContext = {
     workspace: AgentWorkspace,
@@ -70,15 +107,16 @@ export interface MimirPluginFactory {
     create(context: PluginContext): MimirAgentPlugin
 }
 
-export type LLMImageHandler = (images: ImageType, detail: "high" | "low") => MessageContentImageUrl;
-
-
-export type NextMessage = {
-    type: "ACTION",
-    tool: string,
-    content: ComplexResponse[]
-} | {
+export type NextMessage = NextMessageUser | NextMessageToolResponse;
+export type NextMessageUser = {
     type: "USER_MESSAGE",
+    content: ComplexResponse[]
+}
+
+export type NextMessageToolResponse = {
+    type: "TOOL_CALL",
+    toolCallId: string,
+    tool: string,
     content: ComplexResponse[]
 }
 
@@ -103,13 +141,14 @@ export type ResponseContentImage = {
 };
 
 export type ComplexResponse = ResponseContentText | ResponseContentImage
-export type ToolResponse = ComplexResponse[];
 
 export type AdditionalContent = {
     saveToChatHistory: boolean,
     displayOnCurrentMessage: boolean,
     content: ComplexResponse[]
 }
+
+export type AgentContext = typeof StateAnnotation.State;
 
 export abstract class MimirAgentPlugin {
 
@@ -118,10 +157,9 @@ export abstract class MimirAgentPlugin {
     }
 
     async readyToProceed(nextMessage: NextMessage, context: AgentContext): Promise<void> {
-
     }
 
-    async additionalMessageContent(message: NextMessage, inputs: ChainValues): Promise<AdditionalContent[]> {
+    async additionalMessageContent(message: NextMessageUser, context: AgentContext): Promise<AdditionalContent[]> {
         return [];
     }
 
@@ -131,33 +169,21 @@ export abstract class MimirAgentPlugin {
         };
     }
 
-    async readResponse(context: AgentContext, aiMessage: MimirAIMessage, responseFieldMapper: ResponseFieldMapper): Promise<void> {
+    async readResponse(aiMessage: MimirAiMessage, context: AgentContext, responseAttributes: Record<string, any>): Promise<Record<string, any>> {
+        return {}
     }
 
     async clear(): Promise<void> {
     }
 
-
-
-    attributes(): AttributeDescriptor[] {
+    async attributes(context: AgentContext): Promise<AttributeDescriptor[]> {
         return [];
     }
 
     tools(): Promise<(AgentTool)[]> | (AgentTool)[] {
         return [];
     }
-
-    async memoryCompactionCallback(newLines: BaseMessage[], previousConversation: BaseMessage[]): Promise<void> {
-
-    }
 }
-
-export type AgentContext = {
-    input: NextMessage,
-    memory?: BaseChatMemory,
-};
-
-export type MemoryCompactionCallback = (newMessage: BaseMessage[], previousConversation: BaseMessage[]) => Promise<void>;
 
 export type AgentUserMessage = {
     agentName?: string,
@@ -168,9 +194,9 @@ export type AgentUserMessage = {
     }[],
 }
 
-export type AgentToolRequest = { toolName: string, toolArguments: string }
+export type AgentToolRequest = { message: string | null, toolRequests: {toolName: string, toolArguments: string}[] }
 
-export type FunctionResponseCallBack = (name: string, input: string, response: string) => Promise<void>;
+export type FunctionResponseCallBack = (toolCalls: {name: string, input: string, response: string}[]) => Promise<void>;
 
 export type AgentSystemMessage = {
     content: ComplexResponse[]

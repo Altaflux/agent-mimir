@@ -1,15 +1,15 @@
-import { MimirAgentTypes } from "agent-mimir/agent";
+
 import { AgentManager } from "agent-mimir/agent-manager"
 import { MimirPluginFactory } from "agent-mimir/schema";
 import chalk from "chalk";
 
 import { Tool } from "@langchain/core/tools";
-import { BaseChain } from "langchain/chains";
+
 import { chatWithAgent } from "./chat.js";
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from "path";
-import { FileSystemChatHistory, FileSystemAgentWorkspace } from "agent-mimir/nodejs";
+import {  FileSystemAgentWorkspace } from "agent-mimir/nodejs";
 
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { Embeddings } from "@langchain/core/embeddings";
@@ -18,10 +18,8 @@ import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 export type AgentDefinition = {
     mainAgent?: boolean;
     description: string;
-    chain?: BaseChain;
     definition?: {
         profession: string;
-        agentType?: MimirAgentTypes;
         chatModel: BaseChatModel;
         taskModel?: BaseLanguageModel;
         constitution?: string;
@@ -83,16 +81,13 @@ export const run = async () => {
                 name: agentName,
                 agent: await agentManager.createAgent({
                     name: agentName,
-                    messageHistory: new FileSystemChatHistory(path.join(workingDirectory, agentName, "chat-history.json")),
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,
                     tools: agentDefinition.definition.tools ?? [],
                     model: agentDefinition.definition.chatModel,
-                    chatHistory: agentDefinition.definition.chatHistory,
                     visionSupport: agentDefinition.definition.visionSupport,
                     communicationWhitelist: agentDefinition.definition.communicationWhitelist,
                     constitution: agentDefinition.definition.constitution,
-                    agentType: agentDefinition.definition.agentType,
                     plugins: agentDefinition.definition.plugins
                 })
             }

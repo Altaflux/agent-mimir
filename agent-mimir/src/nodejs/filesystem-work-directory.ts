@@ -6,6 +6,10 @@ export class FileSystemAgentWorkspace implements AgentWorkspace {
 
     get workingDirectory() {
         return path.join(this.agentRootDirectory, "workspace");
+    }   
+    
+    get rootDirectory() {
+        return this.agentRootDirectory;
     }
 
     constructor(private agentRootDirectory: string) {

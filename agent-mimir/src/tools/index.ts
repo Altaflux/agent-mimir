@@ -1,7 +1,7 @@
 
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
-import { ImageType, ToolResponse } from "../schema.js";
+import { ToolResponse } from "../schema.js";
 
 
 export abstract class AgentTool<

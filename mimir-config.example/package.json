@@ -3,6 +3,7 @@
     "private": false,
     "scripts": {},
     "dependencies": {
+        "@langchain/openai": "0.3.16",
         "@agent-mimir/code-interpreter": "*"
     }
 }
