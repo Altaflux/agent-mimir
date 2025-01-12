@@ -50,28 +50,6 @@ export type AgentUserMessageResponse = {
     responseAttributes:Record<string, any>
 }
 export type AgentResponse = AgentToolRequestResponse | AgentUserMessageResponse;
-// export class AgentToolRequestResponse implements AgentResponse {
-//     constructor(public output: AgentToolRequest, public responseAttributes:Record<string, any>) { }
-//     toolStep(): this is AgentToolRequestResponse {
-//         return true;
-//     }
-//     agentResponse(): this is AgentUserMessageResponse {
-//         return false;
-//     }
-// }
-// export class AgentUserMessageResponse implements AgentResponse {
-//     constructor(public output: AgentUserMessage, public responseAttributes:Record<string, any>) { }
-//     toolStep(): this is AgentToolRequestResponse {
-//         return false;
-//     }
-//     agentResponse(): this is AgentUserMessageResponse {
-//         return true;
-//     }
-// }
-// export interface AgentResponse {
-//     toolStep(): this is AgentToolRequestResponse,
-//     agentResponse(): this is AgentUserMessageResponse,
-// }
 
 export type AgentWorkspace = {
     listFiles(): Promise<string[]>,
@@ -82,6 +60,20 @@ export type AgentWorkspace = {
     pluginDirectory(pluginName: string): Promise<string>,
     workingDirectory: string,
     rootDirectory: string,
+}
+
+export type AgentCommand = {
+    name: string,
+    description?: string,
+    arguments?: {
+        name: string,
+        description?: string,
+        required: boolean
+    }[]
+}
+export type CommandRequest = {
+    name: string,
+    arguments?: Record<string, any>
 }
 
 export type WorkspaceManagerFactory = (workkDirectory: string) => Promise<AgentWorkspace>;
