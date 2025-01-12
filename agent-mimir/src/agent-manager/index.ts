@@ -346,8 +346,8 @@ export class AgentManager {
             handleCommand: async (continuousMode, command, callback) => {
                 callbackHook.callback = callback;
 
-                let plugin = agentCommands.find(ac => ac.commands.find(c => c.name === command.name) !== undefined)!;
-                let newMessages = await plugin.plugin.handleCommand(command);
+                let commandHandler = commandList.find(ac => ac.name == command.name)!
+                let newMessages = await commandHandler.commandHandler(command);
                 let msgs = newMessages.map(mc => commandContentToBaseMessage(mc));
                 let graphInput: any = null;
                 graphInput = {

@@ -67,6 +67,7 @@ export type AgentWorkspace = {
 export type AgentCommand = {
     name: string,
     description?: string,
+    commandHandler: (args: Record<string, any>) => Promise<CommandContent[]>,
     arguments?: {
         name: string,
         description?: string,
@@ -179,10 +180,6 @@ export abstract class MimirAgentPlugin {
     }
 
     async getCommands(): Promise<AgentCommand[]> {
-        return [];
-    }
-
-    async handleCommand(request: CommandRequest): Promise<CommandContent[]> {
         return [];
     }
 }

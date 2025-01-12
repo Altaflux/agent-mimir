@@ -7,7 +7,7 @@ import { promises as fs } from 'fs';
 import normalFs from 'fs';
 import os from 'os';
 import path from "path";
-import { ChannelType, Client, GatewayIntentBits, Partials, REST, Routes, Events, Message } from 'discord.js';
+import { ChannelType, Client, GatewayIntentBits, Partials, REST, Routes, Events, Message, Interaction, CacheType, ChatInputCommandInteraction } from 'discord.js';
 import { Readable } from "stream";
 import { finished } from "stream/promises";
 import { SlashCommandBuilder } from "discord.js";
@@ -194,9 +194,22 @@ export const run = async () => {
         }
 
         if (mainAgent.commands.map(c => c.name).includes(interaction.commandName)) {
-            for (const fk of interaction.command?.options!) {
-                // fk.
+            let commandArguments = interaction.options.data.reduce((l,r)=>{
+                return {
+                    ...l,
+                    [r.name]: r.value
+                }
+            }, {})
+            const agentInvoke: AgentInvoke = async (agent, callback) => {
+                return await agent.handleCommand(false, {
+                    name: interaction.commandName,
+                    arguments: commandArguments
+                }, callback)
             }
+
+            messageHandler(agentInvoke, async (message, attachments?: string[])=>{
+               await sendDiscordResponseFromCommand(interaction, message, attachments);
+            })
         }
 
 
@@ -341,6 +354,17 @@ async function sendDiscordResponse(msg: Message<boolean>, message: string, attac
     for (let i = 0; i < chunks.length; i++) {
         const files = (i === chunks.length - 1) ? (attachments ?? []) : [];
         await msg.reply({
+            content: chunks[i],
+            files: files
+        });
+    }
+}
+
+async function sendDiscordResponseFromCommand(msg: ChatInputCommandInteraction<CacheType>, message: string, attachments?: string[]) {
+    const chunks = splitStringInChunks(message);
+    for (let i = 0; i < chunks.length; i++) {
+        const files = (i === chunks.length - 1) ? (attachments ?? []) : [];
+        await msg.editReply({
             content: chunks[i],
             files: files
         });

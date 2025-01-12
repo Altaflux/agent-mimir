@@ -1,4 +1,4 @@
-import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentWorkspace, ToolResponse } from "agent-mimir/schema";
+import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentWorkspace, ToolResponse, AgentCommand } from "agent-mimir/schema";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
 import { spawn } from 'child_process';
@@ -33,6 +33,41 @@ class CodeInterpreterPlugin extends MimirAgentPlugin {
             new PythonCodeInterpreter(this.workSpace?.workingDirectory),
         ];
     };
+
+    async getCommands(): Promise<AgentCommand[]> {
+
+        return [
+            {
+                name: "calculate_percent",
+                description: "Calculate the percent of any number",
+                arguments: [
+                    {
+                        name: "percent",
+                        required: true,
+                        description: "The percentage"
+                    },
+                    {
+                        name: "number",
+                        required: true,
+                        description: "The number"
+                    }
+                ],
+                commandHandler: async (args) => {
+                    return [
+                        {
+                            type: "user",
+                            content: [
+                                {
+                                    type: "text",
+                                    text: "Use the code interpreter to calculate what is 15% of 76."
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ]
+    }
 }
 
 class PythonCodeInterpreter extends AgentTool {
