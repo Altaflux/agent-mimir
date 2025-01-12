@@ -140,7 +140,26 @@ export const run = async () => {
     const resetCommand = new SlashCommandBuilder().setName('reset')
         .setDescription('Resets the agent to a clean state.');
 
-    const commands = [resetCommand];
+    const agentCommands = mainAgent.commands.map(c => {
+        const discordCommand = new SlashCommandBuilder().setName(c.name);
+        if (c.description) {
+            discordCommand.setDescription(c.description);
+        }
+
+        (c.arguments ?? []).forEach(arg => {
+            discordCommand.addStringOption(option => {
+                option.setName(arg.name);
+                option.setRequired(arg.required);
+                if (arg.description) {
+                    option.setDescription(arg.description);
+                }
+                return option
+            })
+        })
+        return discordCommand;
+    })
+
+    const commands = [resetCommand, ...agentCommands];
 
 
     client.on('ready', async () => {
@@ -174,8 +193,10 @@ export const run = async () => {
             await interaction.editReply('The agents have been reset!');
         }
 
-        if (interaction.commandName === 'image') {
-            await interaction.editReply('Success!');
+        if (mainAgent.commands.map(c => c.name).includes(interaction.commandName)) {
+            for (const fk of interaction.command?.options!) {
+                // fk.
+            }
         }
 
 
@@ -185,90 +206,85 @@ export const run = async () => {
         let currentAgent = mainAgent;
         let pendingMessage: PendingMessage | undefined = undefined;
         const agentStack: Agent[] = [];
-        try {
-            mainLoop: while (true) {
 
-                const handleMessage = async (chainResponse: AgentUserMessageResponse, agentStack: Agent[]): Promise<{ conversationComplete: boolean, currentAgent: Agent, pendingMessage: PendingMessage | undefined }> => {
-                    if (chainResponse.output.agentName) {
+        mainLoop: while (true) {
 
-                        const discordMessage = `\`${currentAgent.name}\` is sending a message to \`${chainResponse.output.agentName}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
-                            `\nFiles provided: ${chainResponse.output.sharedFiles?.map(f => `\`${f.fileName}\``).join(", ") || "None"}`;
-                        await sendResponse(discordMessage);
-                        const newAgent = agentManager.getAgent(chainResponse.output.agentName);
-                        if (!newAgent) {
-                            return {
-                                conversationComplete: false,
-                                currentAgent: currentAgent,
-                                pendingMessage: {
-                                    message: "No agent found with that name.",
-                                    sharedFiles: []
-                                }
-                            }
-                        }
-                        agentStack.push(currentAgent);
+            const handleMessage = async (chainResponse: AgentUserMessageResponse, agentStack: Agent[]): Promise<{ conversationComplete: boolean, currentAgent: Agent, pendingMessage: PendingMessage | undefined }> => {
+                if (chainResponse.output.agentName) {
+
+                    const discordMessage = `\`${currentAgent.name}\` is sending a message to \`${chainResponse.output.agentName}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
+                        `\nFiles provided: ${chainResponse.output.sharedFiles?.map(f => `\`${f.fileName}\``).join(", ") || "None"}`;
+                    await sendResponse(discordMessage);
+                    const newAgent = agentManager.getAgent(chainResponse.output.agentName);
+                    if (!newAgent) {
                         return {
                             conversationComplete: false,
-                            currentAgent: newAgent,
-                            pendingMessage: chainResponse.output
-                        }
-                    } else {
-                        const isFinalUser = agentStack.length === 0;
-                        if (!isFinalUser) {
-                            const discordMessage = `\`${currentAgent.name}\` is replying back to \`${agentStack[agentStack.length - 1].name}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
-                                `\nFiles provided: ${chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
-                            await sendResponse(discordMessage);
-                        } else {
-                            await sendResponse(chainResponse.output.message, chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.url));
-                        }
-                        return {
-                            conversationComplete: isFinalUser,
-                            currentAgent: isFinalUser ? currentAgent : agentStack.pop()!,
+                            currentAgent: currentAgent,
                             pendingMessage: {
-                                message: isFinalUser ? chainResponse.output.message : `${currentAgent.name} responded with: ${chainResponse.output.message}`,
-                                sharedFiles: chainResponse.responseAttributes[FILES_TO_SEND_FIELD]
+                                message: "No agent found with that name.",
+                                sharedFiles: []
                             }
                         }
                     }
-                }
-                let toolCallback: FunctionResponseCallBack = async (calls) => {
-                    for (const call of calls) {
-                        const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${call.name}\` \nInvoked with input: \n\`\`\`${call.input}\`\`\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
-                        await sendResponse(toolResponse);
+                    agentStack.push(currentAgent);
+                    return {
+                        conversationComplete: false,
+                        currentAgent: newAgent,
+                        pendingMessage: chainResponse.output
                     }
-
-                };
-
-                let chainResponse = pendingMessage
-                    ? await currentAgent.call(false, pendingMessage.message, { [FILES_TO_SEND_FIELD]: pendingMessage.sharedFiles }, toolCallback)
-                    : await msg(currentAgent, toolCallback);
-
-
-                if (chainResponse.type == "agentResponse") {
-                    const routedMessage = await handleMessage(chainResponse, agentStack);
-                    currentAgent = routedMessage.currentAgent;
-                    pendingMessage = routedMessage.pendingMessage;
-                    if (routedMessage.conversationComplete) {
-                        break mainLoop;
+                } else {
+                    const isFinalUser = agentStack.length === 0;
+                    if (!isFinalUser) {
+                        const discordMessage = `\`${currentAgent.name}\` is replying back to \`${agentStack[agentStack.length - 1].name}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
+                            `\nFiles provided: ${chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
+                        await sendResponse(discordMessage);
+                    } else {
+                        await sendResponse(chainResponse.output.message, chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.url));
                     }
-                }
-                while (chainResponse.type == "toolRequest") {
-                    chainResponse = await Retry(() => currentAgent.call(false, null, {}, toolCallback));
-                    if (chainResponse.type == "agentResponse") {
-                        const routedMessage = await handleMessage(chainResponse, agentStack);
-                        currentAgent = routedMessage.currentAgent;
-                        pendingMessage = routedMessage.pendingMessage;
-
-                        if (routedMessage.conversationComplete) {
-                            break mainLoop;
+                    return {
+                        conversationComplete: isFinalUser,
+                        currentAgent: isFinalUser ? currentAgent : agentStack.pop()!,
+                        pendingMessage: {
+                            message: isFinalUser ? chainResponse.output.message : `${currentAgent.name} responded with: ${chainResponse.output.message}`,
+                            sharedFiles: chainResponse.responseAttributes[FILES_TO_SEND_FIELD]
                         }
                     }
                 }
             }
+            let toolCallback: FunctionResponseCallBack = async (calls) => {
+                for (const call of calls) {
+                    const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${call.name}\` \nInvoked with input: \n\`\`\`${call.input}\`\`\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
+                    await sendResponse(toolResponse);
+                }
 
-        } finally {
-            //   clearInterval(typing);
+            };
+
+            let chainResponse = pendingMessage
+                ? await currentAgent.call(false, pendingMessage.message, { [FILES_TO_SEND_FIELD]: pendingMessage.sharedFiles }, toolCallback)
+                : await msg(currentAgent, toolCallback);
+
+
+            if (chainResponse.type == "agentResponse") {
+                const routedMessage = await handleMessage(chainResponse, agentStack);
+                currentAgent = routedMessage.currentAgent;
+                pendingMessage = routedMessage.pendingMessage;
+                if (routedMessage.conversationComplete) {
+                    break mainLoop;
+                }
+            }
+            while (chainResponse.type == "toolRequest") {
+                chainResponse = await Retry(() => currentAgent.call(false, null, {}, toolCallback));
+                if (chainResponse.type == "agentResponse") {
+                    const routedMessage = await handleMessage(chainResponse, agentStack);
+                    currentAgent = routedMessage.currentAgent;
+                    pendingMessage = routedMessage.pendingMessage;
+
+                    if (routedMessage.conversationComplete) {
+                        break mainLoop;
+                    }
+                }
+            }
         }
-
     }
     client.on(Events.MessageCreate, async msg => {
         const typing = setInterval(() => msg.channel.sendTyping(), 5000);
