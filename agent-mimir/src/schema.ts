@@ -175,6 +175,14 @@ export abstract class MimirAgentPlugin {
     tools(): Promise<(AgentTool)[]> | (AgentTool)[] {
         return [];
     }
+
+    async getCommands(): Promise<AgentCommand[]> {
+        return [];
+    }
+
+    async handleCommand(request: CommandRequest): Promise<AdditionalContent[]> {
+        return [];
+    }
 }
 
 export type AgentUserMessage = {
