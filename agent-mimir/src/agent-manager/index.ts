@@ -1,5 +1,5 @@
 import { StructuredTool, tool, Tool } from "@langchain/core/tools";
-import { AdditionalContent, Agent, AgentContext, AgentSystemMessage, AgentToolRequest, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, ComplexResponse, FunctionResponseCallBack, MimirAgentPlugin, MimirPluginFactory, NextMessageToolResponse, NextMessageUser, PluginContext, ToolResponse, WorkspaceManagerFactory } from "../schema.js";
+import { AdditionalContent, Agent, AgentContext, AgentSystemMessage, AgentToolRequest, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, CommandContent, ComplexResponse, FunctionResponseCallBack, MimirAgentPlugin, MimirPluginFactory, NextMessageToolResponse, NextMessageUser, PluginContext, ToolResponse, WorkspaceManagerFactory } from "../schema.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { Embeddings } from "@langchain/core/embeddings";
 import { END, MessagesAnnotation, START, StateGraph, interrupt, Command, messagesStateReducer, Send } from "@langchain/langgraph";
@@ -303,6 +303,19 @@ export class AgentManager {
         for (const plugin of allCreatedPlugins) {
             await plugin.init();
         }
+
+        const agentCommands = (await Promise.all(
+            allCreatedPlugins.map(async (plugin) => {
+
+                return {
+                    commands: await plugin.getCommands(),
+                    plugin: plugin
+                }
+            })
+        ));
+
+        const commandList = agentCommands.map(ac => ac.commands).flat();
+
         const memory = SqliteSaver.fromConnString(workspace.rootDirectory + "/agent-chat.db");
 
         let stateConfig = {
@@ -327,8 +340,62 @@ export class AgentManager {
         return {
             name: shortName,
             description: config.description,
+            commands: commandList,
             workspace: workspace,
             reset: reset,
+            handleCommand: async (continuousMode, command, callback) => {
+                callbackHook.callback = callback;
+
+                let plugin = agentCommands.find(ac => ac.commands.find(c => c.name === command.name) !== undefined)!;
+                let newMessages = await plugin.plugin.handleCommand(command);
+                let msgs = newMessages.map(mc => commandContentToBaseMessage(mc));
+                let graphInput: any = null;
+                graphInput = {
+                    messages: msgs,
+                    requestAttributes: {},
+                    responseAttributes: {}
+                };
+
+
+                while (true) {
+                    let stream = await graph.stream(graphInput, stateConfig);
+                    for await (const event of stream) {
+
+                    }
+
+                    const state = await graph.getState(stateConfig);
+
+                    const responseAttributes: Record<string, any> = state.values["responseAttributes"];
+                    if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
+                        if (continuousMode) {
+                            graphInput = new Command({ resume: { action: "continue" } })
+                            continue
+                        } else {
+                            const interruptState = state.tasks[0].interrupts[0];
+                            return {
+                                type: "toolRequest",
+                                output: interruptState.value as AgentToolRequest,
+                                responseAttributes: responseAttributes
+                            } as any
+                        }
+
+                    }
+
+                    if (state.tasks.length > 0 && state.tasks[0].name === "agent_call") {
+                        const interruptState = state.tasks[0].interrupts[0];
+                        return interruptState.value as AgentUserMessageResponse
+
+                    }
+
+                    let userResponse = (state.values["output"] as AgentUserMessage);
+                    return {
+                        type: "agentResponse",
+                        output: userResponse,
+                        responseAttributes: responseAttributes
+                    } as AgentUserMessageResponse
+                }
+
+            },
             call: async (continuousMode, message, input, callback) => {
 
                 callbackHook.callback = callback;
@@ -370,8 +437,6 @@ export class AgentManager {
                     }
 
                     const state = await graph.getState(stateConfig);
-
-                    const baseMessages: BaseMessage[] = state.values["messages"];
 
                     const responseAttributes: Record<string, any> = state.values["responseAttributes"];
                     if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
@@ -422,6 +487,24 @@ function takeWhile<T>(a: T[], predicate: (a: T) => boolean) {
 
 function trimStringToMaxWithEllipsis(str: string, max: number) {
     return str.length > max ? str.substring(0, max) + "..." : str;
+}
+
+
+function commandContentToBaseMessage(commandContent: CommandContent) {
+
+    if (commandContent.type === "assistant") {
+        return new AIMessage({
+            id: v4(),
+            content: complexResponseToLangchainMessageContent(commandContent.content)
+        })
+    } else if (commandContent.type === "user") {
+        return new HumanMessage({
+            id: v4(),
+            content: complexResponseToLangchainMessageContent(commandContent.content)
+        })
+    }
+    throw new Error("Unreacable");
+
 }
 
 async function addAdditionalContentToUserMessage(message: NextMessageUser, plugins: MimirAgentPlugin[], state: typeof StateAnnotation.State) {

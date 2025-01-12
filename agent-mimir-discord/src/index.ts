@@ -161,6 +161,7 @@ export const run = async () => {
     client.on(Events.InteractionCreate, async interaction => {
         if (!interaction.isChatInputCommand()) return;
         await interaction.deferReply();
+        
         if (interaction.commandName === 'reset') {
             try {
                 for (const agent of agents) {
