@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { Agent, AgentResponse, AgentUserMessage, AgentUserMessageResponse, FILES_TO_SEND_FIELD } from "agent-mimir/schema";
+import { Agent, AgentResponse, AgentUserMessage, AgentUserMessageResponse, FILES_TO_SEND_FIELD, FunctionResponseCallBack } from "agent-mimir/schema";
 import readline from 'readline';
 import { Retry } from "./utils.js";
 import path from "path";
@@ -17,7 +17,15 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
 
   let aiResponse: undefined | AgentResponse = undefined;
   console.log("Available commands:\n")
-  console.log("/reset - resets all agents\n\n")
+  console.log("/reset - resets all agents\n\n");
+
+  const toolCallBack: FunctionResponseCallBack = async (calls) => {
+    for (const call of calls) {
+      const toolResponse = `Agent: \`${executor.name}\` called function: \`${call.name}\` \nInvoked with input: \n\`\`\`${call.input}\`\`\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
+      console.log(toolResponse)
+    }
+  };
+
   while (true) {
     if (aiResponse && aiResponse.type == "toolRequest") {
 
@@ -28,7 +36,7 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
       })]);
 
       if (answers.message.toLowerCase() === "y" || answers.message === "") {
-        aiResponse = await Retry(() => executor.call(continuousMode, null, {}));
+        aiResponse = await Retry(() => executor.call(false, null, {}, toolCallBack));
       } else {
         const parsedMessage = extractContentAndText(answers.message);
         if (parsedMessage.type === "command") {
@@ -69,9 +77,17 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
       }
 
 
-      aiResponse = await Retry(() => executor.call(continuousMode, messageToAgent!.message!, { [FILES_TO_SEND_FIELD]: messageToAgent?.sharedFiles ?? [] }));
+      aiResponse = await Retry(() => executor.call(false, messageToAgent!.message!, { [FILES_TO_SEND_FIELD]: messageToAgent?.sharedFiles ?? [] }));
     }
+
+    if (aiResponse?.type == "toolRequest" && continuousMode) {
+      while (aiResponse.type == "toolRequest") {
+        aiResponse = await Retry(() => executor.call(false, null, {}, toolCallBack));
+      }
+    }
+
     if (aiResponse?.type == "toolRequest") {
+
       const response = aiResponse?.output;
       const toolList = response.toolRequests.map(t => {
         return `- Tool Name: "${t.toolName}"\n- Tool Input: ${t.toolArguments}`
@@ -97,7 +113,7 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
 
       } else {
         if (agentStack.length === 0) {
-          const responseMessage = `Files provided by AI: ${aiResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f:any) => f.fileName).join(", ") || "None"}\n\n${response.message}`;
+          const responseMessage = `Files provided by AI: ${aiResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.fileName).join(", ") || "None"}\n\n${response.message}`;
           console.log(chalk.red("AI Response: ", chalk.blue(responseMessage)));
         } else {
           pendingMessage = {
@@ -113,7 +129,7 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
   }
 }
 
-function userAgentResponseToPendingMessage(msg:AgentUserMessageResponse) : PendingMessage {
+function userAgentResponseToPendingMessage(msg: AgentUserMessageResponse): PendingMessage {
   return {
     message: msg.output.message,
     sharedFiles: msg.responseAttributes[FILES_TO_SEND_FIELD] ?? []
