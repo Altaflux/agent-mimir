@@ -33,8 +33,8 @@ export type AttributeDescriptor = {
 export type Agent = {
     name: string,
     description: string,
-    call: <T extends boolean>(continuousMode: T, message: string | null, input: Record<string, any>, callback?: FunctionResponseCallBack) => T extends true ? Promise<AgentUserMessageResponse> : Promise<AgentResponse>,
-    handleCommand: (continuousMode: boolean, command: CommandRequest, callback?: FunctionResponseCallBack) => Promise<AgentResponse>,
+    call: (message: string | null, input: Record<string, any>, callback?: FunctionResponseCallBack) =>  Promise<AgentResponse>,
+    handleCommand: (command: CommandRequest, callback?: FunctionResponseCallBack) => Promise<AgentResponse>,
     workspace: AgentWorkspace,
     commands: AgentCommand[],
     reset: () => Promise<void>,

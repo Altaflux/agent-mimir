@@ -194,21 +194,21 @@ export const run = async () => {
         }
 
         if (mainAgent.commands.map(c => c.name).includes(interaction.commandName)) {
-            let commandArguments = interaction.options.data.reduce((l,r)=>{
+            let commandArguments = interaction.options.data.reduce((l, r) => {
                 return {
                     ...l,
                     [r.name]: r.value
                 }
             }, {})
             const agentInvoke: AgentInvoke = async (agent, callback) => {
-                return await agent.handleCommand(false, {
+                return await agent.handleCommand({
                     name: interaction.commandName,
                     arguments: commandArguments
                 }, callback)
             }
 
-            messageHandler(agentInvoke, async (message, attachments?: string[])=>{
-               await sendDiscordResponseFromCommand(interaction, message, attachments);
+            messageHandler(agentInvoke, async (message, attachments?: string[]) => {
+                await sendDiscordResponseFromCommand(interaction, message, attachments);
             })
         }
 
@@ -273,7 +273,7 @@ export const run = async () => {
             };
 
             let chainResponse = pendingMessage
-                ? await currentAgent.call(false, pendingMessage.message, { [FILES_TO_SEND_FIELD]: pendingMessage.sharedFiles }, toolCallback)
+                ? await currentAgent.call(pendingMessage.message, { [FILES_TO_SEND_FIELD]: pendingMessage.sharedFiles }, toolCallback)
                 : await msg(currentAgent, toolCallback);
 
 
@@ -286,7 +286,7 @@ export const run = async () => {
                 }
             }
             while (chainResponse.type == "toolRequest") {
-                chainResponse = await Retry(() => currentAgent.call(false, null, {}, toolCallback));
+                chainResponse = await Retry(() => currentAgent.call(null, {}, toolCallback));
                 if (chainResponse.type == "agentResponse") {
                     const routedMessage = await handleMessage(chainResponse, agentStack);
                     currentAgent = routedMessage.currentAgent;
@@ -313,7 +313,7 @@ export const run = async () => {
                     }
                 }));
                 const messageToSend = { message: messageToAi, sharedFiles: loadedFiles };
-                return await agent.call(false, messageToSend.message, { [FILES_TO_SEND_FIELD]: messageToSend.sharedFiles }, callback)
+                return await agent.call(messageToSend.message, { [FILES_TO_SEND_FIELD]: messageToSend.sharedFiles }, callback)
             }
 
             if (msg.author.bot) return;

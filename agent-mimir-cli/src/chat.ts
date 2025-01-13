@@ -36,7 +36,7 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
       })]);
 
       if (answers.message.toLowerCase() === "y" || answers.message === "") {
-        aiResponse = await Retry(() => executor.call(false, null, {}, toolCallBack));
+        aiResponse = await Retry(() => executor.call(null, {}, toolCallBack));
       } else {
         const parsedMessage = extractContentAndText(answers.message);
         if (parsedMessage.type === "command") {
@@ -47,7 +47,7 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
           const filename = path.basename(file);
           return { fileName: filename, url: file };
         });
-        aiResponse = await Retry(() => executor.call(continuousMode, parsedMessage.message?.text!, { [FILES_TO_SEND_FIELD]: files }));
+        aiResponse = await Retry(() => executor.call(parsedMessage.message?.text!, { [FILES_TO_SEND_FIELD]: files }));
       }
     } else {
 
@@ -77,12 +77,12 @@ export async function chatWithAgent(continuousMode: boolean, assistant: Agent, a
       }
 
 
-      aiResponse = await Retry(() => executor.call(false, messageToAgent!.message!, { [FILES_TO_SEND_FIELD]: messageToAgent?.sharedFiles ?? [] }));
+      aiResponse = await Retry(() => executor.call(messageToAgent!.message!, { [FILES_TO_SEND_FIELD]: messageToAgent?.sharedFiles ?? [] }));
     }
 
     if (aiResponse?.type == "toolRequest" && continuousMode) {
       while (aiResponse.type == "toolRequest") {
-        aiResponse = await Retry(() => executor.call(false, null, {}, toolCallBack));
+        aiResponse = await Retry(() => executor.call(null, {}, toolCallBack));
       }
     }
 

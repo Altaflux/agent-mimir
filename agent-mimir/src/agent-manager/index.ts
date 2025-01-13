@@ -343,7 +343,7 @@ export class AgentManager {
             commands: commandList,
             workspace: workspace,
             reset: reset,
-            handleCommand: async (continuousMode, command, callback) => {
+            handleCommand: async (command, callback) => {
                 callbackHook.callback = callback;
 
                 let commandHandler = commandList.find(ac => ac.name == command.name)!
@@ -367,17 +367,12 @@ export class AgentManager {
 
                     const responseAttributes: Record<string, any> = state.values["responseAttributes"];
                     if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
-                        if (continuousMode) {
-                            graphInput = new Command({ resume: { action: "continue" } })
-                            continue
-                        } else {
-                            const interruptState = state.tasks[0].interrupts[0];
-                            return {
-                                type: "toolRequest",
-                                output: interruptState.value as AgentToolRequest,
-                                responseAttributes: responseAttributes
-                            } as any
-                        }
+                        const interruptState = state.tasks[0].interrupts[0];
+                        return {
+                            type: "toolRequest",
+                            output: interruptState.value as AgentToolRequest,
+                            responseAttributes: responseAttributes
+                        } as any
 
                     }
 
@@ -396,7 +391,7 @@ export class AgentManager {
                 }
 
             },
-            call: async (continuousMode, message, input, callback) => {
+            call: async (message, input, callback) => {
 
                 callbackHook.callback = callback;
                 let graphInput: any = null;
@@ -440,18 +435,12 @@ export class AgentManager {
 
                     const responseAttributes: Record<string, any> = state.values["responseAttributes"];
                     if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
-                        if (continuousMode) {
-                            graphInput = new Command({ resume: { action: "continue" } })
-                            continue
-                        } else {
-                            const interruptState = state.tasks[0].interrupts[0];
-                            return {
-                                type: "toolRequest",
-                                output: interruptState.value as AgentToolRequest,
-                                responseAttributes: responseAttributes
-                            } as any
-                        }
-
+                        const interruptState = state.tasks[0].interrupts[0];
+                        return {
+                            type: "toolRequest",
+                            output: interruptState.value as AgentToolRequest,
+                            responseAttributes: responseAttributes
+                        } as any
                     }
 
                     if (state.tasks.length > 0 && state.tasks[0].name === "agent_call") {
