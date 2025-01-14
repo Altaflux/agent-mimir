@@ -31,7 +31,7 @@ export class TalkToHelper extends StructuredTool {
         const result: AgentUserMessage = {
             agentName: helperName,
             message: message,
-           // sharedFiles: filesToSend,
+            // sharedFiles: filesToSend,
         }
         //TODO THIS IS WRONG
         return JSON.stringify(result);
@@ -54,7 +54,7 @@ export class HelpersPluginFactory implements MimirPluginFactory {
     constructor(private config: HelperPluginConfig) {
     }
 
-    create(context: PluginContext): MimirAgentPlugin {
+    async create(context: PluginContext): Promise<MimirAgentPlugin> {
 
         return new HelpersPlugin(this.config);
     }
@@ -69,17 +69,17 @@ class HelperTool extends AgentTool {
     schema = z.object({
         helperName: z.string().describe("The name of the helper you want to talk to and the message you want to send them."),
         message: z.string().describe("The message to the helper, be as detailed as possible."),
-       // workspaceFilesToSend: z.array(z.string().describe("File to share with the helper.")).optional().describe("The list of files of your workspace you want to share with the helper. You do not share the same workspace as the helpers, if you want the helper to have access to a file from your workspace you must share it with them."),
+        // workspaceFilesToSend: z.array(z.string().describe("File to share with the helper.")).optional().describe("The list of files of your workspace you want to share with the helper. You do not share the same workspace as the helpers, if you want the helper to have access to a file from your workspace you must share it with them."),
     })
 
     protected async _call(arg: any, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
         const { helperName, message } = arg;
-       
-       
+
+
         const result: AgentUserMessage = {
             agentName: helperName,
             message: message,
-           // sharedFiles: filesToSend,
+            // sharedFiles: filesToSend,
         }
         return result;
     }
@@ -122,7 +122,7 @@ export class HelpersPlugin extends MimirAgentPlugin {
 
 
     tools(): AgentTool[] {
-    //    let tools: AgentTool[] = [new LangchainToolToMimirTool(new TalkToHelper(this.helperSingleton, this.agentName))];
+        //    let tools: AgentTool[] = [new LangchainToolToMimirTool(new TalkToHelper(this.helperSingleton, this.agentName))];
         let tools: AgentTool[] = [new HelperTool(this.helperSingleton, this.agentName)];
         return tools;
     }

@@ -99,7 +99,7 @@ export type PluginContext = {
 
 export interface MimirPluginFactory {
     name: string;
-    create(context: PluginContext): MimirAgentPlugin
+    create(context: PluginContext): Promise<MimirAgentPlugin>
 }
 
 export type NextMessage = NextMessageUser | NextMessageToolResponse;

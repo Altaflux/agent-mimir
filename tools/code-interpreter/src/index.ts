@@ -16,7 +16,7 @@ export class CodeInterpreterPluginFactory implements MimirPluginFactory {
 
     name: string = "codeInterpreter";
 
-    create(context: PluginContext): MimirAgentPlugin {
+    async create(context: PluginContext): Promise<MimirAgentPlugin> {
         return new CodeInterpreterPlugin({ workSpace: context.workspace });
     }
 }

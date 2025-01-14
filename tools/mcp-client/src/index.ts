@@ -1,6 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StdioClientTransport, StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js";
 import {
     ListResourcesRequestSchema,
     ReadResourceRequestSchema,
@@ -22,15 +22,21 @@ const client = new Client({
     capabilities: {}
 });
 
-await client.connect(transport);
 
 
 client.listPrompts()
 
 export class McpClientPluginFactory implements MimirPluginFactory {
     name: string = "mcp-client";
-    create(context: PluginContext): MimirAgentPlugin {
+    constructor(private configs: Record<string, StdioServerParameters>) {
+
+    }
+    async create(context: PluginContext): Promise<MimirAgentPlugin> {
         throw new Error("Method not implemented.");
     }
+
+}
+
+export class McpPlugin extends MimirAgentPlugin {
 
 }

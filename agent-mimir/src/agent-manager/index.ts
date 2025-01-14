@@ -91,7 +91,7 @@ export class AgentManager {
         const toolPlugins: MimirPluginFactory[] = [...tools.map(tool => new LangchainToolWrapperPluginFactory(tool))];
         toolPlugins.push(new WorkspacePluginFactory());
         toolPlugins.push(new ViewPluginFactory());
-        const allCreatedPlugins = await Promise.all([...allPluginFactories, ...toolPlugins].map(async factory => factory.create({
+        const allCreatedPlugins = await Promise.all([...allPluginFactories, ...toolPlugins].map(async factory => await factory.create({
             workspace: workspace,
             agentName: shortName,
             persistenceDirectory: await workspace.pluginDirectory(factory.name),
@@ -772,7 +772,7 @@ class LangchainToolWrapperPluginFactory implements MimirPluginFactory {
     constructor(private tool: StructuredTool) {
         this.name = tool.name;
     }
-    create(context: PluginContext): MimirAgentPlugin {
+    async create(context: PluginContext): Promise<MimirAgentPlugin> {
         return new LangchainToolWrapper(this.tool);
     }
 }
