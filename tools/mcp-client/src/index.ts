@@ -248,7 +248,7 @@ class McpTool extends AgentTool {
 
   
        // this.schema = zod;
-        throw toolResponse;
+        return toolResponse;
     }
     schema = jsonSchemaToZod(this.mcpTool.inputSchema as JsonSchema) as z.ZodObject<any>;
     name = this.mcpTool.name;
