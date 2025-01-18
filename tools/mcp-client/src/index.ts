@@ -8,7 +8,7 @@ import {
     CallToolResultSchema,
     PromptMessage
 } from "@modelcontextprotocol/sdk/types.js";
-import { jsonSchemaToZod, JsonSchema,  } from "./json-schema-to-zod/index.js";
+import { jsonSchemaToZod, JsonSchema, } from "./json-schema-to-zod/index.js";
 import { AgentCommand, CommandContent, ToolResponse } from "agent-mimir/schema";
 import { AgentTool } from "agent-mimir/tools";
 import { MimirAgentPlugin, PluginContext, MimirPluginFactory, ComplexResponse, NextMessageUser, AdditionalContent } from "agent-mimir/schema";
@@ -17,57 +17,6 @@ import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { spawn } from "node:child_process";
 import process from "node:process";
 
-export default function runProcess() {
-    // *** Return the promise
-    return new Promise(function (resolve, reject) {
-
-        const args = ["-y", "@simonb97/server-win-cli"];
-        const processs = spawn('npx', args, {
-            env: process.env,
-            shell: false
-        });
-        processs.on('close', function (code) { // Should probably be 'exit', not 'close'
-            // *** Process completed
-            resolve(code);
-        });
-        processs.on('error', function (err) {
-            // *** Process creation failed
-            reject(err);
-        });
-    });
-}
-export const DEFAULT_INHERITED_ENV_VARS = process.platform === "win32"
-    ? [
-        "APPDATA",
-        "HOMEDRIVE",
-        "HOMEPATH",
-        "LOCALAPPDATA",
-        "PATH",
-        "PROCESSOR_ARCHITECTURE",
-        "SYSTEMDRIVE",
-        "SYSTEMROOT",
-        "TEMP",
-        "USERNAME",
-        "USERPROFILE",
-    ]
-    : /* list inspired by the default env inheritance of sudo */
-    ["HOME", "LOGNAME", "PATH", "SHELL", "TERM", "USER"];
-
-export function getDefaultEnvironment() {
-    const env: any = {};
-    for (const key of DEFAULT_INHERITED_ENV_VARS) {
-        const value = process.env[key];
-        if (value === undefined) {
-            continue;
-        }
-        if (value.startsWith("()")) {
-            // Skip functions, which are a security risk.
-            continue;
-        }
-        env[key] = value;
-    }
-    return env;
-}
 
 export class McpClientPluginFactory implements MimirPluginFactory {
     name: string = "mcp-client";
@@ -79,7 +28,7 @@ export class McpClientPluginFactory implements MimirPluginFactory {
             const config = this.configs[c];
             const transport = new StdioClientTransport(config);
             const client = new Client({
-                name: "example-client",
+                name: "agent-client",
                 version: "1.0.0",
             }, {
                 capabilities: {
@@ -87,18 +36,19 @@ export class McpClientPluginFactory implements MimirPluginFactory {
                     prompts: {}
                 }
             });
-
-            // await runProcess()
-
             await client.connect(transport);
 
-            const tools = await client.listTools();
-            let myZ = z.object({
-                fileName: z.string().describe("The name of the image file you want to see."),
-            });
-            const agentTools = tools.tools.map(tool => {
-                return new McpTool(client, tool);
-            });
+            let agentTools: AgentTool[] = [];
+
+            try {
+                const tools = await client.listTools();
+                agentTools = agentTools = tools.tools.map(tool => {
+                    return new McpTool(client, tool);
+                });
+            } catch (e) {
+
+            }
+
             let commands: AgentCommand[] = []
             try {
                 const prompts = await client.listPrompts();
@@ -231,23 +181,16 @@ export class McpPlugin extends MimirAgentPlugin {
 }
 
 class McpTool extends AgentTool {
-    //schema = this.mcpTool.
-
     constructor(private client: InstanceType<typeof Client>, private mcpTool: Awaited<ReturnType<InstanceType<typeof Client>["listTools"]>>["tools"][0]) {
         super()
-
-       // this.schema =  jsonSchemaToZod(this.mcpTool.inputSchema as any);
-       // console.log("sd")
     }
+
     protected async _call(arg: any, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
         let result = await this.client.callTool({
             name: this.mcpTool.name,
             arguments: arg
         });
         const toolResponse = convertToolToToolResponse(result as any);
-
-  
-       // this.schema = zod;
         return toolResponse;
     }
     schema = jsonSchemaToZod(this.mcpTool.inputSchema as JsonSchema) as z.ZodObject<any>;
