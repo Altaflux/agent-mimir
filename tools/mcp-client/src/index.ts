@@ -85,14 +85,22 @@ export class McpClientPluginFactory implements MimirPluginFactory {
             return prompts.prompts.map(prompt => ({
                 name: prompt.name,
                 description: prompt.description,
+                arguments: prompt.arguments?.map(args => {
+                    return {
+                        name: args.name,
+                        required: args.required ?? false,
+                        description: args.description
+                    }
+                }),
                 commandHandler: async (args) => {
+
                     const response = await client.getPrompt({
                         name: prompt.name,
                         arguments: args
                     });
                     return response.messages.map(ContentConverter.convertPromptMessagesToCommandContent);
                 }
-            } satisfies AgentCommand));
+            } satisfies AgentCommand));  
         } catch (error) {
             console.error(`Failed to list prompts for client ${clientName}:`, error);
             return [];

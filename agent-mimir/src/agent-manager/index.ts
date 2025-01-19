@@ -347,7 +347,7 @@ export class AgentManager {
                 callbackHook.callback = callback;
 
                 let commandHandler = commandList.find(ac => ac.name == command.name)!
-                let newMessages = await commandHandler.commandHandler(command);
+                let newMessages = await commandHandler.commandHandler(command.arguments ?? {});
                 let msgs = newMessages.map(mc => commandContentToBaseMessage(mc));
                 let graphInput: any = null;
                 graphInput = {

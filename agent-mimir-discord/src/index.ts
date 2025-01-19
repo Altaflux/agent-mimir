@@ -143,7 +143,7 @@ export const run = async () => {
     const agentCommands = mainAgent.commands.map(c => {
         const discordCommand = new SlashCommandBuilder().setName(c.name);
         if (c.description) {
-            discordCommand.setDescription(c.description);
+            discordCommand.setDescription((c.description.length > 90) ? c.description.slice(0, 90-1) + '&hellip;' : c.description);
         }
 
         (c.arguments ?? []).forEach(arg => {
@@ -151,7 +151,7 @@ export const run = async () => {
                 option.setName(arg.name);
                 option.setRequired(arg.required);
                 if (arg.description) {
-                    option.setDescription(arg.description);
+                    option.setDescription((arg.description.length > 90) ? arg.description.slice(0, 90-1) + '&hellip;' : arg.description);
                 }
                 return option
             })
