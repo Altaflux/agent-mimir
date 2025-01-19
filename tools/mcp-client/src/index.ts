@@ -16,18 +16,20 @@ interface PluginResult {
     tools: AgentTool[];
     prompts: AgentCommand[];
 }
-
+export type McpClientParameters = {
+    servers: Record<string, Transport>,
+}
 export class McpClientPluginFactory implements MimirPluginFactory {
     public readonly name: string = "mcp-client";
 
     constructor(
-        private readonly configs: Record<string, Transport>
+        private readonly config: McpClientParameters
     ) { }
 
     async create(context: PluginContext): Promise<MimirAgentPlugin> {
         try {
             const clientResults = await Promise.all(
-                Object.entries(this.configs).map(([clientName, config]) =>
+                Object.entries(this.config.servers).map(([clientName, config]) =>
                     this.initializeClient(clientName, config)
                 )
             );
