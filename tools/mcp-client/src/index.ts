@@ -1,6 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport, StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { CallToolResult, PromptMessage } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolResult, EmbeddedResource, ImageContent, PromptMessage, TextContent } from "@modelcontextprotocol/sdk/types.js";
 import { jsonSchemaToZod, JsonSchema } from "./json-schema-to-zod/index.js";
 import { AgentCommand, CommandContent, ToolResponse } from "agent-mimir/schema";
 import { AgentTool } from "agent-mimir/tools";
@@ -120,64 +120,42 @@ namespace ContentConverter {
         return "png";
     };
 
+    type McpContent = TextContent | ImageContent | EmbeddedResource;
+
+    function convertContent(content: McpContent) :ComplexResponse{
+        switch (content.type) {
+            case "text":
+                return {
+                    type: "text",
+                    text: content.text
+                } satisfies ComplexResponse;
+            case "image":
+                return {
+                    type: "image_url",
+                    image_url: {
+                        type: getImageType(content.mimeType),
+                        url: content.data
+                    }
+                } satisfies ComplexResponse;
+            case "resource":
+                return {
+                    type: "text",
+                    text: JSON.stringify(content.resource)
+                } satisfies ComplexResponse;
+            default:
+                throw new Error(`Unsupported content type: ${(content as { type: string }).type}`);
+        }
+    }
+
     /** Converts a tool response to the standard ToolResponse format */
     export function convertToolToToolResponse(response: CallToolResult): ToolResponse {
-        return response.content.map(content => {
-            switch (content.type) {
-                case "text":
-                    return {
-                        type: "text",
-                        text: content.text
-                    } satisfies ComplexResponse;
-                case "image":
-                    return {
-                        type: "image_url",
-                        image_url: {
-                            type: getImageType(content.mimeType),
-                            url: content.data
-                        }
-                    } satisfies ComplexResponse;
-                case "resource":
-                    return {
-                        type: "text",
-                        text: JSON.stringify(content.resource)
-                    } satisfies ComplexResponse;
-                default:
-                    throw new Error(`Unsupported content type: ${(content as { type: string }).type}`);
-            }
-        });
+        return response.content.map(content => convertContent(content));
     }
 
     /** Converts a prompt message to the standard CommandContent format */
     export function convertPromptMessagesToCommandContent(message: PromptMessage): CommandContent {
         const role = message.role === "assistant" ? "assistant" : "user";
-        
-        let content: ComplexResponse;
-        switch (message.content.type) {
-            case "text":
-                content = {
-                    type: "text",
-                    text: message.content.text
-                };
-                break;
-            case "image":
-                content = {
-                    type: "image_url",
-                    image_url: {
-                        type: getImageType(message.content.mimeType),
-                        url: message.content.data
-                    }
-                };
-                break;
-            case "resource":
-                content = {
-                    type: "text",
-                    text: JSON.stringify(message.content.resource)
-                };
-                break;
-            default:
-                throw new Error(`Unsupported content type: ${(message.content as { type: string }).type}`);
-        }
+        let content: ComplexResponse = convertContent(message.content);
 
         return {
             type: role,
