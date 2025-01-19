@@ -172,7 +172,34 @@ namespace ContentConverter {
             } satisfies CommandContent;
         });
 
-        return commandContents;
+        return packConsecutiveCommandContents(commandContents);
+    }
+
+    function packConsecutiveCommandContents(arr: CommandContent[]): CommandContent[] {
+        if (!arr.length) return [];
+
+        const packedCommandContent = arr.reduce((result, currentValue, index) => {
+            // If this is the first element or if the current value is different from the last group
+            if (index === 0 || currentValue.type !== arr[index - 1].type) {
+                result.push([currentValue]);
+            } else {
+                // Add the current value to the last group
+                result[result.length - 1].push(currentValue);
+            }
+            return result;
+        }, [] as CommandContent[][]);
+
+        return packedCommandContent.map(packed => {
+            return packed.reduce((result, currentValue) => {
+                return {
+                    type: result.type,
+                    content: [...result.content, ...currentValue.content]
+                }
+            }, {
+                type: packed[0].type,
+                content: []
+            })
+        })
     }
 }
 
