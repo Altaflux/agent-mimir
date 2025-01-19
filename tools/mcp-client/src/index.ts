@@ -1,5 +1,8 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport, StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js";
+export { StdioClientTransport, StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js";
+export { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+export { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/websocket.js";
+import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js"
 import { CallToolResult, EmbeddedResource, ImageContent, PromptMessage, TextContent } from "@modelcontextprotocol/sdk/types.js";
 import { jsonSchemaToZod, JsonSchema } from "./json-schema-to-zod/index.js";
 import { AgentCommand, CommandContent, ToolResponse } from "agent-mimir/schema";
@@ -18,7 +21,7 @@ export class McpClientPluginFactory implements MimirPluginFactory {
     public readonly name: string = "mcp-client";
 
     constructor(
-        private readonly configs: Record<string, StdioServerParameters>
+        private readonly configs: Record<string, Transport>
     ) { }
 
     async create(context: PluginContext): Promise<MimirAgentPlugin> {
@@ -37,8 +40,8 @@ export class McpClientPluginFactory implements MimirPluginFactory {
         }
     }
 
-    private async initializeClient(clientName: string, config: StdioServerParameters): Promise<PluginResult> {
-        const transport = new StdioClientTransport(config);
+    private async initializeClient(clientName: string, transport: Transport): Promise<PluginResult> {
+
         const client = new Client({
             name: "agent-client",
             version: "1.0.0",
