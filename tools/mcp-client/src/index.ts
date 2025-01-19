@@ -16,15 +16,15 @@ interface PluginResult {
 
 export class McpClientPluginFactory implements MimirPluginFactory {
     public readonly name: string = "mcp-client";
-    
+
     constructor(
         private readonly configs: Record<string, StdioServerParameters>
-    ) {}
+    ) { }
 
     async create(context: PluginContext): Promise<MimirAgentPlugin> {
         try {
             const clientResults = await Promise.all(
-                Object.entries(this.configs).map(([clientName, config]) => 
+                Object.entries(this.configs).map(([clientName, config]) =>
                     this.initializeClient(clientName, config)
                 )
             );
@@ -98,9 +98,9 @@ export class McpClientPluginFactory implements MimirPluginFactory {
                         name: prompt.name,
                         arguments: args
                     });
-                    return response.messages.map(ContentConverter.convertPromptMessagesToCommandContent);
+                    return ContentConverter.convertPromptMessagesToCommandContent(response.messages);
                 }
-            } satisfies AgentCommand));  
+            } satisfies AgentCommand));
         } catch (error) {
             console.error(`Failed to list prompts for client ${clientName}:`, error);
             return [];
@@ -130,7 +130,7 @@ namespace ContentConverter {
 
     type McpContent = TextContent | ImageContent | EmbeddedResource;
 
-    function convertContent(content: McpContent) :ComplexResponse{
+    function convertContent(content: McpContent): ComplexResponse {
         switch (content.type) {
             case "text":
                 return {
@@ -161,14 +161,18 @@ namespace ContentConverter {
     }
 
     /** Converts a prompt message to the standard CommandContent format */
-    export function convertPromptMessagesToCommandContent(message: PromptMessage): CommandContent {
-        const role = message.role === "assistant" ? "assistant" : "user";
-        let content: ComplexResponse = convertContent(message.content);
+    export function convertPromptMessagesToCommandContent(messages: PromptMessage[]): CommandContent[] {
+        const commandContents = messages.map(message => {
+            const role = message.role === "assistant" ? "assistant" : "user";
+            let content: ComplexResponse = convertContent(message.content);
 
-        return {
-            type: role,
-            content: [content]
-        } satisfies CommandContent;
+            return {
+                type: role,
+                content: [content]
+            } satisfies CommandContent;
+        });
+
+        return commandContents;
     }
 }
 
