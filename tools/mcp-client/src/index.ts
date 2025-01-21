@@ -104,7 +104,7 @@ export class McpClientPluginFactory implements MimirPluginFactory {
         try {
             const prompts = await client.listPrompts();
             return prompts.prompts.map(prompt => ({
-                name: prompt.name,
+                name: `${clientName}-${prompt.name}`,
                 description: prompt.description,
                 arguments: prompt.arguments?.map(args => {
                     return {
@@ -280,7 +280,7 @@ export class McpPlugin extends MimirAgentPlugin {
             }).join("\n");
             return `- ${serverInformation} with resources:\n${resourceTemplate}\n`;
         }).join("\n");
-        
+
         if (resourcesTemplate.trim().length > 0) {
             return {
                 content: [
