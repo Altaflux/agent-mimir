@@ -32,7 +32,7 @@ export class McpClientPluginFactory implements MimirPluginFactory {
     async create(context: PluginContext): Promise<MimirAgentPlugin> {
         try {
             const clientResults = await Promise.all(
-                Object.entries(this.config.servers).map(async ([clientName, config]) =>{
+                Object.entries(this.config.servers).map(async ([clientName, config]) => {
                     const init = await this.initializeClient(clientName, config.transport);
                     return {
                         clientName: clientName,
@@ -239,13 +239,22 @@ export class McpResourceTool extends AgentTool {
     }
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
         let client = this.clients.find(c => c.clientName === arg.mcpServer)!;
-        const resource = await client.client.readResource({
-            uri: arg.resourceURI
-        });
-        const response: ComplexResponse[] = resource.contents.map(c => {
-            return ContentConverter.convertEmbeddedResourceToComplexResponse(c);
-        })
-        return response;
+        try {
+            const resource = await client.client.readResource({
+                uri: arg.resourceURI
+            });
+            if (!resource || resource.contents.length === 0) {
+                return [{ type: "text", text: `No content found for resource ${arg.resourceURI}` }];
+            }
+            const response: ComplexResponse[] = resource.contents.map(c => {
+                return ContentConverter.convertEmbeddedResourceToComplexResponse(c);
+            })
+            return response;
+        } catch (err) {
+            console.error(`Failed to read resource from ${arg.mcpServer}:`, err);
+            return [{ type: "text", text: `Failed to read resource from ${arg.mcpServer}: ${err}` }];
+        }
+
     }
 
     name: string = "fetch-mcp-resource";
