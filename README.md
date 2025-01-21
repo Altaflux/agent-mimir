@@ -122,7 +122,6 @@ module.exports = async function() {
                 description: 'An assistant', //A description of the agent and how to talk to it.
                 definition: {
                     chatModel: chatModel, //The main chat LLM used for conversation and memory.
-                    agentType: 'openai-function-agent', //Use "plain-text-agent" for general LLM, you can use "openai-function-agent" if your chat model is gpt-4-0613 or gpt-3.5-turbo-0613 for improved reliability. 
                     profession: 'an Assistant', //The profession assigned to the agent.
                     communicationWhitelist: ['MR_CHEF'], //The list of agents it is allowed to talk to.
                     chatHistory: {
@@ -163,6 +162,53 @@ If you would like to add additional nodejs dependencies to the project to use cu
 Take a look at LangchainJS documentation for how to use their tools: https://js.langchain.com/docs/modules/agents/tools/
 
 Here is a list of useful and easy to install tools you can try:
+
+
+### MCP Servers Plugin:
+We have support for Claude's MCP (Model Context Protocol) servers which enable the use of any available server implementation. From the MCP specification we currently support Tools, Prompts and Resources.
+
+`package.json`
+```json
+{
+    "name": "agent-mimir-deps",
+    "private": false,
+    "scripts": {},
+    "dependencies": {
+        "@agent-mimir/mcp-client": "*"
+    }
+}
+```
+`mimir-cfg.js`
+```javascript
+
+    const model = new ChatOpenAI({
+        openAIApiKey: process.env.OPENAI_API_KEY,
+        temperature: 0.0,
+    });
+    const embeddings = new OpenAIEmbeddings({
+        openAIApiKey: process.env.OPENAI_API_KEY,
+    });
+
+    module.exports = async function() {
+        const McpClientPluginFactory = (await import('@agent-mimir/mcp-client')).McpClientPluginFactory;
+        const StdioClientTransport = (await import('@agent-mimir/mcp-client')).StdioClientTransport;
+        //...
+        //Add to plugins:
+        plugins: [
+            new McpClientPluginFactory({
+                servers: {
+                    "sqlite": {
+                        description: "Query a music store's SQLite database.", //Add a custom description about the mcp server that helps the agent better understand it's use case.
+                        transport: new StdioClientTransport({
+                            "command": "docker",
+                            "args": ["run", "-i", "--rm", "-v", "C:/AI:/mcp", "mcp/sqlite", "--db-path", "/mcp/chinook.db"]
+                        })
+                    },
+                }
+            }),
+        ],
+    }
+```
 
 ### Code Interpreter Plugin:
 The Code Interpreter plugin allows the agent to run Python 3 scripts directly in your machine. The interpreter can access resources inside your computer. The interpreter will automatically install any dependencies the script requires to run.
