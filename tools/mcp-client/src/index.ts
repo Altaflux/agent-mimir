@@ -279,7 +279,7 @@ export class McpPlugin extends MimirAgentPlugin {
                 return `-- Resource Name: "${r.name}" Resource URI: "${r.uri}" ${description} ${mimeType}`;
             }).join("\n");
             return `- ${serverInformation} with resources:\n${resourceTemplate}\n`;
-        }))).join("\n");
+        }))).join("\n\n");
 
         if (resourcesTemplate.trim().length > 0) {
             return {
