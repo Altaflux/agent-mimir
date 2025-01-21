@@ -1,5 +1,5 @@
 import { AgentManager } from "agent-mimir/agent-manager"
-import { Agent, AgentUserMessageResponse, FILES_TO_SEND_FIELD, MimirPluginFactory } from "agent-mimir/schema";
+import { Agent, AgentResponse, AgentUserMessageResponse, FILES_TO_SEND_FIELD, FunctionResponseCallBack, MimirPluginFactory } from "agent-mimir/schema";
 import chalk from "chalk";
 import { Tool } from "@langchain/core/tools";
 
@@ -7,7 +7,7 @@ import { promises as fs } from 'fs';
 import normalFs from 'fs';
 import os from 'os';
 import path from "path";
-import { ChannelType, Client, GatewayIntentBits, Partials, REST, Routes, Events, Message } from 'discord.js';
+import { ChannelType, Client, GatewayIntentBits, Partials, REST, Routes, Events, Message, Interaction, CacheType, ChatInputCommandInteraction } from 'discord.js';
 import { Readable } from "stream";
 import { finished } from "stream/promises";
 import { SlashCommandBuilder } from "discord.js";
@@ -140,7 +140,26 @@ export const run = async () => {
     const resetCommand = new SlashCommandBuilder().setName('reset')
         .setDescription('Resets the agent to a clean state.');
 
-    const commands = [resetCommand];
+    const agentCommands = mainAgent.commands.map(c => {
+        const discordCommand = new SlashCommandBuilder().setName(c.name);
+        if (c.description) {
+            discordCommand.setDescription((c.description.length > 90) ? c.description.slice(0, 90-1) + '&hellip;' : c.description);
+        }
+
+        (c.arguments ?? []).forEach(arg => {
+            discordCommand.addStringOption(option => {
+                option.setName(arg.name);
+                option.setRequired(arg.required);
+                if (arg.description) {
+                    option.setDescription((arg.description.length > 90) ? arg.description.slice(0, 90-1) + '&hellip;' : arg.description);
+                }
+                return option
+            })
+        })
+        return discordCommand;
+    })
+
+    const commands = [resetCommand, ...agentCommands];
 
 
     client.on('ready', async () => {
@@ -161,6 +180,7 @@ export const run = async () => {
     client.on(Events.InteractionCreate, async interaction => {
         if (!interaction.isChatInputCommand()) return;
         await interaction.deferReply();
+
         if (interaction.commandName === 'reset') {
             try {
                 for (const agent of agents) {
@@ -172,132 +192,145 @@ export const run = async () => {
             }
             await interaction.editReply('The agents have been reset!');
         }
-        if (interaction.commandName === 'image') {
-            await interaction.editReply('Success!');
+
+        if (mainAgent.commands.map(c => c.name).includes(interaction.commandName)) {
+            let commandArguments = interaction.options.data.reduce((l, r) => {
+                return {
+                    ...l,
+                    [r.name]: r.value
+                }
+            }, {})
+            const agentInvoke: AgentInvoke = async (agent, callback) => {
+                return await agent.handleCommand({
+                    name: interaction.commandName,
+                    arguments: commandArguments
+                }, callback)
+            }
+
+            messageHandler(agentInvoke, async (message, attachments?: string[]) => {
+                await sendDiscordResponseFromCommand(interaction, message, attachments);
+            })
         }
 
 
     });
-    const messageHandler = async (msg: Message<boolean>) => {
-        if (msg.author.bot) return;
+    const messageHandler = async (msg: AgentInvoke, sendResponse: SendResponse) => {
 
-        if (msg.channel.type !== ChannelType.DM && !msg.mentions.has(client.user!)) {
-            return;
-        }
-
-        await msg.channel.sendTyping();
-        const typing = setInterval(() => msg.channel.sendTyping(), 5000);
-        const loadedFiles = await Promise.all(msg.attachments.map(async (attachment) => {
-            const response = await downloadFile(attachment.name, attachment.url);
-            return {
-                fileName: attachment.name,
-                url: response
-            }
-        }));
         let currentAgent = mainAgent;
-        const messageToAi = msg.cleanContent.replaceAll(`@${client.user!.username}`, "").trim();
         let pendingMessage: PendingMessage | undefined = undefined;
         const agentStack: Agent[] = [];
-        try {
-            mainLoop: while (true) {
 
-                const handleMessage = async (chainResponse: AgentUserMessageResponse, agentStack: Agent[]): Promise<{ conversationComplete: boolean, currentAgent: Agent, pendingMessage: PendingMessage | undefined }> => {
-                    if (chainResponse.output.agentName) {
+        mainLoop: while (true) {
 
-                        const discordMessage = `\`${currentAgent.name}\` is sending a message to \`${chainResponse.output.agentName}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
-                            `\nFiles provided: ${chainResponse.output.sharedFiles?.map(f => `\`${f.fileName}\``).join(", ") || "None"}`;
-                        await sendDiscordResponse(msg, discordMessage);
-                        const newAgent = agentManager.getAgent(chainResponse.output.agentName);
-                        if (!newAgent) {
-                            return {
-                                conversationComplete: false,
-                                currentAgent: currentAgent,
-                                pendingMessage: {
-                                    message: "No agent found with that name.",
-                                    sharedFiles: []
-                                }
-                            }
-                        }
-                        agentStack.push(currentAgent);
+            const handleMessage = async (chainResponse: AgentUserMessageResponse, agentStack: Agent[]): Promise<{ conversationComplete: boolean, currentAgent: Agent, pendingMessage: PendingMessage | undefined }> => {
+                if (chainResponse.output.agentName) {
+
+                    const discordMessage = `\`${currentAgent.name}\` is sending a message to \`${chainResponse.output.agentName}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
+                        `\nFiles provided: ${chainResponse.output.sharedFiles?.map(f => `\`${f.fileName}\``).join(", ") || "None"}`;
+                    await sendResponse(discordMessage);
+                    const newAgent = agentManager.getAgent(chainResponse.output.agentName);
+                    if (!newAgent) {
                         return {
                             conversationComplete: false,
-                            currentAgent: newAgent,
-                            pendingMessage: chainResponse.output
-                        }
-                    } else {
-                        const isFinalUser = agentStack.length === 0;
-                        if (!isFinalUser) {
-                            const discordMessage = `\`${currentAgent.name}\` is replying back to \`${agentStack[agentStack.length - 1].name}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
-                                `\nFiles provided: ${chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f:any) => `\`${f.fileName}\``).join(", ") || "None"}`;
-                            await sendDiscordResponse(msg, discordMessage);
-                        } else {
-                            await sendDiscordResponse(msg, chainResponse.output.message, chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f:any) => f.url));
-                        }
-                        return {
-                            conversationComplete: isFinalUser,
-                            currentAgent: isFinalUser ? currentAgent : agentStack.pop()!,
+                            currentAgent: currentAgent,
                             pendingMessage: {
-                                message: isFinalUser ? chainResponse.output.message : `${currentAgent.name} responded with: ${chainResponse.output.message}`,
-                                sharedFiles: chainResponse.responseAttributes[FILES_TO_SEND_FIELD]
+                                message: "No agent found with that name.",
+                                sharedFiles: []
                             }
+                        }
+                    }
+                    agentStack.push(currentAgent);
+                    return {
+                        conversationComplete: false,
+                        currentAgent: newAgent,
+                        pendingMessage: chainResponse.output
+                    }
+                } else {
+                    const isFinalUser = agentStack.length === 0;
+                    if (!isFinalUser) {
+                        const discordMessage = `\`${currentAgent.name}\` is replying back to \`${agentStack[agentStack.length - 1].name}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
+                            `\nFiles provided: ${chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
+                        await sendResponse(discordMessage);
+                    } else {
+                        await sendResponse(chainResponse.output.message, chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.url));
+                    }
+                    return {
+                        conversationComplete: isFinalUser,
+                        currentAgent: isFinalUser ? currentAgent : agentStack.pop()!,
+                        pendingMessage: {
+                            message: isFinalUser ? chainResponse.output.message : `${currentAgent.name} responded with: ${chainResponse.output.message}`,
+                            sharedFiles: chainResponse.responseAttributes[FILES_TO_SEND_FIELD]
                         }
                     }
                 }
+            }
+            let toolCallback: FunctionResponseCallBack = async (calls) => {
+                for (const call of calls) {
+                    const toolResponse = `Agent: \`${currentAgent.name}\` \n${call.message} \n---\nCalled function: \`${call.name}\` \nInvoked with input: \n\`\`\`${call.input}\`\`\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
+                    await sendResponse(toolResponse);
+                }
 
-                let messasgeToSend: PendingMessage = pendingMessage ? {
-                    message: pendingMessage.message,
-                    sharedFiles: pendingMessage.sharedFiles
-                } : { message: messageToAi, sharedFiles: loadedFiles };
+            };
 
-                let chainResponse = await Retry(() => currentAgent.call(false, messasgeToSend.message, { [FILES_TO_SEND_FIELD]: messasgeToSend.sharedFiles }, async (calls) => {
-                    for (const call of calls ) {
-                        const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${call.name}\` \nInvoked with input: \n\`\`\`${call.input}\`\`\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
-                        await sendDiscordResponse(msg, toolResponse);
-                    }
-           
-                }));
+            let chainResponse = pendingMessage
+                ? await currentAgent.call(pendingMessage.message, { [FILES_TO_SEND_FIELD]: pendingMessage.sharedFiles }, toolCallback)
+                : await msg(currentAgent, toolCallback);
+
+
+            if (chainResponse.type == "agentResponse") {
+                const routedMessage = await handleMessage(chainResponse, agentStack);
+                currentAgent = routedMessage.currentAgent;
+                pendingMessage = routedMessage.pendingMessage;
+                if (routedMessage.conversationComplete) {
+                    break mainLoop;
+                }
+            }
+            while (chainResponse.type == "toolRequest") {
+                chainResponse = await Retry(() => currentAgent.call(null, {}, toolCallback));
                 if (chainResponse.type == "agentResponse") {
                     const routedMessage = await handleMessage(chainResponse, agentStack);
                     currentAgent = routedMessage.currentAgent;
                     pendingMessage = routedMessage.pendingMessage;
+
                     if (routedMessage.conversationComplete) {
                         break mainLoop;
                     }
                 }
-                while (chainResponse.type == "toolRequest") {
-                    chainResponse = await Retry(() => currentAgent.call(false, null, {}, async (calls) => {
-                        for (const call of calls ) {
-                            const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${call.name}\` \nInvoked with input: \n\`\`\`${call.input}\`\`\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
-                            await sendDiscordResponse(msg, toolResponse);
-                        }
-                        // const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${name}\` \nInvoked with input: \n\`\`\`${input}\`\`\` \nResponded with: \n\`\`\`${functionResponse.substring(0, 3000)}\`\`\``;
-                        // await sendDiscordResponse(msg, toolResponse);
-                    }));
-                    if (chainResponse.type == "agentResponse") {
-                        const routedMessage = await handleMessage(chainResponse, agentStack);
-                        currentAgent = routedMessage.currentAgent;
-                        pendingMessage = routedMessage.pendingMessage;
-
-                        if (routedMessage.conversationComplete) {
-                            break mainLoop;
-                        }
-                    }
-                }
             }
-
-        } finally {
-            clearInterval(typing);
         }
-
     }
     client.on(Events.MessageCreate, async msg => {
+        const typing = setInterval(() => msg.channel.sendTyping(), 5000);
         try {
-            messageHandler(msg);
+
+            const agentInvoke: AgentInvoke = async (agent: Agent, callback) => {
+                const messageToAi = msg.cleanContent.replaceAll(`@${client.user!.username}`, "").trim();
+                const loadedFiles = await Promise.all(msg.attachments.map(async (attachment) => {
+                    const response = await downloadFile(attachment.name, attachment.url);
+                    return {
+                        fileName: attachment.name,
+                        url: response
+                    }
+                }));
+                const messageToSend = { message: messageToAi, sharedFiles: loadedFiles };
+                return await agent.call(messageToSend.message, { [FILES_TO_SEND_FIELD]: messageToSend.sharedFiles }, callback)
+            }
+
+            if (msg.author.bot) return;
+
+            if (msg.channel.type !== ChannelType.DM && !msg.mentions.has(client.user!)) {
+                return;
+            }
+            messageHandler(agentInvoke, async (message: string, attachments?: string[]) => {
+                await sendDiscordResponse(msg, message, attachments);
+            });
         } catch (e) {
             console.error("An error occured while processing a message.", e)
             await msg.reply({
                 content: "An error occured while processing your message.\n" + e,
             });
+        } finally {
+            clearInterval(typing);
         }
     });
 
@@ -313,12 +346,25 @@ type PendingMessage = {
     }[],
     message: string;
 }
+type AgentInvoke = (agent: Agent, callback?: FunctionResponseCallBack) => Promise<AgentResponse>;
+type SendResponse = (message: string, attachments?: string[]) => Promise<void>
 
 async function sendDiscordResponse(msg: Message<boolean>, message: string, attachments?: string[]) {
     const chunks = splitStringInChunks(message);
     for (let i = 0; i < chunks.length; i++) {
         const files = (i === chunks.length - 1) ? (attachments ?? []) : [];
         await msg.reply({
+            content: chunks[i],
+            files: files
+        });
+    }
+}
+
+async function sendDiscordResponseFromCommand(msg: ChatInputCommandInteraction<CacheType>, message: string, attachments?: string[]) {
+    const chunks = splitStringInChunks(message);
+    for (let i = 0; i < chunks.length; i++) {
+        const files = (i === chunks.length - 1) ? (attachments ?? []) : [];
+        await msg.editReply({
             content: chunks[i],
             files: files
         });

@@ -33,8 +33,10 @@ export type AttributeDescriptor = {
 export type Agent = {
     name: string,
     description: string,
-    call: <T extends boolean>(continuousMode: T, message: string | null, input: Record<string, any>, callback?: FunctionResponseCallBack) => T extends true ? Promise<AgentUserMessageResponse> : Promise<AgentResponse>,
+    call: (message: string | null, input: Record<string, any>, callback?: FunctionResponseCallBack) =>  Promise<AgentResponse>,
+    handleCommand: (command: CommandRequest, callback?: FunctionResponseCallBack) => Promise<AgentResponse>,
     workspace: AgentWorkspace,
+    commands: AgentCommand[],
     reset: () => Promise<void>,
 };
 
@@ -50,28 +52,6 @@ export type AgentUserMessageResponse = {
     responseAttributes:Record<string, any>
 }
 export type AgentResponse = AgentToolRequestResponse | AgentUserMessageResponse;
-// export class AgentToolRequestResponse implements AgentResponse {
-//     constructor(public output: AgentToolRequest, public responseAttributes:Record<string, any>) { }
-//     toolStep(): this is AgentToolRequestResponse {
-//         return true;
-//     }
-//     agentResponse(): this is AgentUserMessageResponse {
-//         return false;
-//     }
-// }
-// export class AgentUserMessageResponse implements AgentResponse {
-//     constructor(public output: AgentUserMessage, public responseAttributes:Record<string, any>) { }
-//     toolStep(): this is AgentToolRequestResponse {
-//         return false;
-//     }
-//     agentResponse(): this is AgentUserMessageResponse {
-//         return true;
-//     }
-// }
-// export interface AgentResponse {
-//     toolStep(): this is AgentToolRequestResponse,
-//     agentResponse(): this is AgentUserMessageResponse,
-// }
 
 export type AgentWorkspace = {
     listFiles(): Promise<string[]>,
@@ -82,6 +62,21 @@ export type AgentWorkspace = {
     pluginDirectory(pluginName: string): Promise<string>,
     workingDirectory: string,
     rootDirectory: string,
+}
+
+export type AgentCommand = {
+    name: string,
+    description?: string,
+    commandHandler: (args: Record<string, any>) => Promise<CommandContent[]>,
+    arguments?: {
+        name: string,
+        description?: string,
+        required: boolean
+    }[]
+}
+export type CommandRequest = {
+    name: string,
+    arguments?: Record<string, any>
 }
 
 export type WorkspaceManagerFactory = (workkDirectory: string) => Promise<AgentWorkspace>;
@@ -104,7 +99,7 @@ export type PluginContext = {
 
 export interface MimirPluginFactory {
     name: string;
-    create(context: PluginContext): MimirAgentPlugin
+    create(context: PluginContext): Promise<MimirAgentPlugin>
 }
 
 export type NextMessage = NextMessageUser | NextMessageToolResponse;
@@ -183,6 +178,18 @@ export abstract class MimirAgentPlugin {
     tools(): Promise<(AgentTool)[]> | (AgentTool)[] {
         return [];
     }
+
+    async getCommands(): Promise<AgentCommand[]> {
+        return [];
+    }
+}
+
+export type CommandContent = {
+    type: "user",
+    content: ComplexResponse[]
+} | {
+    type: "assistant",
+    content: ComplexResponse[]
 }
 
 export type AgentUserMessage = {
@@ -196,7 +203,7 @@ export type AgentUserMessage = {
 
 export type AgentToolRequest = { message: string | null, toolRequests: {toolName: string, toolArguments: string}[] }
 
-export type FunctionResponseCallBack = (toolCalls: {name: string, input: string, response: string}[]) => Promise<void>;
+export type FunctionResponseCallBack = (toolCalls: {name: string, message: string, input: string, response: string}[]) => Promise<void>;
 
 export type AgentSystemMessage = {
     content: ComplexResponse[]

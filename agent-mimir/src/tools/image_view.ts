@@ -4,7 +4,7 @@ import { AgentTool } from "./index.js";
 
 export class ViewPluginFactory implements MimirPluginFactory {
     name: string = "viewImages";
-    create(context: PluginContext): MimirAgentPlugin {
+    async create(context: PluginContext): Promise<MimirAgentPlugin> {
         return new ViewPlugin(context);
     }
 

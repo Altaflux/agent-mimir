@@ -38,7 +38,7 @@ export class DesktopControlPluginFactory implements MimirPluginFactory {
 
     }
 
-    create(context: PluginContext): MimirAgentPlugin {
+    async create(context: PluginContext): Promise<MimirAgentPlugin> {
         return new DesktopControlPlugin(context, this.options);
     }
 }

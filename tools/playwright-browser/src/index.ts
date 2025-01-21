@@ -23,7 +23,7 @@ export class WebBrowserPluginFactory implements MimirPluginFactory {
     constructor(private config: WebBrowserOptions, private model: BaseLanguageModel, private embeddings: Embeddings) {
     }
 
-    create(context: PluginContext): MimirAgentPlugin {
+    async create(context: PluginContext): Promise<MimirAgentPlugin> {
         return new WebBrowserPlugin(this.config, this.model, this.embeddings, context);
     }
 

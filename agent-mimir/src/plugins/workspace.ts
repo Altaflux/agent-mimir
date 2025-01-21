@@ -5,7 +5,7 @@ export class WorkspacePluginFactory implements MimirPluginFactory {
 
     name: string = "workspace";
 
-    create(context: PluginContext): MimirAgentPlugin {
+    async create(context: PluginContext): Promise<MimirAgentPlugin> {
         return new WorkspacePlugin(context.workspace);
     }
 }

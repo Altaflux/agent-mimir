@@ -4,7 +4,7 @@ export class TimePluginFactory implements MimirPluginFactory {
 
     name: string = "time";
 
-    create(context: PluginContext): MimirAgentPlugin {
+    async create(context: PluginContext): Promise<MimirAgentPlugin> {
         return new TimePlugin();
     }
 

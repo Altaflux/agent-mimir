@@ -43,7 +43,7 @@ export class ResponseFieldMapper<T = any> {
             .map(t => t.text)
             .reduce((prev, next) => {
                 return prev + next;
-            });
+            }, "");
 
         const userMessage = extractImportantText(response, USER_RESPONSE);
       

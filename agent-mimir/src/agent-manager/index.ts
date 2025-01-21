@@ -1,18 +1,16 @@
-import { StructuredTool, tool, Tool } from "@langchain/core/tools";
-import { AdditionalContent, Agent, AgentContext, AgentSystemMessage, AgentToolRequest, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, ComplexResponse, FunctionResponseCallBack, MimirAgentPlugin, MimirPluginFactory, NextMessageToolResponse, NextMessageUser, PluginContext, ToolResponse, WorkspaceManagerFactory } from "../schema.js";
+import { StructuredTool, Tool } from "@langchain/core/tools";
+import { Agent, AgentSystemMessage, AgentToolRequest, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, CommandContent, ComplexResponse, FunctionResponseCallBack, MimirAgentPlugin, MimirPluginFactory, NextMessageToolResponse, NextMessageUser, PluginContext, WorkspaceManagerFactory } from "../schema.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { Embeddings } from "@langchain/core/embeddings";
 import { END, MessagesAnnotation, START, StateGraph, interrupt, Command, messagesStateReducer, Send } from "@langchain/langgraph";
 import { AIMessage, AIMessageChunk, BaseMessage, HumanMessage, isAIMessage, isHumanMessage, isToolMessage, MessageContent, MessageContentComplex, MessageContentImageUrl, MessageContentText, RemoveMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
-import { z } from "zod";
 import { aiMessageToMimirAiMessage, complexResponseToLangchainMessageContent } from "../utils/format.js";
 import { v4 } from "uuid";
 import { Annotation } from "@langchain/langgraph";
 import { AgentTool } from "../tools/index.js";
 import { LangchainToolToMimirTool, MimirToolToLangchainTool } from "../utils/wrapper.js";
 import { ResponseFieldMapper } from "../utils/instruction-mapper.js";
-import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { HelpersPluginFactory } from "../plugins/helpers.js";
 import { ViewPluginFactory } from "../tools/image_view.js";
 import { WorkspacePluginFactory } from "../plugins/workspace.js";
@@ -91,7 +89,7 @@ export class AgentManager {
         const toolPlugins: MimirPluginFactory[] = [...tools.map(tool => new LangchainToolWrapperPluginFactory(tool))];
         toolPlugins.push(new WorkspacePluginFactory());
         toolPlugins.push(new ViewPluginFactory());
-        const allCreatedPlugins = await Promise.all([...allPluginFactories, ...toolPlugins].map(async factory => factory.create({
+        const allCreatedPlugins = await Promise.all([...allPluginFactories, ...toolPlugins].map(async factory => await factory.create({
             workspace: workspace,
             agentName: shortName,
             persistenceDirectory: await workspace.pluginDirectory(factory.name),
@@ -99,12 +97,7 @@ export class AgentManager {
 
 
         const allTools = (await Promise.all(allCreatedPlugins.map(async plugin => await plugin.tools()))).flat();
-        // if (config.name === "WeatherChecker") {
-        //     allTools.push(new WeatherTool())
-        // }
         const langChainTools = allTools.map(t => new MimirToolToLangchainTool(t));
-
-
 
         const modelWithTools = model.bindTools!(langChainTools);
 
@@ -303,6 +296,19 @@ export class AgentManager {
         for (const plugin of allCreatedPlugins) {
             await plugin.init();
         }
+
+        const agentCommands = (await Promise.all(
+            allCreatedPlugins.map(async (plugin) => {
+
+                return {
+                    commands: await plugin.getCommands(),
+                    plugin: plugin
+                }
+            })
+        ));
+
+        const commandList = agentCommands.map(ac => ac.commands).flat();
+
         const memory = SqliteSaver.fromConnString(workspace.rootDirectory + "/agent-chat.db");
 
         let stateConfig = {
@@ -327,9 +333,58 @@ export class AgentManager {
         return {
             name: shortName,
             description: config.description,
+            commands: commandList,
             workspace: workspace,
             reset: reset,
-            call: async (continuousMode, message, input, callback) => {
+            handleCommand: async (command, callback) => {
+                callbackHook.callback = callback;
+
+                let commandHandler = commandList.find(ac => ac.name == command.name)!
+                let newMessages = await commandHandler.commandHandler(command.arguments ?? {});
+                let msgs = newMessages.map(mc => commandContentToBaseMessage(mc));
+                let graphInput: any = null;
+                graphInput = {
+                    messages: msgs,
+                    requestAttributes: {},
+                    responseAttributes: {}
+                };
+
+
+                while (true) {
+                    let stream = await graph.stream(graphInput, stateConfig);
+                    for await (const event of stream) {
+
+                    }
+
+                    const state = await graph.getState(stateConfig);
+
+                    const responseAttributes: Record<string, any> = state.values["responseAttributes"];
+                    if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
+                        const interruptState = state.tasks[0].interrupts[0];
+                        return {
+                            type: "toolRequest",
+                            output: interruptState.value as AgentToolRequest,
+                            responseAttributes: responseAttributes
+                        } as any
+
+                    }
+
+                    if (state.tasks.length > 0 && state.tasks[0].name === "agent_call") {
+                        const interruptState = state.tasks[0].interrupts[0];
+                        return interruptState.value as AgentUserMessageResponse
+
+                    }
+
+                    let userResponse = (state.values["output"] as AgentUserMessage);
+                    return {
+                        type: "agentResponse",
+                        output: userResponse,
+                        responseAttributes: responseAttributes
+                    } as AgentUserMessageResponse
+                }
+
+            },
+            call: async (message, input, callback) => {
 
                 callbackHook.callback = callback;
                 let graphInput: any = null;
@@ -371,22 +426,14 @@ export class AgentManager {
 
                     const state = await graph.getState(stateConfig);
 
-                    const baseMessages: BaseMessage[] = state.values["messages"];
-
                     const responseAttributes: Record<string, any> = state.values["responseAttributes"];
                     if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
-                        if (continuousMode) {
-                            graphInput = new Command({ resume: { action: "continue" } })
-                            continue
-                        } else {
-                            const interruptState = state.tasks[0].interrupts[0];
-                            return {
-                                type: "toolRequest",
-                                output: interruptState.value as AgentToolRequest,
-                                responseAttributes: responseAttributes
-                            } as any
-                        }
-
+                        const interruptState = state.tasks[0].interrupts[0];
+                        return {
+                            type: "toolRequest",
+                            output: interruptState.value as AgentToolRequest,
+                            responseAttributes: responseAttributes
+                        } as any
                     }
 
                     if (state.tasks.length > 0 && state.tasks[0].name === "agent_call") {
@@ -422,6 +469,24 @@ function takeWhile<T>(a: T[], predicate: (a: T) => boolean) {
 
 function trimStringToMaxWithEllipsis(str: string, max: number) {
     return str.length > max ? str.substring(0, max) + "..." : str;
+}
+
+
+function commandContentToBaseMessage(commandContent: CommandContent) {
+
+    if (commandContent.type === "assistant") {
+        return new AIMessage({
+            id: v4(),
+            content: complexResponseToLangchainMessageContent(commandContent.content)
+        })
+    } else if (commandContent.type === "user") {
+        return new HumanMessage({
+            id: v4(),
+            content: complexResponseToLangchainMessageContent(commandContent.content)
+        })
+    }
+    throw new Error("Unreacable");
+
 }
 
 async function addAdditionalContentToUserMessage(message: NextMessageUser, plugins: MimirAgentPlugin[], state: typeof StateAnnotation.State) {
@@ -513,6 +578,7 @@ function invokeToolCallback(messages: BaseMessage[], callback: FunctionResponseC
             let toolCalls = lastAiMessage.tool_calls ?? [];
             let toc = toolCalls.find(tc => tc.id === t.tool_call_id)!;
             return {
+                message: parseUserMessage(lastAiMessage, {}).message,
                 input: trimStringToMaxWithEllipsis(JSON.stringify(toc.args), 400),
                 name: toc.name,
                 response: trimStringToMaxWithEllipsis(JSON.stringify(t.content), 400)
@@ -616,83 +682,6 @@ function buildSystemMessage(agentSystemMessages: AgentSystemMessage[]) {
     return finalMessage;
 }
 
-
-
-export class WeatherPlugin extends MimirAgentPlugin {
-
-    async additionalMessageContent(message: NextMessageUser, context: AgentContext): Promise<AdditionalContent[]> {
-        return [
-            {
-                displayOnCurrentMessage: false,
-                saveToChatHistory: true,
-                content: [
-
-                    {
-                        type: "text",
-                        text: "+++"
-                    }
-                ]
-            },
-            {
-                displayOnCurrentMessage: true,
-                saveToChatHistory: false,
-                content: [
-
-                    {
-                        type: "text",
-                        text: "---"
-                    }
-                ]
-            }
-        ];
-    }
-    tools(): Promise<(AgentTool)[]> | (AgentTool)[] {
-        const getWeather = tool((input) => {
-            const city = input.city;
-            console.log("----");
-            console.log(`Searching for: ${city}`);
-            console.log("----");
-            let response: MessageContentComplex[] = [
-                {
-                    type: "text",
-                    text: "Sunny!"
-                }
-            ];
-            return response;
-        }, {
-            name: "get_weather",
-            description: "Call to get the current weather.",
-            schema: z.object({
-                city: z.string().describe("City to get the weather for."),
-            }),
-        });
-
-        return [new WeatherTool()]
-    }
-
-}
-
-class WeatherTool extends AgentTool {
-    schema = z.object({
-        city: z.string().describe("City to get the weather for."),
-    });
-    protected async _call(input: any, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
-        console.log("----");
-        console.log(`Searching for: ${input.city}`);
-        console.log("----");
-        return [
-            {
-                type: "text",
-                text: "It is rainy today!"
-            }
-        ]
-    }
-    name: string = "get_weather";
-    description: string = "Call to get the current weather.";
-
-}
-
-
 class LangchainToolWrapperPluginFactory implements MimirPluginFactory {
 
     name: string;
@@ -700,7 +689,7 @@ class LangchainToolWrapperPluginFactory implements MimirPluginFactory {
     constructor(private tool: StructuredTool) {
         this.name = tool.name;
     }
-    create(context: PluginContext): MimirAgentPlugin {
+    async create(context: PluginContext): Promise<MimirAgentPlugin> {
         return new LangchainToolWrapper(this.tool);
     }
 }
