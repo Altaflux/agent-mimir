@@ -266,7 +266,7 @@ export class McpPlugin extends MimirAgentPlugin {
 
     async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
 
-        const resourcesTemplate: string = this.clients.map(async c => {
+        const resourcesTemplate: string = (await Promise.all(this.clients.map(async c => {
             const serverInformation = `MCP Server: "${c.clientName}" ${c.description ? ` Description: "${c.description}"` : ""}`;
             const resources = await c.client.listResources({});
 
@@ -279,7 +279,7 @@ export class McpPlugin extends MimirAgentPlugin {
                 return `-- Resource Name: "${r.name}" Resource URI: "${r.uri}" ${description} ${mimeType}`;
             }).join("\n");
             return `- ${serverInformation} with resources:\n${resourceTemplate}\n`;
-        }).join("\n");
+        }))).join("\n");
 
         if (resourcesTemplate.trim().length > 0) {
             return {
