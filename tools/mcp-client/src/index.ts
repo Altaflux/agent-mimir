@@ -17,7 +17,9 @@ interface PluginResult {
     prompts: AgentCommand[];
 }
 export type McpClientParameters = {
-    servers: Record<string, Transport>,
+    servers: Record<string, {
+        transport: Transport
+    }>,
 }
 export class McpClientPluginFactory implements MimirPluginFactory {
     public readonly name: string = "mcp-client";
@@ -30,7 +32,7 @@ export class McpClientPluginFactory implements MimirPluginFactory {
         try {
             const clientResults = await Promise.all(
                 Object.entries(this.config.servers).map(([clientName, config]) =>
-                    this.initializeClient(clientName, config)
+                    this.initializeClient(clientName, config.transport)
                 )
             );
 
