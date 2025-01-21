@@ -585,6 +585,7 @@ function invokeToolCallback(messages: BaseMessage[], callback: FunctionResponseC
             let toolCalls = lastAiMessage.tool_calls ?? [];
             let toc = toolCalls.find(tc => tc.id === t.tool_call_id)!;
             return {
+                message: parseUserMessage(lastAiMessage,{}).message,
                 input: trimStringToMaxWithEllipsis(JSON.stringify(toc.args), 400),
                 name: toc.name,
                 response: trimStringToMaxWithEllipsis(JSON.stringify(t.content), 400)

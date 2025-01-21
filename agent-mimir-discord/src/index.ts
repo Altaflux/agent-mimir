@@ -266,7 +266,7 @@ export const run = async () => {
             }
             let toolCallback: FunctionResponseCallBack = async (calls) => {
                 for (const call of calls) {
-                    const toolResponse = `Agent: \`${currentAgent.name}\` called function: \`${call.name}\` \nInvoked with input: \n\`\`\`${call.input}\`\`\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
+                    const toolResponse = `Agent: \`${currentAgent.name}\` \nSent message: \n\`\`\`${call.message}\`\`\` \n---\nCalled function: \`${call.name}\` \nInvoked with input: \n\`\`\`${call.input}\`\`\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
                     await sendResponse(toolResponse);
                 }
 
