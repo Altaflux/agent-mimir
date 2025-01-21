@@ -5,7 +5,7 @@ export { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/webso
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js"
 import { CallToolResult, EmbeddedResource, ImageContent, PromptMessage, TextContent } from "@modelcontextprotocol/sdk/types.js";
 import { jsonSchemaToZod, JsonSchema } from "./json-schema-to-zod/index.js";
-import { AgentCommand, CommandContent, ToolResponse } from "agent-mimir/schema";
+import { AgentCommand, AgentContext, AgentSystemMessage, CommandContent, ToolResponse } from "agent-mimir/schema";
 import { AgentTool } from "agent-mimir/tools";
 import { MimirAgentPlugin, PluginContext, MimirPluginFactory, ComplexResponse } from "agent-mimir/schema";
 import { z } from "zod";
@@ -18,6 +18,7 @@ interface PluginResult {
 }
 export type McpClientParameters = {
     servers: Record<string, {
+        description?: string,
         transport: Transport
     }>,
 }
@@ -31,20 +32,27 @@ export class McpClientPluginFactory implements MimirPluginFactory {
     async create(context: PluginContext): Promise<MimirAgentPlugin> {
         try {
             const clientResults = await Promise.all(
-                Object.entries(this.config.servers).map(([clientName, config]) =>
-                    this.initializeClient(clientName, config.transport)
-                )
+                Object.entries(this.config.servers).map(async ([clientName, config]) =>{
+                    const init = await this.initializeClient(clientName, config.transport);
+                    return {
+                        clientName: clientName,
+                        description: config.description,
+                        client: init.client,
+                        pluginResult: init.pluginResult
+                    }
+                })
             );
 
-            const combinedResult = this.combineResults(clientResults);
-            return new McpPlugin(combinedResult.tools, combinedResult.prompts);
+            const resourceTools = new McpResourceTool(clientResults);
+            const combinedResult = this.combineResults(clientResults.map(c => c.pluginResult));
+            return new McpPlugin(clientResults, [...combinedResult.tools, resourceTools], combinedResult.prompts);
         } catch (error) {
             console.error("Failed to create MCP plugin:", error);
             throw error;
         }
     }
 
-    private async initializeClient(clientName: string, transport: Transport): Promise<PluginResult> {
+    private async initializeClient(clientName: string, transport: Transport): Promise<{ pluginResult: PluginResult, client: Client }> {
 
         const client = new Client({
             name: "agent-client",
@@ -64,14 +72,20 @@ export class McpClientPluginFactory implements MimirPluginFactory {
             ]);
 
             return {
-                tools: agentTools,
-                prompts: commands
+                client: client,
+                pluginResult: {
+                    tools: agentTools,
+                    prompts: commands
+                }
             };
         } catch (error) {
             console.error(`Failed to initialize client ${clientName}:`, error);
             return {
-                tools: [],
-                prompts: []
+                client: client,
+                pluginResult: {
+                    tools: [],
+                    prompts: []
+                }
             };
         }
     }
@@ -79,7 +93,7 @@ export class McpClientPluginFactory implements MimirPluginFactory {
     private async initializeTools(client: Client, clientName: string): Promise<AgentTool[]> {
         try {
             const tools = await client.listTools();
-            return tools.tools.map(tool => new McpTool(client, tool));
+            return tools.tools.map(tool => new McpTool(clientName, client, tool));
         } catch (error) {
             console.error(`Failed to list tools for client ${clientName}:`, error);
             return [];
@@ -114,11 +128,11 @@ export class McpClientPluginFactory implements MimirPluginFactory {
         }
     }
 
-    private combineResults(results: PluginResult[]): PluginResult {
+    private combineResults(results: PluginResult[]): { tools: AgentTool[], prompts: AgentCommand[] } {
         return results.reduce((combined, current) => ({
             tools: [...combined.tools, ...current.tools],
             prompts: [...combined.prompts, ...current.prompts]
-        }), { tools: [], prompts: [] });
+        }), { tools: [] as AgentTool[], prompts: [] as AgentCommand[] });
     }
 }
 
@@ -153,12 +167,16 @@ namespace ContentConverter {
                     }
                 } satisfies ComplexResponse;
             case "resource":
-                return {
-                    type: "text",
-                    text: JSON.stringify(content.resource)
-                } satisfies ComplexResponse;
+                return convertEmbeddedResourceToComplexResponse(content.resource);
             default:
                 throw new Error(`Unsupported content type: ${(content as { type: string }).type}`);
+        }
+    }
+
+    export function convertEmbeddedResourceToComplexResponse(resource: EmbeddedResource["resource"]): ComplexResponse {
+        return {
+            type: "text",
+            text: JSON.stringify(resource)
         }
     }
 
@@ -210,15 +228,75 @@ namespace ContentConverter {
     }
 }
 
+export class McpResourceTool extends AgentTool {
+    schema = z.object({
+        mcpServer: z.string().describe("The name of the MCP server to read from."),
+        resourceURI: z.string().describe("The URI of the resource to read.")
+    })
+    constructor(private readonly clients: { client: Client, clientName: string }[]) {
+        super()
+
+    }
+    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
+        let client = this.clients.find(c => c.clientName === arg.mcpServer)!;
+        const resource = await client.client.readResource({
+            uri: arg.resourceURI
+        });
+        const response: ComplexResponse[] = resource.contents.map(c => {
+            return ContentConverter.convertEmbeddedResourceToComplexResponse(c);
+        })
+        return response;
+    }
+
+    name: string = "fetch-mcp-resource";
+    description: string = "Use this tool to read a resource from an MCP server.";
+
+}
 /**
  * Plugin implementation for the MCP client
  */
 export class McpPlugin extends MimirAgentPlugin {
     constructor(
+        private readonly clients: { client: Client, clientName: string, description?: string }[],
         private readonly mcpTools: AgentTool[],
         private readonly prompts: AgentCommand[]
     ) {
         super();
+    }
+
+    async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
+
+        const resourcesTemplate: string = this.clients.map(async c => {
+            const serverInformation = `MCP Server: "${c.clientName}" ${c.description ? ` Description: "${c.description}"` : ""}`;
+            const resources = await c.client.listResources({});
+
+            if (!resources.resources.length) {
+                return serverInformation;
+            }
+            const resourceTemplate = resources.resources.map(r => {
+                const description = r.description ? `Description: "${r.description}"` : "";
+                const mimeType = r.mimeType ? `MimeType: "${r.mimeType}"` : "";
+                return `-- Resource Name: "${r.name}" Resource URI: "${r.uri}" ${description} ${mimeType}`;
+            }).join("\n");
+            return `- ${serverInformation} with resources:\n${resourceTemplate}\n`;
+        }).join("\n");
+        
+        if (resourcesTemplate.trim().length > 0) {
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `You have access to toolkits which allow you to execute different actions, this toolkits are called MCP servers.\n
+The servers besides providing tools, they also provide resources that you can read from as needed using the fetch-mcp-resource tool.\n
+MCP Servers:\n${resourcesTemplate}`
+
+                    }
+                ]
+            }
+        };
+        return {
+            content: []
+        }
     }
 
     async tools(): Promise<AgentTool[]> {
@@ -239,12 +317,13 @@ class McpTool extends AgentTool {
     public readonly description: string;
 
     constructor(
+        private readonly clientName: string,
         private readonly client: InstanceType<typeof Client>,
         private readonly mcpTool: Awaited<ReturnType<InstanceType<typeof Client>["listTools"]>>["tools"][0]
     ) {
         super();
         this.schema = jsonSchemaToZod(this.mcpTool.inputSchema as JsonSchema) as z.ZodObject<any>;
-        this.name = this.mcpTool.name;
+        this.name = `${this.clientName}:${this.mcpTool.name}`;
         this.description = this.mcpTool.description ?? "";
     }
 
