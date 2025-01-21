@@ -104,7 +104,7 @@ export class McpClientPluginFactory implements MimirPluginFactory {
         try {
             const prompts = await client.listPrompts();
             return prompts.prompts.map(prompt => ({
-                name: `${clientName}-${prompt.name}`,
+                name: `${clientName}_${prompt.name}`,
                 description: prompt.description,
                 arguments: prompt.arguments?.map(args => {
                     return {
@@ -323,7 +323,7 @@ class McpTool extends AgentTool {
     ) {
         super();
         this.schema = jsonSchemaToZod(this.mcpTool.inputSchema as JsonSchema) as z.ZodObject<any>;
-        this.name = `${this.clientName}:${this.mcpTool.name}`;
+        this.name = `${this.clientName}_${this.mcpTool.name}`;
         this.description = this.mcpTool.description ?? "";
     }
 
