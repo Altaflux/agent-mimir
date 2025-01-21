@@ -1,18 +1,16 @@
-import { StructuredTool, tool, Tool } from "@langchain/core/tools";
-import { AdditionalContent, Agent, AgentContext, AgentSystemMessage, AgentToolRequest, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, CommandContent, ComplexResponse, FunctionResponseCallBack, MimirAgentPlugin, MimirPluginFactory, NextMessageToolResponse, NextMessageUser, PluginContext, ToolResponse, WorkspaceManagerFactory } from "../schema.js";
+import { StructuredTool, Tool } from "@langchain/core/tools";
+import { Agent, AgentSystemMessage, AgentToolRequest, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, CommandContent, ComplexResponse, FunctionResponseCallBack, MimirAgentPlugin, MimirPluginFactory, NextMessageToolResponse, NextMessageUser, PluginContext, WorkspaceManagerFactory } from "../schema.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { Embeddings } from "@langchain/core/embeddings";
 import { END, MessagesAnnotation, START, StateGraph, interrupt, Command, messagesStateReducer, Send } from "@langchain/langgraph";
 import { AIMessage, AIMessageChunk, BaseMessage, HumanMessage, isAIMessage, isHumanMessage, isToolMessage, MessageContent, MessageContentComplex, MessageContentImageUrl, MessageContentText, RemoveMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
-import { z } from "zod";
 import { aiMessageToMimirAiMessage, complexResponseToLangchainMessageContent } from "../utils/format.js";
 import { v4 } from "uuid";
 import { Annotation } from "@langchain/langgraph";
 import { AgentTool } from "../tools/index.js";
 import { LangchainToolToMimirTool, MimirToolToLangchainTool } from "../utils/wrapper.js";
 import { ResponseFieldMapper } from "../utils/instruction-mapper.js";
-import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { HelpersPluginFactory } from "../plugins/helpers.js";
 import { ViewPluginFactory } from "../tools/image_view.js";
 import { WorkspacePluginFactory } from "../plugins/workspace.js";
@@ -99,12 +97,7 @@ export class AgentManager {
 
 
         const allTools = (await Promise.all(allCreatedPlugins.map(async plugin => await plugin.tools()))).flat();
-        // if (config.name === "WeatherChecker") {
-        //     allTools.push(new WeatherTool())
-        // }
         const langChainTools = allTools.map(t => new MimirToolToLangchainTool(t));
-
-
 
         const modelWithTools = model.bindTools!(langChainTools);
 
@@ -585,7 +578,7 @@ function invokeToolCallback(messages: BaseMessage[], callback: FunctionResponseC
             let toolCalls = lastAiMessage.tool_calls ?? [];
             let toc = toolCalls.find(tc => tc.id === t.tool_call_id)!;
             return {
-                message: parseUserMessage(lastAiMessage,{}).message,
+                message: parseUserMessage(lastAiMessage, {}).message,
                 input: trimStringToMaxWithEllipsis(JSON.stringify(toc.args), 400),
                 name: toc.name,
                 response: trimStringToMaxWithEllipsis(JSON.stringify(t.content), 400)
@@ -688,83 +681,6 @@ function buildSystemMessage(agentSystemMessages: AgentSystemMessage[]) {
     }
     return finalMessage;
 }
-
-
-
-export class WeatherPlugin extends MimirAgentPlugin {
-
-    async additionalMessageContent(message: NextMessageUser, context: AgentContext): Promise<AdditionalContent[]> {
-        return [
-            {
-                displayOnCurrentMessage: false,
-                saveToChatHistory: true,
-                content: [
-
-                    {
-                        type: "text",
-                        text: "+++"
-                    }
-                ]
-            },
-            {
-                displayOnCurrentMessage: true,
-                saveToChatHistory: false,
-                content: [
-
-                    {
-                        type: "text",
-                        text: "---"
-                    }
-                ]
-            }
-        ];
-    }
-    tools(): Promise<(AgentTool)[]> | (AgentTool)[] {
-        const getWeather = tool((input) => {
-            const city = input.city;
-            console.log("----");
-            console.log(`Searching for: ${city}`);
-            console.log("----");
-            let response: MessageContentComplex[] = [
-                {
-                    type: "text",
-                    text: "Sunny!"
-                }
-            ];
-            return response;
-        }, {
-            name: "get_weather",
-            description: "Call to get the current weather.",
-            schema: z.object({
-                city: z.string().describe("City to get the weather for."),
-            }),
-        });
-
-        return [new WeatherTool()]
-    }
-
-}
-
-class WeatherTool extends AgentTool {
-    schema = z.object({
-        city: z.string().describe("City to get the weather for."),
-    });
-    protected async _call(input: any, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
-        console.log("----");
-        console.log(`Searching for: ${input.city}`);
-        console.log("----");
-        return [
-            {
-                type: "text",
-                text: "It is rainy today!"
-            }
-        ]
-    }
-    name: string = "get_weather";
-    description: string = "Call to get the current weather.";
-
-}
-
 
 class LangchainToolWrapperPluginFactory implements MimirPluginFactory {
 
