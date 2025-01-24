@@ -227,12 +227,12 @@ export const run = async () => {
 
         mainLoop: while (true) {
 
-            const handleMessage = async (chainResponse: AgentUserMessageResponse, agentStack: Agent[]): Promise<{ conversationComplete: boolean, currentAgent: Agent, pendingMessage: PendingMessage | undefined }> => {
+            const handleMessage = async (chainResponse: AgentUserMessageResponse, agentStack: Agent[]): Promise<{
+                conversationComplete: boolean,
+                currentAgent: Agent,
+                pendingMessage: PendingMessage | undefined
+            }> => {
                 if (chainResponse.output.agentName) {
-
-                    const discordMessage = `\`${currentAgent.name}\` is sending a message to \`${chainResponse.output.agentName}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
-                        `\nFiles provided: ${chainResponse.output.sharedFiles?.map(f => `\`${f.fileName}\``).join(", ") || "None"}`;
-                    await sendResponse(discordMessage);
                     const newAgent = agentManager.getAgent(chainResponse.output.agentName);
                     if (!newAgent) {
                         return {
@@ -252,13 +252,6 @@ export const run = async () => {
                     }
                 } else {
                     const isFinalUser = agentStack.length === 0;
-                    if (!isFinalUser) {
-                        const discordMessage = `\`${currentAgent.name}\` is replying back to \`${agentStack[agentStack.length - 1].name}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
-                            `\nFiles provided: ${chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
-                        await sendResponse(discordMessage);
-                    } else {
-                        await sendResponse(chainResponse.output.message, chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.url));
-                    }
                     return {
                         conversationComplete: isFinalUser,
                         currentAgent: isFinalUser ? currentAgent : agentStack.pop()!,
@@ -274,6 +267,23 @@ export const run = async () => {
                 await sendResponse(toolResponse);
             };
 
+            let messageSender = async (chainResponse: AgentUserMessageResponse) => {
+                if (chainResponse.output.agentName) {
+                    const discordMessage = `\`${currentAgent.name}\` is sending a message to \`${chainResponse.output.agentName}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
+                        `\nFiles provided: ${chainResponse.output.sharedFiles?.map(f => `\`${f.fileName}\``).join(", ") || "None"}`;
+                    await sendResponse(discordMessage);
+                } else {
+                    const isFinalUser = agentStack.length === 0;
+                    if (!isFinalUser) {
+                        const discordMessage = `\`${currentAgent.name}\` is replying back to \`${agentStack[agentStack.length - 1].name}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
+                            `\nFiles provided: ${chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
+                        await sendResponse(discordMessage);
+                    } else {
+                        await sendResponse(chainResponse.output.message, chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.url));
+                    }
+                }
+            }
+
             let generator = pendingMessage
                 ? currentAgent.call(pendingMessage.message, { [FILES_TO_SEND_FIELD]: pendingMessage.sharedFiles })
                 : msg(currentAgent, toolCallback);
@@ -287,6 +297,7 @@ export const run = async () => {
 
 
             if (chainResponse.type == "agentResponse") {
+                await messageSender(chainResponse);
                 const routedMessage = await handleMessage(chainResponse, agentStack);
                 currentAgent = routedMessage.currentAgent;
                 pendingMessage = routedMessage.pendingMessage;
@@ -304,6 +315,7 @@ export const run = async () => {
                 chainResponse = result.value
 
                 if (chainResponse.type == "agentResponse") {
+                    await messageSender(chainResponse);
                     const routedMessage = await handleMessage(chainResponse, agentStack);
                     currentAgent = routedMessage.currentAgent;
                     pendingMessage = routedMessage.pendingMessage;
@@ -313,6 +325,7 @@ export const run = async () => {
                     }
                 } else {
                     await sendResponse(chainResponse.output?.message ?? "", []);
+                    // await messageSender(chainResponse);
                 }
             }
         }
