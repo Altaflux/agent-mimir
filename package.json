@@ -33,7 +33,7 @@
     "packageManager": "npm@9.5.0",
     "workspaces": [
         "agent-mimir",
-        "agent-mimir-cli",
+      
         "agent-mimir-discord",
         "tools/*",
         ".temp_custom_deps"

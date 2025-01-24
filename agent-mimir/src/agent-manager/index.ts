@@ -1,9 +1,9 @@
 import { StructuredTool, Tool } from "@langchain/core/tools";
-import { Agent, AgentSystemMessage, AgentToolRequest, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, CommandContent, ComplexResponse, FunctionResponseCallBack, MimirAgentPlugin, MimirPluginFactory, NextMessageToolResponse, NextMessageUser, PluginContext, WorkspaceManagerFactory } from "../schema.js";
+import { Agent, AgentResponse, AgentSystemMessage, AgentToolRequest, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, CommandContent, ComplexResponse, FunctionResponseCallBack, MimirAgentPlugin, MimirPluginFactory, NextMessageToolResponse, NextMessageUser, PluginContext, ToolResponseInfo, WorkspaceManagerFactory } from "../schema.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { Embeddings } from "@langchain/core/embeddings";
 import { END, MessagesAnnotation, START, StateGraph, interrupt, Command, messagesStateReducer, Send } from "@langchain/langgraph";
-import { AIMessage, AIMessageChunk, BaseMessage, HumanMessage, isAIMessage, isHumanMessage, isToolMessage, MessageContent, MessageContentComplex, MessageContentImageUrl, MessageContentText, RemoveMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
+import { AIMessage, AIMessageChunk, BaseMessage, BaseMessageChunk, HumanMessage, isAIMessage, isHumanMessage, isToolMessage, MessageContent, MessageContentComplex, MessageContentImageUrl, MessageContentText, RemoveMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { aiMessageToMimirAiMessage, complexResponseToLangchainMessageContent } from "../utils/format.js";
 import { v4 } from "uuid";
@@ -277,7 +277,7 @@ export class AgentManager {
 
         const workflow = new StateGraph(StateAnnotation)
             .addNode("call_llm", callLLm(callbackHook))
-            .addNode("run_tool", new ToolNode(langChainTools))
+            .addNode("run_tool", new ToolNode(langChainTools, { handleToolErrors: true }))
             .addNode("human_review_node", humanReviewNode, {
                 ends: ["run_tool", "call_llm"]
             })
@@ -336,7 +336,7 @@ export class AgentManager {
             commands: commandList,
             workspace: workspace,
             reset: reset,
-            handleCommand: async (command, callback) => {
+            handleCommand: async function* (command, callback) {
                 callbackHook.callback = callback;
 
                 let commandHandler = commandList.find(ac => ac.name == command.name)!
@@ -352,8 +352,17 @@ export class AgentManager {
 
                 while (true) {
                     let stream = await graph.stream(graphInput, stateConfig);
-                    for await (const event of stream) {
-
+                    let lastKnownMessage: ToolMessage | undefined = undefined;
+                    for await (const state of stream) {
+                        if (state.messages.length > 0) {
+                            const lastMessage = state.messages[state.messages.length - 1];
+                            if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id )) {
+                                lastKnownMessage = lastMessage;
+                                yield toolMessageToToolResponseInfo(lastMessage);
+                                console.log("Tool message", lastMessage);
+                               
+                            }
+                        }
                     }
 
                     const state = await graph.getState(stateConfig);
@@ -384,7 +393,7 @@ export class AgentManager {
                 }
 
             },
-            call: async (message, input, callback) => {
+            call: async function*  (message, input, callback)  {
 
                 callbackHook.callback = callback;
                 let graphInput: any = null;
@@ -417,11 +426,19 @@ export class AgentManager {
                     } : null;
                 }
 
-
+                let lastKnownMessage: ToolMessage | undefined = undefined;
                 while (true) {
                     let stream = await graph.stream(graphInput, stateConfig);
-                    for await (const event of stream) {
-
+                    for await (const state  of stream) {
+                        if (state.messages.length > 0) {
+                            const lastMessage = state.messages[state.messages.length - 1];
+                            if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id )) {
+                                lastKnownMessage = lastMessage;
+                                yield toolMessageToToolResponseInfo(lastMessage);
+                                console.log("Tool message", lastMessage);
+                               
+                            }
+                        }
                     }
 
                     const state = await graph.getState(stateConfig);
@@ -587,6 +604,12 @@ function invokeToolCallback(messages: BaseMessage[], callback: FunctionResponseC
     }
 }
 
+function toolMessageToToolResponseInfo(message: ToolMessage): ToolResponseInfo {
+    return {
+        name: message.name ?? "Unknown",
+        response: trimStringToMaxWithEllipsis(JSON.stringify(message.content), 400)
+    }
+}
 
 function langChainHumanMessageToMimirHumanMessage(message: HumanMessage): NextMessageUser {
     return {

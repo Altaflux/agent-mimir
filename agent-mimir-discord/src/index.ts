@@ -1,5 +1,5 @@
 import { AgentManager } from "agent-mimir/agent-manager"
-import { Agent, AgentResponse, AgentUserMessageResponse, FILES_TO_SEND_FIELD, FunctionResponseCallBack, MimirPluginFactory } from "agent-mimir/schema";
+import { Agent, AgentResponse, AgentUserMessageResponse, FILES_TO_SEND_FIELD, MimirPluginFactory, ToolResponseInfo } from "agent-mimir/schema";
 import chalk from "chalk";
 import { Tool } from "@langchain/core/tools";
 
@@ -143,7 +143,7 @@ export const run = async () => {
     const agentCommands = mainAgent.commands.map(c => {
         const discordCommand = new SlashCommandBuilder().setName(c.name);
         if (c.description) {
-            discordCommand.setDescription((c.description.length > 90) ? c.description.slice(0, 90-1) + '&hellip;' : c.description);
+            discordCommand.setDescription((c.description.length > 90) ? c.description.slice(0, 90 - 1) + '&hellip;' : c.description);
         }
 
         (c.arguments ?? []).forEach(arg => {
@@ -151,7 +151,7 @@ export const run = async () => {
                 option.setName(arg.name);
                 option.setRequired(arg.required);
                 if (arg.description) {
-                    option.setDescription((arg.description.length > 90) ? arg.description.slice(0, 90-1) + '&hellip;' : arg.description);
+                    option.setDescription((arg.description.length > 90) ? arg.description.slice(0, 90 - 1) + '&hellip;' : arg.description);
                 }
                 return option
             })
@@ -200,11 +200,16 @@ export const run = async () => {
                     [r.name]: r.value
                 }
             }, {})
-            const agentInvoke: AgentInvoke = async (agent, callback) => {
-                return await agent.handleCommand({
+            const agentInvoke: AgentInvoke = async function* (agent, callback) {
+                const generator = agent.handleCommand({
                     name: interaction.commandName,
                     arguments: commandArguments
-                }, callback)
+                })
+                let result: IteratorResult<ToolResponseInfo, AgentResponse>;
+                while (!(result = await generator.next()).done) {
+                    yield result.value;
+                }
+                return result.value
             }
 
             messageHandler(agentInvoke, async (message, attachments?: string[]) => {
@@ -264,17 +269,21 @@ export const run = async () => {
                     }
                 }
             }
-            let toolCallback: FunctionResponseCallBack = async (calls) => {
-                for (const call of calls) {
-                    const toolResponse = `Agent: \`${currentAgent.name}\` \n${call.message} \n---\nCalled function: \`${call.name}\` \nInvoked with input: \n\`\`\`${call.input}\`\`\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
-                    await sendResponse(toolResponse);
-                }
-
+            let toolCallback: FunctionResponseCallBack = async (call) => {
+                const toolResponse = `Agent: \`${currentAgent.name}\`  \n---\nCalled function: \`${call.name}\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
+                await sendResponse(toolResponse);
             };
 
-            let chainResponse = pendingMessage
-                ? await currentAgent.call(pendingMessage.message, { [FILES_TO_SEND_FIELD]: pendingMessage.sharedFiles }, toolCallback)
-                : await msg(currentAgent, toolCallback);
+            let generator = pendingMessage
+                ? currentAgent.call(pendingMessage.message, { [FILES_TO_SEND_FIELD]: pendingMessage.sharedFiles })
+                : msg(currentAgent, toolCallback);
+
+
+            let result: IteratorResult<ToolResponseInfo, AgentResponse>;
+            while (!(result = await generator.next()).done) {
+                toolCallback(result.value)
+            }
+            let chainResponse = result.value
 
 
             if (chainResponse.type == "agentResponse") {
@@ -286,7 +295,14 @@ export const run = async () => {
                 }
             }
             while (chainResponse.type == "toolRequest") {
-                chainResponse = await Retry(() => currentAgent.call(null, {}, toolCallback));
+                //chainResponse = await Retry(() => currentAgent.call(null, {}));
+                let generator = currentAgent.call(null, {});
+                let result: IteratorResult<ToolResponseInfo, AgentResponse>;
+                while (!(result = await generator.next()).done) {
+                    toolCallback(result.value)
+                }
+                chainResponse = result.value
+
                 if (chainResponse.type == "agentResponse") {
                     const routedMessage = await handleMessage(chainResponse, agentStack);
                     currentAgent = routedMessage.currentAgent;
@@ -295,6 +311,8 @@ export const run = async () => {
                     if (routedMessage.conversationComplete) {
                         break mainLoop;
                     }
+                } else {
+                    await sendResponse(chainResponse.output?.message ?? "", []);
                 }
             }
         }
@@ -303,7 +321,7 @@ export const run = async () => {
         const typing = setInterval(() => msg.channel.sendTyping(), 5000);
         try {
 
-            const agentInvoke: AgentInvoke = async (agent: Agent, callback) => {
+            const agentInvoke: AgentInvoke = async function* (agent: Agent, callback) {
                 const messageToAi = msg.cleanContent.replaceAll(`@${client.user!.username}`, "").trim();
                 const loadedFiles = await Promise.all(msg.attachments.map(async (attachment) => {
                     const response = await downloadFile(attachment.name, attachment.url);
@@ -313,7 +331,13 @@ export const run = async () => {
                     }
                 }));
                 const messageToSend = { message: messageToAi, sharedFiles: loadedFiles };
-                return await agent.call(messageToSend.message, { [FILES_TO_SEND_FIELD]: messageToSend.sharedFiles }, callback)
+                const generator = agent.call(messageToSend.message, { [FILES_TO_SEND_FIELD]: messageToSend.sharedFiles })
+
+                let result: IteratorResult<ToolResponseInfo, AgentResponse>;
+                while (!(result = await generator.next()).done) {
+                    yield result.value;
+                }
+                return result.value
             }
 
             if (msg.author.bot) return;
@@ -338,6 +362,10 @@ export const run = async () => {
 };
 
 run();
+export type FunctionResponseCallBack = (toolCalls: {
+    name: string;
+    response: string;
+}) => Promise<void>;
 
 type PendingMessage = {
     sharedFiles?: {
@@ -346,7 +374,7 @@ type PendingMessage = {
     }[],
     message: string;
 }
-type AgentInvoke = (agent: Agent, callback?: FunctionResponseCallBack) => Promise<AgentResponse>;
+type AgentInvoke = (agent: Agent, callback?: FunctionResponseCallBack) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>;
 type SendResponse = (message: string, attachments?: string[]) => Promise<void>
 
 async function sendDiscordResponse(msg: Message<boolean>, message: string, attachments?: string[]) {
