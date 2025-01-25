@@ -143,7 +143,7 @@ export class AgentManager {
 
         }
 
-       
+
         const callLLm = () => {
             return async (state: typeof StateAnnotation.State) => {
 
@@ -196,7 +196,7 @@ export class AgentManager {
                     response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
 
                 } else {
-                
+
                     messageToStore = lastMessage;
                     const pluginInputs = (await Promise.all(
                         allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages(state))
@@ -367,7 +367,7 @@ export class AgentManager {
             workspace: workspace,
             reset: reset,
             handleCommand: async function* (command) {
-            
+
                 let commandHandler = commandList.find(ac => ac.name == command.name)!
                 let newMessages = await commandHandler.commandHandler(command.arguments ?? {});
                 let msgs = newMessages.map(mc => commandContentToBaseMessage(mc));
@@ -385,7 +385,7 @@ export class AgentManager {
                     for await (const state of stream) {
                         if (state.messages.length > 0) {
                             const lastMessage = state.messages[state.messages.length - 1];
-                            if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id )) {
+                            if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id)) {
                                 lastKnownMessage = lastMessage;
                                 yield toolMessageToToolResponseInfo(lastMessage);
                             }
@@ -401,7 +401,7 @@ export class AgentManager {
                             type: "toolRequest",
                             output: interruptState.value as AgentToolRequest,
                             responseAttributes: responseAttributes
-                        } as any
+                        }
 
                     }
 
@@ -420,7 +420,7 @@ export class AgentManager {
                 }
 
             },
-            call: async function*  (message, input, noMessagesInTool)  {
+            call: async function* (message, input, noMessagesInTool) {
 
                 let graphInput: any = null;
                 const state = await graph.getState(stateConfig);
@@ -456,14 +456,13 @@ export class AgentManager {
                 let lastKnownMessage: ToolMessage | undefined = undefined;
                 while (true) {
                     let stream = await graph.stream(graphInput, stateConfig);
-                    for await (const state  of stream) {
+                    for await (const state of stream) {
                         if (state.messages.length > 0) {
                             const lastMessage = state.messages[state.messages.length - 1];
-                            if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id )) {
+                            if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id)) {
                                 lastKnownMessage = lastMessage;
                                 yield toolMessageToToolResponseInfo(lastMessage);
-                                console.log("Tool message", lastMessage);
-                               
+
                             }
                         }
                     }
@@ -477,7 +476,7 @@ export class AgentManager {
                             type: "toolRequest",
                             output: interruptState.value as AgentToolRequest,
                             responseAttributes: responseAttributes
-                        } as any
+                        }
                     }
 
                     if (state.tasks.length > 0 && state.tasks[0].name === "agent_call") {

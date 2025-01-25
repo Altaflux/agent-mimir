@@ -38,7 +38,6 @@ export type AgentUserMessage = {
 }
 export class AgentHandle {
     private currentAgent: Agent;
- //   private pendingMessage: PendingMessage | undefined = undefined;
     private agentStack: Agent[] = [];
 
     constructor(private readonly agentManager: AgentManager, currentAgent: Agent) {
@@ -85,10 +84,9 @@ export class AgentHandle {
                 }
             }
         }
-        //////////
         let pendingMessage: PendingMessage | undefined = undefined;
         while (true) {
-          
+
             let generator = pendingMessage
                 ? this.currentAgent.call(pendingMessage.message, pendingMessage.responseAttributes, true)
                 : msg(this.currentAgent);
@@ -106,20 +104,16 @@ export class AgentHandle {
 
 
             if (chainResponse.type == "agentResponse") {
-                //await messageSender(chainResponse);
                 const sourceAgent = this.currentAgent.name;
                 const routedMessage = await handleMessage(chainResponse, this.agentStack);
                 this.currentAgent = routedMessage.currentAgent;
-               // this.pendingMessage = routedMessage.pendingMessage;
                 if (routedMessage.conversationComplete) {
-                    //pendingMessage = undefined;
                     return {
                         type: "agentResponse",
                         message: chainResponse.output.message,
                         responseAttributes: chainResponse.responseAttributes
                     };
                 } else {
-                    //Message to another agent.
                     pendingMessage = routedMessage.pendingMessage;
                     yield {
                         type: "agentToAgentMessage",
@@ -136,7 +130,6 @@ export class AgentHandle {
                     message: chainResponse.output.message,
                     toolRequests: chainResponse.output.toolRequests,
                 }
-                //TOOL REQUEST
             }
         }
     }
