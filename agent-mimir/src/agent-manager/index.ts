@@ -211,7 +211,7 @@ export class AgentManager {
                         id: response.id,
                         content: [{
                             type: "text",
-                            text: "EMPTY RESPONSE",
+                            text: "I have completed my task.",
                         }],
                         tool_calls: response.tool_calls
                     })

@@ -84,7 +84,7 @@ class HelperTool extends AgentTool {
         return result;
     }
     name: string = "talkToHelper";
-    description: string = "Call to get the current weather.";
+    description: string = `Talk to a helper.`;
 
 }
 export class HelpersPlugin extends MimirAgentPlugin {
