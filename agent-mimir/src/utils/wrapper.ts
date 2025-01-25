@@ -19,23 +19,19 @@ export class MimirToolToLangchainTool extends StructuredTool {
     constructor(private tool: AgentTool) {
         super();
     }
-    // async invoke(input: (z.output<this["schema"]> extends string ? string : never) | z.input<this["schema"]> | ToolCall, config?: RunnableConfig): Promise<any> {
 
-    //     return "It is sunny."
-    // }
     protected async _call(arg: z.input<this["schema"]>,  runManager?: CallbackManagerForToolRun, parentConfig?: ToolRunnableConfig): Promise<any> {
         const response = await this.tool.call(arg);
         const toolCallId = parentConfig?.toolCall?.id!
         if (isUserAgentMessage(response)) {
-            const t = new ToolMessage({
-                id: v4(),
-                name: parentConfig?.toolCall?.name!,
-                tool_call_id: toolCallId,
-                content: JSON.stringify(response)
-            });
             return new Command({
                 update: {
-                    agentMessage: [t],
+                    agentMessage: [new ToolMessage({
+                        id: v4(),
+                        name: parentConfig?.toolCall?.name!,
+                        tool_call_id: toolCallId,
+                        content: JSON.stringify(response)
+                    })],
                 }
             });
         }

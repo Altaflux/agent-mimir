@@ -230,9 +230,6 @@ export const run = async () => {
     const messageHandler = async (msg: AgentInvoke, sendResponse: SendResponse) => {
   
         let toolCallback: FunctionResponseCallBack = async (call) => {
-            if (call.name === "Unknown") {
-                console.error("Unknown tool call", call);
-            }
             const toolResponse = `Agent: \`${call.agentName}\`  \n---\nCalled function: \`${call.name}\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
             await sendResponse(toolResponse);
         };

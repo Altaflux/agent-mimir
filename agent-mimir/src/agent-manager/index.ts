@@ -387,13 +387,7 @@ export class AgentManager {
                             const lastMessage = state.messages[state.messages.length - 1];
                             if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id )) {
                                 lastKnownMessage = lastMessage;
-                                const tm = toolMessageToToolResponseInfo(lastMessage);
-                                if (tm.name === "Unknown") {
-                                    console.error("Unknown tool call", tm.name);
-                                }
-                                yield tm;
-                                console.log("Tool message", lastMessage);
-                               
+                                yield toolMessageToToolResponseInfo(lastMessage);
                             }
                         }
                     }

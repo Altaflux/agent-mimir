@@ -96,9 +96,6 @@ export class AgentHandle {
 
             let result: IteratorResult<ToolResponseInfo, AgentResponse>;
             while (!(result = await generator.next()).done) {
-                if (result.value.name === "Unknown") {
-                    console.error("Unknown tool call", result.value.name);
-                }
                 yield {
                     type: "toolResponse",
                     agentName: this.currentAgent.name,
