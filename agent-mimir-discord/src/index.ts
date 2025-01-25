@@ -254,7 +254,11 @@ export const run = async () => {
             return
         } else {
             while (result.value.type === "toolRequest") {
-                await sendResponse(result.value.message ?? "TOOL INVOKED! NO MESSAGE", []);
+                const toolCalls = result.value.toolRequests.map(tr => {
+                    return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${tr.toolArguments}\`\`\``;
+                }).join("\n");
+                const toolResponse = `Agent: \`${result.value.agentName}\` \n ${result.value.message} \n---\nCalling functions: ${toolCalls} `;
+                await sendResponse(toolResponse, []);
                 const generator = chatAgentHandle.handleMessage((agent)=> agent.call(null, {}));
                 while (!(result = await generator.next()).done) {
                     intermediateResponseHandler(result.value);

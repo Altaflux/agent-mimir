@@ -38,7 +38,7 @@ export type AgentUserMessage = {
 }
 export class AgentHandle {
     private currentAgent: Agent;
-    private pendingMessage: PendingMessage | undefined = undefined;
+ //   private pendingMessage: PendingMessage | undefined = undefined;
     private agentStack: Agent[] = [];
 
     constructor(private readonly agentManager: AgentManager, currentAgent: Agent) {
@@ -86,10 +86,11 @@ export class AgentHandle {
             }
         }
         //////////
-
+        let pendingMessage: PendingMessage | undefined = undefined;
         while (true) {
-            let generator = this.pendingMessage
-                ? this.currentAgent.call(this.pendingMessage.message, this.pendingMessage.responseAttributes)
+          
+            let generator = pendingMessage
+                ? this.currentAgent.call(pendingMessage.message, pendingMessage.responseAttributes)
                 : msg(this.currentAgent);
 
 
@@ -107,12 +108,12 @@ export class AgentHandle {
 
             if (chainResponse.type == "agentResponse") {
                 //await messageSender(chainResponse);
-                const triggerAgent = this.currentAgent.name;
+                const sourceAgent = this.currentAgent.name;
                 const routedMessage = await handleMessage(chainResponse, this.agentStack);
                 this.currentAgent = routedMessage.currentAgent;
                // this.pendingMessage = routedMessage.pendingMessage;
                 if (routedMessage.conversationComplete) {
-                    this.pendingMessage = undefined;
+                    //pendingMessage = undefined;
                     return {
                         type: "agentResponse",
                         message: chainResponse.output.message,
@@ -120,10 +121,10 @@ export class AgentHandle {
                     };
                 } else {
                     //Message to another agent.
-                    this.pendingMessage = routedMessage.pendingMessage;
+                    pendingMessage = routedMessage.pendingMessage;
                     yield {
                         type: "agentToAgentMessage",
-                        sourceAgent: triggerAgent!,
+                        sourceAgent: sourceAgent!,
                         destinationAgent: this.currentAgent.name,
                         message: chainResponse.output.message,
                         responseAttributes: chainResponse.responseAttributes
