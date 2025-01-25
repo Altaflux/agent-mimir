@@ -27,13 +27,15 @@ export class MimirToolToLangchainTool extends StructuredTool {
         const response = await this.tool.call(arg);
         const toolCallId = parentConfig?.toolCall?.id!
         if (isUserAgentMessage(response)) {
+            const t = new ToolMessage({
+                id: v4(),
+                name: parentConfig?.toolCall?.name!,
+                tool_call_id: toolCallId,
+                content: JSON.stringify(response)
+            });
             return new Command({
                 update: {
-                    agentMessage: [new ToolMessage({
-                        id: v4(),
-                        tool_call_id: toolCallId,
-                        content: JSON.stringify(response)
-                    })],
+                    agentMessage: [t],
                 }
             });
         }

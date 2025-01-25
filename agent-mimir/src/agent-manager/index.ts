@@ -38,6 +38,7 @@ export const StateAnnotation = Annotation.Root({
     requestAttributes: Annotation<Record<string, any>>,
     responseAttributes: Annotation<Record<string, any>>,
     output: Annotation<AgentUserMessage>,
+    noMessagesInTool: Annotation<Boolean>,
     agentMessage: Annotation<BaseMessage[]>({
         reducer: messagesStateReducer,
         default: () => [],
@@ -128,6 +129,7 @@ export class AgentManager {
 
             const toolResponse = new ToolMessage({
                 id: v4(),
+                name: agenrM.name,
                 tool_call_id: agenrM.tool_call_id,
                 content: [
                     {
@@ -141,8 +143,8 @@ export class AgentManager {
 
         }
 
-        const callbackHook: { callback: FunctionResponseCallBack | undefined } = { callback: undefined }
-        const callLLm = (callback: { callback: FunctionResponseCallBack | undefined }) => {
+       
+        const callLLm = () => {
             return async (state: typeof StateAnnotation.State) => {
 
                 const lastMessage: BaseMessage = state.messages[state.messages.length - 1];
@@ -171,7 +173,7 @@ export class AgentManager {
                     ]
                 }
 
-                let response: AIMessageChunk;
+                let response: AIMessage;
                 let messageToStore: BaseMessage;
                 if (isHumanMessage(lastMessage)) {
                     const nextMessage = langChainHumanMessageToMimirHumanMessage(lastMessage);
@@ -194,9 +196,7 @@ export class AgentManager {
                     response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
 
                 } else {
-                    if (callback.callback) {
-                        invokeToolCallback(state.messages, callback.callback)
-                    }
+                
                     messageToStore = lastMessage;
                     const pluginInputs = (await Promise.all(
                         allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages(state))
@@ -205,6 +205,33 @@ export class AgentManager {
                     response = await modelWithTools.invoke([systemMessage, ...state.messages]);
                 }
 
+                // Claude sometimes likes to respond with empty messages when there is no more content to send
+                if (response.content.length === 0 && response.tool_calls?.length === 0) {
+                    response = new AIMessage({
+                        id: response.id,
+                        content: [{
+                            type: "text",
+                            text: "EMPTY RESPONSE",
+                        }],
+                        tool_calls: response.tool_calls
+                    })
+                }
+                //Agents calling agents cannot see the messages from the tool, so we remove them so the AI doesn't think it has already responded.
+                if ((response.tool_calls?.length ?? 0 > 0) && state.noMessagesInTool) {
+                    if (Array.isArray(response.content)) {
+                        response = new AIMessage({
+                            id: response.id,
+                            content: [...response.content.filter(e => e.type !== "text")],
+                            tool_calls: response.tool_calls
+                        })
+                    } else {
+                        response = new AIMessage({
+                            id: response.id,
+                            content: [],
+                            tool_calls: response.tool_calls
+                        })
+                    }
+                }
                 let mimirAiMessage = aiMessageToMimirAiMessage(response);
                 const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(mimirAiMessage.content);
 
@@ -276,7 +303,7 @@ export class AgentManager {
         }
 
         const workflow = new StateGraph(StateAnnotation)
-            .addNode("call_llm", callLLm(callbackHook))
+            .addNode("call_llm", callLLm())
             .addNode("run_tool", new ToolNode(langChainTools, { handleToolErrors: true }))
             .addNode("human_review_node", humanReviewNode, {
                 ends: ["run_tool", "call_llm"]
@@ -325,8 +352,11 @@ export class AgentManager {
             await workspace.reset();
             const state = await graph.getState(stateConfig);
             const messages: BaseMessage[] = state.values["messages"] ?? [];
-            const messagesToRemove = messages.map((m) => new RemoveMessage({ id: m.id! }))
-            await graph.updateState(stateConfig, { messages: messagesToRemove }, "output_convert")
+            const messagesToRemove = messages.map((m) => new RemoveMessage({ id: m.id! }));
+
+            const agentMessage: BaseMessage[] = state.values["agentMessage"] ?? [];
+            const agentMessagesToRemove = agentMessage.map((m) => new RemoveMessage({ id: m.id! }));
+            await graph.updateState(stateConfig, { messages: messagesToRemove, agentMessage: agentMessagesToRemove }, "output_convert")
         };
 
 
@@ -336,9 +366,8 @@ export class AgentManager {
             commands: commandList,
             workspace: workspace,
             reset: reset,
-            handleCommand: async function* (command, callback) {
-                callbackHook.callback = callback;
-
+            handleCommand: async function* (command) {
+            
                 let commandHandler = commandList.find(ac => ac.name == command.name)!
                 let newMessages = await commandHandler.commandHandler(command.arguments ?? {});
                 let msgs = newMessages.map(mc => commandContentToBaseMessage(mc));
@@ -358,7 +387,11 @@ export class AgentManager {
                             const lastMessage = state.messages[state.messages.length - 1];
                             if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id )) {
                                 lastKnownMessage = lastMessage;
-                                yield toolMessageToToolResponseInfo(lastMessage);
+                                const tm = toolMessageToToolResponseInfo(lastMessage);
+                                if (tm.name === "Unknown") {
+                                    console.error("Unknown tool call", tm.name);
+                                }
+                                yield tm;
                                 console.log("Tool message", lastMessage);
                                
                             }
@@ -393,9 +426,8 @@ export class AgentManager {
                 }
 
             },
-            call: async function*  (message, input, callback)  {
+            call: async function*  (message, input, noMessagesInTool)  {
 
-                callbackHook.callback = callback;
                 let graphInput: any = null;
                 const state = await graph.getState(stateConfig);
                 if (state.next.length > 0 && state.next[0] === "human_review_node") {
@@ -422,7 +454,8 @@ export class AgentManager {
                             ]
                         })],
                         requestAttributes: input,
-                        responseAttributes: {}
+                        responseAttributes: {},
+                        noMessagesInTool: noMessagesInTool ?? false,
                     } : null;
                 }
 

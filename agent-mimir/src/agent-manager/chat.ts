@@ -90,13 +90,15 @@ export class AgentHandle {
         while (true) {
           
             let generator = pendingMessage
-                ? this.currentAgent.call(pendingMessage.message, pendingMessage.responseAttributes)
+                ? this.currentAgent.call(pendingMessage.message, pendingMessage.responseAttributes, true)
                 : msg(this.currentAgent);
 
 
             let result: IteratorResult<ToolResponseInfo, AgentResponse>;
             while (!(result = await generator.next()).done) {
-                //toolCallback(result.value)
+                if (result.value.name === "Unknown") {
+                    console.error("Unknown tool call", result.value.name);
+                }
                 yield {
                     type: "toolResponse",
                     agentName: this.currentAgent.name,

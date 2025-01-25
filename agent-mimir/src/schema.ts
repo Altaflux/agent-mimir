@@ -33,8 +33,8 @@ export type AttributeDescriptor = {
 export type Agent = {
     name: string,
     description: string,
-    call: (message: string | null, input: Record<string, any>, callback?: FunctionResponseCallBack) =>  AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>,
-    handleCommand: (command: CommandRequest, callback?: FunctionResponseCallBack) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>,
+    call: (message: string | null, input: Record<string, any>, noMessagesInTool?: boolean) =>  AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>,
+    handleCommand: (command: CommandRequest, ) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>,
     workspace: AgentWorkspace,
     commands: AgentCommand[],
     reset: () => Promise<void>,

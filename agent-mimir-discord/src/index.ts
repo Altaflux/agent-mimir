@@ -203,17 +203,22 @@ export const run = async () => {
                     [r.name]: r.value
                 }
             }, {})
-            const agentInvoke: AgentInvoke = async function* (agent) {
-                const generator = agent.handleCommand({
-                    name: interaction.commandName,
-                    arguments: commandArguments
-                })
-                let result: IteratorResult<ToolResponseInfo, AgentResponse>;
-                while (!(result = await generator.next()).done) {
-                    yield result.value;
-                }
-                return result.value
-            }
+            // const agentInvoke: AgentInvoke = async function* (agent) {
+            //     const generator = agent.handleCommand({
+            //         name: interaction.commandName,
+            //         arguments: commandArguments
+            //     })
+            //     let result: IteratorResult<ToolResponseInfo, AgentResponse>;
+            //     while (!(result = await generator.next()).done) {
+            //         yield result.value;
+            //     }
+            //     return result.value
+            // }
+
+            const agentInvoke: AgentInvoke = (agent) => agent.handleCommand({
+                name: interaction.commandName,
+                arguments: commandArguments
+            });
 
             messageHandler(agentInvoke, async (message, attachments?: string[]) => {
                 await sendDiscordResponseFromCommand(interaction, message, attachments);
@@ -225,6 +230,9 @@ export const run = async () => {
     const messageHandler = async (msg: AgentInvoke, sendResponse: SendResponse) => {
   
         let toolCallback: FunctionResponseCallBack = async (call) => {
+            if (call.name === "Unknown") {
+                console.error("Unknown tool call", call);
+            }
             const toolResponse = `Agent: \`${call.agentName}\`  \n---\nCalled function: \`${call.name}\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
             await sendResponse(toolResponse);
         };
