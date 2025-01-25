@@ -16,6 +16,7 @@ import { Retry } from "./utils.js";
 import { Embeddings } from "@langchain/core/embeddings";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { AgentHandle, AgentInvoke, AgentToAgentMessage, AgentToolRequest, AgentUserMessage, HandleMessageResult, IntermediateAgentResponse } from "agent-mimir/chat";
 
 function splitStringInChunks(str: string) {
     const chunkSize = 1900;
@@ -129,6 +130,8 @@ export const run = async () => {
 
     console.log(chalk.green(`Using "${mainAgent.name}" as main agent`));
 
+    const chatAgentHandle: AgentHandle = new AgentHandle(agentManager, mainAgent);
+
     const client = new Client(
         {
             intents: [GatewayIntentBits.MessageContent, GatewayIntentBits.DirectMessages, GatewayIntentBits.GuildMessages, GatewayIntentBits.Guilds],
@@ -200,7 +203,7 @@ export const run = async () => {
                     [r.name]: r.value
                 }
             }, {})
-            const agentInvoke: AgentInvoke = async function* (agent, callback) {
+            const agentInvoke: AgentInvoke = async function* (agent) {
                 const generator = agent.handleCommand({
                     name: interaction.commandName,
                     arguments: commandArguments
@@ -220,121 +223,51 @@ export const run = async () => {
 
     });
     const messageHandler = async (msg: AgentInvoke, sendResponse: SendResponse) => {
-
-        let currentAgent = mainAgent;
-        let pendingMessage: PendingMessage | undefined = undefined;
-        const agentStack: Agent[] = [];
-
-        mainLoop: while (true) {
-
-            const handleMessage = async (chainResponse: AgentUserMessageResponse, agentStack: Agent[]): Promise<{
-                conversationComplete: boolean,
-                currentAgent: Agent,
-                pendingMessage: PendingMessage | undefined
-            }> => {
-                if (chainResponse.output.agentName) {
-                    const newAgent = agentManager.getAgent(chainResponse.output.agentName);
-                    if (!newAgent) {
-                        return {
-                            conversationComplete: false,
-                            currentAgent: currentAgent,
-                            pendingMessage: {
-                                message: "No agent found with that name.",
-                                sharedFiles: []
-                            }
-                        }
-                    }
-                    agentStack.push(currentAgent);
-                    return {
-                        conversationComplete: false,
-                        currentAgent: newAgent,
-                        pendingMessage: chainResponse.output
-                    }
-                } else {
-                    const isFinalUser = agentStack.length === 0;
-                    return {
-                        conversationComplete: isFinalUser,
-                        currentAgent: isFinalUser ? currentAgent : agentStack.pop()!,
-                        pendingMessage: {
-                            message: isFinalUser ? chainResponse.output.message : `${currentAgent.name} responded with: ${chainResponse.output.message}`,
-                            sharedFiles: chainResponse.responseAttributes[FILES_TO_SEND_FIELD]
-                        }
-                    }
-                }
+  
+        let toolCallback: FunctionResponseCallBack = async (call) => {
+            const toolResponse = `Agent: \`${call.agentName}\`  \n---\nCalled function: \`${call.name}\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
+            await sendResponse(toolResponse);
+        };
+        let intermediateResponseHandler = async (chainResponse: IntermediateAgentResponse) => {
+            if (chainResponse.type === "toolResponse") {
+                toolCallback({
+                    agentName: chainResponse.agentName,
+                    name: chainResponse.name,
+                    response: chainResponse.response
+                });
+            } else {
+                const discordMessage = `\`${chainResponse.sourceAgent}\` is sending a message to \`${chainResponse.destinationAgent}\`:\n\`\`\`${chainResponse.message}\`\`\`` +
+                `\nFiles provided: ${chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
+                await sendResponse(discordMessage, chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.url));
             }
-            let toolCallback: FunctionResponseCallBack = async (call) => {
-                const toolResponse = `Agent: \`${currentAgent.name}\`  \n---\nCalled function: \`${call.name}\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
-                await sendResponse(toolResponse);
-            };
+        };
 
-            let messageSender = async (chainResponse: AgentUserMessageResponse) => {
-                if (chainResponse.output.agentName) {
-                    const discordMessage = `\`${currentAgent.name}\` is sending a message to \`${chainResponse.output.agentName}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
-                        `\nFiles provided: ${chainResponse.output.sharedFiles?.map(f => `\`${f.fileName}\``).join(", ") || "None"}`;
-                    await sendResponse(discordMessage);
-                } else {
-                    const isFinalUser = agentStack.length === 0;
-                    if (!isFinalUser) {
-                        const discordMessage = `\`${currentAgent.name}\` is replying back to \`${agentStack[agentStack.length - 1].name}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
-                            `\nFiles provided: ${chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
-                        await sendResponse(discordMessage);
-                    } else {
-                        await sendResponse(chainResponse.output.message, chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.url));
-                    }
-                }
-            }
+        let result: IteratorResult<IntermediateAgentResponse, HandleMessageResult>;
+        const generator =  chatAgentHandle.handleMessage(msg)
 
-            let generator = pendingMessage
-                ? currentAgent.call(pendingMessage.message, { [FILES_TO_SEND_FIELD]: pendingMessage.sharedFiles })
-                : msg(currentAgent, toolCallback);
+        while (!(result = await generator.next()).done) {
+            intermediateResponseHandler(result.value);
+        }
 
-
-            let result: IteratorResult<ToolResponseInfo, AgentResponse>;
-            while (!(result = await generator.next()).done) {
-                toolCallback(result.value)
-            }
-            let chainResponse = result.value
-
-
-            if (chainResponse.type == "agentResponse") {
-                await messageSender(chainResponse);
-                const routedMessage = await handleMessage(chainResponse, agentStack);
-                currentAgent = routedMessage.currentAgent;
-                pendingMessage = routedMessage.pendingMessage;
-                if (routedMessage.conversationComplete) {
-                    break mainLoop;
-                }
-            }
-            while (chainResponse.type == "toolRequest") {
-                //chainResponse = await Retry(() => currentAgent.call(null, {}));
-                let generator = currentAgent.call(null, {});
-                let result: IteratorResult<ToolResponseInfo, AgentResponse>;
+        if (result.value.type === "agentResponse") {
+            await sendResponse(result.value.message, result.value.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.url));
+            return
+        } else {
+            while (result.value.type === "toolRequest") {
+                await sendResponse(result.value.message ?? "TOOL INVOKED! NO MESSAGE", []);
+                const generator = chatAgentHandle.handleMessage((agent)=> agent.call(null, {}));
                 while (!(result = await generator.next()).done) {
-                    toolCallback(result.value)
-                }
-                chainResponse = result.value
-
-                if (chainResponse.type == "agentResponse") {
-                    await messageSender(chainResponse);
-                    const routedMessage = await handleMessage(chainResponse, agentStack);
-                    currentAgent = routedMessage.currentAgent;
-                    pendingMessage = routedMessage.pendingMessage;
-
-                    if (routedMessage.conversationComplete) {
-                        break mainLoop;
-                    }
-                } else {
-                    await sendResponse(chainResponse.output?.message ?? "", []);
-                    // await messageSender(chainResponse);
+                    intermediateResponseHandler(result.value);
                 }
             }
+            await sendResponse(result.value.message, result.value.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.url));
         }
     }
     client.on(Events.MessageCreate, async msg => {
         const typing = setInterval(() => msg.channel.sendTyping(), 5000);
         try {
 
-            const agentInvoke: AgentInvoke = async function* (agent: Agent, callback) {
+            const agentInvoke: AgentInvoke = async function* (agent: Agent) {
                 const messageToAi = msg.cleanContent.replaceAll(`@${client.user!.username}`, "").trim();
                 const loadedFiles = await Promise.all(msg.attachments.map(async (attachment) => {
                     const response = await downloadFile(attachment.name, attachment.url);
@@ -376,6 +309,7 @@ export const run = async () => {
 
 run();
 export type FunctionResponseCallBack = (toolCalls: {
+    agentName: string,
     name: string;
     response: string;
 }) => Promise<void>;
@@ -387,7 +321,7 @@ type PendingMessage = {
     }[],
     message: string;
 }
-type AgentInvoke = (agent: Agent, callback?: FunctionResponseCallBack) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>;
+//type AgentInvoke = (agent: Agent, callback?: FunctionResponseCallBack) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>;
 type SendResponse = (message: string, attachments?: string[]) => Promise<void>
 
 async function sendDiscordResponse(msg: Message<boolean>, message: string, attachments?: string[]) {

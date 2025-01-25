@@ -1,18 +1,32 @@
-import { Agent, AgentResponse, AgentToolRequest as InternalAgentToolRequest,  AgentUserMessageResponse, ToolResponseInfo } from "../schema.js";
+import { Agent, AgentResponse, AgentToolRequest as InternalAgentToolRequest, AgentUserMessageResponse, ToolResponseInfo } from "../schema.js";
 import { AgentManager } from "./index.js";
 
 
 type PendingMessage = {
-    responseAttributes:Record<string, any>,
+    responseAttributes: Record<string, any>,
     message: string;
 }
 export type AgentInvoke = (agent: Agent,) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>;
 
-type AgentToAgentMessage = {
+
+export type IntermediateAgentResponse = ({
+    type: "agentToAgentMessage",
+} & AgentToAgentMessage) | {
+    type: "toolResponse",
     agentName: string,
-    message: string, 
-    responseAttributes:Record<string, any>
+} & ToolResponseInfo;
+export type AgentToAgentMessage = {
+    sourceAgent: string,
+    destinationAgent: string,
+    message: string,
+    responseAttributes: Record<string, any>
 }
+export type HandleMessageResult = ({
+    type: "agentResponse",
+
+} & AgentUserMessage) | {
+    type: "toolRequest",
+} & AgentToolRequest;
 
 export type AgentToolRequest = InternalAgentToolRequest & {
     agentName: string,
@@ -20,7 +34,7 @@ export type AgentToolRequest = InternalAgentToolRequest & {
 
 export type AgentUserMessage = {
     message: string,
-    responseAttributes:Record<string, any>
+    responseAttributes: Record<string, any>
 }
 export class AgentHandle {
     private currentAgent: Agent;
@@ -31,7 +45,7 @@ export class AgentHandle {
         this.currentAgent = currentAgent;
     }
 
-    async* handleMessage(msg: AgentInvoke): AsyncGenerator<ToolResponseInfo | AgentToAgentMessage, AgentUserMessage | AgentToolRequest, void> {
+    async* handleMessage(msg: AgentInvoke): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
 
         const handleMessage = async (chainResponse: AgentUserMessageResponse, agentStack: Agent[]): Promise<{
             conversationComplete: boolean,
@@ -82,30 +96,47 @@ export class AgentHandle {
             let result: IteratorResult<ToolResponseInfo, AgentResponse>;
             while (!(result = await generator.next()).done) {
                 //toolCallback(result.value)
-                yield result.value;
+                yield {
+                    type: "toolResponse",
+                    agentName: this.currentAgent.name,
+                    ...result.value
+                };
             }
             let chainResponse = result.value
 
 
             if (chainResponse.type == "agentResponse") {
                 //await messageSender(chainResponse);
+                const triggerAgent = this.currentAgent.name;
                 const routedMessage = await handleMessage(chainResponse, this.agentStack);
                 this.currentAgent = routedMessage.currentAgent;
-                this.pendingMessage = routedMessage.pendingMessage;
+               // this.pendingMessage = routedMessage.pendingMessage;
                 if (routedMessage.conversationComplete) {
+                    this.pendingMessage = undefined;
                     return {
-                        //agentName: chainResponse.output.agentName!,
+                        type: "agentResponse",
                         message: chainResponse.output.message,
                         responseAttributes: chainResponse.responseAttributes
                     };
                 } else {
                     //Message to another agent.
+                    this.pendingMessage = routedMessage.pendingMessage;
                     yield {
-                        agentName: chainResponse.output.agentName!,
+                        type: "agentToAgentMessage",
+                        sourceAgent: triggerAgent!,
+                        destinationAgent: this.currentAgent.name,
                         message: chainResponse.output.message,
                         responseAttributes: chainResponse.responseAttributes
                     }
                 }
+            } else {
+                return {
+                    type: "toolRequest",
+                    agentName: this.currentAgent.name,
+                    message: chainResponse.output.message,
+                    toolRequests: chainResponse.output.toolRequests,
+                }
+                //TOOL REQUEST
             }
         }
     }
