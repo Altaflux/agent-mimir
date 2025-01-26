@@ -14,7 +14,7 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { commandContentToBaseMessage, dividerSystemMessage, langChainHumanMessageToMimirHumanMessage, langChainToolMessageToMimirHumanMessage, mergeSystemMessages, parseToolMessage, parseUserMessage, toolMessageToToolResponseInfo } from "./message-utils.js";
 import { LangchainToolWrapperPluginFactory } from "./langchain-wrapper.js";
-import { Agent, AgentMessage, AgentUserMessageResponse, WorkspaceFactory } from "./index.js";
+import { Agent, AgentMessage, AgentMessageToolRequest, AgentUserMessageResponse, WorkspaceFactory } from "./index.js";
 import { AgentSystemMessage, AttributeDescriptor, MimirAgentPlugin, MimirPluginFactory, NextMessageUser } from "../plugins/index.js";
 
 
@@ -80,7 +80,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
     }
     const agentCall = async (state: ToolMessage) => {
         const agenrM = state;
-        const aum: AgentMessage = JSON.parse(agenrM.content as string);
+        const aum: AgentMessageToolRequest = JSON.parse(agenrM.content as string);
         const response: AgentUserMessageResponse = {
             type: "agentResponse",
             output: aum,
@@ -226,7 +226,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
         const toolCall = lastMessage.tool_calls![lastMessage.tool_calls!.length - 1];
         const toolRequest: AgentMessage = parseToolMessage(lastMessage, {});
         const humanReview = interrupt<
-            AgentMessage,
+        AgentMessage,
             {
                 action: string;
                 data: ComplexResponse[];
@@ -363,7 +363,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
                     const interruptState = state.tasks[0].interrupts[0];
                     return {
                         type: "toolRequest",
-                        output: interruptState.value as AgentMessage,
+                        output: interruptState.value as AgentMessageToolRequest,
                         responseAttributes: responseAttributes
                     }
 
@@ -433,7 +433,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
                     const interruptState = state.tasks[0].interrupts[0];
                     return {
                         type: "toolRequest",
-                        output: interruptState.value as AgentMessage,
+                        output: interruptState.value as AgentMessageToolRequest,
                         responseAttributes: responseAttributes
                     }
                 }
@@ -444,7 +444,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
 
                 }
 
-                let userResponse = (state.values["output"] as AgentMessage);
+                let userResponse = (state.values["output"] as AgentMessageToolRequest);
                 return {
                     type: "agentResponse",
                     output: userResponse,

@@ -271,7 +271,7 @@ export const run = async () => {
                     return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
                 }).join("\n");
                 const stringResponse = extractAllTextFromComplexResponse(result.value.content);
-                const toolResponse = `Agent: \`${result.value.destinationAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
+                const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
                 await sendResponse(toolResponse, []);
                 const generator = chatAgentHandle.handleMessage((agent) => agent.call(null, {}));
                 while (!(result = await generator.next()).done) {

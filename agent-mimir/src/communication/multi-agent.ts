@@ -1,4 +1,4 @@
-import { Agent, AgentResponse, AgentMessage, AgentUserMessageResponse, ToolResponseInfo } from "../agent-manager/index.js";
+import { Agent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, ToolResponseInfo, AgentMessage } from "../agent-manager/index.js";
 import { ComplexResponse } from "../schema.js";
 
 
@@ -28,8 +28,8 @@ export type HandleMessageResult = ({
     type: "toolRequest",
 } & AgentToolRequestTwo;
 
-export type AgentToolRequestTwo = AgentMessage & {
-    destinationAgent: string,
+export type AgentToolRequestTwo = AgentMessageToolRequest & {
+    callingAgent: string,
 }
 
 export type AgentUserMessage = {
@@ -128,7 +128,7 @@ export class MultiAgentCommunicationOrchestrator {
             } else {
                 return {
                     type: "toolRequest",
-                    destinationAgent: this.currentAgent.name,
+                    callingAgent: this.currentAgent.name,
                     content: chainResponse.output.content,
                     toolCalls: chainResponse.output.toolCalls,
                 }

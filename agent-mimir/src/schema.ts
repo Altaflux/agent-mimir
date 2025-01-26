@@ -1,6 +1,6 @@
 import { AgentTool } from "./tools/index.js";
 import { StateAnnotation } from "./agent-manager/agent.js";
-import {  AgentMessage, AgentWorkspace } from "./agent-manager/index.js";
+import {  AgentMessageToolRequest, AgentWorkspace } from "./agent-manager/index.js";
 
 
 

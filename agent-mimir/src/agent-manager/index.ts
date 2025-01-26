@@ -7,7 +7,8 @@ export type MessageContentToolUse = {
     input: Record<string, any>,
     id?: string,
 }
-export type AgentMessage = { destinationAgent?: string, content: ComplexResponse[], toolCalls?: MessageContentToolUse[] }
+export type AgentMessageToolRequest = { toolCalls: MessageContentToolUse[] } & Omit<AgentMessage, "destinationAgent">;
+export type AgentMessage = { destinationAgent?: string, content: ComplexResponse[] }
 
 export type WorkspaceFactory = (workDirectory: string) => Promise<AgentWorkspace>;
 
@@ -27,13 +28,13 @@ export interface Agent {
 
 export type AgentToolRequestResponse = {
     type: "toolRequest",
-    output: AgentMessage,
+    output: AgentMessageToolRequest,
     responseAttributes: Record<string, any>
 }
 
 export type AgentUserMessageResponse = {
     type: "agentResponse",
-    output: Omit<AgentMessage, "toolCalls">,
+    output: AgentMessage,
     responseAttributes: Record<string, any>
 }
 export type AgentResponse = AgentToolRequestResponse | AgentUserMessageResponse;

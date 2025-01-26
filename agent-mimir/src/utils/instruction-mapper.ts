@@ -69,6 +69,23 @@ export class ResponseFieldMapper<T = any> {
     }
 }
 
+export function extractTextResponse(complexResponse: ComplexResponse[]): ComplexResponse[] {
+    const response = complexResponse.filter(c => c.type === "text")
+        .map(t => t as ResponseContentText)
+        .map(t => t.text)
+        .reduce((prev, next) => {
+            return prev + next;
+        }, "");
+
+        const userMessage = extractImportantText(response, USER_RESPONSE);
+        return [
+            {
+                type: "text",
+                text: userMessage
+            }
+        ]
+
+}
 function extractImportantText(text: string, cutPoint: string) {
     const marker = cutPoint;
     const index = text.indexOf(marker);

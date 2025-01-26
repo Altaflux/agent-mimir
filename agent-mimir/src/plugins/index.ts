@@ -1,9 +1,9 @@
 import { StateAnnotation } from "../agent-manager/agent.js";
-import { AgentMessage, AgentWorkspace } from "../agent-manager/index.js";
+import { AgentMessageToolRequest, AgentWorkspace } from "../agent-manager/index.js";
 import { ComplexResponse } from "../schema.js";
 import { AgentTool } from "../tools/index.js";
 
-export type MimirAiMessage = Omit<AgentMessage, "destinationAgent">;
+export type MimirAiMessage = Omit<AgentMessageToolRequest, "destinationAgent">;
 
 export type AttributeDescriptor = {
     name: string,

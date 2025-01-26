@@ -3,7 +3,7 @@ import { AIMessage, BaseMessage, HumanMessage, MessageContent, MessageContentCom
 import { ComplexResponse, ResponseContentImage, ResponseContentText, SupportedImageTypes, } from "../schema.js";
 import { CONSTANTS, ERROR_MESSAGES } from "./constants.js";
 import { complexResponseToLangchainMessageContent } from "../utils/format.js";
-import { AgentMessage, } from "./index.js";
+import { AgentMessage, AgentMessageToolRequest, } from "./index.js";
 import { NextMessageToolResponse, NextMessageUser } from "../plugins/index.js";
 import { url } from "inspector";
 
@@ -39,7 +39,7 @@ export function parseUserMessage(aiMessage: AIMessage, responseAttributes: Recor
     return { content: content };
 }
 
-export function parseToolMessage(aiMessage: AIMessage, responseAttributes: Record<string, any>): AgentMessage {
+export function parseToolMessage(aiMessage: AIMessage, responseAttributes: Record<string, any>): AgentMessageToolRequest {
     const content = lCmessageContentToContent(aiMessage.content);
     return {
         toolCalls: (aiMessage.tool_calls ?? []).map(t => ({
