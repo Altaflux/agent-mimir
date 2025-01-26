@@ -6,7 +6,7 @@ import { AgentTool } from "../tools/index.js";
 import { StructuredTool } from "@langchain/core/tools";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 
-export class TalkToHelper extends StructuredTool {
+class TalkToHelper extends StructuredTool {
 
     schema = z.object({
         helperName: z.string().describe("The name of the helper you want to talk to and the message you want to send them."),
