@@ -30,7 +30,7 @@ export type AttributeDescriptor = {
     example?: string,
 }
 
-export type Agent = {
+export interface Agent {
     name: string,
     description: string,
     call: (message: string | null, input: Record<string, any>, noMessagesInTool?: boolean) =>  AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>,
@@ -39,6 +39,8 @@ export type Agent = {
     commands: AgentCommand[],
     reset: () => Promise<void>,
 };
+
+
 
 export type AgentToolRequestResponse = {
     type: "toolRequest",

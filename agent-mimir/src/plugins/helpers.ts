@@ -1,6 +1,6 @@
 import { AgentManager } from "../agent-manager/index.js";
 import { z } from "zod";
-import { AgentContext, AgentSystemMessage, AgentUserMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext, ToolResponse } from "../schema.js";
+import { Agent, AgentContext, AgentSystemMessage, AgentUserMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext, ToolResponse } from "../schema.js";
 import { AgentTool } from "../tools/index.js";
 import { LangchainToolToMimirTool } from "../utils/wrapper.js";
 import { StructuredTool } from "@langchain/core/tools";
@@ -43,7 +43,7 @@ export class TalkToHelper extends StructuredTool {
 
 export type HelperPluginConfig = {
     name: string,
-    helperSingleton: AgentManager,
+    helperSingleton:  ReadonlyMap<string, Agent>,
     communicationWhitelist: string[] | null,
 }
 
@@ -63,7 +63,7 @@ export class HelpersPluginFactory implements MimirPluginFactory {
 
 class HelperTool extends AgentTool {
 
-    constructor(private helperSingleton: AgentManager, private agentName: string) {
+    constructor(private helperSingleton: ReadonlyMap<string, Agent>, private agentName: string) {
         super();
     }
     schema = z.object({
@@ -89,7 +89,7 @@ class HelperTool extends AgentTool {
 }
 export class HelpersPlugin extends MimirAgentPlugin {
 
-    private helperSingleton: AgentManager;
+    private helperSingleton:  ReadonlyMap<string, Agent>;
     private communicationWhitelist: string[] | null;
     private agentName: string;
 
@@ -102,7 +102,7 @@ export class HelpersPlugin extends MimirAgentPlugin {
 
     async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
 
-        const helpers = this.helperSingleton?.getAllAgents() ?? [];
+        const helpers = [...this.helperSingleton.values()];
         const whiteList = this.communicationWhitelist ?? helpers.map((helper) => helper.name) ?? [];
         const helperList = helpers.filter((helper) => helper.name !== this.agentName)
             .filter(element => whiteList.includes(element.name))

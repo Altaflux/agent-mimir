@@ -16,7 +16,9 @@ import { Retry } from "./utils.js";
 import { Embeddings } from "@langchain/core/embeddings";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { AgentHandle, AgentInvoke, AgentToAgentMessage, AgentToolRequest, AgentUserMessage, HandleMessageResult, IntermediateAgentResponse } from "agent-mimir/chat";
+import { MultiAgentCommunicationOrchestrator, AgentInvoke, AgentToAgentMessage, AgentToolRequest, AgentUserMessage, HandleMessageResult, IntermediateAgentResponse } from "agent-mimir/chat";
+import { createAgent } from "agent-mimir/agent";
+import { HelpersPluginFactory } from "agent-mimir/plugins/helpers";
 
 function splitStringInChunks(str: string) {
     const chunkSize = 1900;
@@ -87,32 +89,42 @@ export const run = async () => {
     console.log(`Using working directory ${workingDirectory}`);
     await fs.mkdir(workingDirectory, { recursive: true });
 
-    const agentManager = new AgentManager({
-        embeddings: agentConfig.embeddings,
-        workspaceManagerFactory: async (agent) => {
-            const tempDir = path.join(workingDirectory, agent);
-            await fs.mkdir(tempDir, { recursive: true });
-            const workspace = new FileSystemAgentWorkspace(tempDir);
-            await fs.mkdir(workspace.workingDirectory, { recursive: true });
-            return workspace;
-        }
-    });
-
+    const workspaceFactory = async (agentName: string) => {
+        const tempDir = path.join(workingDirectory, agentName);
+        await fs.mkdir(tempDir, { recursive: true });
+        const workspace = new FileSystemAgentWorkspace(tempDir);
+        await fs.mkdir(workspace.workingDirectory, { recursive: true });
+        return workspace;
+    }
+    const agentMap = new Map<string, Agent>();
     const agents = await Promise.all(Object.entries(agentConfig.agents).map(async ([agentName, agentDefinition]) => {
         if (agentDefinition.definition) {
+
+            const canCommunicateWithAgents = agentDefinition.definition.communicationWhitelist ?? false;
+            let communicationWhitelist = undefined;
+            if (Array.isArray(canCommunicateWithAgents)) {
+                communicationWhitelist = canCommunicateWithAgents
+            }
+            const helpersPlugin = new HelpersPluginFactory({
+                name: agentName,
+                helperSingleton: agentMap,
+                communicationWhitelist: communicationWhitelist ?? null
+            });
+
+
             const newAgent = {
                 mainAgent: agentDefinition.mainAgent,
                 name: agentName,
-                agent: await agentManager.createAgent({
+                agent: await createAgent({
                     name: agentName,
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,
                     tools: agentDefinition.definition.tools ?? [],
                     model: agentDefinition.definition.chatModel,
                     visionSupport: agentDefinition.definition.visionSupport,
-                    communicationWhitelist: agentDefinition.definition.communicationWhitelist,
                     constitution: agentDefinition.definition.constitution,
-                    plugins: agentDefinition.definition.plugins
+                    plugins: [helpersPlugin, ...agentDefinition.definition.plugins ?? []],
+                    workspaceFactory: workspaceFactory,
                 })
             }
             console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.definition.profession}" and description "${agentDefinition.description}"`));
@@ -123,6 +135,8 @@ export const run = async () => {
 
     }));
 
+    agents.forEach(a => agentMap.set(a.name, a.agent));
+
     const mainAgent = agents.length === 1 ? agents[0].agent : agents.find(a => a.mainAgent)?.agent;
     if (!mainAgent) {
         throw new Error("No main agent found");
@@ -130,7 +144,7 @@ export const run = async () => {
 
     console.log(chalk.green(`Using "${mainAgent.name}" as main agent`));
 
-    const chatAgentHandle: AgentHandle = new AgentHandle(agentManager, mainAgent);
+    const chatAgentHandle = new MultiAgentCommunicationOrchestrator(agentMap, mainAgent);
 
     const client = new Client(
         {
@@ -228,7 +242,7 @@ export const run = async () => {
 
     });
     const messageHandler = async (msg: AgentInvoke, sendResponse: SendResponse) => {
-  
+
         let toolCallback: FunctionResponseCallBack = async (call) => {
             const toolResponse = `Agent: \`${call.agentName}\`  \n---\nCalled function: \`${call.name}\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
             await sendResponse(toolResponse);
@@ -242,13 +256,13 @@ export const run = async () => {
                 });
             } else {
                 const discordMessage = `\`${chainResponse.sourceAgent}\` is sending a message to \`${chainResponse.destinationAgent}\`:\n\`\`\`${chainResponse.message}\`\`\`` +
-                `\nFiles provided: ${chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
+                    `\nFiles provided: ${chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
                 await sendResponse(discordMessage, chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.url));
             }
         };
 
         let result: IteratorResult<IntermediateAgentResponse, HandleMessageResult>;
-        const generator =  chatAgentHandle.handleMessage(msg)
+        const generator = chatAgentHandle.handleMessage(msg)
 
         while (!(result = await generator.next()).done) {
             intermediateResponseHandler(result.value);
@@ -264,7 +278,7 @@ export const run = async () => {
                 }).join("\n");
                 const toolResponse = `Agent: \`${result.value.agentName}\` \n ${result.value.message} \n---\nCalling functions: ${toolCalls} `;
                 await sendResponse(toolResponse, []);
-                const generator = chatAgentHandle.handleMessage((agent)=> agent.call(null, {}));
+                const generator = chatAgentHandle.handleMessage((agent) => agent.call(null, {}));
                 while (!(result = await generator.next()).done) {
                     intermediateResponseHandler(result.value);
                 }

@@ -1,88 +1,46 @@
-import { StructuredTool, Tool } from "@langchain/core/tools";
-import { Agent, AgentResponse, AgentSystemMessage, AgentToolRequest, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, CommandContent, ComplexResponse, FunctionResponseCallBack, MimirAgentPlugin, MimirPluginFactory, NextMessageToolResponse, NextMessageUser, PluginContext, ToolResponseInfo, WorkspaceManagerFactory } from "../schema.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { Embeddings } from "@langchain/core/embeddings";
-import { END, MessagesAnnotation, START, StateGraph, interrupt, Command, messagesStateReducer, Send } from "@langchain/langgraph";
-import { AIMessage, AIMessageChunk, BaseMessage, BaseMessageChunk, HumanMessage, isAIMessage, isHumanMessage, isToolMessage, MessageContent, MessageContentComplex, MessageContentImageUrl, MessageContentText, RemoveMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
-import { ToolNode } from "@langchain/langgraph/prebuilt";
-import { aiMessageToMimirAiMessage, complexResponseToLangchainMessageContent } from "../utils/format.js";
-import { v4 } from "uuid";
-import { Annotation } from "@langchain/langgraph";
+import { Agent, AgentSystemMessage, AgentToolRequest, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, CommandContent, ComplexResponse, MimirAgentPlugin, MimirPluginFactory, NextMessageToolResponse, NextMessageUser, PluginContext, ToolResponseInfo, WorkspaceManagerFactory } from "../schema.js";
+import { StructuredTool, Tool } from "@langchain/core/tools";
+import { HelpersPluginFactory } from "../plugins/helpers.js";
+import { WorkspacePluginFactory } from "../plugins/workspace.js";
+import { ViewPluginFactory } from "../tools/image_view.js";
 import { AgentTool } from "../tools/index.js";
 import { LangchainToolToMimirTool, MimirToolToLangchainTool } from "../utils/wrapper.js";
+import { isToolMessage, ToolMessage } from "@langchain/core/messages/tool";
+import { aiMessageToMimirAiMessage, complexResponseToLangchainMessageContent } from "../utils/format.js";
+import { AIMessage, BaseMessage, HumanMessage, isAIMessage, isHumanMessage, MessageContent, MessageContentComplex, MessageContentImageUrl, MessageContentText, RemoveMessage, SystemMessage } from "@langchain/core/messages";
+import { _INTERNAL_ANNOTATION_ROOT, BinaryOperatorAggregate, Command, END, interrupt, LastValue, Messages, MessagesAnnotation, Send, SingleReducer, START, StateDefinition, StateGraph, StateType } from "@langchain/langgraph";
+import { v4 } from "uuid";
+import { StateAnnotation } from "./index.js";
 import { ResponseFieldMapper } from "../utils/instruction-mapper.js";
-import { HelpersPluginFactory } from "../plugins/helpers.js";
-import { ViewPluginFactory } from "../tools/image_view.js";
-import { WorkspacePluginFactory } from "../plugins/workspace.js";
+import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
-export type CreateAgentOptions = {
-    profession: string,
-    description: string,
-    name: string,
-    model: BaseChatModel,
-    plugins?: MimirPluginFactory[],
-    constitution?: string,
-    visionSupport?: 'openai'
-    communicationWhitelist?: boolean | string[],
-    tools?: Tool[],
-}
 
-export type ManagerConfig = {
-
-    workspaceManagerFactory: WorkspaceManagerFactory,
-    embeddings: Embeddings
-}
-
-export const StateAnnotation = Annotation.Root({
-    ...MessagesAnnotation.spec,
-    requestAttributes: Annotation<Record<string, any>>,
-    responseAttributes: Annotation<Record<string, any>>,
-    output: Annotation<AgentUserMessage>,
-    noMessagesInTool: Annotation<Boolean>,
-    agentMessage: Annotation<BaseMessage[]>({
-        reducer: messagesStateReducer,
-        default: () => [],
-    }),
-});
-
-
-export class AgentManager {
-    private map: Map<string, Agent> = new Map();
-
-    public constructor(private managerConfig: ManagerConfig) { }
-
-    public async createAgent(config: CreateAgentOptions): Promise<Agent> {
-        const agent = await this.createAgentNoRegister(config);
-        this.map.set(agent.name, agent);
-        return agent;
+    
+    export type CreateAgentOptions = {
+        profession: string,
+        description: string,
+        name: string,
+        model: BaseChatModel,
+        plugins?: MimirPluginFactory[],
+        constitution?: string,
+        visionSupport?: 'openai'
+        tools?: Tool[],
+        workspaceFactory: WorkspaceManagerFactory,
     }
-
-    private async createAgentNoRegister(config: CreateAgentOptions): Promise<Agent> {
+    
+    
+    export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
 
         const shortName = config.name;
 
 
-        const embeddings = this.managerConfig.embeddings;
+        
         const model = config.model;
 
-        const workspace = await this.managerConfig.workspaceManagerFactory(shortName);
+        const workspace = await config.workspaceFactory(shortName);
 
-        const allPluginFactories = (config.plugins ?? []);
-        const canCommunicateWithAgents = config.communicationWhitelist ?? false;
-        let communicationWhitelist = undefined;
-        if (Array.isArray(canCommunicateWithAgents)) {
-            communicationWhitelist = canCommunicateWithAgents
-        }
-
-        if (config.communicationWhitelist) {
-            const helpersPlugin = new HelpersPluginFactory({
-                name: shortName,
-                helperSingleton: this.map,
-                communicationWhitelist: communicationWhitelist ?? null
-            });
-
-            allPluginFactories.push(helpersPlugin);
-        }
+        const allPluginFactories = (config.plugins ?? []);   
 
         const tools = [
             ...(config.tools ?? []),
@@ -496,72 +454,33 @@ export class AgentManager {
         }
     }
 
-    public getAgent(shortName: string): Agent | undefined {
-        const agent = this.map.get(shortName);
-        return agent
-    }
 
-    public getAllAgents(): Agent[] {
-        return Array.from(this.map.values())
+function toolMessageToToolResponseInfo(message: ToolMessage): ToolResponseInfo {
+    return {
+        name: message.name ?? "Unknown",
+        response: trimStringToMaxWithEllipsis(JSON.stringify(message.content), 400)
     }
 }
-function takeWhile<T>(a: T[], predicate: (a: T) => boolean) {
-    const i = a.findIndex(x => !predicate(x));
-    return i >= 0 ? a.slice(0, i) : a;
-}
-
 function trimStringToMaxWithEllipsis(str: string, max: number) {
     return str.length > max ? str.substring(0, max) + "..." : str;
 }
 
-
-function commandContentToBaseMessage(commandContent: CommandContent) {
-
-    if (commandContent.type === "assistant") {
-        return new AIMessage({
-            id: v4(),
-            content: complexResponseToLangchainMessageContent(commandContent.content)
-        })
-    } else if (commandContent.type === "user") {
-        return new HumanMessage({
-            id: v4(),
-            content: complexResponseToLangchainMessageContent(commandContent.content)
-        })
-    }
-    throw new Error("Unreacable");
-
-}
-
-async function addAdditionalContentToUserMessage(message: NextMessageUser, plugins: MimirAgentPlugin[], state: typeof StateAnnotation.State) {
-    const displayMessage = JSON.parse(JSON.stringify(message)) as NextMessageUser;
-    const persistentMessage = JSON.parse(JSON.stringify(message)) as NextMessageUser;
-    const spacing: ComplexResponse = {
-        type: "text",
-        text: "\n-----------------------------------------------\n\n"
-    }
-    const additionalContent: ComplexResponse[] = [];
-    const persistentAdditionalContent: ComplexResponse[] = [];
-    for (const plugin of plugins) {
-        const customizations = await plugin.additionalMessageContent(persistentMessage, state,);
-        for (const customization of customizations) {
-            if (customization.displayOnCurrentMessage) {
-                additionalContent.push(...customization.content)
-                additionalContent.push(spacing)
-            }
-            if (customization.saveToChatHistory) {
-                persistentAdditionalContent.push(...customization.content);
-                persistentAdditionalContent.push(spacing)
-            }
-        }
-    }
-    displayMessage.content.unshift(...additionalContent);
-    persistentMessage.content.unshift(...persistentAdditionalContent);
-
+function langChainHumanMessageToMimirHumanMessage(message: HumanMessage): NextMessageUser {
     return {
-        displayMessage,
-        persistentMessage
+        type: "USER_MESSAGE",
+        content: lCmessageContentToContent(message.content)
     }
 }
+
+function langChainToolMessageToMimirHumanMessage(message: ToolMessage): NextMessageToolResponse {
+    return {
+        type: "TOOL_CALL",
+        tool: message.name!,
+        toolCallId: message.tool_call_id,
+        content: lCmessageContentToContent(message.content)
+    }
+}
+
 function parseUserMessage(aiMessage: AIMessage, responseAttributes: Record<string, any>): AgentUserMessage {
     let content = aiMessage.content;
     let textContent: string;
@@ -610,47 +529,21 @@ function parseToolMessage(aiMessage: AIMessage, responseAttributes: Record<strin
 
     return resp;
 }
+function commandContentToBaseMessage(commandContent: CommandContent) {
 
-function invokeToolCallback(messages: BaseMessage[], callback: FunctionResponseCallBack) {
-
-    let messageList = [...messages].reverse();
-    let lastAiMessage: AIMessage = messageList.find(m => isAIMessage(m))!;
-    let toolMessages: ToolMessage[] = takeWhile(messageList, (a) => isToolMessage(a)) as ToolMessage[];
-    if (toolMessages.length > 0) {
-        callback(toolMessages.map((t) => {
-            let toolCalls = lastAiMessage.tool_calls ?? [];
-            let toc = toolCalls.find(tc => tc.id === t.tool_call_id)!;
-            return {
-                message: parseUserMessage(lastAiMessage, {}).message,
-                input: trimStringToMaxWithEllipsis(JSON.stringify(toc.args), 400),
-                name: toc.name,
-                response: trimStringToMaxWithEllipsis(JSON.stringify(t.content), 400)
-            }
-        }))
+    if (commandContent.type === "assistant") {
+        return new AIMessage({
+            id: v4(),
+            content: complexResponseToLangchainMessageContent(commandContent.content)
+        })
+    } else if (commandContent.type === "user") {
+        return new HumanMessage({
+            id: v4(),
+            content: complexResponseToLangchainMessageContent(commandContent.content)
+        })
     }
-}
+    throw new Error("Unreacable");
 
-function toolMessageToToolResponseInfo(message: ToolMessage): ToolResponseInfo {
-    return {
-        name: message.name ?? "Unknown",
-        response: trimStringToMaxWithEllipsis(JSON.stringify(message.content), 400)
-    }
-}
-
-function langChainHumanMessageToMimirHumanMessage(message: HumanMessage): NextMessageUser {
-    return {
-        type: "USER_MESSAGE",
-        content: lCmessageContentToContent(message.content)
-    }
-}
-
-function langChainToolMessageToMimirHumanMessage(message: ToolMessage): NextMessageToolResponse {
-    return {
-        type: "TOOL_CALL",
-        tool: message.name!,
-        toolCallId: message.tool_call_id,
-        content: lCmessageContentToContent(message.content)
-    }
 }
 
 
@@ -731,25 +624,57 @@ function buildSystemMessage(agentSystemMessages: AgentSystemMessage[]) {
     return finalMessage;
 }
 
-class LangchainToolWrapperPluginFactory implements MimirPluginFactory {
 
-    name: string;
-
-    constructor(private tool: StructuredTool) {
-        this.name = tool.name;
-    }
-    async create(context: PluginContext): Promise<MimirAgentPlugin> {
-        return new LangchainToolWrapper(this.tool);
-    }
-}
-
-class LangchainToolWrapper extends MimirAgentPlugin {
-
-    constructor(private tool: StructuredTool) {
-        super();
+    class LangchainToolWrapperPluginFactory implements MimirPluginFactory {
+    
+        name: string;
+    
+        constructor(private tool: StructuredTool) {
+            this.name = tool.name;
+        }
+        async create(context: PluginContext): Promise<MimirAgentPlugin> {
+            return new LangchainToolWrapper(this.tool);
+        }
     }
 
-    tools(): AgentTool[] {
-        return [new LangchainToolToMimirTool(this.tool)];
+    class LangchainToolWrapper extends MimirAgentPlugin {
+    
+        constructor(private tool: StructuredTool) {
+            super();
+        }
+    
+        tools(): AgentTool[] {
+            return [new LangchainToolToMimirTool(this.tool)];
+        }
     }
-}
+
+    async function addAdditionalContentToUserMessage(message: NextMessageUser, plugins: MimirAgentPlugin[], state: typeof StateAnnotation.State) {
+        const displayMessage = JSON.parse(JSON.stringify(message)) as NextMessageUser;
+        const persistentMessage = JSON.parse(JSON.stringify(message)) as NextMessageUser;
+        const spacing: ComplexResponse = {
+            type: "text",
+            text: "\n-----------------------------------------------\n\n"
+        }
+        const additionalContent: ComplexResponse[] = [];
+        const persistentAdditionalContent: ComplexResponse[] = [];
+        for (const plugin of plugins) {
+            const customizations = await plugin.additionalMessageContent(persistentMessage, state,);
+            for (const customization of customizations) {
+                if (customization.displayOnCurrentMessage) {
+                    additionalContent.push(...customization.content)
+                    additionalContent.push(spacing)
+                }
+                if (customization.saveToChatHistory) {
+                    persistentAdditionalContent.push(...customization.content);
+                    persistentAdditionalContent.push(spacing)
+                }
+            }
+        }
+        displayMessage.content.unshift(...additionalContent);
+        persistentMessage.content.unshift(...persistentAdditionalContent);
+    
+        return {
+            displayMessage,
+            persistentMessage
+        }
+    }

@@ -1,5 +1,4 @@
 import { Agent, AgentResponse, AgentToolRequest as InternalAgentToolRequest, AgentUserMessageResponse, ToolResponseInfo } from "../schema.js";
-import { AgentManager } from "./index.js";
 
 
 type PendingMessage = {
@@ -36,11 +35,11 @@ export type AgentUserMessage = {
     message: string,
     responseAttributes: Record<string, any>
 }
-export class AgentHandle {
+export class MultiAgentCommunicationOrchestrator {
     private currentAgent: Agent;
     private agentStack: Agent[] = [];
 
-    constructor(private readonly agentManager: AgentManager, currentAgent: Agent) {
+    constructor(private readonly agentManager: ReadonlyMap<string, Agent>, currentAgent: Agent) {
         this.currentAgent = currentAgent;
     }
 
@@ -52,7 +51,7 @@ export class AgentHandle {
             pendingMessage: PendingMessage | undefined
         }> => {
             if (chainResponse.output.agentName) {
-                const newAgent = this.agentManager.getAgent(chainResponse.output.agentName);
+                const newAgent = this.agentManager.get(chainResponse.output.agentName);
                 if (!newAgent) {
                     return {
                         conversationComplete: false,

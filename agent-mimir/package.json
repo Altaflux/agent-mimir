@@ -15,6 +15,14 @@
       "types": "./dist/agent-manager/index.d.ts",
       "import": "./dist/agent-manager/index.js"
     },
+    "./agent": {
+      "types": "./dist/agent-manager/agent.d.ts",
+      "import": "./dist/agent-manager/agent.js"
+    },
+    "./plugins/helpers": {
+      "types": "./dist/plugins/helpers.d.ts",
+      "import": "./dist/plugins/helpers.js"
+    },
     "./chat": {
       "types": "./dist/agent-manager/chat.d.ts",
       "import": "./dist/agent-manager/chat.js"
