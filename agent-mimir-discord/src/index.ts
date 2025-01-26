@@ -1,5 +1,5 @@
 
-import { Agent, AgentResponse, AgentUserMessageResponse, FILES_TO_SEND_FIELD, MimirPluginFactory, ToolResponseInfo } from "agent-mimir/schema";
+import {  FILES_TO_SEND_FIELD,  } from "agent-mimir/schema";
 import chalk from "chalk";
 import { Tool } from "@langchain/core/tools";
 import { promises as fs } from 'fs';
@@ -16,8 +16,11 @@ import { Embeddings } from "@langchain/core/embeddings";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { MultiAgentCommunicationOrchestrator, AgentInvoke, HandleMessageResult, IntermediateAgentResponse } from "agent-mimir/communication/multi-agent";
-import { createAgent } from "agent-mimir/agent";
+import { createAgent } from "agent-mimir/agent/agent";
 import { HelpersPluginFactory } from "agent-mimir/plugins/helpers";
+import { Agent, AgentResponse, ToolResponseInfo } from "agent-mimir/agent";
+import { extractAllTextFromComplexResponse } from "agent-mimir/utils/format";
+import { MimirPluginFactory } from "agent-mimir/plugins";
 
 function splitStringInChunks(str: string) {
     const chunkSize = 1900;
@@ -244,7 +247,8 @@ export const run = async () => {
                     response: chainResponse.response
                 });
             } else {
-                const discordMessage = `\`${chainResponse.sourceAgent}\` is sending a message to \`${chainResponse.destinationAgent}\`:\n\`\`\`${chainResponse.message}\`\`\`` +
+                const stringResponse = extractAllTextFromComplexResponse(chainResponse.content);
+                const discordMessage = `\`${chainResponse.sourceAgent}\` is sending a message to \`${chainResponse.destinationAgent}\`:\n\`\`\`${stringResponse}\`\`\`` +
                     `\nFiles provided: ${chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
                 await sendResponse(discordMessage, chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.url));
             }
@@ -258,21 +262,24 @@ export const run = async () => {
         }
 
         if (result.value.type === "agentResponse") {
-            await sendResponse(result.value.message, result.value.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.url));
+            const stringResponse = extractAllTextFromComplexResponse(result.value.content);
+            await sendResponse(stringResponse, result.value.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.url));
             return
         } else {
             while (result.value.type === "toolRequest") {
-                const toolCalls = result.value.toolRequests.map(tr => {
-                    return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${tr.toolArguments}\`\`\``;
+                const toolCalls = (result.value.toolCalls ?? []).map(tr => {
+                    return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
                 }).join("\n");
-                const toolResponse = `Agent: \`${result.value.agentName}\` \n ${result.value.message} \n---\nCalling functions: ${toolCalls} `;
+                const stringResponse = extractAllTextFromComplexResponse(result.value.content);
+                const toolResponse = `Agent: \`${result.value.destinationAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
                 await sendResponse(toolResponse, []);
                 const generator = chatAgentHandle.handleMessage((agent) => agent.call(null, {}));
                 while (!(result = await generator.next()).done) {
                     intermediateResponseHandler(result.value);
                 }
             }
-            await sendResponse(result.value.message, result.value.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.url));
+            const stringResponse = extractAllTextFromComplexResponse(result.value.content);
+            await sendResponse(stringResponse, result.value.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.url));
         }
     }
     client.on(Events.MessageCreate, async msg => {
@@ -288,8 +295,13 @@ export const run = async () => {
                         url: response
                     }
                 }));
-                const messageToSend = { message: messageToAi, sharedFiles: loadedFiles };
-                const generator = agent.call(messageToSend.message, { [FILES_TO_SEND_FIELD]: messageToSend.sharedFiles })
+                //const messageToSend = { message: messageToAi, sharedFiles: loadedFiles };
+                const generator = agent.call([
+                    {
+                        type: "text",
+                        text: messageToAi
+                    }
+                ], { [FILES_TO_SEND_FIELD]: loadedFiles })
 
                 let result: IteratorResult<ToolResponseInfo, AgentResponse>;
                 while (!(result = await generator.next()).done) {

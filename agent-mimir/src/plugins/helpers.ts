@@ -1,10 +1,11 @@
 
 import { z } from "zod";
-import { Agent, AgentContext, AgentSystemMessage, AgentUserMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext, ToolResponse } from "../schema.js";
-import { AgentTool } from "../tools/index.js";
+import {  AgentContext, AgentSystemMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../plugins/index.js";
+import { AgentTool, ToolResponse } from "../tools/index.js";
 
 import { StructuredTool } from "@langchain/core/tools";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
+import { Agent, AgentMessage } from "../agent-manager/index.js";
 
 class TalkToHelper extends StructuredTool {
 
@@ -28,9 +29,14 @@ class TalkToHelper extends StructuredTool {
                 return { fileName: fileName, url: (await self?.workspace.getUrlForFile(fileName))! };
             }).filter(async value => (await value).url !== undefined)));
 
-        const result: AgentUserMessage = {
-            agentName: helperName,
-            message: message,
+        const result: AgentMessage = {
+            destinationAgent: helperName,
+            content: [
+                {
+                    type: "text",
+                    text: message
+                }
+            ],
             // sharedFiles: filesToSend,
         }
         //TODO THIS IS WRONG
@@ -76,9 +82,14 @@ class HelperTool extends AgentTool {
         const { helperName, message } = arg;
 
 
-        const result: AgentUserMessage = {
-            agentName: helperName,
-            message: message,
+        const result: AgentMessage = {
+            destinationAgent: helperName,
+            content: [
+                {
+                    type: "text",
+                    text: message
+                }
+            ],
             // sharedFiles: filesToSend,
         }
         return result;

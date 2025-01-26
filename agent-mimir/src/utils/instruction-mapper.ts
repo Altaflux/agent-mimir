@@ -1,4 +1,5 @@
-import { AttributeDescriptor, ComplexResponse, ResponseContentText } from "../schema.js";
+import { AttributeDescriptor } from "../plugins/index.js";
+import { ComplexResponse, ResponseContentText } from "../schema.js";
 
 const responseHeader = `RESPONSE FORMAT INSTRUCTIONS
 ----------------------------
@@ -46,8 +47,8 @@ export class ResponseFieldMapper<T = any> {
             }, "");
 
         const userMessage = extractImportantText(response, USER_RESPONSE);
-      
-        
+
+
         const responseParts = this.attributeSetters.map((attributeSetter) => `- ${attributeSetter.name}`).join('|');
         const mappings = this.attributeSetters.map((attributeSetter) => {
             return {
@@ -68,12 +69,12 @@ export class ResponseFieldMapper<T = any> {
     }
 }
 
-function extractImportantText(text: string, cutPoint:string) {
+function extractImportantText(text: string, cutPoint: string) {
     const marker = cutPoint;
     const index = text.indexOf(marker);
-    
+
     if (index === -1) {
-        return ""; 
+        return "";
     }
     return text.substring(index + marker.length).trim();
 }

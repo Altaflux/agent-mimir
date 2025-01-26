@@ -1,6 +1,7 @@
 import path from "path";
-import { AgentWorkspace } from "../schema.js";
+
 import { promises as fs } from 'fs';
+import { AgentWorkspace } from "../agent-manager/index.js";
 
 export class FileSystemAgentWorkspace implements AgentWorkspace {
 

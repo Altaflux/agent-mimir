@@ -1,13 +1,14 @@
-import { AgentTool } from "../tools/index.js";
+import { AgentTool, ToolResponse } from "../tools/index.js";
 import { z } from "zod";
 import { v4 } from "uuid";
-import { AgentUserMessage, ComplexResponse, ToolResponse } from "../schema.js";
+import {  ComplexResponse } from "../schema.js";
 import { StructuredTool, ToolRunnableConfig } from "@langchain/core/tools";
 import { complexResponseToLangchainMessageContent } from "./format.js";
 import { Command } from "@langchain/langgraph";
 import { ToolCall, ToolMessage } from "@langchain/core/messages/tool";
 import { RunnableConfig } from "@langchain/core/runnables";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
+import { AgentMessage } from "../agent-manager/index.js";
 
 export class MimirToolToLangchainTool extends StructuredTool {
 
@@ -41,9 +42,9 @@ export class MimirToolToLangchainTool extends StructuredTool {
         return complexResponseToLangchainMessageContent(response as ComplexResponse[]);
     }
 }
-
-export function isUserAgentMessage(x: ToolResponse): x is AgentUserMessage {
-    if ((x as any).message) {
+//TODO: This is a temporary solution, we need to find a better way to check if the response is an AgentMessage
+export function isUserAgentMessage(x: ToolResponse): x is AgentMessage {
+    if ((x as any).content) {
         return true;
     }
     return false;

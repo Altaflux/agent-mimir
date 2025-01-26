@@ -1,5 +1,7 @@
-import { AIMessage, BaseMessage, MessageContent, MessageContentComplex, MessageContentText } from "@langchain/core/messages";
-import { ComplexResponse, ImageType, MessageContentToolUse, MimirAiMessage, ResponseContentText } from "../schema.js";
+import { AIMessage, MessageContent, MessageContentComplex, MessageContentText } from "@langchain/core/messages";
+import { ComplexResponse,   ResponseContentText, SupportedImageTypes } from "../schema.js";
+import { MessageContentToolUse } from "../agent-manager/index.js";
+import { MimirAiMessage } from "../plugins/index.js";
 
 
 export function extractTextContent(messageContent: MessageContent) {
@@ -39,6 +41,7 @@ export function aiMessageToMimirAiMessage(aiMessage: AIMessage): MimirAiMessage 
       text: content as string
     })
   } else {
+    //TODO handle other types
     let cont = content.map(c => {
       if (c.type === "text") {
         return {
@@ -55,7 +58,7 @@ export function aiMessageToMimirAiMessage(aiMessage: AIMessage): MimirAiMessage 
   if (aiMessage.tool_calls) {
     const tool_calls = aiMessage.tool_calls.map(t => {
       return {
-        name: t.name,
+        toolName: t.name,
         input: t.args,
         id: t.id
       } satisfies MessageContentToolUse
@@ -66,11 +69,11 @@ export function aiMessageToMimirAiMessage(aiMessage: AIMessage): MimirAiMessage 
   return mimirMessage;
 }
 
-export function extractAllTextFromComplexResponse(toolResponse: ComplexResponse[]) {
+export function extractAllTextFromComplexResponse(toolResponse: ComplexResponse[]): string {
   return toolResponse.filter((r) => r.type === "text").map((r) => (r as ResponseContentText).text).join("\n");
 }
 
-export const openAIImageHandler = (image: ImageType, detail: "high" | "low" = "high") => {
+export const openAIImageHandler = (image: { url: string, type: SupportedImageTypes }, detail: "high" | "low" = "high") => {
   let type = image.type as string;
   if (type === "jpg") {
     type = "jpeg"

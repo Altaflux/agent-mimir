@@ -1,5 +1,5 @@
 import { StructuredTool } from "@langchain/core/tools";
-import { MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../schema.js";
+import { MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../plugins/index.js";
 import { LangchainToolToMimirTool } from "../utils/wrapper.js";
 
 /**

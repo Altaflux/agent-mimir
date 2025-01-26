@@ -5,9 +5,9 @@ export { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/webso
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js"
 import { CallToolResult, EmbeddedResource, ImageContent, PromptMessage, TextContent } from "@modelcontextprotocol/sdk/types.js";
 import { jsonSchemaToZod, JsonSchema } from "./json-schema-to-zod/index.js";
-import { AgentCommand, AgentContext, AgentSystemMessage, CommandContent, ToolResponse } from "agent-mimir/schema";
-import { AgentTool } from "agent-mimir/tools";
-import { MimirAgentPlugin, PluginContext, MimirPluginFactory, ComplexResponse } from "agent-mimir/schema";
+import { AgentCommand, AgentContext, AgentSystemMessage, CommandContent, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "agent-mimir/plugins";
+import { AgentTool, ToolResponse } from "agent-mimir/tools";
+import { ComplexResponse } from "agent-mimir/schema";
 import { z } from "zod";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 

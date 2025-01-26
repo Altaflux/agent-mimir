@@ -1,8 +1,11 @@
 import { v4 } from "uuid";
 import { AIMessage, BaseMessage, HumanMessage, MessageContent, MessageContentComplex, MessageContentImageUrl, MessageContentText, SystemMessage, ToolMessage } from "@langchain/core/messages";
-import { AgentToolRequest, AgentUserMessage, ComplexResponse, NextMessageToolResponse, NextMessageUser } from "../schema.js";
+import { ComplexResponse, ResponseContentImage, ResponseContentText, SupportedImageTypes, } from "../schema.js";
 import { CONSTANTS, ERROR_MESSAGES } from "./constants.js";
 import { complexResponseToLangchainMessageContent } from "../utils/format.js";
+import { AgentMessage, } from "./index.js";
+import { NextMessageToolResponse, NextMessageUser } from "../plugins/index.js";
+import { url } from "inspector";
 
 export function toolMessageToToolResponseInfo(message: { name?: string, content: any }): { name: string, response: string } {
     return {
@@ -24,33 +27,33 @@ export function langChainHumanMessageToMimirHumanMessage(message: HumanMessage):
 
 export function langChainToolMessageToMimirHumanMessage(message: ToolMessage): NextMessageToolResponse {
     return {
-        type: "TOOL_CALL",
-        tool: message.name ?? "Unknown",
+        type: "TOOL_RESPONSE",
+        toolName: message.name ?? "Unknown",
         toolCallId: message.tool_call_id,
         content: lCmessageContentToContent(message.content)
     };
 }
 
-export function parseUserMessage(aiMessage: AIMessage, responseAttributes: Record<string, any>): AgentUserMessage {
-    const textContent = extractTextContent(aiMessage.content, responseAttributes);
-    return { message: textContent };
+export function parseUserMessage(aiMessage: AIMessage, responseAttributes: Record<string, any>): AgentMessage {
+    const content = lCmessageContentToContent(aiMessage.content);
+    return { content: content };
 }
 
-export function parseToolMessage(aiMessage: AIMessage, responseAttributes: Record<string, any>): AgentToolRequest {
-    const textContent = extractTextContent(aiMessage.content, responseAttributes);
+export function parseToolMessage(aiMessage: AIMessage, responseAttributes: Record<string, any>): AgentMessage {
+    const content = lCmessageContentToContent(aiMessage.content);
     return {
-        toolRequests: (aiMessage.tool_calls ?? []).map(t => ({
+        toolCalls: (aiMessage.tool_calls ?? []).map(t => ({
             toolName: t.name,
-            toolArguments: JSON.stringify(t.args)
+            input: t.args
         })),
-        message: textContent
+        content: content
     };
 }
 
 export function commandContentToBaseMessage(commandContent: { type: string, content: ComplexResponse[] }): BaseMessage {
     const id = v4();
     const content = complexResponseToLangchainMessageContent(commandContent.content);
-    
+
     if (commandContent.type === "assistant") {
         return new AIMessage({ id, content });
     } else if (commandContent.type === "user") {
@@ -85,35 +88,39 @@ export function lCmessageContentToContent(content: MessageContent): ComplexRespo
     return (content as MessageContentComplex[]).map(c => {
         if (c.type === "text") {
             return {
-                type: "text",
+                type: "text"  as const,
                 text: (c as MessageContentText).text
-            };
+            } as ResponseContentText;
         }
-        
+
         if (c.type === "image_url") {
             const imgContent = c as MessageContentImageUrl;
-            const imageUrl = typeof imgContent.image_url === 'string' ? 
-                imgContent.image_url : 
+            const imageUrl = typeof imgContent.image_url === 'string' ?
+                imgContent.image_url :
                 imgContent.image_url.url;
-            
+                
             return {
-                type: "text",
-                text: imageUrl
-            };
+                type: "image_url" as const,
+                image_url: {
+                    //TODO: We need to handle images per LLM provider, no LLM currently supports responding image types.
+                    type: imgContent.type as SupportedImageTypes,
+                    url: imageUrl,
+                }
+            } as ResponseContentImage;
         }
-        
-        throw new Error(ERROR_MESSAGES.UNSUPPORTED_CONTENT_TYPE(c.type ?? "unknown"));
-    });
+
+        return null
+    }).filter(e => e !== null).map(e => e!);
 }
 
 export function mergeSystemMessages(messages: SystemMessage[]): SystemMessage {
     return messages.reduce((prev, next) => {
-        const prevContent = typeof prev.content === 'string' ? 
-            [{ type: "text", text: prev.content }] as MessageContentText[] : 
+        const prevContent = typeof prev.content === 'string' ?
+            [{ type: "text", text: prev.content }] as MessageContentText[] :
             prev.content as MessageContentComplex[];
-            
-        const nextContent = typeof next.content === 'string' ? 
-            [{ type: "text", text: next.content }] as MessageContentText[] : 
+
+        const nextContent = typeof next.content === 'string' ?
+            [{ type: "text", text: next.content }] as MessageContentText[] :
             next.content as MessageContentComplex[];
 
         return new SystemMessage({ content: [...prevContent, ...nextContent] });

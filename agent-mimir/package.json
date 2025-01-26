@@ -11,9 +11,17 @@
       "types": "./dist/schema.d.ts",
       "import": "./dist/schema.js"
     },
-    "./agent": {
+    "./agent/agent": {
       "types": "./dist/agent-manager/agent.d.ts",
       "import": "./dist/agent-manager/agent.js"
+    },
+    "./agent": {
+      "types": "./dist/agent-manager/index.d.ts",
+      "import": "./dist/agent-manager/index.js"
+    },
+    "./plugins": {
+      "types": "./dist/plugins/index.d.ts",
+      "import": "./dist/plugins/index.js"
     },
     "./plugins/helpers": {
       "types": "./dist/plugins/helpers.d.ts",

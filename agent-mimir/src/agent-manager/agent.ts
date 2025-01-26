@@ -1,5 +1,5 @@
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { Agent, AgentSystemMessage, AgentToolRequest, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, ComplexResponse, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, WorkspaceFactory } from "../schema.js";
+import { ComplexResponse, } from "../schema.js";
 import { Tool } from "@langchain/core/tools";
 import { WorkspacePluginFactory } from "../plugins/workspace.js";
 import { ViewPluginFactory } from "../tools/image_view.js";
@@ -14,13 +14,15 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { commandContentToBaseMessage, dividerSystemMessage, langChainHumanMessageToMimirHumanMessage, langChainToolMessageToMimirHumanMessage, mergeSystemMessages, parseToolMessage, parseUserMessage, toolMessageToToolResponseInfo } from "./message-utils.js";
 import { LangchainToolWrapperPluginFactory } from "./langchain-wrapper.js";
+import { Agent, AgentMessage, AgentUserMessageResponse, WorkspaceFactory } from "./index.js";
+import { AgentSystemMessage, AttributeDescriptor, MimirAgentPlugin, MimirPluginFactory, NextMessageUser } from "../plugins/index.js";
 
 
 export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
     requestAttributes: Annotation<Record<string, any>>,
     responseAttributes: Annotation<Record<string, any>>,
-    output: Annotation<AgentUserMessage>,
+    output: Annotation<AgentMessage>,
     noMessagesInTool: Annotation<Boolean>,
     agentMessage: Annotation<BaseMessage[]>({
         reducer: messagesStateReducer,
@@ -78,7 +80,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
     }
     const agentCall = async (state: ToolMessage) => {
         const agenrM = state;
-        const aum: AgentUserMessage = JSON.parse(agenrM.content as string);
+        const aum: AgentMessage = JSON.parse(agenrM.content as string);
         const response: AgentUserMessageResponse = {
             type: "agentResponse",
             output: aum,
@@ -87,7 +89,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
         const humanReview = interrupt<
             AgentUserMessageResponse,
             {
-                response: string;
+                response: ComplexResponse[];
             }>(response);
 
 
@@ -95,12 +97,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
             id: v4(),
             name: agenrM.name,
             tool_call_id: agenrM.tool_call_id,
-            content: [
-                {
-                    type: "text",
-                    text: humanReview.response
-                }
-            ]
+            content: complexResponseToLangchainMessageContent(humanReview.response)
 
         })
         return { messages: [toolResponse], agentMessage: [new RemoveMessage({ id: agenrM.id! })] };
@@ -227,12 +224,12 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
     function humanReviewNode(state: typeof MessagesAnnotation.State) {
         const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
         const toolCall = lastMessage.tool_calls![lastMessage.tool_calls!.length - 1];
-        const toolRequest = parseToolMessage(lastMessage, {});
+        const toolRequest: AgentMessage = parseToolMessage(lastMessage, {});
         const humanReview = interrupt<
-            AgentToolRequest,
+            AgentMessage,
             {
                 action: string;
-                data: any;
+                data: ComplexResponse[];
             }>(toolRequest);
 
 
@@ -246,7 +243,10 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
             const toolMessage = new ToolMessage({
                 id: v4(),
                 name: toolCall.name,
-                content: `The user has cancelled the execution of this function as instead has given you the following feedback: "${reviewData}"`,
+                content: [
+                    { type: "text", text: `The user has cancelled the execution of this function as instead has given you the following feedback:\n` },
+                    ...complexResponseToLangchainMessageContent(reviewData)
+                ],
                 tool_call_id: toolCall.id!
             })
             return new Command({ goto: "call_llm", update: { messages: [toolMessage] } });
@@ -363,7 +363,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
                     const interruptState = state.tasks[0].interrupts[0];
                     return {
                         type: "toolRequest",
-                        output: interruptState.value as AgentToolRequest,
+                        output: interruptState.value as AgentMessage,
                         responseAttributes: responseAttributes
                     }
 
@@ -375,7 +375,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
 
                 }
 
-                let userResponse = (state.values["output"] as AgentUserMessage);
+                let userResponse = (state.values["output"] as AgentMessage);
                 return {
                     type: "agentResponse",
                     output: userResponse,
@@ -404,12 +404,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
                 graphInput = message != null ? {
                     messages: [new HumanMessage({
                         id: `${v4()}`,
-                        content: [
-                            {
-                                type: "text",
-                                text: message,
-                            }
-                        ]
+                        content: complexResponseToLangchainMessageContent(message)
                     })],
                     requestAttributes: input,
                     responseAttributes: {},
@@ -438,7 +433,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
                     const interruptState = state.tasks[0].interrupts[0];
                     return {
                         type: "toolRequest",
-                        output: interruptState.value as AgentToolRequest,
+                        output: interruptState.value as AgentMessage,
                         responseAttributes: responseAttributes
                     }
                 }
@@ -449,7 +444,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
 
                 }
 
-                let userResponse = (state.values["output"] as AgentUserMessage);
+                let userResponse = (state.values["output"] as AgentMessage);
                 return {
                     type: "agentResponse",
                     output: userResponse,

@@ -1,11 +1,12 @@
-import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentWorkspace, ToolResponse, AgentCommand } from "agent-mimir/schema";
+import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentCommand } from "agent-mimir/plugins";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
 import { spawn } from 'child_process';
 import os from 'os';
 import { promises as fs } from 'fs';
 import path from "path";
-import { AgentTool } from "agent-mimir/tools";
+import { AgentTool, ToolResponse } from "agent-mimir/tools";
+import { AgentWorkspace } from "agent-mimir/agent";
 
 type CodeInterpreterArgs = {
     workSpace?: AgentWorkspace;

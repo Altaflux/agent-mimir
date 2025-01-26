@@ -1,0 +1,65 @@
+import { AgentCommand } from "../plugins/index.js";
+import { ComplexResponse } from "../schema.js";
+
+
+export type MessageContentToolUse = {
+    toolName: string;
+    input: Record<string, any>,
+    id?: string,
+}
+export type AgentMessage = { destinationAgent?: string, content: ComplexResponse[], toolCalls?: MessageContentToolUse[] }
+
+export type WorkspaceFactory = (workDirectory: string) => Promise<AgentWorkspace>;
+
+
+
+export interface Agent {
+    name: string,
+    description: string,
+    call: (message: ComplexResponse[] | null, input: Record<string, any>, noMessagesInTool?: boolean) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>,
+    handleCommand: (command: CommandRequest,) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>,
+    workspace: AgentWorkspace,
+    commands: AgentCommand[],
+    reset: () => Promise<void>,
+};
+
+
+
+export type AgentToolRequestResponse = {
+    type: "toolRequest",
+    output: AgentMessage,
+    responseAttributes: Record<string, any>
+}
+
+export type AgentUserMessageResponse = {
+    type: "agentResponse",
+    output: Omit<AgentMessage, "toolCalls">,
+    responseAttributes: Record<string, any>
+}
+export type AgentResponse = AgentToolRequestResponse | AgentUserMessageResponse;
+
+
+// export type AgentUserMessage = {
+//     message: string,
+//     sharedFiles?: {
+//         url: string,
+//         fileName: string,
+//     }[],
+// }
+export type CommandRequest = {
+    name: string,
+    arguments?: Record<string, any>
+}
+export type ToolResponseInfo = { name: string, response: string }
+
+
+export type AgentWorkspace = {
+    listFiles(): Promise<string[]>,
+    loadFileToWorkspace(fileName: string, url: string): Promise<void>,
+    reset(): Promise<void>,
+    getUrlForFile(fileName: string): Promise<string | undefined>,
+    fileAsBuffer(fileName: string): Promise<Buffer | undefined>,
+    pluginDirectory(pluginName: string): Promise<string>,
+    workingDirectory: string,
+    rootDirectory: string,
+}
