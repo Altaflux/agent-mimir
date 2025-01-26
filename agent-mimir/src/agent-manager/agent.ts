@@ -9,10 +9,10 @@ import { aiMessageToMimirAiMessage, complexResponseToLangchainMessageContent } f
 import { AIMessage, BaseMessage, HumanMessage, isAIMessage, isHumanMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage } from "@langchain/core/messages";
 import { Annotation, Command, END, interrupt, Messages, MessagesAnnotation, messagesStateReducer, Send, START, StateDefinition, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
-import { ResponseFieldMapper } from "../utils/instruction-mapper.js";
+import { extractTextResponseFromMessage, ResponseFieldMapper } from "../utils/instruction-mapper.js";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
-import { commandContentToBaseMessage, dividerSystemMessage, langChainHumanMessageToMimirHumanMessage, langChainToolMessageToMimirHumanMessage, mergeSystemMessages, parseToolMessage, parseUserMessage, toolMessageToToolResponseInfo } from "./message-utils.js";
+import { commandContentToBaseMessage, dividerSystemMessage, langChainHumanMessageToMimirHumanMessage, langChainToolMessageToMimirHumanMessage, lCmessageContentToContent, mergeSystemMessages, parseToolMessage, toolMessageToToolResponseInfo } from "./message-utils.js";
 import { LangchainToolWrapperPluginFactory } from "./langchain-wrapper.js";
 import { Agent, AgentMessage, AgentMessageToolRequest, AgentUserMessageResponse, WorkspaceFactory } from "./index.js";
 import { AgentSystemMessage, AttributeDescriptor, MimirAgentPlugin, MimirPluginFactory, NextMessageUser } from "../plugins/index.js";
@@ -198,9 +198,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
 
             const responseAttributes = (await Promise.all(
                 allCreatedPlugins.map(async (plugin) => await plugin.readResponse(mimirAiMessage, state, rawResponseAttributes))
-            )).reduce((acc, d) => ({ ...acc, ...d }), {
-                messageToSend: rawResponseAttributes["userMessage"]
-            });
+            )).reduce((acc, d) => ({ ...acc, ...d }), {});
 
             return { messages: [messageToStore, response], requestAttributes: {}, responseAttributes: responseAttributes };
         };
@@ -226,7 +224,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
         const toolCall = lastMessage.tool_calls![lastMessage.tool_calls!.length - 1];
         const toolRequest: AgentMessage = parseToolMessage(lastMessage, {});
         const humanReview = interrupt<
-        AgentMessage,
+            AgentMessage,
             {
                 action: string;
                 data: ComplexResponse[];
@@ -259,9 +257,10 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
         if (state["messages"] && state["messages"].length > 0) {
             const aiMessage: AIMessage = state["messages"][state["messages"].length - 1];
             const responseAttributes: Record<string, any> = state["responseAttributes"];
-            let responseMessage = parseUserMessage(aiMessage, responseAttributes);
 
-            return { output: responseMessage }
+            const content = lCmessageContentToContent(aiMessage.content);
+            let agentMessage: AgentMessage = { content: extractTextResponseFromMessage(content) };
+            return { output: agentMessage }
         }
         return {}
     }
@@ -444,7 +443,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
 
                 }
 
-                let userResponse = (state.values["output"] as AgentMessageToolRequest);
+                let userResponse = (state.values["output"] as AgentMessage);
                 return {
                     type: "agentResponse",
                     output: userResponse,

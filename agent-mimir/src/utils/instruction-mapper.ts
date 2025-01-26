@@ -46,9 +46,6 @@ export class ResponseFieldMapper<T = any> {
                 return prev + next;
             }, "");
 
-        const userMessage = extractImportantText(response, USER_RESPONSE);
-
-
         const responseParts = this.attributeSetters.map((attributeSetter) => `- ${attributeSetter.name}`).join('|');
         const mappings = this.attributeSetters.map((attributeSetter) => {
             return {
@@ -62,14 +59,12 @@ export class ResponseFieldMapper<T = any> {
                 ...acc,
                 [d.variableName]: d.regex.exec(response)?.[0]?.trim()
             }
-        }, {
-            userMessage: userMessage?.trim()
-        });
+        }, {});
         return res;
     }
 }
-
-export function extractTextResponse(complexResponse: ComplexResponse[]): ComplexResponse[] {
+//TODO: Support for multiple content types
+export function extractTextResponseFromMessage(complexResponse: ComplexResponse[]): ComplexResponse[] {
     const response = complexResponse.filter(c => c.type === "text")
         .map(t => t as ResponseContentText)
         .map(t => t.text)

@@ -6,6 +6,7 @@ import { complexResponseToLangchainMessageContent } from "../utils/format.js";
 import { AgentMessage, AgentMessageToolRequest, } from "./index.js";
 import { NextMessageToolResponse, NextMessageUser } from "../plugins/index.js";
 import { url } from "inspector";
+import { extractTextResponseFromMessage } from "../utils/instruction-mapper.js";
 
 export function toolMessageToToolResponseInfo(message: { name?: string, content: any }): { name: string, response: string } {
     return {
@@ -32,11 +33,6 @@ export function langChainToolMessageToMimirHumanMessage(message: ToolMessage): N
         toolCallId: message.tool_call_id,
         content: lCmessageContentToContent(message.content)
     };
-}
-
-export function parseUserMessage(aiMessage: AIMessage, responseAttributes: Record<string, any>): AgentMessage {
-    const content = lCmessageContentToContent(aiMessage.content);
-    return { content: content };
 }
 
 export function parseToolMessage(aiMessage: AIMessage, responseAttributes: Record<string, any>): AgentMessageToolRequest {
