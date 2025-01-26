@@ -11,10 +11,6 @@
       "types": "./dist/schema.d.ts",
       "import": "./dist/schema.js"
     },
-    "./agent-manager": {
-      "types": "./dist/agent-manager/index.d.ts",
-      "import": "./dist/agent-manager/index.js"
-    },
     "./agent": {
       "types": "./dist/agent-manager/agent.d.ts",
       "import": "./dist/agent-manager/agent.js"
@@ -23,9 +19,9 @@
       "types": "./dist/plugins/helpers.d.ts",
       "import": "./dist/plugins/helpers.js"
     },
-    "./chat": {
-      "types": "./dist/agent-manager/chat.d.ts",
-      "import": "./dist/agent-manager/chat.js"
+    "./communication/multi-agent": {
+      "types": "./dist/communication/multi-agent.d.ts",
+      "import": "./dist/communication/multi-agent.js"
     },
     "./utils/format": {
       "types": "./dist/utils/format.d.ts",

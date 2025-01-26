@@ -1,8 +1,5 @@
-
-import { BaseLanguageModel } from "@langchain/core/language_models/base";
-import { BaseCheckpointSaver } from "@langchain/langgraph";
-import { StateAnnotation } from "./agent-manager/index.js";
 import { AgentTool } from "./tools/index.js";
+import { StateAnnotation } from "./agent-manager/agent.js";
 
 export type ToolResponse = ComplexResponse[] | AgentUserMessage | {
     rawResponse: any
@@ -81,18 +78,9 @@ export type CommandRequest = {
     arguments?: Record<string, any>
 }
 
-export type WorkspaceManagerFactory = (workkDirectory: string) => Promise<AgentWorkspace>;
+export type WorkspaceFactory = (workkDirectory: string) => Promise<AgentWorkspace>;
 
-export type MimirAgentArgs = {
-    name: string,
-    description: string,
-    llm: BaseLanguageModel,
-    taskCompleteCommandName: string,
-    plugins: MimirAgentPlugin[]
-    constitution: string,
-    resetFunction: () => Promise<void>,
-    checkpointer: BaseCheckpointSaver,
-}
+
 export type PluginContext = {
     workspace: AgentWorkspace,
     persistenceDirectory: string,

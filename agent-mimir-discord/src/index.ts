@@ -1,8 +1,7 @@
-import { AgentManager } from "agent-mimir/agent-manager"
+
 import { Agent, AgentResponse, AgentUserMessageResponse, FILES_TO_SEND_FIELD, MimirPluginFactory, ToolResponseInfo } from "agent-mimir/schema";
 import chalk from "chalk";
 import { Tool } from "@langchain/core/tools";
-
 import { promises as fs } from 'fs';
 import normalFs from 'fs';
 import os from 'os';
@@ -16,7 +15,7 @@ import { Retry } from "./utils.js";
 import { Embeddings } from "@langchain/core/embeddings";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { MultiAgentCommunicationOrchestrator, AgentInvoke, AgentToAgentMessage, AgentToolRequest, AgentUserMessage, HandleMessageResult, IntermediateAgentResponse } from "agent-mimir/chat";
+import { MultiAgentCommunicationOrchestrator, AgentInvoke, HandleMessageResult, IntermediateAgentResponse } from "agent-mimir/communication/multi-agent";
 import { createAgent } from "agent-mimir/agent";
 import { HelpersPluginFactory } from "agent-mimir/plugins/helpers";
 
@@ -217,17 +216,7 @@ export const run = async () => {
                     [r.name]: r.value
                 }
             }, {})
-            // const agentInvoke: AgentInvoke = async function* (agent) {
-            //     const generator = agent.handleCommand({
-            //         name: interaction.commandName,
-            //         arguments: commandArguments
-            //     })
-            //     let result: IteratorResult<ToolResponseInfo, AgentResponse>;
-            //     while (!(result = await generator.next()).done) {
-            //         yield result.value;
-            //     }
-            //     return result.value
-            // }
+
 
             const agentInvoke: AgentInvoke = (agent) => agent.handleCommand({
                 name: interaction.commandName,

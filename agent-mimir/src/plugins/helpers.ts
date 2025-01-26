@@ -1,8 +1,8 @@
-import { AgentManager } from "../agent-manager/index.js";
+
 import { z } from "zod";
 import { Agent, AgentContext, AgentSystemMessage, AgentUserMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext, ToolResponse } from "../schema.js";
 import { AgentTool } from "../tools/index.js";
-import { LangchainToolToMimirTool } from "../utils/wrapper.js";
+
 import { StructuredTool } from "@langchain/core/tools";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 
@@ -16,13 +16,13 @@ export class TalkToHelper extends StructuredTool {
 
     returnDirect: boolean = true;
 
-    constructor(private helperSingleton: AgentManager, private agentName: string) {
+    constructor(private helperSingleton:  ReadonlyMap<string, Agent>, private agentName: string) {
         super();
     }
 
     protected async _call(arg: z.input<this["schema"]>): Promise<string> {
         const { helperName, message } = arg;
-        const self = this.helperSingleton.getAgent(this.agentName);
+        const self = this.helperSingleton.get(this.agentName);
         const filesToSend = await Promise.all(((arg.workspaceFilesToSend ?? [])
             .map(async (fileName) => {
                 return { fileName: fileName, url: (await self?.workspace.getUrlForFile(fileName))! };
@@ -122,7 +122,6 @@ export class HelpersPlugin extends MimirAgentPlugin {
 
 
     tools(): AgentTool[] {
-        //    let tools: AgentTool[] = [new LangchainToolToMimirTool(new TalkToHelper(this.helperSingleton, this.agentName))];
         let tools: AgentTool[] = [new HelperTool(this.helperSingleton, this.agentName)];
         return tools;
     }
