@@ -39,13 +39,6 @@ export type AgentUserMessageResponse = {
 export type AgentResponse = AgentToolRequestResponse | AgentUserMessageResponse;
 
 
-// export type AgentUserMessage = {
-//     message: string,
-//     sharedFiles?: {
-//         url: string,
-//         fileName: string,
-//     }[],
-// }
 export type CommandRequest = {
     name: string,
     arguments?: Record<string, any>
