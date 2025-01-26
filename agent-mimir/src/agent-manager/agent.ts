@@ -1,20 +1,19 @@
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { Agent, AgentSystemMessage, AgentToolRequest, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, CommandContent, ComplexResponse, MimirAgentPlugin, MimirPluginFactory, NextMessageToolResponse, NextMessageUser, PluginContext, ToolResponseInfo, WorkspaceFactory } from "../schema.js";
-import { StructuredTool, Tool } from "@langchain/core/tools";
-import { HelpersPluginFactory } from "../plugins/helpers.js";
+import { Agent, AgentSystemMessage, AgentToolRequest, AgentUserMessage, AgentUserMessageResponse, AttributeDescriptor, ComplexResponse, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, WorkspaceFactory } from "../schema.js";
+import { Tool } from "@langchain/core/tools";
 import { WorkspacePluginFactory } from "../plugins/workspace.js";
 import { ViewPluginFactory } from "../tools/image_view.js";
-import { AgentTool } from "../tools/index.js";
-import { LangchainToolToMimirTool, MimirToolToLangchainTool } from "../utils/wrapper.js";
+import { MimirToolToLangchainTool } from "../utils/wrapper.js";
 import { isToolMessage, ToolMessage } from "@langchain/core/messages/tool";
 import { aiMessageToMimirAiMessage, complexResponseToLangchainMessageContent } from "../utils/format.js";
-import { AIMessage, BaseMessage, HumanMessage, isAIMessage, isHumanMessage, MessageContent, MessageContentComplex, MessageContentImageUrl, MessageContentText, RemoveMessage, SystemMessage } from "@langchain/core/messages";
-import { _INTERNAL_ANNOTATION_ROOT, Annotation, BinaryOperatorAggregate, Command, END, interrupt, LastValue, Messages, MessagesAnnotation, messagesStateReducer, Send, SingleReducer, START, StateDefinition, StateGraph, StateType } from "@langchain/langgraph";
+import { AIMessage, BaseMessage, HumanMessage, isAIMessage, isHumanMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage } from "@langchain/core/messages";
+import { Annotation, Command, END, interrupt, Messages, MessagesAnnotation, messagesStateReducer, Send, START, StateDefinition, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
-
 import { ResponseFieldMapper } from "../utils/instruction-mapper.js";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
+import { commandContentToBaseMessage, dividerSystemMessage, langChainHumanMessageToMimirHumanMessage, langChainToolMessageToMimirHumanMessage, mergeSystemMessages, parseToolMessage, parseUserMessage, toolMessageToToolResponseInfo } from "./message-utils.js";
+import { LangchainToolWrapperPluginFactory } from "./langchain-wrapper.js";
 
 
 export const StateAnnotation = Annotation.Root({
@@ -45,13 +44,8 @@ export type CreateAgentOptions = {
 export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
 
     const shortName = config.name;
-
-
-
     const model = config.model;
-
     const workspace = await config.workspaceFactory(shortName);
-
     const allPluginFactories = (config.plugins ?? []);
 
     const tools = [
@@ -466,158 +460,6 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
     }
 }
 
-
-function toolMessageToToolResponseInfo(message: ToolMessage): ToolResponseInfo {
-    return {
-        name: message.name ?? "Unknown",
-        response: trimStringToMaxWithEllipsis(JSON.stringify(message.content), 400)
-    }
-}
-function trimStringToMaxWithEllipsis(str: string, max: number) {
-    return str.length > max ? str.substring(0, max) + "..." : str;
-}
-
-function langChainHumanMessageToMimirHumanMessage(message: HumanMessage): NextMessageUser {
-    return {
-        type: "USER_MESSAGE",
-        content: lCmessageContentToContent(message.content)
-    }
-}
-
-function langChainToolMessageToMimirHumanMessage(message: ToolMessage): NextMessageToolResponse {
-    return {
-        type: "TOOL_CALL",
-        tool: message.name!,
-        toolCallId: message.tool_call_id,
-        content: lCmessageContentToContent(message.content)
-    }
-}
-
-function parseUserMessage(aiMessage: AIMessage, responseAttributes: Record<string, any>): AgentUserMessage {
-    let content = aiMessage.content;
-    let textContent: string;
-    if (responseAttributes["messageToSend"]) {
-        textContent = responseAttributes["messageToSend"] as string;
-    } else {
-        if (typeof content === 'string' || content instanceof String) {
-            textContent = content as string;
-        } else {
-            textContent = (content as MessageContentComplex[]).filter(e => e.type === "text")
-                .map(e => (e as MessageContentText).text)
-                .join("\n");
-        }
-    }
-
-    let resp: AgentUserMessage = {
-        message: textContent
-    }
-
-    return resp;
-}
-function parseToolMessage(aiMessage: AIMessage, responseAttributes: Record<string, any>): AgentToolRequest {
-    let content = aiMessage.content;
-    let textContent: string;
-    if (responseAttributes["messageToSend"]) {
-        textContent = responseAttributes["messageToSend"] as string;
-    } else {
-        if (typeof content === 'string' || content instanceof String) {
-            textContent = content as string;
-        } else {
-            textContent = (content as MessageContentComplex[]).filter(e => e.type === "text")
-                .map(e => (e as MessageContentText).text)
-                .join("\n");
-        }
-    }
-
-    let resp: AgentToolRequest = {
-        toolRequests: (aiMessage.tool_calls ?? []).map(t => {
-            return {
-                toolName: t.name,
-                toolArguments: JSON.stringify(t.args)
-            }
-        }),
-        message: textContent
-    }
-
-    return resp;
-}
-function commandContentToBaseMessage(commandContent: CommandContent) {
-
-    if (commandContent.type === "assistant") {
-        return new AIMessage({
-            id: v4(),
-            content: complexResponseToLangchainMessageContent(commandContent.content)
-        })
-    } else if (commandContent.type === "user") {
-        return new HumanMessage({
-            id: v4(),
-            content: complexResponseToLangchainMessageContent(commandContent.content)
-        })
-    }
-    throw new Error("Unreacable");
-
-}
-
-
-function lCmessageContentToContent(content: MessageContent): ComplexResponse[] {
-    const response: ComplexResponse[] = [];
-    if (typeof content === 'string' || content instanceof String) {
-        return [{
-            type: "text",
-            text: content as string
-        }]
-    } else {
-        return (content as MessageContentComplex[])
-            .map(c => {
-                if (c.type! == "text") {
-                    return {
-                        type: "text",
-                        text: (c as MessageContentText).text as string
-                    }
-                } else if (c.type! == "image_url") {
-                    let image_url;
-                    const img_content = (c as MessageContentImageUrl);
-                    if (typeof img_content.image_url === 'string' || img_content.image_url instanceof String) {
-                        image_url = img_content.image_url as string;
-                    } else {
-                        image_url = img_content.image_url.url;
-                    }
-                    return {
-                        type: "text",
-                        text: image_url
-                    }
-                } else {
-                    throw new Error(`Unsupported content type: ${c.type}`)
-                }
-            })
-    }
-
-}
-
-
-function mergeSystemMessages(messages: SystemMessage[]) {
-    return messages.reduce((prev, next) => {
-        const prevContent = (prev.content instanceof String) ? [{
-            type: "text",
-            text: prev.content
-        }] as MessageContentText[] : prev.content as MessageContentComplex[];
-        const nextContent = (next.content instanceof String) ? [{
-            type: "text",
-            text: next.content
-        }] as MessageContentText[] : next.content as MessageContentComplex[];
-
-        return new SystemMessage({ content: [...prevContent, ...nextContent] });
-    }, new SystemMessage({ content: [] }))
-
-}
-const dividerSystemMessage = new SystemMessage({
-    content: [
-        {
-            type: "text",
-            text: "\n\n--------------------------------------------------\n\n"
-        }
-    ]
-});
 function buildSystemMessage(agentSystemMessages: AgentSystemMessage[]) {
     const messages = agentSystemMessages.map((m) => {
         return mergeSystemMessages([dividerSystemMessage, new SystemMessage({ content: complexResponseToLangchainMessageContent(m.content) })])
@@ -636,29 +478,6 @@ function buildSystemMessage(agentSystemMessages: AgentSystemMessage[]) {
     return finalMessage;
 }
 
-
-class LangchainToolWrapperPluginFactory implements MimirPluginFactory {
-
-    name: string;
-
-    constructor(private tool: StructuredTool) {
-        this.name = tool.name;
-    }
-    async create(context: PluginContext): Promise<MimirAgentPlugin> {
-        return new LangchainToolWrapper(this.tool);
-    }
-}
-
-class LangchainToolWrapper extends MimirAgentPlugin {
-
-    constructor(private tool: StructuredTool) {
-        super();
-    }
-
-    tools(): AgentTool[] {
-        return [new LangchainToolToMimirTool(this.tool)];
-    }
-}
 
 async function addAdditionalContentToUserMessage(message: NextMessageUser, plugins: MimirAgentPlugin[], state: typeof StateAnnotation.State) {
     const displayMessage = JSON.parse(JSON.stringify(message)) as NextMessageUser;
