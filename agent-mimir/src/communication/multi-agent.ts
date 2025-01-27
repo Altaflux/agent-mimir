@@ -1,10 +1,10 @@
-import { Agent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, ToolResponseInfo, AgentMessage } from "../agent-manager/index.js";
+import { Agent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, ToolResponseInfo, AgentMessage, InputAgentMessage } from "../agent-manager/index.js";
 import { ComplexResponse } from "../schema.js";
 
 
 type PendingMessage = {
     responseAttributes: Record<string, any>,
-    content: ComplexResponse[];
+    content: InputAgentMessage;
 }
 export type AgentInvoke = (agent: Agent,) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>;
 
@@ -18,7 +18,7 @@ export type IntermediateAgentResponse = ({
 export type AgentToAgentMessage = {
     sourceAgent: string,
     destinationAgent: string,
-    content: ComplexResponse[],
+    content: InputAgentMessage,
     responseAttributes: Record<string, any>
 }
 export type HandleMessageResult = ({
@@ -33,7 +33,7 @@ export type AgentToolRequestTwo = AgentMessageToolRequest & {
 }
 
 export type AgentUserMessage = {
-    content: ComplexResponse[],
+    content: InputAgentMessage,
     responseAttributes: Record<string, any>
 }
 export class MultiAgentCommunicationOrchestrator {
@@ -58,9 +58,11 @@ export class MultiAgentCommunicationOrchestrator {
                         conversationComplete: false,
                         currentAgent: this.currentAgent,
                         pendingMessage: {
-                            content: [
-                                { type: "text", text: `Agent ${chainResponse.output.destinationAgent} does not exist.` }
-                            ],
+                            content: {
+                                content: [
+                                    { type: "text", text: `Agent ${chainResponse.output.destinationAgent} does not exist.` }
+                                ]
+                            },
                             responseAttributes: {}
                         }
                     }
@@ -70,7 +72,7 @@ export class MultiAgentCommunicationOrchestrator {
                     conversationComplete: false,
                     currentAgent: newAgent,
                     pendingMessage: {
-                        content: chainResponse.output.content,
+                        content: chainResponse.output,
                         responseAttributes: chainResponse.responseAttributes
                     }
                 }
@@ -80,7 +82,7 @@ export class MultiAgentCommunicationOrchestrator {
                     conversationComplete: isFinalUser,
                     currentAgent: isFinalUser ? this.currentAgent : agentStack.pop()!,
                     pendingMessage: {
-                        content: chainResponse.output.content,
+                        content: chainResponse.output,
                         responseAttributes: chainResponse.responseAttributes
                     }
                 }
@@ -112,7 +114,7 @@ export class MultiAgentCommunicationOrchestrator {
                 if (routedMessage.conversationComplete) {
                     return {
                         type: "agentResponse",
-                        content: chainResponse.output.content,
+                        content: chainResponse.output,
                         responseAttributes: chainResponse.responseAttributes
                     };
                 } else {
@@ -121,7 +123,7 @@ export class MultiAgentCommunicationOrchestrator {
                         type: "agentToAgentMessage",
                         sourceAgent: sourceAgent!,
                         destinationAgent: this.currentAgent.name,
-                        content: chainResponse.output.content,
+                        content: chainResponse.output,
                         responseAttributes: chainResponse.responseAttributes
                     }
                 }

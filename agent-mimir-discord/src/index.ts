@@ -1,5 +1,4 @@
 
-import {  FILES_TO_SEND_FIELD,  } from "agent-mimir/schema";
 import chalk from "chalk";
 import { Tool } from "@langchain/core/tools";
 import { promises as fs } from 'fs';
@@ -247,10 +246,10 @@ export const run = async () => {
                     response: chainResponse.response
                 });
             } else {
-                const stringResponse = extractAllTextFromComplexResponse(chainResponse.content);
+                const stringResponse = extractAllTextFromComplexResponse(chainResponse.content.content);
                 const discordMessage = `\`${chainResponse.sourceAgent}\` is sending a message to \`${chainResponse.destinationAgent}\`:\n\`\`\`${stringResponse}\`\`\`` +
-                    `\nFiles provided: ${chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
-                await sendResponse(discordMessage, chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.url));
+                    `\nFiles provided: ${chainResponse.content.sharedFiles?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
+                await sendResponse(discordMessage, chainResponse.content.sharedFiles?.map((f: any) => f.url));
             }
         };
 
@@ -262,8 +261,8 @@ export const run = async () => {
         }
 
         if (result.value.type === "agentResponse") {
-            const stringResponse = extractAllTextFromComplexResponse(result.value.content);
-            await sendResponse(stringResponse, result.value.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.url));
+            const stringResponse = extractAllTextFromComplexResponse(result.value.content.content);
+            await sendResponse(stringResponse, result.value.content.sharedFiles?.map((f: any) => f.url));
             return
         } else {
             while (result.value.type === "toolRequest") {
@@ -278,8 +277,8 @@ export const run = async () => {
                     intermediateResponseHandler(result.value);
                 }
             }
-            const stringResponse = extractAllTextFromComplexResponse(result.value.content);
-            await sendResponse(stringResponse, result.value.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.url));
+            const stringResponse = extractAllTextFromComplexResponse(result.value.content.content);
+            await sendResponse(stringResponse, result.value.content.sharedFiles?.map((f: any) => f.url));
         }
     }
     client.on(Events.MessageCreate, async msg => {
@@ -296,12 +295,15 @@ export const run = async () => {
                     }
                 }));
                 //const messageToSend = { message: messageToAi, sharedFiles: loadedFiles };
-                const generator = agent.call([
-                    {
-                        type: "text",
-                        text: messageToAi
-                    }
-                ], { [FILES_TO_SEND_FIELD]: loadedFiles })
+                const generator = agent.call({
+                    content:[
+                        {
+                            type: "text",
+                            text: messageToAi
+                        }
+                    ],
+                    sharedFiles: loadedFiles
+                }, { })
 
                 let result: IteratorResult<ToolResponseInfo, AgentResponse>;
                 while (!(result = await generator.next()).done) {

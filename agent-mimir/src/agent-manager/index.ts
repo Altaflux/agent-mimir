@@ -7,9 +7,16 @@ export type MessageContentToolUse = {
     input: Record<string, any>,
     id?: string,
 }
-export type AgentMessageToolRequest = { toolCalls: MessageContentToolUse[] } & Omit<AgentMessage, "destinationAgent">;
-export type AgentMessage = { destinationAgent?: string, content: ComplexResponse[] }
+export type AgentMessageToolRequest = { toolCalls: MessageContentToolUse[] } & InputAgentMessage;
 
+export type InputAgentMessage = {
+    content: ComplexResponse[], sharedFiles?: {
+        url: string,
+        fileName: string,
+    }[]
+};
+
+export type AgentMessage = { destinationAgent?: string } & InputAgentMessage
 export type WorkspaceFactory = (workDirectory: string) => Promise<AgentWorkspace>;
 
 
@@ -17,7 +24,7 @@ export type WorkspaceFactory = (workDirectory: string) => Promise<AgentWorkspace
 export interface Agent {
     name: string,
     description: string,
-    call: (message: ComplexResponse[] | null, input: Record<string, any>, noMessagesInTool?: boolean) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>,
+    call: (message: InputAgentMessage | null, input: Record<string, any>, noMessagesInTool?: boolean) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>,
     handleCommand: (command: CommandRequest,) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>,
     workspace: AgentWorkspace,
     commands: AgentCommand[],

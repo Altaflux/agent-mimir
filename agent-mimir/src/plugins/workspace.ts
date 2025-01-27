@@ -1,8 +1,11 @@
-import {  FILES_TO_SEND_FIELD,  } from "../schema.js";
 
 import { promises as fs } from 'fs';
 import { AdditionalContent, AgentContext, AgentSystemMessage, AttributeDescriptor, MimirAgentPlugin, MimirAiMessage, MimirPluginFactory, NextMessage, NextMessageUser, PluginContext } from "./index.js";
 import { AgentWorkspace } from "../agent-manager/index.js";
+
+export const FILES_TO_SEND_FIELD = "filesToSend";
+
+
 export class WorkspacePluginFactory implements MimirPluginFactory {
 
     name: string = "workspace";

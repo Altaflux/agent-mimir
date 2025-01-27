@@ -1,7 +1,7 @@
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { ComplexResponse, } from "../schema.js";
 import { Tool } from "@langchain/core/tools";
-import { WorkspacePluginFactory } from "../plugins/workspace.js";
+import { FILES_TO_SEND_FIELD, WorkspacePluginFactory } from "../plugins/workspace.js";
 import { ViewPluginFactory } from "../tools/image_view.js";
 import { MimirToolToLangchainTool } from "../utils/wrapper.js";
 import { isToolMessage, ToolMessage } from "@langchain/core/messages/tool";
@@ -14,8 +14,8 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { commandContentToBaseMessage, dividerSystemMessage, langChainHumanMessageToMimirHumanMessage, langChainToolMessageToMimirHumanMessage, lCmessageContentToContent, mergeSystemMessages, parseToolMessage, toolMessageToToolResponseInfo } from "./message-utils.js";
 import { LangchainToolWrapperPluginFactory } from "./langchain-wrapper.js";
-import { Agent, AgentMessage, AgentMessageToolRequest, AgentUserMessageResponse, WorkspaceFactory } from "./index.js";
-import { AgentSystemMessage, AttributeDescriptor, MimirAgentPlugin, MimirPluginFactory, NextMessageUser } from "../plugins/index.js";
+import { Agent, AgentMessage, AgentMessageToolRequest, AgentUserMessageResponse, InputAgentMessage, WorkspaceFactory } from "./index.js";
+import { AgentSystemMessage, AttributeDescriptor, MimirAgentPlugin, MimirPluginFactory } from "../plugins/index.js";
 
 
 export const StateAnnotation = Annotation.Root({
@@ -23,6 +23,7 @@ export const StateAnnotation = Annotation.Root({
     requestAttributes: Annotation<Record<string, any>>,
     responseAttributes: Annotation<Record<string, any>>,
     output: Annotation<AgentMessage>,
+    input: Annotation<InputAgentMessage | null>,
     noMessagesInTool: Annotation<Boolean>,
     agentMessage: Annotation<BaseMessage[]>({
         reducer: messagesStateReducer,
@@ -89,7 +90,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
         const humanReview = interrupt<
             AgentUserMessageResponse,
             {
-                response: ComplexResponse[];
+                response: InputAgentMessage;
             }>(response);
 
 
@@ -97,8 +98,8 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
             id: v4(),
             name: agenrM.name,
             tool_call_id: agenrM.tool_call_id,
-            content: complexResponseToLangchainMessageContent(humanReview.response)
-
+            content: complexResponseToLangchainMessageContent(humanReview.response.content)
+            //TODO: sharedFiles: aum.sharedFiles
         })
         return { messages: [toolResponse], agentMessage: [new RemoveMessage({ id: agenrM.id! })] };
 
@@ -109,13 +110,14 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
         return async (state: typeof StateAnnotation.State) => {
 
             const lastMessage: BaseMessage = state.messages[state.messages.length - 1];
+            const inputMessage = state.input;
 
-            if (isAIMessage(lastMessage)) {
-                return {}
-            }
 
-            let nextMessage = isHumanMessage(lastMessage) ?
-                langChainHumanMessageToMimirHumanMessage(lastMessage) : isToolMessage(lastMessage) ?
+            let nextMessage = inputMessage !== null ?
+                {
+                    type: "USER_MESSAGE" as const,
+                    ...inputMessage
+                } : isToolMessage(lastMessage) ?
                     langChainToolMessageToMimirHumanMessage(lastMessage) : undefined;
             await Promise.all(allCreatedPlugins.map(p => p.readyToProceed(nextMessage!, state)));
 
@@ -136,17 +138,17 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
 
             let response: AIMessage;
             let messageToStore: BaseMessage;
-            if (isHumanMessage(lastMessage)) {
-                const nextMessage = langChainHumanMessageToMimirHumanMessage(lastMessage);
-                const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage(nextMessage, allCreatedPlugins, state);
+            if (inputMessage) {
+                //  const nextMessage = langChainHumanMessageToMimirHumanMessage(lastMessage);
+                const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage(inputMessage, allCreatedPlugins, state);
 
-                const messageListToSend = state.messages.slice(0, -1);
+                const messageListToSend = state.messages;
                 messageListToSend.push(new HumanMessage({
-                    id: lastMessage.id,
+                    id: v4(),
                     content: complexResponseToLangchainMessageContent(displayMessage.content)
                 }));
                 messageToStore = new HumanMessage({
-                    id: lastMessage.id,
+                    id: v4(),
                     content: complexResponseToLangchainMessageContent(persistentMessage.content)
                 });
 
@@ -200,7 +202,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
                 allCreatedPlugins.map(async (plugin) => await plugin.readResponse(mimirAiMessage, state, rawResponseAttributes))
             )).reduce((acc, d) => ({ ...acc, ...d }), {});
 
-            return { messages: [messageToStore, response], requestAttributes: {}, responseAttributes: responseAttributes };
+            return { messages: [messageToStore, response], requestAttributes: {}, responseAttributes: responseAttributes, input: null };
         };
     }
 
@@ -227,7 +229,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
             AgentMessage,
             {
                 action: string;
-                data: ComplexResponse[];
+                data: InputAgentMessage;
             }>(toolRequest);
 
 
@@ -243,10 +245,11 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
                 name: toolCall.name,
                 content: [
                     { type: "text", text: `The user has cancelled the execution of this function as instead has given you the following feedback:\n` },
-                    ...complexResponseToLangchainMessageContent(reviewData)
+                    ...complexResponseToLangchainMessageContent(reviewData.content)
                 ],
                 tool_call_id: toolCall.id!
             })
+            //TODO: sharedFiles: toolCall.sharedFiles
             return new Command({ goto: "call_llm", update: { messages: [toolMessage] } });
         }
         throw new Error("Unreachable");
@@ -258,9 +261,11 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
             const aiMessage: AIMessage = state["messages"][state["messages"].length - 1];
             const responseAttributes: Record<string, any> = state["responseAttributes"];
 
+            const sharedFiles = responseAttributes[FILES_TO_SEND_FIELD] ?? [];
+
             const content = lCmessageContentToContent(aiMessage.content);
-            let agentMessage: AgentMessage = { content: extractTextResponseFromMessage(content) };
-            return { output: agentMessage }
+            let agentMessage: AgentMessage = { content: extractTextResponseFromMessage(content), sharedFiles: sharedFiles };
+            return { output: agentMessage, };
         }
         return {}
     }
@@ -399,13 +404,13 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
                 graphInput = new Command({ resume: { response: message } })
             }
             else {
-
+                const fts = {
+                    [FILES_TO_SEND_FIELD]: message?.sharedFiles ?? []
+                }
                 graphInput = message != null ? {
-                    messages: [new HumanMessage({
-                        id: `${v4()}`,
-                        content: complexResponseToLangchainMessageContent(message)
-                    })],
-                    requestAttributes: input,
+                    //messages: message,
+                    input: message,
+                    requestAttributes: { ...input, ...fts },
                     responseAttributes: {},
                     noMessagesInTool: noMessagesInTool ?? false,
                 } : null;
@@ -473,9 +478,9 @@ function buildSystemMessage(agentSystemMessages: AgentSystemMessage[]) {
 }
 
 
-async function addAdditionalContentToUserMessage(message: NextMessageUser, plugins: MimirAgentPlugin[], state: typeof StateAnnotation.State) {
-    const displayMessage = JSON.parse(JSON.stringify(message)) as NextMessageUser;
-    const persistentMessage = JSON.parse(JSON.stringify(message)) as NextMessageUser;
+async function addAdditionalContentToUserMessage(message: InputAgentMessage, plugins: MimirAgentPlugin[], state: typeof StateAnnotation.State) {
+    const displayMessage = JSON.parse(JSON.stringify(message)) as InputAgentMessage;
+    const persistentMessage = JSON.parse(JSON.stringify(message)) as InputAgentMessage;
     const spacing: ComplexResponse = {
         type: "text",
         text: "\n-----------------------------------------------\n\n"

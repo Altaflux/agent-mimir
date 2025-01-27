@@ -1,5 +1,5 @@
 import { StateAnnotation } from "../agent-manager/agent.js";
-import { AgentMessageToolRequest, AgentWorkspace } from "../agent-manager/index.js";
+import { AgentMessageToolRequest, AgentWorkspace, InputAgentMessage } from "../agent-manager/index.js";
 import { ComplexResponse } from "../schema.js";
 import { AgentTool } from "../tools/index.js";
 
@@ -37,10 +37,7 @@ export interface MimirPluginFactory {
 }
 
 export type NextMessage = NextMessageUser | NextMessageToolResponse;
-export type NextMessageUser = {
-    type: "USER_MESSAGE",
-    content: ComplexResponse[]
-}
+export  type NextMessageUser = InputAgentMessage & {type: "USER_MESSAGE"}
 
 export type NextMessageToolResponse = {
     type: "TOOL_RESPONSE",
@@ -69,7 +66,7 @@ export abstract class MimirAgentPlugin {
     async readyToProceed(nextMessage: NextMessage, context: AgentContext): Promise<void> {
     }
 
-    async additionalMessageContent(message: NextMessageUser, context: AgentContext): Promise<AdditionalContent[]> {
+    async additionalMessageContent(message: InputAgentMessage, context: AgentContext): Promise<AdditionalContent[]> {
         return [];
     }
 
