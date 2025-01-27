@@ -1,7 +1,7 @@
 import { AIMessage, MessageContent, MessageContentComplex, MessageContentText } from "@langchain/core/messages";
 import { ComplexResponse,   ResponseContentText, SupportedImageTypes } from "../schema.js";
 import { MessageContentToolUse } from "../agent-manager/index.js";
-import { MimirAiMessage } from "../plugins/index.js";
+import { AiResponseMessage } from "../plugins/index.js";
 
 
 export function extractTextContent(messageContent: MessageContent) {
@@ -29,12 +29,12 @@ export function complexResponseToLangchainMessageContent(toolResponse: ComplexRe
   })
 }
 
-export function aiMessageToMimirAiMessage(aiMessage: AIMessage): MimirAiMessage {
+export function aiMessageToMimirAiMessage(aiMessage: AIMessage): AiResponseMessage {
   const content = aiMessage.content;
   const mimirMessage = {
     content: [],
     toolCalls: []
-  } as MimirAiMessage;
+  } as AiResponseMessage;
   if (typeof content === 'string' || content instanceof String) {
     mimirMessage.content.push({
       type: "text",

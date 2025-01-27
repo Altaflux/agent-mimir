@@ -1,6 +1,6 @@
 
 import { promises as fs } from 'fs';
-import { AdditionalContent, AgentContext, AgentSystemMessage, AttributeDescriptor, MimirAgentPlugin, MimirAiMessage, MimirPluginFactory, NextMessage, NextMessageUser, PluginContext } from "./index.js";
+import { AdditionalContent, AgentContext, AgentSystemMessage, AttributeDescriptor, MimirAgentPlugin, AiResponseMessage, MimirPluginFactory, NextMessage, NextMessageUser, PluginContext } from "./index.js";
 import { AgentWorkspace } from "../agent-manager/index.js";
 
 export const FILES_TO_SEND_FIELD = "filesToSend";
@@ -63,7 +63,7 @@ class WorkspacePlugin extends MimirAgentPlugin {
         ];
     }
 
-    async readResponse(aiMessage: MimirAiMessage, context: AgentContext, responseAttributes: Record<string, any>): Promise<Record<string, any>> {
+    async readResponse(aiMessage: AiResponseMessage, context: AgentContext, responseAttributes: Record<string, any>): Promise<Record<string, any>> {
 
         if (responseAttributes["workspaceFilesToShare"]) {
             const files = await Promise.all((JSON.parse(responseAttributes["workspaceFilesToShare"]) || [])

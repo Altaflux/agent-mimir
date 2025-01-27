@@ -3,7 +3,7 @@ import { AgentMessageToolRequest, AgentWorkspace, InputAgentMessage } from "../a
 import { ComplexResponse } from "../schema.js";
 import { AgentTool } from "../tools/index.js";
 
-export type MimirAiMessage = Omit<AgentMessageToolRequest, "destinationAgent">;
+export type AiResponseMessage = AgentMessageToolRequest;
 
 export type AttributeDescriptor = {
     name: string,
@@ -76,7 +76,7 @@ export abstract class MimirAgentPlugin {
         };
     }
 
-    async readResponse(aiMessage: MimirAiMessage, context: AgentContext, responseAttributes: Record<string, any>): Promise<Record<string, any>> {
+    async readResponse(aiMessage: AiResponseMessage, context: AgentContext, responseAttributes: Record<string, any>): Promise<Record<string, any>> {
         return {}
     }
 
