@@ -1,7 +1,7 @@
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { ComplexResponse, } from "../schema.js";
 import { Tool } from "@langchain/core/tools";
-import { FILES_TO_SEND_FIELD, WorkspacePluginFactory } from "../plugins/workspace.js";
+import {  WorkspacePluginFactory, WorkspanceManager } from "../plugins/workspace.js";
 import { ViewPluginFactory } from "../tools/image_view.js";
 import { MimirToolToLangchainTool } from "../utils/wrapper.js";
 import { isToolMessage, ToolMessage } from "@langchain/core/messages/tool";
@@ -71,6 +71,8 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
 
     const defaultAttributes: AttributeDescriptor[] = [
     ]
+
+    const workspaceManager = new WorkspanceManager(workspace)
     const agentCallCondition = async (state: typeof StateAnnotation.State) => {
         if (state.agentMessage.length > 0) {
             return state.agentMessage.map(am => {
@@ -93,12 +95,12 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
                 response: InputAgentMessage;
             }>(response);
 
-
+        const additionalContent = await workspaceManager.additionalMessageContent(humanReview.response);
         const toolResponse = new ToolMessage({
             id: v4(),
             name: agenrM.name,
             tool_call_id: agenrM.tool_call_id,
-            content: complexResponseToLangchainMessageContent(humanReview.response.content)
+            content: complexResponseToLangchainMessageContent([...humanReview.response.content, ...additionalContent])
             //TODO: sharedFiles: aum.sharedFiles
         })
         return { messages: [toolResponse], agentMessage: [new RemoveMessage({ id: agenrM.id! })] };
@@ -140,6 +142,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
             let messageToStore: BaseMessage;
             if (inputMessage) {
                 //  const nextMessage = langChainHumanMessageToMimirHumanMessage(lastMessage);
+                await workspaceManager.loadFiles(inputMessage);
                 const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage(inputMessage, allCreatedPlugins, state);
 
                 const messageListToSend = state.messages;
@@ -195,14 +198,21 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
                     })
                 }
             }
-            let mimirAiMessage = aiMessageToMimirAiMessage(response);
-            const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(mimirAiMessage.content);
-
+            const messageContent = lCmessageContentToContent(response.content);
+            const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(messageContent);
+            const sharedFiles = await workspaceManager.readAttributes(rawResponseAttributes);
+            let mimirAiMessage = aiMessageToMimirAiMessage(response, extractTextResponseFromMessage(messageContent), sharedFiles);
             const responseAttributes = (await Promise.all(
                 allCreatedPlugins.map(async (plugin) => await plugin.readResponse(mimirAiMessage, state, rawResponseAttributes))
             )).reduce((acc, d) => ({ ...acc, ...d }), {});
 
-            return { messages: [messageToStore, response], requestAttributes: {}, responseAttributes: responseAttributes, input: null };
+            return {
+                messages: [messageToStore, response],
+                requestAttributes: {},
+                output: mimirAiMessage,
+                responseAttributes: responseAttributes,
+                input: null
+            };
         };
     }
 
@@ -257,16 +267,16 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
 
     function outputConvert(state: typeof StateAnnotation.State) {
 
-        if (state["messages"] && state["messages"].length > 0) {
-            const aiMessage: AIMessage = state["messages"][state["messages"].length - 1];
-            const responseAttributes: Record<string, any> = state["responseAttributes"];
+        // if (state["messages"] && state["messages"].length > 0) {
+        //     const aiMessage: AIMessage = state["messages"][state["messages"].length - 1];
+        //     const responseAttributes: Record<string, any> = state["responseAttributes"];
 
-            const sharedFiles = responseAttributes[FILES_TO_SEND_FIELD] ?? [];
+        //     const sharedFiles = responseAttributes[FILES_TO_SEND_FIELD] ?? [];
 
-            const content = lCmessageContentToContent(aiMessage.content);
-            let agentMessage: AgentMessage = { content: extractTextResponseFromMessage(content), sharedFiles: sharedFiles };
-            return { output: agentMessage, };
-        }
+        //     const content = lCmessageContentToContent(aiMessage.content);
+        //     let agentMessage: AgentMessage = { content: extractTextResponseFromMessage(content), sharedFiles: sharedFiles };
+        //     return { output: agentMessage, };
+        // }
         return {}
     }
 
@@ -404,13 +414,12 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
                 graphInput = new Command({ resume: { response: message } })
             }
             else {
-                const fts = {
-                    [FILES_TO_SEND_FIELD]: message?.sharedFiles ?? []
+                const filesToSend = {
+                  //  [FILES_TO_SEND_FIELD]: message?.sharedFiles ?? []
                 }
                 graphInput = message != null ? {
-                    //messages: message,
                     input: message,
-                    requestAttributes: { ...input, ...fts },
+                    requestAttributes: { ...input, ...filesToSend },
                     responseAttributes: {},
                     noMessagesInTool: noMessagesInTool ?? false,
                 } : null;

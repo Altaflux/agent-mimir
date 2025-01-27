@@ -29,32 +29,14 @@ export function complexResponseToLangchainMessageContent(toolResponse: ComplexRe
   })
 }
 
-export function aiMessageToMimirAiMessage(aiMessage: AIMessage): AiResponseMessage {
-  const content = aiMessage.content;
+export function aiMessageToMimirAiMessage(aiMessage: AIMessage, content: ComplexResponse[], files: AiResponseMessage["sharedFiles"]): AiResponseMessage {
+  
   const mimirMessage = {
-    content: [],
-    toolCalls: []
+    content: content,
+    toolCalls: [],
+    sharedFiles: files
   } as AiResponseMessage;
-  if (typeof content === 'string' || content instanceof String) {
-    mimirMessage.content.push({
-      type: "text",
-      text: content as string
-    })
-  } else {
-    //TODO handle other types
-    let cont = content.map(c => {
-      if (c.type === "text") {
-        return {
-          type: "text" as const,
-          text: c.text
-        }
-      } else {
-        return null;
-      }
-    }).filter(e => e !== null).map(e => e!);
-    mimirMessage.content = cont;
-  }
-
+ 
   if (aiMessage.tool_calls) {
     const tool_calls = aiMessage.tool_calls.map(t => {
       return {

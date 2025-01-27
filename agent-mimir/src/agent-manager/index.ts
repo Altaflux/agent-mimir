@@ -10,7 +10,8 @@ export type MessageContentToolUse = {
 export type AgentMessageToolRequest = { toolCalls: MessageContentToolUse[] } & InputAgentMessage;
 
 export type InputAgentMessage = {
-    content: ComplexResponse[], sharedFiles?: {
+    content: ComplexResponse[], 
+    sharedFiles?: {
         url: string,
         fileName: string,
     }[]
