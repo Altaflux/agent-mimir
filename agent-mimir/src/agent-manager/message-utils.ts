@@ -3,10 +3,8 @@ import { AIMessage, BaseMessage, HumanMessage, MessageContent, MessageContentCom
 import { ComplexResponse, ResponseContentImage, ResponseContentText, SupportedImageTypes, } from "../schema.js";
 import { CONSTANTS, ERROR_MESSAGES } from "./constants.js";
 import { complexResponseToLangchainMessageContent } from "../utils/format.js";
-import { AgentMessage, AgentMessageToolRequest, } from "./index.js";
-import { NextMessageToolResponse, NextMessageUser } from "../plugins/index.js";
-import { url } from "inspector";
-import { extractTextResponseFromMessage } from "../utils/instruction-mapper.js";
+import { AgentMessageToolRequest, } from "./index.js";
+import { NextMessageToolResponse } from "../plugins/index.js";
 
 export function toolMessageToToolResponseInfo(message: { name?: string, content: any }): { name: string, response: string } {
     return {
@@ -19,12 +17,6 @@ export function trimStringToMaxWithEllipsis(str: string, max: number): string {
     return str.length > max ? str.substring(0, max) + "..." : str;
 }
 
-export function langChainHumanMessageToMimirHumanMessage(message: HumanMessage): NextMessageUser {
-    return {
-        type: "USER_MESSAGE",
-        content: lCmessageContentToContent(message.content)
-    };
-}
 
 export function langChainToolMessageToMimirHumanMessage(message: ToolMessage): NextMessageToolResponse {
     return {
@@ -56,21 +48,6 @@ export function commandContentToBaseMessage(commandContent: { type: string, cont
         return new HumanMessage({ id, content });
     }
     throw new Error(ERROR_MESSAGES.UNREACHABLE);
-}
-
-function extractTextContent(content: MessageContent, responseAttributes: Record<string, any>): string {
-    if (responseAttributes["messageToSend"]) {
-        return responseAttributes["messageToSend"] as string;
-    }
-
-    if (typeof content === 'string') {
-        return content;
-    }
-
-    return (content as MessageContentComplex[])
-        .filter(e => e.type === "text")
-        .map(e => (e as MessageContentText).text)
-        .join("\n");
 }
 
 export function lCmessageContentToContent(content: MessageContent): ComplexResponse[] {

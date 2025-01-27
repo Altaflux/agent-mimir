@@ -1,6 +1,4 @@
-import { Agent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, ToolResponseInfo, AgentMessage, InputAgentMessage } from "../agent-manager/index.js";
-import { ComplexResponse } from "../schema.js";
-
+import { Agent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, ToolResponseInfo, InputAgentMessage } from "../agent-manager/index.js";
 
 type PendingMessage = {
     responseAttributes: Record<string, any>,

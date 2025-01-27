@@ -1,18 +1,18 @@
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { ComplexResponse, } from "../schema.js";
 import { Tool } from "@langchain/core/tools";
-import {  WorkspacePluginFactory, WorkspanceManager } from "../plugins/workspace.js";
+import { WorkspacePluginFactory, WorkspanceManager } from "../plugins/workspace.js";
 import { ViewPluginFactory } from "../tools/image_view.js";
 import { MimirToolToLangchainTool } from "../utils/wrapper.js";
 import { isToolMessage, ToolMessage } from "@langchain/core/messages/tool";
 import { aiMessageToMimirAiMessage, complexResponseToLangchainMessageContent } from "../utils/format.js";
-import { AIMessage, BaseMessage, HumanMessage, isAIMessage, isHumanMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage } from "@langchain/core/messages";
+import { AIMessage, BaseMessage, HumanMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage } from "@langchain/core/messages";
 import { Annotation, Command, END, interrupt, Messages, MessagesAnnotation, messagesStateReducer, Send, START, StateDefinition, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
 import { extractTextResponseFromMessage, ResponseFieldMapper } from "../utils/instruction-mapper.js";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
-import { commandContentToBaseMessage, dividerSystemMessage, langChainHumanMessageToMimirHumanMessage, langChainToolMessageToMimirHumanMessage, lCmessageContentToContent, mergeSystemMessages, parseToolMessage, toolMessageToToolResponseInfo } from "./message-utils.js";
+import { commandContentToBaseMessage, dividerSystemMessage, langChainToolMessageToMimirHumanMessage, lCmessageContentToContent, mergeSystemMessages, parseToolMessage, toolMessageToToolResponseInfo } from "./message-utils.js";
 import { LangchainToolWrapperPluginFactory } from "./langchain-wrapper.js";
 import { Agent, AgentMessage, AgentMessageToolRequest, AgentUserMessageResponse, InputAgentMessage, WorkspaceFactory } from "./index.js";
 import { AgentSystemMessage, AttributeDescriptor, MimirAgentPlugin, MimirPluginFactory } from "../plugins/index.js";
@@ -102,7 +102,6 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
             name: agenrM.name,
             tool_call_id: agenrM.tool_call_id,
             content: complexResponseToLangchainMessageContent([...humanReview.response.content, ...additionalContent])
-            //TODO: sharedFiles: aum.sharedFiles
         })
         return { messages: [toolResponse], agentMessage: [new RemoveMessage({ id: agenrM.id! })] };
 
@@ -142,7 +141,6 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
             let response: AIMessage;
             let messageToStore: BaseMessage;
             if (inputMessage) {
-                //  const nextMessage = langChainHumanMessageToMimirHumanMessage(lastMessage);
                 await workspaceManager.loadFiles(inputMessage);
                 const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage(inputMessage, allCreatedPlugins, state);
 
@@ -405,7 +403,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
                 graphInput = new Command({ resume: { response: message } })
             }
             else {
-              
+
                 graphInput = message != null ? {
                     input: message,
                     requestAttributes: input,
