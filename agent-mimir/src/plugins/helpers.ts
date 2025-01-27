@@ -2,50 +2,9 @@
 import { z } from "zod";
 import {  AgentContext, AgentSystemMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../plugins/index.js";
 import { AgentTool, ToolResponse } from "../tools/index.js";
-
-import { StructuredTool } from "@langchain/core/tools";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { Agent, AgentMessage } from "../agent-manager/index.js";
 
-class TalkToHelper extends StructuredTool {
-
-    schema = z.object({
-        helperName: z.string().describe("The name of the helper you want to talk to and the message you want to send them."),
-        message: z.string().describe("The message to the helper, be as detailed as possible."),
-        workspaceFilesToSend: z.array(z.string().describe("File to share with the helper.")).optional().describe("The list of files of your workspace you want to share with the helper. You do not share the same workspace as the helpers, if you want the helper to have access to a file from your workspace you must share it with them."),
-    })
-
-    returnDirect: boolean = true;
-
-    constructor(private helperSingleton:  ReadonlyMap<string, Agent>, private agentName: string) {
-        super();
-    }
-
-    protected async _call(arg: z.input<this["schema"]>): Promise<string> {
-        const { helperName, message } = arg;
-        const self = this.helperSingleton.get(this.agentName);
-        const filesToSend = await Promise.all(((arg.workspaceFilesToSend ?? [])
-            .map(async (fileName) => {
-                return { fileName: fileName, url: (await self?.workspace.getUrlForFile(fileName))! };
-            }).filter(async value => (await value).url !== undefined)));
-
-        const result: AgentMessage = {
-            destinationAgent: helperName,
-            content: [
-                {
-                    type: "text",
-                    text: message
-                }
-            ],
-            // sharedFiles: filesToSend,
-        }
-        //TODO THIS IS WRONG
-        return JSON.stringify(result);
-    }
-    name: string = "talkToHelper";
-    description: string = `Talk to a helper and / or send them files from your workspace. You can send files from your workspace to a helper.`;
-
-}
 
 export type HelperPluginConfig = {
     name: string,
@@ -75,11 +34,16 @@ class HelperTool extends AgentTool {
     schema = z.object({
         helperName: z.string().describe("The name of the helper you want to talk to and the message you want to send them."),
         message: z.string().describe("The message to the helper, be as detailed as possible."),
-        // workspaceFilesToSend: z.array(z.string().describe("File to share with the helper.")).optional().describe("The list of files of your workspace you want to share with the helper. You do not share the same workspace as the helpers, if you want the helper to have access to a file from your workspace you must share it with them."),
+        workspaceFilesToSend: z.array(z.string().describe("File to share with the helper.")).optional().describe("The list of files of your workspace you want to share with the helper. You do not share the same workspace as the helpers, if you want the helper to have access to a file from your workspace you must share it with them."),
     })
 
-    protected async _call(arg: any, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
+    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
         const { helperName, message } = arg;
+        const self = this.helperSingleton.get(this.agentName);
+        const filesToSend = await Promise.all(((arg.workspaceFilesToSend ?? [])
+            .map(async (fileName) => {
+                return { fileName: fileName, url: (await self?.workspace.getUrlForFile(fileName))! };
+            }).filter(async value => (await value).url !== undefined)));
 
 
         const result: AgentMessage = {
@@ -90,7 +54,7 @@ class HelperTool extends AgentTool {
                     text: message
                 }
             ],
-            // sharedFiles: filesToSend,
+             sharedFiles: filesToSend,
         }
         return result;
     }

@@ -95,6 +95,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
                 response: InputAgentMessage;
             }>(response);
 
+        await workspaceManager.loadFiles(humanReview.response);
         const additionalContent = await workspaceManager.additionalMessageContent(humanReview.response);
         const toolResponse = new ToolMessage({
             id: v4(),
@@ -231,7 +232,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
         }
     }
 
-    function humanReviewNode(state: typeof MessagesAnnotation.State) {
+    async function humanReviewNode(state: typeof MessagesAnnotation.State) {
         const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
         const toolCall = lastMessage.tool_calls![lastMessage.tool_calls!.length - 1];
         const toolRequest: AgentMessage = parseToolMessage(lastMessage, {});
@@ -250,6 +251,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
         if (reviewAction === "continue") {
             return new Command({ goto: "run_tool" });
         } else if (reviewAction === "feedback") {
+            await workspaceManager.loadFiles(reviewData);
             const toolMessage = new ToolMessage({
                 id: v4(),
                 name: toolCall.name,
@@ -258,8 +260,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
                     ...complexResponseToLangchainMessageContent(reviewData.content)
                 ],
                 tool_call_id: toolCall.id!
-            })
-            //TODO: sharedFiles: toolCall.sharedFiles
+            });
             return new Command({ goto: "call_llm", update: { messages: [toolMessage] } });
         }
         throw new Error("Unreachable");
@@ -267,16 +268,6 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
 
     function outputConvert(state: typeof StateAnnotation.State) {
 
-        // if (state["messages"] && state["messages"].length > 0) {
-        //     const aiMessage: AIMessage = state["messages"][state["messages"].length - 1];
-        //     const responseAttributes: Record<string, any> = state["responseAttributes"];
-
-        //     const sharedFiles = responseAttributes[FILES_TO_SEND_FIELD] ?? [];
-
-        //     const content = lCmessageContentToContent(aiMessage.content);
-        //     let agentMessage: AgentMessage = { content: extractTextResponseFromMessage(content), sharedFiles: sharedFiles };
-        //     return { output: agentMessage, };
-        // }
         return {}
     }
 
@@ -414,12 +405,10 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
                 graphInput = new Command({ resume: { response: message } })
             }
             else {
-                const filesToSend = {
-                  //  [FILES_TO_SEND_FIELD]: message?.sharedFiles ?? []
-                }
+              
                 graphInput = message != null ? {
                     input: message,
-                    requestAttributes: { ...input, ...filesToSend },
+                    requestAttributes: input,
                     responseAttributes: {},
                     noMessagesInTool: noMessagesInTool ?? false,
                 } : null;
