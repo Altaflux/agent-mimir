@@ -9,7 +9,7 @@ import si from 'systeminformation';
 // import { JsonSchema7ObjectType } from "zod-to-json-schema";
 // import { zodToJsonSchema } from "zod-to-json-schema";
 
-import { Key, keyboard, mouse, Button, Point } from "@nut-tree/nut-js";
+import { Key, keyboard, mouse, Button, Point } from "@nut-tree-fork/nut-js";
 import sharp from 'sharp';
 
 // import { LLMChain } from "langchain/chains";
