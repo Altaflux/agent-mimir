@@ -69,12 +69,14 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
 
     if (result.value.type === "toolRequest") {
 
-      const toolCalls = (result.value.toolCalls ?? []).map(tr => {
-        return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
-      }).join("\n");
-      sendResponse(toolCalls);
 
       do {
+        const toolCalls = (result.value.toolCalls ?? []).map(tr => {
+          return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
+        }).join("\n");
+        sendResponse(toolCalls);
+
+        
         let answers = await Promise.race([new Promise<{ message: string }>((resolve, reject) => {
           rl.question((chalk.blue("Should AI Continue? Type Y or click Enter to continue, otherwise type a message to the AI: ")), (answer) => {
             resolve({ message: answer });
