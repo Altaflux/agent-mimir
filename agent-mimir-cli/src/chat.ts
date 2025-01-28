@@ -22,11 +22,6 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
   console.log("Available commands:\n")
   console.log("/reset - resets all agents\n\n");
 
-
-  var rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
   async function sendResponse(message: string, attachments?: string[]) {
     const responseMessage = `Files provided by AI: ${attachments?.map((f: any) => f.fileName).join(", ") || "None"}\n\n${message}`;
     console.log(responseMessage)
@@ -106,7 +101,7 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
 
       } while (result.value.type === "toolRequest");
     }
-    
+
     const stringResponse = extractAllTextFromComplexResponse(result.value.content.content);
     sendResponse(stringResponse, result.value.content.sharedFiles?.map((f: any) => f.url));
   }
