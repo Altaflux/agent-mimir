@@ -1,144 +1,127 @@
 import chalk from 'chalk';
-import { Agent, AgentResponse, AgentUserMessage, AgentUserMessageResponse, FILES_TO_SEND_FIELD, FunctionResponseCallBack } from "agent-mimir/schema";
 import readline from 'readline';
-import { Retry } from "./utils.js";
 import path from "path";
-import { AgentManager } from 'agent-mimir/agent-manager';
+import { extractAllTextFromComplexResponse } from "agent-mimir/utils/format";
+import { MultiAgentCommunicationOrchestrator, HandleMessageResult, IntermediateAgentResponse } from "agent-mimir/communication/multi-agent";
+import { InputAgentMessage } from 'agent-mimir/agent';
+
+export type FunctionResponseCallBack = (toolCalls: {
+  agentName: string,
+  name: string;
+  response: string;
+}) => Promise<void>;
 
 
-export async function chatWithAgent(continuousMode: boolean, assistant: Agent, agentManager: AgentManager) {
-  const agentStack: Agent[] = [];
-  let pendingMessage: PendingMessage | null = null;
-  let executor = assistant!;
+export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchestrator) {
+
   var rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout
   });
 
-  let aiResponse: undefined | AgentResponse = undefined;
   console.log("Available commands:\n")
   console.log("/reset - resets all agents\n\n");
 
-  const toolCallBack: FunctionResponseCallBack = async (calls) => {
-    for (const call of calls) {
-      const toolResponse = `Agent: \`${executor.name}\` called function: \`${call.name}\` \nInvoked with input: \n\`\`\`${call.input}\`\`\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
-      console.log(toolResponse)
+
+  var rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  async function sendResponse(message: string, attachments?: string[]) {
+    const responseMessage = `Files provided by AI: ${attachments?.map((f: any) => f.fileName).join(", ") || "None"}\n\n${message}`;
+    console.log(responseMessage)
+  }
+
+  let toolCallback: FunctionResponseCallBack = async (call) => {
+    const toolResponse = `Agent: \`${call.agentName}\`  \n---\nCalled function: \`${call.name}\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
+    await sendResponse(toolResponse);
+  };
+
+  let intermediateResponseHandler = async (chainResponse: IntermediateAgentResponse) => {
+    if (chainResponse.type === "toolResponse") {
+      toolCallback({
+        agentName: chainResponse.agentName,
+        name: chainResponse.name,
+        response: chainResponse.response
+      });
+    } else {
+      const stringResponse = extractAllTextFromComplexResponse(chainResponse.content.content);
+      const discordMessage = `\`${chainResponse.sourceAgent}\` is sending a message to \`${chainResponse.destinationAgent}\`:\n\`\`\`${stringResponse}\`\`\`` +
+        `\nFiles provided: ${chainResponse.content.sharedFiles?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
+      await sendResponse(discordMessage, chainResponse.content.sharedFiles?.map((f: any) => f.url));
     }
   };
 
-  while (true) {
-    if (aiResponse && aiResponse.type == "toolRequest") {
+  topLoop: while (true) {
 
-      let answers = await Promise.race([new Promise<{ message: string }>((resolve, reject) => {
-        rl.question((chalk.blue("Should AI Continue? Type Y or click Enter to continue, otherwise type a message to the AI: ")), (answer) => {
-          resolve({ message: answer });
-        });
-      })]);
+    let answers = await Promise.race([new Promise<{ message: string }>((resolve, reject) => {
+      rl.question((chalk.blue("Human: ")), (answer) => {
+        resolve({ message: answer });
+      });
+    })]);
 
-      if (answers.message.toLowerCase() === "y" || answers.message === "") {
-        aiResponse = await Retry(() => executor.call(null, {}, toolCallBack));
-      } else {
-        const parsedMessage = extractContentAndText(answers.message);
-        if (parsedMessage.type === "command") {
-          await handleCommands(parsedMessage.command!, assistant, agentManager);
-          continue;
-        }
-        const files = parsedMessage.message?.responseFiles.map((file) => {
-          const filename = path.basename(file);
-          return { fileName: filename, url: file };
-        });
-        aiResponse = await Retry(() => executor.call(parsedMessage.message?.text!, { [FILES_TO_SEND_FIELD]: files }));
-      }
-    } else {
+    const parsedMessage = extractContentAndText(answers.message);
+    if (parsedMessage.type === "command") {
+      await handleCommands(parsedMessage.command!, agentManager);
+      continue topLoop;
+    }
+    let result: IteratorResult<IntermediateAgentResponse, HandleMessageResult>;
+    let generator = agentManager.handleMessage((agent) => agent.call(parsedMessage.message, {}));
+    while (!(result = await generator.next()).done) {
+      intermediateResponseHandler(result.value);
+    }
 
-      let messageToAgent: PendingMessage | undefined = undefined;
-      if (pendingMessage) {
-        messageToAgent = pendingMessage;
-        pendingMessage = null;
-      } else {
+
+    if (result.value.type === "toolRequest") {
+
+      const toolCalls = (result.value.toolCalls ?? []).map(tr => {
+        return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
+      }).join("\n");
+      sendResponse(toolCalls);
+
+      do {
         let answers = await Promise.race([new Promise<{ message: string }>((resolve, reject) => {
-          rl.question((chalk.blue("Human: ")), (answer) => {
+          rl.question((chalk.blue("Should AI Continue? Type Y or click Enter to continue, otherwise type a message to the AI: ")), (answer) => {
             resolve({ message: answer });
           });
         })]);
 
-        const parsedMessage = extractContentAndText(answers.message);
-        if (parsedMessage.type === "command") {
-          await handleCommands(parsedMessage.command!, assistant, agentManager);
-          continue;
-        }
-        messageToAgent = {
-          message: parsedMessage.message?.text!,
-          sharedFiles: parsedMessage.message?.responseFiles.map((file) => {
-            const filename = path.basename(file);
-            return { fileName: filename, url: file };
-          }) ?? []
-        };
-      }
 
 
-      aiResponse = await Retry(() => executor.call(messageToAgent!.message!, { [FILES_TO_SEND_FIELD]: messageToAgent?.sharedFiles ?? [] }));
-    }
-
-    if (aiResponse?.type == "toolRequest" && continuousMode) {
-      while (aiResponse.type == "toolRequest") {
-        aiResponse = await Retry(() => executor.call(null, {}, toolCallBack));
-      }
-    }
-
-    if (aiResponse?.type == "toolRequest") {
-
-      const response = aiResponse?.output;
-      const toolList = response.toolRequests.map(t => {
-        return `- Tool Name: "${t.toolName}"\n- Tool Input: ${t.toolArguments}`
-      }).join("----\n");
-      const responseMessage = `Agent: "${executor.name}" is requesting permission to use tools: \n${toolList}\n`
-      console.log(chalk.red("AI Response: ", chalk.blue(responseMessage)));
-
-    } else if (aiResponse?.type == "agentResponse") {
-      const response: AgentUserMessage = aiResponse?.output;
-      if (response.agentName) {
-        const currentAgent = executor;
-        const newAgent = agentManager.getAgent(response.agentName);
-        if (!newAgent) {
-          pendingMessage = {
-            message: "No agent found with that name.",
-            sharedFiles: []
-          };
+        if (answers.message.toLowerCase() === "y" || answers.message === "") {
+          generator = agentManager.handleMessage((agent) => agent.call(null, {}));
         } else {
-          agentStack.push(currentAgent);
-          pendingMessage = userAgentResponseToPendingMessage(aiResponse);
-          executor = newAgent;
+          const parsedMessage = extractContentAndText(answers.message);
+          if (parsedMessage.type === "command") {
+            await handleCommands(parsedMessage.command!, agentManager);
+            continue topLoop;
+          }
+          generator = agentManager.handleMessage((agent) => agent.call(parsedMessage.message, {}));
         }
 
-      } else {
-        if (agentStack.length === 0) {
-          const responseMessage = `Files provided by AI: ${aiResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.fileName).join(", ") || "None"}\n\n${response.message}`;
-          console.log(chalk.red("AI Response: ", chalk.blue(responseMessage)));
-        } else {
-          pendingMessage = {
-            message: `${executor.name} responded with: ${response.message}`,
-            //sharedFiles: []
-            sharedFiles: aiResponse.responseAttributes[FILES_TO_SEND_FIELD] ?? []
-          } satisfies PendingMessage;
-          executor = agentStack.pop()!;
-        }
-      }
 
+        while (!(result = await generator.next()).done) {
+          intermediateResponseHandler(result.value);
+        }
+
+      } while (result.value.type === "toolRequest");
     }
+    
+    const stringResponse = extractAllTextFromComplexResponse(result.value.content.content);
+    sendResponse(stringResponse, result.value.content.sharedFiles?.map((f: any) => f.url));
   }
 }
 
-function userAgentResponseToPendingMessage(msg: AgentUserMessageResponse): PendingMessage {
-  return {
-    message: msg.output.message,
-    sharedFiles: msg.responseAttributes[FILES_TO_SEND_FIELD] ?? []
-  }
-}
+// function userAgentResponseToPendingMessage(msg: AgentUserMessageResponse): PendingMessage {
+//   return {
+//     message: msg.output.message,
+//     sharedFiles: msg.responseAttributes[FILES_TO_SEND_FIELD] ?? []
+//   }
+// }
 
-async function handleCommands(command: string, assistant: Agent, agentManager: AgentManager) {
+async function handleCommands(command: string, agentManager: MultiAgentCommunicationOrchestrator) {
   if (command.trim() === "reset") {
-    for (const agent of agentManager.getAllAgents()) {
+    for (const agent of agentManager.agentManager.values()) {
       await agent.reset();
     }
     console.log(chalk.red(`Agents have been reset.`));
@@ -154,16 +137,19 @@ type PendingMessage = {
   }[],
   message: string;
 }
-
 function extractContentAndText(str: string): {
-  type: `command` | `message`,
-  command?: string,
-  message?: {
-    responseFiles: string[];
-    text: string;
-  }
+  type: `command`,
+  command: string,
+} | {
+  type: `message`,
+  message: InputAgentMessage
 } {
-
+  if (str.startsWith("/")) {
+    return {
+      type: 'command',
+      command: str.slice(1)
+    }
+  }
   if (str.startsWith("/")) {
     return {
       type: 'command',
@@ -185,8 +171,15 @@ function extractContentAndText(str: string): {
   return {
     type: 'message',
     message: {
-      responseFiles: matches,
-      text: remainingText.trim()
+      sharedFiles: [],
+      content: [
+        {
+          type: "text",
+          text: remainingText.trim()
+        }
+      ],
     }
   };
+
 }
+

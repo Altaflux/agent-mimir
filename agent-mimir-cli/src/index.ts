@@ -1,19 +1,21 @@
 
-import { AgentManager } from "agent-mimir/agent-manager"
-import { MimirPluginFactory } from "agent-mimir/schema";
+import { MultiAgentCommunicationOrchestrator } from "agent-mimir/communication/multi-agent";
+import { MimirPluginFactory } from "agent-mimir/plugins";
 import chalk from "chalk";
 
 import { Tool } from "@langchain/core/tools";
-
+import { HelpersPluginFactory } from "agent-mimir/plugins/helpers";
 import { chatWithAgent } from "./chat.js";
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from "path";
-import {  FileSystemAgentWorkspace } from "agent-mimir/nodejs";
+import { FileSystemAgentWorkspace } from "agent-mimir/nodejs";
 
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { Embeddings } from "@langchain/core/embeddings";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { createAgent } from "agent-mimir/agent/agent";
+import { Agent } from "agent-mimir/agent";
 
 export type AgentDefinition = {
     mainAgent?: boolean;
@@ -62,33 +64,44 @@ export const run = async () => {
     console.log(`Using working directory ${workingDirectory}`);
     await fs.mkdir(workingDirectory, { recursive: true });
 
-    const agentManager = new AgentManager({
-        embeddings: agentConfig.embeddings,
-        workspaceManagerFactory: async (agent) => {
-            const tempDir = path.join(workingDirectory, agent);
-            await fs.mkdir(tempDir, { recursive: true });
-            const workspace = new FileSystemAgentWorkspace(tempDir);
-            await fs.mkdir(workspace.workingDirectory, { recursive: true });
-            return workspace;
-        }
-    });
 
+    const workspaceFactory = async (agentName: string) => {
+        const tempDir = path.join(workingDirectory, agentName);
+        await fs.mkdir(tempDir, { recursive: true });
+        const workspace = new FileSystemAgentWorkspace(tempDir);
+        await fs.mkdir(workspace.workingDirectory, { recursive: true });
+        return workspace;
+    }
+    const agentMap = new Map<string, Agent>();
     const continousMode = agentConfig.continuousMode ?? false;
     const agents = await Promise.all(Object.entries(agentConfig.agents).map(async ([agentName, agentDefinition]) => {
         if (agentDefinition.definition) {
+
+            const canCommunicateWithAgents = agentDefinition.definition.communicationWhitelist ?? false;
+            let communicationWhitelist = undefined;
+            if (Array.isArray(canCommunicateWithAgents)) {
+                communicationWhitelist = canCommunicateWithAgents
+            }
+            const helpersPlugin = new HelpersPluginFactory({
+                name: agentName,
+                helperSingleton: agentMap,
+                communicationWhitelist: communicationWhitelist ?? null
+            });
+
             const newAgent = {
                 mainAgent: agentDefinition.mainAgent,
                 name: agentName,
-                agent: await agentManager.createAgent({
+                agent: await createAgent({
                     name: agentName,
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,
                     tools: agentDefinition.definition.tools ?? [],
                     model: agentDefinition.definition.chatModel,
                     visionSupport: agentDefinition.definition.visionSupport,
-                    communicationWhitelist: agentDefinition.definition.communicationWhitelist,
+
                     constitution: agentDefinition.definition.constitution,
-                    plugins: agentDefinition.definition.plugins
+                    plugins: [helpersPlugin, ...agentDefinition.definition.plugins ?? []],
+                    workspaceFactory: workspaceFactory
                 })
             }
             console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.definition.profession}" and description "${agentDefinition.description}"`));
@@ -99,13 +112,14 @@ export const run = async () => {
 
     }));
 
+    agents.forEach(a => agentMap.set(a.name, a.agent));
     const mainAgent = agents.length === 1 ? agents[0].agent : agents.find(a => a.mainAgent)?.agent;
     if (!mainAgent) {
         throw new Error("No main agent found");
     }
-
+    const chatAgentHandle = new MultiAgentCommunicationOrchestrator(agentMap, mainAgent);
     console.log(chalk.green(`Using "${mainAgent.name}" as main agent`));
-    await chatWithAgent(continousMode, mainAgent, agentManager);
+    await chatWithAgent(chatAgentHandle);
 };
 
 run();

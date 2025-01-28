@@ -38,7 +38,7 @@ export class MultiAgentCommunicationOrchestrator {
     private currentAgent: Agent;
     private agentStack: Agent[] = [];
 
-    constructor(private readonly agentManager: ReadonlyMap<string, Agent>, currentAgent: Agent) {
+    constructor(public readonly agentManager: ReadonlyMap<string, Agent>, currentAgent: Agent) {
         this.currentAgent = currentAgent;
     }
 
