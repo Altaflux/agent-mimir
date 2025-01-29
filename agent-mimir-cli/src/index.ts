@@ -103,7 +103,7 @@ export const run = async () => {
     }
     const chatAgentHandle = orchestratorBuilder.build(mainAgent);
     console.log(chalk.green(`Using "${mainAgent.name}" as main agent`));
-    await chatWithAgent(chatAgentHandle);
+    await chatWithAgent(chatAgentHandle, continousMode);
 };
 
 run();

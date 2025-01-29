@@ -14,7 +14,7 @@ export type FunctionResponseCallBack = (toolCalls: {
 
 const messageDivider = chalk.yellow("---------------------------------------------------\n");
 
-export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchestrator) {
+export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchestrator, continousMode: boolean) {
 
   var rl = readline.createInterface({
     input: process.stdin,
@@ -75,32 +75,35 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
         }).join("\n");
         sendResponse(result.value.callingAgent, toolCalls);
 
-
-        let answers = await Promise.race([new Promise<{ message: string }>((resolve, reject) => {
-          rl.question((chalk.blue("Should AI Continue? Type Y or click Enter to continue, otherwise type a message to the AI: ")), (answer) => {
-            resolve({ message: answer });
-          });
-        })]);
-
-
-
-        if (answers.message.toLowerCase() === "y" || answers.message === "") {
+        if (continousMode) {
           generator = agentManager.handleMessage((agent) => agent.call({
             message: null,
             requestAttributes: {},
           }));
         } else {
-          const parsedMessage = extractContentAndText(answers.message);
-          if (parsedMessage.type === "command") {
-            await handleCommands(parsedMessage.command!, agentManager);
-            continue topLoop;
-          }
-          generator = agentManager.handleMessage((agent) => agent.call({
-            message: parsedMessage.message,
-            requestAttributes: {},
-          }));
-        }
+          let answers = await Promise.race([new Promise<{ message: string }>((resolve, reject) => {
+            rl.question((chalk.blue("Should AI Continue? Type Y or click Enter to continue, otherwise type a message to the AI: ")), (answer) => {
+              resolve({ message: answer });
+            });
+          })]);
 
+          if (answers.message.toLowerCase() === "y" || answers.message === "") {
+            generator = agentManager.handleMessage((agent) => agent.call({
+              message: null,
+              requestAttributes: {},
+            }));
+          } else {
+            const parsedMessage = extractContentAndText(answers.message);
+            if (parsedMessage.type === "command") {
+              await handleCommands(parsedMessage.command!, agentManager);
+              continue topLoop;
+            }
+            generator = agentManager.handleMessage((agent) => agent.call({
+              message: parsedMessage.message,
+              requestAttributes: {},
+            }));
+          }
+        }
 
         while (!(result = await generator.next()).done) {
           intermediateResponseHandler(result.value);
