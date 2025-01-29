@@ -42,6 +42,10 @@
     "./tools": {
       "types": "./dist/tools/index.d.ts",
       "import": "./dist/tools/index.js"
+    },
+    "./tools/langchain": {
+      "types": "./dist/tools/langchain.d.ts",
+      "import": "./dist/tools/langchain.js"
     }
   },
   "scripts": {

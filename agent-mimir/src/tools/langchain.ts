@@ -1,6 +1,28 @@
-import { StructuredTool } from "@langchain/core/tools";
+import { StructuredTool } from "langchain/tools";
+import { AgentTool, ToolResponse } from "./index.js";
+import { z } from "zod";
 import { MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../plugins/index.js";
-import { LangchainToolToMimirTool } from "../utils/wrapper.js";
+
+
+class LangchainToolToMimirTool extends AgentTool {
+
+    schema = this.tool.schema;
+    name: string = this.tool.name;
+    description: string = this.tool.description;
+    returnDirect: boolean = this.tool.returnDirect;
+
+    constructor(private tool: StructuredTool) {
+        super();
+    }
+
+    protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
+        const response = await this.tool.invoke(arg);
+        return {
+            rawResponse: response
+        }
+
+    }
+}
 
 /**
  * Factory class for creating LangChain tool wrapper plugins
@@ -20,7 +42,7 @@ export class LangchainToolWrapperPluginFactory implements MimirPluginFactory {
 /**
  * Plugin class that wraps LangChain tools for use with Mimir
  */
-export class LangchainToolWrapper extends MimirAgentPlugin {
+class LangchainToolWrapper extends MimirAgentPlugin {
     constructor(private readonly tool: StructuredTool) {
         super();
     }

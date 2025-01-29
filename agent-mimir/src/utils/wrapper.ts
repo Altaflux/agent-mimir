@@ -50,22 +50,3 @@ export function isUserAgentMessage(x: ToolResponse): x is AgentMessage {
     return false;
 }
 
-export class LangchainToolToMimirTool extends AgentTool {
-
-    schema = this.tool.schema;
-    name: string = this.tool.name;
-    description: string = this.tool.description;
-    returnDirect: boolean = this.tool.returnDirect;
-
-    constructor(private tool: StructuredTool) {
-        super();
-    }
-
-    protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
-        const response = await this.tool.invoke(arg);
-        return {
-            rawResponse: response
-        }
-
-    }
-}

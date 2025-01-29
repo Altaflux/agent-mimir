@@ -11,7 +11,6 @@ import { extractTextResponseFromMessage, ResponseFieldMapper } from "../utils/in
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { commandContentToBaseMessage, dividerSystemMessage, langChainToolMessageToMimirHumanMessage, lCmessageContentToContent, mergeSystemMessages, parseToolMessage, toolMessageToToolResponseInfo } from "./message-utils.js";
-import { LangchainToolWrapperPluginFactory } from "./langchain-wrapper.js";
 import { Agent, AgentMessage, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, CreateAgentArgs, InputAgentMessage, ToolResponseInfo } from "./index.js";
 import { AgentSystemMessage, AttributeDescriptor, MimirAgentPlugin, MimirPluginFactory } from "../plugins/index.js";
 
@@ -38,10 +37,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     const workspace = await config.workspaceFactory(shortName);
     const allPluginFactories = (config.plugins ?? []);
 
-    const tools = [
-        ...(config.tools ?? []),
-    ];
-    const toolPlugins: MimirPluginFactory[] = [...tools.map(tool => new LangchainToolWrapperPluginFactory(tool))];
+    const toolPlugins: MimirPluginFactory[] = [];
     toolPlugins.push(new WorkspacePluginFactory());
     toolPlugins.push(new ViewPluginFactory());
     const allCreatedPlugins = await Promise.all([...allPluginFactories, ...toolPlugins].map(async factory => await factory.create({

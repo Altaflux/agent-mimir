@@ -62,7 +62,6 @@ export class OrchestratorBuilder {
             name: args.name,
             description: args.description,
             profession: args.profession,
-            tools: args.tools ?? [],
             model: args.model,
             visionSupport: args.visionSupport,
             constitution: args.constitution,
@@ -98,7 +97,7 @@ export class MultiAgentCommunicationOrchestrator {
             await agent.reset();
         }
     }
-    
+
     async* handleMessage(msg: AgentInvoke): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
 
         const handleMessage = async (chainResponse: AgentUserMessageResponse, agentStack: Agent[]): Promise<{

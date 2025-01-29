@@ -18,6 +18,7 @@ import { Agent, AgentResponse, ToolResponseInfo } from "agent-mimir/agent";
 import { extractAllTextFromComplexResponse } from "agent-mimir/utils/format";
 import { MimirPluginFactory } from "agent-mimir/plugins";
 import { ComplexMessageContent } from "agent-mimir/schema";
+import { LangchainToolWrapperPluginFactory } from "agent-mimir/tools/langchain";
 
 function splitStringInChunks(str: string) {
     const chunkSize = 1900;
@@ -45,7 +46,7 @@ export type AgentDefinition = {
             tokenLimit?: number;
             conversationTokenThreshold?: number;
         }
-        tools?: Tool[];
+        langChainTools?: Tool[];
         communicationWhitelist?: string[] | boolean;
     },
 
@@ -107,11 +108,10 @@ export const run = async () => {
                     name: agentName,
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,
-                    tools: agentDefinition.definition.tools ?? [],
                     model: agentDefinition.definition.chatModel,
                     visionSupport: agentDefinition.definition.visionSupport,
                     constitution: agentDefinition.definition.constitution,
-                    plugins: [...agentDefinition.definition.plugins ?? []],
+                    plugins: [...agentDefinition.definition.plugins ?? [], ...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))],
                     workspaceFactory: workspaceFactory,
                 })
             }

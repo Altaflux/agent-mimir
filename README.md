@@ -133,7 +133,7 @@ module.exports = async function() {
                             new CodeInterpreterPluginFactory(),
                             new WebBrowserPluginFactory({ browserConfig: { browserName: "chrome" } }, model, embeddings),
                     ],
-                    tools: [ //Tools available to the agent.
+                    langChainTools: [ //LangChain Tools available to the agent.
                         new Serper(process.env.SERPER_API_KEY)
                     ]
                 }

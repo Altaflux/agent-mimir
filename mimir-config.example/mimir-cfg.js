@@ -40,7 +40,7 @@ module.exports = async function () {
                         new CodeInterpreterPluginFactory(),
                         new WebBrowserPluginFactory({ browserConfig: { browserName: "chrome", disableHeadless: true }, maximumChunkSize: 5000, numberOfRelevantDocuments: 3 }, summaryModel, embeddings)
                     ],
-                    tools: [
+                    langChainTools: [
 
                     ],
                 }
