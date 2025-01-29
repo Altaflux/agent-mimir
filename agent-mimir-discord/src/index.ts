@@ -222,8 +222,10 @@ export const run = async () => {
 
 
             const agentInvoke: AgentInvoke = (agent) => agent.handleCommand({
-                name: interaction.commandName,
-                arguments: commandArguments
+                command: {
+                    name: interaction.commandName,
+                    arguments: commandArguments
+                }
             });
 
             messageHandler(agentInvoke, async (message, attachments?: string[]) => {
@@ -274,7 +276,10 @@ export const run = async () => {
                 const stringResponse = extractAllTextFromComplexResponse(result.value.content);
                 const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
                 await sendResponse(toolResponse, []);
-                const generator = chatAgentHandle.handleMessage((agent) => agent.call(null, {}));
+                const generator = chatAgentHandle.handleMessage((agent) => agent.call({
+                    message: null,
+                    requestAttributes: {}
+                }));
                 while (!(result = await generator.next()).done) {
                     intermediateResponseHandler(result.value);
                 }
@@ -298,14 +303,17 @@ export const run = async () => {
                 }));
                 //const messageToSend = { message: messageToAi, sharedFiles: loadedFiles };
                 const generator = agent.call({
-                    content:[
-                        {
-                            type: "text",
-                            text: messageToAi
-                        }
-                    ],
-                    sharedFiles: loadedFiles
-                }, { })
+                    message: {
+                        content:[
+                            {
+                                type: "text",
+                                text: messageToAi
+                            }
+                        ],
+                        sharedFiles: loadedFiles
+                    },
+                    requestAttributes: {}
+                })
 
                 let result: IteratorResult<ToolResponseInfo, AgentResponse>;
                 while (!(result = await generator.next()).done) {

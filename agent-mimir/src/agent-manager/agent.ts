@@ -66,9 +66,7 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
 
     const allTools = (await Promise.all(allCreatedPlugins.map(async plugin => await plugin.tools()))).flat();
     const langChainTools = allTools.map(t => new MimirToolToLangchainTool(t));
-
     const modelWithTools = model.bindTools!(langChainTools);
-
     const defaultAttributes: AttributeDescriptor[] = [
     ]
 
@@ -374,10 +372,10 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
         commands: commandList,
         workspace: workspace,
         reset: reset,
-        handleCommand: async function* (command) {
+        handleCommand: async function* (args) {
 
-            let commandHandler = commandList.find(ac => ac.name == command.name)!
-            let newMessages = await commandHandler.commandHandler(command.arguments ?? {});
+            let commandHandler = commandList.find(ac => ac.name == args.command.name)!
+            let newMessages = await commandHandler.commandHandler(args.command.arguments ?? {});
 
             let lastMessage = newMessages[newMessages.length - 1];
             newMessages = newMessages.slice(0, newMessages.length - 1);
@@ -402,28 +400,28 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
             return result.value
 
         },
-        call: async function* (message, input, noMessagesInTool) {
+        call: async function* (args) {
 
             let graphInput: any = null;
             const state = await graph.getState(stateConfig);
             if (state.next.length > 0 && state.next[0] === "human_review_node") {
-                if (message) {
-                    graphInput = new Command({ resume: { action: "feedback", data: message } })
+                if (args.message) {
+                    graphInput = new Command({ resume: { action: "feedback", data: args.message } })
                 } else {
                     graphInput = new Command({ resume: { action: "continue" } })
                 }
 
             }
             else if (state.next.length > 0 && state.next[0] === "agent_call") {
-                graphInput = new Command({ resume: { response: message } })
+                graphInput = new Command({ resume: { response: args.message } })
             }
             else {
 
-                graphInput = message != null ? {
-                    input: message,
-                    requestAttributes: input,
+                graphInput = args.message != null ? {
+                    input: args.message,
+                    requestAttributes: args.requestAttributes ?? {},
                     responseAttributes: {},
-                    noMessagesInTool: noMessagesInTool ?? false,
+                    noMessagesInTool: args.noMessagesInTool ?? false,
                 } : null;
             }
 

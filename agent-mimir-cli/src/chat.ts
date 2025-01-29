@@ -59,7 +59,10 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
       continue topLoop;
     }
     let result: IteratorResult<IntermediateAgentResponse, HandleMessageResult>;
-    let generator = agentManager.handleMessage((agent) => agent.call(parsedMessage.message, {}));
+    let generator = agentManager.handleMessage((agent) => agent.call({
+      message: parsedMessage.message,
+      requestAttributes: {},
+    }));
     while (!(result = await generator.next()).done) {
       intermediateResponseHandler(result.value);
     }
@@ -82,14 +85,20 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
 
 
         if (answers.message.toLowerCase() === "y" || answers.message === "") {
-          generator = agentManager.handleMessage((agent) => agent.call(null, {}));
+          generator = agentManager.handleMessage((agent) => agent.call({
+            message: null,
+            requestAttributes: {},
+          }));
         } else {
           const parsedMessage = extractContentAndText(answers.message);
           if (parsedMessage.type === "command") {
             await handleCommands(parsedMessage.command!, agentManager);
             continue topLoop;
           }
-          generator = agentManager.handleMessage((agent) => agent.call(parsedMessage.message, {}));
+          generator = agentManager.handleMessage((agent) => agent.call({
+            message: parsedMessage.message,
+            requestAttributes: {},
+          }));
         }
 
 

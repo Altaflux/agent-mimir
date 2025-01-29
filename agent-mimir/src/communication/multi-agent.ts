@@ -94,7 +94,11 @@ export class MultiAgentCommunicationOrchestrator {
         while (true) {
 
             let generator = pendingMessage
-                ? this.currentAgent.call(pendingMessage.content, pendingMessage.responseAttributes, true)
+                ? this.currentAgent.call({
+                    message: pendingMessage.content,
+                    requestAttributes: pendingMessage.responseAttributes,
+                    noMessagesInTool: true
+                })
                 : msg(this.currentAgent);
 
 

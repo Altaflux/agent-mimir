@@ -10,7 +10,7 @@ export type MessageContentToolUse = {
 export type AgentMessageToolRequest = { toolCalls: MessageContentToolUse[] } & InputAgentMessage;
 
 export type InputAgentMessage = {
-    content: ComplexMessageContent[], 
+    content: ComplexMessageContent[],
     sharedFiles?: {
         url: string,
         fileName: string,
@@ -25,8 +25,14 @@ export type WorkspaceFactory = (workDirectory: string) => Promise<AgentWorkspace
 export interface Agent {
     name: string,
     description: string,
-    call: (message: InputAgentMessage | null, input: Record<string, any>, noMessagesInTool?: boolean) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>,
-    handleCommand: (command: CommandRequest,) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>,
+    call: (args: {
+        message: InputAgentMessage | null, 
+        requestAttributes?: Record<string, any>, 
+        noMessagesInTool?: boolean
+    }) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>,
+    handleCommand: (args: {
+        command: CommandRequest
+    }) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>,
     workspace: AgentWorkspace,
     commands: AgentCommand[],
     reset: () => Promise<void>,
@@ -52,7 +58,7 @@ export type CommandRequest = {
     name: string,
     arguments?: Record<string, any>
 }
-export type ToolResponseInfo = { id?:string, name: string, response: ComplexMessageContent[] }
+export type ToolResponseInfo = { id?: string, name: string, response: ComplexMessageContent[] }
 
 
 export type AgentWorkspace = {
