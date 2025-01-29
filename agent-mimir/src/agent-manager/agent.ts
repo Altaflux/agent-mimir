@@ -1,6 +1,4 @@
-import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { ComplexMessageContent, } from "../schema.js";
-import { Tool } from "@langchain/core/tools";
 import { WorkspacePluginFactory, WorkspanceManager } from "../plugins/workspace.js";
 import { ViewPluginFactory } from "../tools/image_view.js";
 import { MimirToolToLangchainTool } from "../utils/wrapper.js";
@@ -14,7 +12,7 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { commandContentToBaseMessage, dividerSystemMessage, langChainToolMessageToMimirHumanMessage, lCmessageContentToContent, mergeSystemMessages, parseToolMessage, toolMessageToToolResponseInfo } from "./message-utils.js";
 import { LangchainToolWrapperPluginFactory } from "./langchain-wrapper.js";
-import { Agent, AgentMessage, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, InputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "./index.js";
+import { Agent, AgentMessage, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, CreateAgentArgs, InputAgentMessage, ToolResponseInfo } from "./index.js";
 import { AgentSystemMessage, AttributeDescriptor, MimirAgentPlugin, MimirPluginFactory } from "../plugins/index.js";
 
 
@@ -31,20 +29,9 @@ export const StateAnnotation = Annotation.Root({
     }),
 });
 
-export type CreateAgentOptions = {
-    profession: string,
-    description: string,
-    name: string,
-    model: BaseChatModel,
-    plugins?: MimirPluginFactory[],
-    constitution?: string,
-    visionSupport?: 'openai'
-    tools?: Tool[],
-    workspaceFactory: WorkspaceFactory,
-}
 
 
-export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
+export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
     const shortName = config.name;
     const model = config.model;

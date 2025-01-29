@@ -1,21 +1,16 @@
 
-import { MultiAgentCommunicationOrchestrator } from "agent-mimir/communication/multi-agent";
+import { OrchestratorBuilder } from "agent-mimir/communication/multi-agent";
 import { MimirPluginFactory } from "agent-mimir/plugins";
 import chalk from "chalk";
-
 import { Tool } from "@langchain/core/tools";
-import { HelpersPluginFactory } from "agent-mimir/plugins/helpers";
 import { chatWithAgent } from "./chat.js";
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from "path";
 import { FileSystemAgentWorkspace } from "agent-mimir/nodejs";
-
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { Embeddings } from "@langchain/core/embeddings";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { createAgent } from "agent-mimir/agent/agent";
-import { Agent } from "agent-mimir/agent";
 
 export type AgentDefinition = {
     mainAgent?: boolean;
@@ -72,26 +67,15 @@ export const run = async () => {
         await fs.mkdir(workspace.workingDirectory, { recursive: true });
         return workspace;
     }
-    const agentMap = new Map<string, Agent>();
+
+    const orchestratorBuilder = new OrchestratorBuilder();
     const continousMode = agentConfig.continuousMode ?? false;
     const agents = await Promise.all(Object.entries(agentConfig.agents).map(async ([agentName, agentDefinition]) => {
         if (agentDefinition.definition) {
-
-            const canCommunicateWithAgents = agentDefinition.definition.communicationWhitelist ?? false;
-            let communicationWhitelist = undefined;
-            if (Array.isArray(canCommunicateWithAgents)) {
-                communicationWhitelist = canCommunicateWithAgents
-            }
-            const helpersPlugin = new HelpersPluginFactory({
-                name: agentName,
-                helperSingleton: agentMap,
-                communicationWhitelist: communicationWhitelist ?? null
-            });
-
             const newAgent = {
                 mainAgent: agentDefinition.mainAgent,
                 name: agentName,
-                agent: await createAgent({
+                agent: await orchestratorBuilder.createAgent({
                     name: agentName,
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,
@@ -100,7 +84,7 @@ export const run = async () => {
                     visionSupport: agentDefinition.definition.visionSupport,
 
                     constitution: agentDefinition.definition.constitution,
-                    plugins: [helpersPlugin, ...agentDefinition.definition.plugins ?? []],
+                    plugins: [...agentDefinition.definition.plugins ?? []],
                     workspaceFactory: workspaceFactory
                 })
             }
@@ -112,12 +96,12 @@ export const run = async () => {
 
     }));
 
-    agents.forEach(a => agentMap.set(a.name, a.agent));
+
     const mainAgent = agents.length === 1 ? agents[0].agent : agents.find(a => a.mainAgent)?.agent;
     if (!mainAgent) {
         throw new Error("No main agent found");
     }
-    const chatAgentHandle = new MultiAgentCommunicationOrchestrator(agentMap, mainAgent);
+    const chatAgentHandle = orchestratorBuilder.build(mainAgent);
     console.log(chalk.green(`Using "${mainAgent.name}" as main agent`));
     await chatWithAgent(chatAgentHandle);
 };

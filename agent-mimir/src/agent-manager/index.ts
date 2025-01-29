@@ -1,5 +1,7 @@
-import { AgentCommand } from "../plugins/index.js";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { AgentCommand, MimirPluginFactory } from "../plugins/index.js";
 import { ComplexMessageContent } from "../schema.js";
+import { Tool } from "@langchain/core/tools";
 
 
 export type MessageContentToolUse = {
@@ -19,6 +21,17 @@ export type InputAgentMessage = {
 
 export type AgentMessage = { destinationAgent?: string } & InputAgentMessage
 export type WorkspaceFactory = (workDirectory: string) => Promise<AgentWorkspace>;
+export type CreateAgentArgs = {
+    profession: string,
+    description: string,
+    name: string,
+    model: BaseChatModel,
+    plugins?: MimirPluginFactory[],
+    constitution?: string,
+    visionSupport?: 'openai'
+    tools?: Tool[],
+    workspaceFactory: WorkspaceFactory,
+}
 
 
 

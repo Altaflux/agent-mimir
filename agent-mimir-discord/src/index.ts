@@ -5,18 +5,15 @@ import { promises as fs } from 'fs';
 import normalFs from 'fs';
 import os from 'os';
 import path from "path";
-import { ChannelType, Client, GatewayIntentBits, Partials, REST, Routes, Events, Message, Interaction, CacheType, ChatInputCommandInteraction } from 'discord.js';
+import { ChannelType, Client, GatewayIntentBits, Partials, REST, Routes, Events, Message, CacheType, ChatInputCommandInteraction } from 'discord.js';
 import { Readable } from "stream";
 import { finished } from "stream/promises";
 import { SlashCommandBuilder } from "discord.js";
 import { FileSystemAgentWorkspace } from "agent-mimir/nodejs";
-import { Retry } from "./utils.js";
 import { Embeddings } from "@langchain/core/embeddings";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { MultiAgentCommunicationOrchestrator, AgentInvoke, HandleMessageResult, IntermediateAgentResponse } from "agent-mimir/communication/multi-agent";
-import { createAgent } from "agent-mimir/agent/agent";
-import { HelpersPluginFactory } from "agent-mimir/plugins/helpers";
+import { AgentInvoke, HandleMessageResult, IntermediateAgentResponse, OrchestratorBuilder } from "agent-mimir/communication/multi-agent";
 import { Agent, AgentResponse, ToolResponseInfo } from "agent-mimir/agent";
 import { extractAllTextFromComplexResponse } from "agent-mimir/utils/format";
 import { MimirPluginFactory } from "agent-mimir/plugins";
@@ -98,26 +95,15 @@ export const run = async () => {
         await fs.mkdir(workspace.workingDirectory, { recursive: true });
         return workspace;
     }
-    const agentMap = new Map<string, Agent>();
+    const orchestratorBuilder = new OrchestratorBuilder();
+
     const agents = await Promise.all(Object.entries(agentConfig.agents).map(async ([agentName, agentDefinition]) => {
         if (agentDefinition.definition) {
-
-            const canCommunicateWithAgents = agentDefinition.definition.communicationWhitelist ?? false;
-            let communicationWhitelist = undefined;
-            if (Array.isArray(canCommunicateWithAgents)) {
-                communicationWhitelist = canCommunicateWithAgents
-            }
-            const helpersPlugin = new HelpersPluginFactory({
-                name: agentName,
-                helperSingleton: agentMap,
-                communicationWhitelist: communicationWhitelist ?? null
-            });
-
-
             const newAgent = {
                 mainAgent: agentDefinition.mainAgent,
                 name: agentName,
-                agent: await createAgent({
+                agent: await orchestratorBuilder.createAgent({
+                    communicationWhitelist: agentDefinition.definition.communicationWhitelist,
                     name: agentName,
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,
@@ -125,7 +111,7 @@ export const run = async () => {
                     model: agentDefinition.definition.chatModel,
                     visionSupport: agentDefinition.definition.visionSupport,
                     constitution: agentDefinition.definition.constitution,
-                    plugins: [helpersPlugin, ...agentDefinition.definition.plugins ?? []],
+                    plugins: [...agentDefinition.definition.plugins ?? []],
                     workspaceFactory: workspaceFactory,
                 })
             }
@@ -134,10 +120,8 @@ export const run = async () => {
         } else {
             throw new Error(`Agent "${agentName}" has no definition.`);
         }
-
     }));
 
-    agents.forEach(a => agentMap.set(a.name, a.agent));
 
     const mainAgent = agents.length === 1 ? agents[0].agent : agents.find(a => a.mainAgent)?.agent;
     if (!mainAgent) {
@@ -146,7 +130,7 @@ export const run = async () => {
 
     console.log(chalk.green(`Using "${mainAgent.name}" as main agent`));
 
-    const chatAgentHandle = new MultiAgentCommunicationOrchestrator(agentMap, mainAgent);
+    const chatAgentHandle = orchestratorBuilder.build(mainAgent);
 
     const client = new Client(
         {
@@ -202,9 +186,7 @@ export const run = async () => {
 
         if (interaction.commandName === 'reset') {
             try {
-                for (const agent of agents) {
-                    await agent.agent.reset();
-                }
+                await chatAgentHandle.reset();
             } catch (e) {
                 console.error(e);
                 await interaction.editReply('There was an error resetting the agent.');

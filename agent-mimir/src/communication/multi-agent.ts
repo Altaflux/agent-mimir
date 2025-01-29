@@ -1,4 +1,6 @@
-import { Agent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, ToolResponseInfo, InputAgentMessage } from "../agent-manager/index.js";
+import { createAgent } from "../agent-manager/agent.js";
+import { Agent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, ToolResponseInfo, InputAgentMessage, CreateAgentArgs } from "../agent-manager/index.js";
+import { HelpersPluginFactory } from "../plugins/helpers.js";
 
 type PendingMessage = {
     responseAttributes: Record<string, any>,
@@ -34,18 +36,69 @@ export type AgentUserMessage = {
     content: InputAgentMessage,
     responseAttributes: Record<string, any>
 }
+
+type MultiAgentDefinition = CreateAgentArgs & { communicationWhitelist?: string[] | boolean }
+
+export class OrchestratorBuilder {
+    public readonly agentManager: Map<string, Agent> = new Map();
+    constructor() {
+
+    }
+    async createAgent(args: MultiAgentDefinition): Promise<Agent> {
+
+        const canCommunicateWithAgents = args.communicationWhitelist ?? false;
+        let communicationWhitelist = undefined;
+        if (Array.isArray(canCommunicateWithAgents)) {
+            communicationWhitelist = canCommunicateWithAgents
+        }
+        const helpersPlugin = new HelpersPluginFactory({
+            name: args.name,
+            helperSingleton: this.agentManager,
+            communicationWhitelist: communicationWhitelist ?? null
+        });
+
+
+        const agent = await createAgent({
+            name: args.name,
+            description: args.description,
+            profession: args.profession,
+            tools: args.tools ?? [],
+            model: args.model,
+            visionSupport: args.visionSupport,
+            constitution: args.constitution,
+            plugins: [helpersPlugin, ...args.plugins ?? []],
+            workspaceFactory: args.workspaceFactory,
+        });
+
+        this.agentManager.set(args.name, agent);
+        return agent;
+    }
+
+    build(currentAgent: Agent) {
+        return new MultiAgentCommunicationOrchestrator(this.agentManager, currentAgent);
+    }
+}
+
 export class MultiAgentCommunicationOrchestrator {
     public currentAgent: Agent;
     private agentStack: Agent[] = [];
 
-    constructor(public readonly agentManager: ReadonlyMap<string, Agent>, currentAgent: Agent) {
+    constructor(private readonly agentManager: ReadonlyMap<string, Agent>, currentAgent: Agent) {
         this.currentAgent = currentAgent;
+
     }
+
 
     getCurrentAgent() {
         return this.currentAgent;
     }
 
+    async reset() {
+        for (const agent of this.agentManager.values()) {
+            await agent.reset();
+        }
+    }
+    
     async* handleMessage(msg: AgentInvoke): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
 
         const handleMessage = async (chainResponse: AgentUserMessageResponse, agentStack: Agent[]): Promise<{

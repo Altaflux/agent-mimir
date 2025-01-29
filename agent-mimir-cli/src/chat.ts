@@ -24,7 +24,7 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
   console.log("Available commands:\n")
   console.log("/reset - resets all agents\n\n");
 
-  async function sendResponse(agentName: string, message: string, attachments?: string[]) {    
+  async function sendResponse(agentName: string, message: string, attachments?: string[]) {
     const agentNameMessage = `${chalk.magenta("Agent:")} ${chalk.red(agentName)}\n`;
     const providedFiles = attachments?.map((f: any) => f.fileName).join(", ") || "None";
     const filesMessage = (attachments?.length ?? 0) > 0 ? `\nFiles provided by AI: ${providedFiles}\n` : "";
@@ -37,7 +37,7 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
       const formattedResponse = extractAllTextFromComplexResponse(chainResponse.response).substring(0, 3000);
       const toolResponse = `${chalk.greenBright("Called tool:")} ${chalk.red(chainResponse.name)} \n${chalk.greenBright("Id:")} ${chalk.red(chainResponse.id ?? "N/A")} \n${chalk.greenBright("Responded with:")}\n${formattedResponse}`;
       await sendResponse(chainResponse.agentName, toolResponse);
-  
+
     } else {
       const stringResponse = extractAllTextFromComplexResponse(chainResponse.content.content);
       const discordMessage = `${chalk.greenBright("Sending message to:")} ${chalk.red(chainResponse.destinationAgent)}\n${stringResponse}`;
@@ -46,7 +46,7 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
   };
 
   topLoop: while (true) {
-    
+
     let answers = await Promise.race([new Promise<{ message: string }>((resolve, reject) => {
       rl.question((messageDivider + chalk.blue("Human: ")), (answer) => {
         resolve({ message: answer });
@@ -75,7 +75,7 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
         }).join("\n");
         sendResponse(result.value.callingAgent, toolCalls);
 
-        
+
         let answers = await Promise.race([new Promise<{ message: string }>((resolve, reject) => {
           rl.question((chalk.blue("Should AI Continue? Type Y or click Enter to continue, otherwise type a message to the AI: ")), (answer) => {
             resolve({ message: answer });
@@ -108,7 +108,7 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
 
       } while (result.value.type === "toolRequest");
     }
-    
+
     const stringResponse = extractAllTextFromComplexResponse(result.value.content.content);
     sendResponse(agentManager.currentAgent.name, stringResponse, result.value.content.sharedFiles?.map((f: any) => f.url));
   }
@@ -116,9 +116,7 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
 
 async function handleCommands(command: string, agentManager: MultiAgentCommunicationOrchestrator) {
   if (command.trim() === "reset") {
-    for (const agent of agentManager.agentManager.values()) {
-      await agent.reset();
-    }
+    await agentManager.reset();
     console.log(chalk.red(`Agents have been reset.`));
   } else {
     console.log(chalk.red(`Unknown command: ${command}`));
