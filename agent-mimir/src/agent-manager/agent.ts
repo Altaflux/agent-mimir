@@ -337,10 +337,18 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
 
             let commandHandler = commandList.find(ac => ac.name == command.name)!
             let newMessages = await commandHandler.commandHandler(command.arguments ?? {});
+
+            let lastMessage = newMessages[newMessages.length - 1];
+            newMessages = newMessages.slice(0, newMessages.length - 1);
+            const lastMessageAsInputMessage: InputAgentMessage = {
+                content: lastMessage.content
+            };
+
             let msgs = newMessages.map(mc => commandContentToBaseMessage(mc));
             let graphInput: any = null;
             graphInput = {
                 messages: msgs,
+                input: lastMessageAsInputMessage,
                 requestAttributes: {},
                 responseAttributes: {}
             };
