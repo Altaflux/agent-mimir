@@ -5,9 +5,9 @@ export { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/webso
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js"
 import { CallToolResult, EmbeddedResource, ImageContent, PromptMessage, TextContent } from "@modelcontextprotocol/sdk/types.js";
 import { jsonSchemaToZod, JsonSchema } from "./json-schema-to-zod/index.js";
-import { AgentCommand, AgentContext, AgentSystemMessage, CommandContent, ToolResponse } from "agent-mimir/schema";
-import { AgentTool } from "agent-mimir/tools";
-import { MimirAgentPlugin, PluginContext, MimirPluginFactory, ComplexResponse } from "agent-mimir/schema";
+import { AgentCommand, AgentContext, AgentSystemMessage, CommandContent, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "agent-mimir/plugins";
+import { AgentTool, ToolResponse } from "agent-mimir/tools";
+import { ComplexMessageContent } from "agent-mimir/schema";
 import { z } from "zod";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 
@@ -151,13 +151,13 @@ namespace ContentConverter {
 
     type McpContent = TextContent | ImageContent | EmbeddedResource;
 
-    function convertContent(content: McpContent): ComplexResponse {
+    function convertContent(content: McpContent): ComplexMessageContent {
         switch (content.type) {
             case "text":
                 return {
                     type: "text",
                     text: content.text
-                } satisfies ComplexResponse;
+                } satisfies ComplexMessageContent;
             case "image":
                 return {
                     type: "image_url",
@@ -165,7 +165,7 @@ namespace ContentConverter {
                         type: getImageType(content.mimeType),
                         url: content.data
                     }
-                } satisfies ComplexResponse;
+                } satisfies ComplexMessageContent;
             case "resource":
                 return convertEmbeddedResourceToComplexResponse(content.resource);
             default:
@@ -173,7 +173,7 @@ namespace ContentConverter {
         }
     }
 
-    export function convertEmbeddedResourceToComplexResponse(resource: EmbeddedResource["resource"]): ComplexResponse {
+    export function convertEmbeddedResourceToComplexResponse(resource: EmbeddedResource["resource"]): ComplexMessageContent {
         return {
             type: "text",
             text: JSON.stringify(resource)
@@ -189,7 +189,7 @@ namespace ContentConverter {
     export function convertPromptMessagesToCommandContent(messages: PromptMessage[]): CommandContent[] {
         const commandContents = messages.map(message => {
             const role = message.role === "assistant" ? "assistant" : "user";
-            let content: ComplexResponse = convertContent(message.content);
+            let content: ComplexMessageContent = convertContent(message.content);
 
             return {
                 type: role,
@@ -246,7 +246,7 @@ export class McpResourceTool extends AgentTool {
             if (!resource || resource.contents.length === 0) {
                 return [{ type: "text", text: `No content found for resource ${arg.resourceURI}` }];
             }
-            const response: ComplexResponse[] = resource.contents.map(c => {
+            const response: ComplexMessageContent[] = resource.contents.map(c => {
                 return ContentConverter.convertEmbeddedResourceToComplexResponse(c);
             })
             return response;

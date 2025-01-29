@@ -1,5 +1,7 @@
-import { AIMessage, BaseMessage, MessageContent, MessageContentComplex, MessageContentText } from "@langchain/core/messages";
-import { ComplexResponse, ImageType, MessageContentToolUse, MimirAiMessage, ResponseContentText } from "../schema.js";
+import { AIMessage, MessageContent, MessageContentComplex, MessageContentText } from "@langchain/core/messages";
+import { ComplexMessageContent,   TextMessageContent, SupportedImageTypes } from "../schema.js";
+import { MessageContentToolUse } from "../agent-manager/index.js";
+import { AiResponseMessage } from "../plugins/index.js";
 
 
 export function extractTextContent(messageContent: MessageContent) {
@@ -13,7 +15,7 @@ export function extractTextContent(messageContent: MessageContent) {
 }
 
 
-export function complexResponseToLangchainMessageContent(toolResponse: ComplexResponse[]): MessageContentComplex[] {
+export function complexResponseToLangchainMessageContent(toolResponse: ComplexMessageContent[]): MessageContentComplex[] {
   return toolResponse.map((en) => {
     if (en.type === "text") {
       return {
@@ -27,35 +29,18 @@ export function complexResponseToLangchainMessageContent(toolResponse: ComplexRe
   })
 }
 
-export function aiMessageToMimirAiMessage(aiMessage: AIMessage): MimirAiMessage {
-  const content = aiMessage.content;
+export function aiMessageToMimirAiMessage(aiMessage: AIMessage, content: ComplexMessageContent[], files: AiResponseMessage["sharedFiles"]): AiResponseMessage {
+  
   const mimirMessage = {
-    content: [],
-    toolCalls: []
-  } as MimirAiMessage;
-  if (typeof content === 'string' || content instanceof String) {
-    mimirMessage.content.push({
-      type: "text",
-      text: content as string
-    })
-  } else {
-    let cont = content.map(c => {
-      if (c.type === "text") {
-        return {
-          type: "text" as const,
-          text: c.text
-        }
-      } else {
-        return null;
-      }
-    }).filter(e => e !== null).map(e => e!);
-    mimirMessage.content = cont;
-  }
-
+    content: content,
+    toolCalls: [],
+    sharedFiles: files
+  } as AiResponseMessage;
+ 
   if (aiMessage.tool_calls) {
     const tool_calls = aiMessage.tool_calls.map(t => {
       return {
-        name: t.name,
+        toolName: t.name,
         input: t.args,
         id: t.id
       } satisfies MessageContentToolUse
@@ -66,11 +51,11 @@ export function aiMessageToMimirAiMessage(aiMessage: AIMessage): MimirAiMessage 
   return mimirMessage;
 }
 
-export function extractAllTextFromComplexResponse(toolResponse: ComplexResponse[]) {
-  return toolResponse.filter((r) => r.type === "text").map((r) => (r as ResponseContentText).text).join("\n");
+export function extractAllTextFromComplexResponse(toolResponse: ComplexMessageContent[]): string {
+  return toolResponse.filter((r) => r.type === "text").map((r) => (r as TextMessageContent).text).join("\n");
 }
 
-export const openAIImageHandler = (image: ImageType, detail: "high" | "low" = "high") => {
+export const openAIImageHandler = (image: { url: string, type: SupportedImageTypes }, detail: "high" | "low" = "high") => {
   let type = image.type as string;
   if (type === "jpg") {
     type = "jpeg"

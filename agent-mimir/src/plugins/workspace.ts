@@ -1,15 +1,58 @@
-import { AgentContext, AgentSystemMessage, AgentWorkspace, FILES_TO_SEND_FIELD, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, PluginContext, AdditionalContent, MimirAiMessage, NextMessage } from "../schema.js";
-import { AttributeDescriptor } from "../schema.js";
-import { promises as fs } from 'fs';
-export class WorkspacePluginFactory implements MimirPluginFactory {
 
+import { promises as fs } from 'fs';
+import { AgentContext, AgentSystemMessage, AttributeDescriptor, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "./index.js";
+import { AgentWorkspace, InputAgentMessage } from "../agent-manager/index.js";
+import { ComplexMessageContent } from '../schema.js';
+
+export class WorkspacePluginFactory implements MimirPluginFactory {
     name: string = "workspace";
 
     async create(context: PluginContext): Promise<MimirAgentPlugin> {
         return new WorkspacePlugin(context.workspace);
     }
 }
+export class WorkspanceManager {
 
+    private workspace: AgentWorkspace;
+
+    constructor(workspace: AgentWorkspace) {
+        this.workspace = workspace;
+    }
+
+    async loadFiles(nextMessage: InputAgentMessage): Promise<void> {
+        for (const file of nextMessage.sharedFiles ?? []) {
+            await this.workspace.loadFileToWorkspace(file.fileName, file.url);
+        }
+
+    }
+
+    async readAttributes(responseAttributes: Record<string, any>): Promise<InputAgentMessage["sharedFiles"]> {
+
+        if (responseAttributes["workspaceFilesToShare"]) {
+            const files = await Promise.all((JSON.parse(responseAttributes["workspaceFilesToShare"]) || [])
+                .map(async (file: string) => ({ fileName: file, url: (await this.workspace.getUrlForFile(file))! })));
+
+            return files;
+        }
+        return []
+    }
+
+    async additionalMessageContent(nextMessage: InputAgentMessage): Promise<ComplexMessageContent[]> {
+
+        if (nextMessage.sharedFiles && nextMessage.sharedFiles.length > 0) {
+            const filesToSendMessage = nextMessage.sharedFiles.map((file: any) => `"${file.fileName}"`).join(", ");
+            return [
+                {
+                    type: "text",
+                    text: `I am sending the following files into your workspace: ${filesToSendMessage} \n\n`
+                }
+            ]
+        }
+        return []
+    }
+
+
+}
 class WorkspacePlugin extends MimirAgentPlugin {
 
     private workspace: AgentWorkspace;
@@ -25,13 +68,7 @@ class WorkspacePlugin extends MimirAgentPlugin {
         }
     }
 
-    async readyToProceed(nextMessage: NextMessage, context: AgentContext): Promise<void> {
-        if (context.requestAttributes[FILES_TO_SEND_FIELD] && context.requestAttributes[FILES_TO_SEND_FIELD] instanceof Array && context.requestAttributes[FILES_TO_SEND_FIELD].length > 0) {
-            for (const file of context.requestAttributes[FILES_TO_SEND_FIELD]) {
-                await this.workspace.loadFileToWorkspace(file.fileName, file.url);
-            }
-        }
-    }
+
 
     async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
         const files = (await this.workspace.listFiles());
@@ -56,40 +93,6 @@ class WorkspacePlugin extends MimirAgentPlugin {
                 variableName: "workspaceFilesToShare"
             }
         ];
-    }
-
-    async readResponse(aiMessage: MimirAiMessage, context: AgentContext, responseAttributes: Record<string, any>): Promise<Record<string, any>> {
-
-        if (responseAttributes["workspaceFilesToShare"]) {
-            const files = await Promise.all((JSON.parse(responseAttributes["workspaceFilesToShare"]) || [])
-                .map(async (file: string) => ({ fileName: file, url: (await this.workspace.getUrlForFile(file))! })));
-
-            return {
-                [FILES_TO_SEND_FIELD]: files
-            };
-        }
-        return {}
-    }
-
-
-    async additionalMessageContent(nextMessage: NextMessageUser, context: AgentContext): Promise<AdditionalContent[]> {
-
-        if (context.requestAttributes[FILES_TO_SEND_FIELD] && context.requestAttributes[FILES_TO_SEND_FIELD] instanceof Array && context.requestAttributes[FILES_TO_SEND_FIELD].length > 0) {
-            const filesToSendMessage = context.requestAttributes[FILES_TO_SEND_FIELD].map((file: any) => `"${file.fileName}"`).join(", ");
-            return [
-                {
-                    saveToChatHistory: true,
-                    displayOnCurrentMessage: true,
-                    content: [
-                        {
-                            type: "text",
-                            text: `I am sending the following files into your workspace: ${filesToSendMessage} \n\n`
-                        }
-                    ]
-                }
-            ]
-        }
-        return []
     }
 
 }

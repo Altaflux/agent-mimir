@@ -1,4 +1,4 @@
-import { AgentContext, AgentSystemMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../schema.js";
+import { AgentContext, AgentSystemMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "./index.js";
 
 export class TimePluginFactory implements MimirPluginFactory {
 

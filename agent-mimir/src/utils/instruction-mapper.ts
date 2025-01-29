@@ -1,4 +1,5 @@
-import { AttributeDescriptor, ComplexResponse, ResponseContentText } from "../schema.js";
+import { AttributeDescriptor } from "../plugins/index.js";
+import { ComplexMessageContent, TextMessageContent } from "../schema.js";
 
 const responseHeader = `RESPONSE FORMAT INSTRUCTIONS
 ----------------------------
@@ -36,18 +37,15 @@ export class ResponseFieldMapper<T = any> {
         return results
     }
 
-    async readInstructionsFromResponse(complexResponse: ComplexResponse[]): Promise<Record<string, any>> {
+    async readInstructionsFromResponse(complexResponse: ComplexMessageContent[]): Promise<Record<string, any>> {
 
         const response = complexResponse.filter(c => c.type === "text")
-            .map(t => t as ResponseContentText)
+            .map(t => t as TextMessageContent)
             .map(t => t.text)
             .reduce((prev, next) => {
                 return prev + next;
             }, "");
 
-        const userMessage = extractImportantText(response, USER_RESPONSE);
-      
-        
         const responseParts = this.attributeSetters.map((attributeSetter) => `- ${attributeSetter.name}`).join('|');
         const mappings = this.attributeSetters.map((attributeSetter) => {
             return {
@@ -61,19 +59,34 @@ export class ResponseFieldMapper<T = any> {
                 ...acc,
                 [d.variableName]: d.regex.exec(response)?.[0]?.trim()
             }
-        }, {
-            userMessage: userMessage?.trim()
-        });
+        }, {});
         return res;
     }
 }
+//TODO: Support for multiple content types
+export function extractTextResponseFromMessage(complexResponse: ComplexMessageContent[]): ComplexMessageContent[] {
+    const response = complexResponse.filter(c => c.type === "text")
+        .map(t => t as TextMessageContent)
+        .map(t => t.text)
+        .reduce((prev, next) => {
+            return prev + next;
+        }, "");
 
-function extractImportantText(text: string, cutPoint:string) {
+        const userMessage = extractImportantText(response, USER_RESPONSE);
+        return [
+            {
+                type: "text",
+                text: userMessage
+            }
+        ]
+
+}
+function extractImportantText(text: string, cutPoint: string) {
     const marker = cutPoint;
     const index = text.indexOf(marker);
-    
+
     if (index === -1) {
-        return ""; 
+        return "";
     }
     return text.substring(index + marker.length).trim();
 }

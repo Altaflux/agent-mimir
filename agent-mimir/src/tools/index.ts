@@ -1,7 +1,13 @@
 
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
-import { ToolResponse } from "../schema.js";
+import { ComplexMessageContent } from "../schema.js";
+import { AgentMessage } from "../agent-manager/index.js";
+
+
+export type ToolResponse = ComplexMessageContent[] | AgentMessage | {
+    rawResponse: any
+};
 
 
 export abstract class AgentTool<

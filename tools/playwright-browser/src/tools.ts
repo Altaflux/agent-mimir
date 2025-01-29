@@ -3,8 +3,7 @@ import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 
 import { WebDriverManager } from "./driver-manager.js";
 import { z } from "zod";
-import { AgentTool } from "agent-mimir/tools";
-import { ToolResponse } from "agent-mimir/schema";
+import { AgentTool, ToolResponse } from "agent-mimir/tools";
 export { WebDriverManager, PlaywrightDriverOptions as SeleniumDriverOptions } from "./driver-manager.js";
 
 export class WebBrowserTool extends AgentTool {

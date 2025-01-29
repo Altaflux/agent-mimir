@@ -1,13 +1,14 @@
-import { AgentTool } from "../tools/index.js";
+import { AgentTool, ToolResponse } from "../tools/index.js";
 import { z } from "zod";
 import { v4 } from "uuid";
-import { AgentUserMessage, ComplexResponse, ToolResponse } from "../schema.js";
+import {  ComplexMessageContent } from "../schema.js";
 import { StructuredTool, ToolRunnableConfig } from "@langchain/core/tools";
 import { complexResponseToLangchainMessageContent } from "./format.js";
 import { Command } from "@langchain/langgraph";
 import { ToolCall, ToolMessage } from "@langchain/core/messages/tool";
 import { RunnableConfig } from "@langchain/core/runnables";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
+import { AgentMessage } from "../agent-manager/index.js";
 
 export class MimirToolToLangchainTool extends StructuredTool {
 
@@ -19,10 +20,7 @@ export class MimirToolToLangchainTool extends StructuredTool {
     constructor(private tool: AgentTool) {
         super();
     }
-    // async invoke(input: (z.output<this["schema"]> extends string ? string : never) | z.input<this["schema"]> | ToolCall, config?: RunnableConfig): Promise<any> {
 
-    //     return "It is sunny."
-    // }
     protected async _call(arg: z.input<this["schema"]>,  runManager?: CallbackManagerForToolRun, parentConfig?: ToolRunnableConfig): Promise<any> {
         const response = await this.tool.call(arg);
         const toolCallId = parentConfig?.toolCall?.id!
@@ -31,6 +29,7 @@ export class MimirToolToLangchainTool extends StructuredTool {
                 update: {
                     agentMessage: [new ToolMessage({
                         id: v4(),
+                        name: parentConfig?.toolCall?.name!,
                         tool_call_id: toolCallId,
                         content: JSON.stringify(response)
                     })],
@@ -40,12 +39,12 @@ export class MimirToolToLangchainTool extends StructuredTool {
         if ((response as any).rawResponse) {
             return (response as any).rawResponse;
         }
-        return complexResponseToLangchainMessageContent(response as ComplexResponse[]);
+        return complexResponseToLangchainMessageContent(response as ComplexMessageContent[]);
     }
 }
-
-export function isUserAgentMessage(x: ToolResponse): x is AgentUserMessage {
-    if ((x as any).message) {
+//TODO: This is a temporary solution, we need to find a better way to check if the response is an AgentMessage
+export function isUserAgentMessage(x: ToolResponse): x is AgentMessage {
+    if ((x as any).content) {
         return true;
     }
     return false;

@@ -1,11 +1,12 @@
-import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentWorkspace, ToolResponse, AgentCommand } from "agent-mimir/schema";
+import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentCommand } from "agent-mimir/plugins";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
 import { spawn } from 'child_process';
 import os from 'os';
 import { promises as fs } from 'fs';
 import path from "path";
-import { AgentTool } from "agent-mimir/tools";
+import { AgentTool, ToolResponse } from "agent-mimir/tools";
+import { AgentWorkspace } from "agent-mimir/agent";
 
 type CodeInterpreterArgs = {
     workSpace?: AgentWorkspace;
@@ -84,7 +85,7 @@ class PythonCodeInterpreter extends AgentTool {
         super()
         this.workDirectory = workDirectory;
         this.description = `Code Interpreter to run a Python 3 script in the human's ${process.platform} computer. 
-The input must be the content of the script to execute. The result of this function is the output of the console so you can use print statements to return information to yourself about the results. 
+The input must be the content of the script to execute. The code interpreter is not a read–eval–print loop (REPL), external dependencies are only valid for the current call. The result of this function is the output of the console so you can use print statements to return information to yourself about the results. 
 The interpreter has access to all the files in your workspace which can be accessed thru \"os.getenv('WORKSPACE')\". If you are given the task to create a file or they ask you to save it, then save the files inside the directory who's path is stored in the OS environment variable named "WORKSPACE" accessible like \"os.getenv('WORKSPACE')\". ` ;
     }
 

@@ -1,6 +1,7 @@
-import { MimirAgentPlugin, MimirPluginFactory, ToolResponse, PluginContext, SupportedImageTypes } from "../schema.js";
+import {  SupportedImageTypes } from "../schema.js";
 import { z } from "zod";
-import { AgentTool } from "./index.js";
+import { AgentTool, ToolResponse } from "./index.js";
+import { MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../plugins/index.js";
 
 export class ViewPluginFactory implements MimirPluginFactory {
     name: string = "viewImages";

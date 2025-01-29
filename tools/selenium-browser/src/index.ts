@@ -2,11 +2,10 @@ import { WebDriverManager } from "./driver-manager.js";
 
 import { WebBrowserOptions } from "./driver-manager.js";
 import { Embeddings } from "@langchain/core/embeddings";
-import { WebBrowserTool, PassValueToInput, AskSiteQuestion, ClickWebSiteLinkOrButton, ScrollTool } from "./tools.js";
-import { MimirAgentPlugin, PluginContext, MimirPluginFactory, NextMessageUser, AdditionalContent, AgentContext, NextMessage } from "agent-mimir/schema";
+import { WebBrowserTool, PassValueToInput,  ClickWebSiteLinkOrButton, ScrollTool } from "./tools.js";
+import { MimirAgentPlugin, PluginContext, MimirPluginFactory, NextMessageUser, AdditionalContent, AgentContext, NextMessage } from "agent-mimir/plugins";
 import { AgentTool } from "agent-mimir/tools";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
-import { ChainValues } from "@langchain/core/utils/types";
 import { promises as fs } from "fs";
 import path from "path";
 import sharp from "sharp";

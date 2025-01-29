@@ -1,21 +1,23 @@
-import { AgentManager } from "agent-mimir/agent-manager"
-import { Agent, AgentResponse, AgentUserMessageResponse, FILES_TO_SEND_FIELD, FunctionResponseCallBack, MimirPluginFactory } from "agent-mimir/schema";
+
 import chalk from "chalk";
 import { Tool } from "@langchain/core/tools";
-
 import { promises as fs } from 'fs';
 import normalFs from 'fs';
 import os from 'os';
 import path from "path";
-import { ChannelType, Client, GatewayIntentBits, Partials, REST, Routes, Events, Message, Interaction, CacheType, ChatInputCommandInteraction } from 'discord.js';
+import { ChannelType, Client, GatewayIntentBits, Partials, REST, Routes, Events, Message, CacheType, ChatInputCommandInteraction } from 'discord.js';
 import { Readable } from "stream";
 import { finished } from "stream/promises";
 import { SlashCommandBuilder } from "discord.js";
 import { FileSystemAgentWorkspace } from "agent-mimir/nodejs";
-import { Retry } from "./utils.js";
 import { Embeddings } from "@langchain/core/embeddings";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { AgentInvoke, HandleMessageResult, IntermediateAgentResponse, OrchestratorBuilder } from "agent-mimir/communication/multi-agent";
+import { Agent, AgentResponse, ToolResponseInfo } from "agent-mimir/agent";
+import { extractAllTextFromComplexResponse } from "agent-mimir/utils/format";
+import { MimirPluginFactory } from "agent-mimir/plugins";
+import { ComplexMessageContent } from "agent-mimir/schema";
 
 function splitStringInChunks(str: string) {
     const chunkSize = 1900;
@@ -86,32 +88,31 @@ export const run = async () => {
     console.log(`Using working directory ${workingDirectory}`);
     await fs.mkdir(workingDirectory, { recursive: true });
 
-    const agentManager = new AgentManager({
-        embeddings: agentConfig.embeddings,
-        workspaceManagerFactory: async (agent) => {
-            const tempDir = path.join(workingDirectory, agent);
-            await fs.mkdir(tempDir, { recursive: true });
-            const workspace = new FileSystemAgentWorkspace(tempDir);
-            await fs.mkdir(workspace.workingDirectory, { recursive: true });
-            return workspace;
-        }
-    });
+    const workspaceFactory = async (agentName: string) => {
+        const tempDir = path.join(workingDirectory, agentName);
+        await fs.mkdir(tempDir, { recursive: true });
+        const workspace = new FileSystemAgentWorkspace(tempDir);
+        await fs.mkdir(workspace.workingDirectory, { recursive: true });
+        return workspace;
+    }
+    const orchestratorBuilder = new OrchestratorBuilder();
 
     const agents = await Promise.all(Object.entries(agentConfig.agents).map(async ([agentName, agentDefinition]) => {
         if (agentDefinition.definition) {
             const newAgent = {
                 mainAgent: agentDefinition.mainAgent,
                 name: agentName,
-                agent: await agentManager.createAgent({
+                agent: await orchestratorBuilder.createAgent({
+                    communicationWhitelist: agentDefinition.definition.communicationWhitelist,
                     name: agentName,
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,
                     tools: agentDefinition.definition.tools ?? [],
                     model: agentDefinition.definition.chatModel,
                     visionSupport: agentDefinition.definition.visionSupport,
-                    communicationWhitelist: agentDefinition.definition.communicationWhitelist,
                     constitution: agentDefinition.definition.constitution,
-                    plugins: agentDefinition.definition.plugins
+                    plugins: [...agentDefinition.definition.plugins ?? []],
+                    workspaceFactory: workspaceFactory,
                 })
             }
             console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.definition.profession}" and description "${agentDefinition.description}"`));
@@ -119,8 +120,8 @@ export const run = async () => {
         } else {
             throw new Error(`Agent "${agentName}" has no definition.`);
         }
-
     }));
+
 
     const mainAgent = agents.length === 1 ? agents[0].agent : agents.find(a => a.mainAgent)?.agent;
     if (!mainAgent) {
@@ -128,6 +129,8 @@ export const run = async () => {
     }
 
     console.log(chalk.green(`Using "${mainAgent.name}" as main agent`));
+
+    const chatAgentHandle = orchestratorBuilder.build(mainAgent);
 
     const client = new Client(
         {
@@ -143,7 +146,7 @@ export const run = async () => {
     const agentCommands = mainAgent.commands.map(c => {
         const discordCommand = new SlashCommandBuilder().setName(c.name);
         if (c.description) {
-            discordCommand.setDescription((c.description.length > 90) ? c.description.slice(0, 90-1) + '&hellip;' : c.description);
+            discordCommand.setDescription((c.description.length > 90) ? c.description.slice(0, 90 - 1) + '&hellip;' : c.description);
         }
 
         (c.arguments ?? []).forEach(arg => {
@@ -151,7 +154,7 @@ export const run = async () => {
                 option.setName(arg.name);
                 option.setRequired(arg.required);
                 if (arg.description) {
-                    option.setDescription((arg.description.length > 90) ? arg.description.slice(0, 90-1) + '&hellip;' : arg.description);
+                    option.setDescription((arg.description.length > 90) ? arg.description.slice(0, 90 - 1) + '&hellip;' : arg.description);
                 }
                 return option
             })
@@ -183,9 +186,7 @@ export const run = async () => {
 
         if (interaction.commandName === 'reset') {
             try {
-                for (const agent of agents) {
-                    await agent.agent.reset();
-                }
+                await chatAgentHandle.reset();
             } catch (e) {
                 console.error(e);
                 await interaction.editReply('There was an error resetting the agent.');
@@ -200,12 +201,14 @@ export const run = async () => {
                     [r.name]: r.value
                 }
             }, {})
-            const agentInvoke: AgentInvoke = async (agent, callback) => {
-                return await agent.handleCommand({
+
+
+            const agentInvoke: AgentInvoke = (agent) => agent.handleCommand({
+                command: {
                     name: interaction.commandName,
                     arguments: commandArguments
-                }, callback)
-            }
+                }
+            });
 
             messageHandler(agentInvoke, async (message, attachments?: string[]) => {
                 await sendDiscordResponseFromCommand(interaction, message, attachments);
@@ -216,94 +219,62 @@ export const run = async () => {
     });
     const messageHandler = async (msg: AgentInvoke, sendResponse: SendResponse) => {
 
-        let currentAgent = mainAgent;
-        let pendingMessage: PendingMessage | undefined = undefined;
-        const agentStack: Agent[] = [];
+        let toolCallback: FunctionResponseCallBack = async (call) => {
+            const formattedResponse = extractAllTextFromComplexResponse(call.response).substring(0, 3000);
+            const toolResponse = `Agent: \`${call.agentName}\`  \n---\nCalled function: \`${call.name}\` \nResponded with: \n\`\`\`${formattedResponse}\`\`\``;
+            await sendResponse(toolResponse);
+        };
+        let intermediateResponseHandler = async (chainResponse: IntermediateAgentResponse) => {
+            if (chainResponse.type === "toolResponse") {
+                toolCallback({
+                    agentName: chainResponse.agentName,
+                    name: chainResponse.name,
+                    response: chainResponse.response
+                });
+            } else {
+                const stringResponse = extractAllTextFromComplexResponse(chainResponse.content.content);
+                const discordMessage = `\`${chainResponse.sourceAgent}\` is sending a message to \`${chainResponse.destinationAgent}\`:\n\`\`\`${stringResponse}\`\`\`` +
+                    `\nFiles provided: ${chainResponse.content.sharedFiles?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
+                await sendResponse(discordMessage, chainResponse.content.sharedFiles?.map((f: any) => f.url));
+            }
+        };
 
-        mainLoop: while (true) {
+        let result: IteratorResult<IntermediateAgentResponse, HandleMessageResult>;
+        const generator = chatAgentHandle.handleMessage(msg)
 
-            const handleMessage = async (chainResponse: AgentUserMessageResponse, agentStack: Agent[]): Promise<{ conversationComplete: boolean, currentAgent: Agent, pendingMessage: PendingMessage | undefined }> => {
-                if (chainResponse.output.agentName) {
+        while (!(result = await generator.next()).done) {
+            intermediateResponseHandler(result.value);
+        }
 
-                    const discordMessage = `\`${currentAgent.name}\` is sending a message to \`${chainResponse.output.agentName}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
-                        `\nFiles provided: ${chainResponse.output.sharedFiles?.map(f => `\`${f.fileName}\``).join(", ") || "None"}`;
-                    await sendResponse(discordMessage);
-                    const newAgent = agentManager.getAgent(chainResponse.output.agentName);
-                    if (!newAgent) {
-                        return {
-                            conversationComplete: false,
-                            currentAgent: currentAgent,
-                            pendingMessage: {
-                                message: "No agent found with that name.",
-                                sharedFiles: []
-                            }
-                        }
-                    }
-                    agentStack.push(currentAgent);
-                    return {
-                        conversationComplete: false,
-                        currentAgent: newAgent,
-                        pendingMessage: chainResponse.output
-                    }
-                } else {
-                    const isFinalUser = agentStack.length === 0;
-                    if (!isFinalUser) {
-                        const discordMessage = `\`${currentAgent.name}\` is replying back to \`${agentStack[agentStack.length - 1].name}\`:\n\`\`\`${chainResponse.output.message}\`\`\`` +
-                            `\nFiles provided: ${chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
-                        await sendResponse(discordMessage);
-                    } else {
-                        await sendResponse(chainResponse.output.message, chainResponse.responseAttributes[FILES_TO_SEND_FIELD]?.map((f: any) => f.url));
-                    }
-                    return {
-                        conversationComplete: isFinalUser,
-                        currentAgent: isFinalUser ? currentAgent : agentStack.pop()!,
-                        pendingMessage: {
-                            message: isFinalUser ? chainResponse.output.message : `${currentAgent.name} responded with: ${chainResponse.output.message}`,
-                            sharedFiles: chainResponse.responseAttributes[FILES_TO_SEND_FIELD]
-                        }
-                    }
+        if (result.value.type === "agentResponse") {
+            const stringResponse = extractAllTextFromComplexResponse(result.value.content.content);
+            await sendResponse(stringResponse, result.value.content.sharedFiles?.map((f: any) => f.url));
+            return
+        } else {
+            while (result.value.type === "toolRequest") {
+                const toolCalls = (result.value.toolCalls ?? []).map(tr => {
+                    return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
+                }).join("\n");
+                const stringResponse = extractAllTextFromComplexResponse(result.value.content);
+                const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
+                await sendResponse(toolResponse, []);
+                const generator = chatAgentHandle.handleMessage((agent) => agent.call({
+                    message: null,
+                    requestAttributes: {}
+                }));
+                while (!(result = await generator.next()).done) {
+                    intermediateResponseHandler(result.value);
                 }
             }
-            let toolCallback: FunctionResponseCallBack = async (calls) => {
-                for (const call of calls) {
-                    const toolResponse = `Agent: \`${currentAgent.name}\` \n${call.message} \n---\nCalled function: \`${call.name}\` \nInvoked with input: \n\`\`\`${call.input}\`\`\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
-                    await sendResponse(toolResponse);
-                }
-
-            };
-
-            let chainResponse = pendingMessage
-                ? await currentAgent.call(pendingMessage.message, { [FILES_TO_SEND_FIELD]: pendingMessage.sharedFiles }, toolCallback)
-                : await msg(currentAgent, toolCallback);
-
-
-            if (chainResponse.type == "agentResponse") {
-                const routedMessage = await handleMessage(chainResponse, agentStack);
-                currentAgent = routedMessage.currentAgent;
-                pendingMessage = routedMessage.pendingMessage;
-                if (routedMessage.conversationComplete) {
-                    break mainLoop;
-                }
-            }
-            while (chainResponse.type == "toolRequest") {
-                chainResponse = await Retry(() => currentAgent.call(null, {}, toolCallback));
-                if (chainResponse.type == "agentResponse") {
-                    const routedMessage = await handleMessage(chainResponse, agentStack);
-                    currentAgent = routedMessage.currentAgent;
-                    pendingMessage = routedMessage.pendingMessage;
-
-                    if (routedMessage.conversationComplete) {
-                        break mainLoop;
-                    }
-                }
-            }
+            const stringResponse = extractAllTextFromComplexResponse(result.value.content.content);
+            await sendResponse(stringResponse, result.value.content.sharedFiles?.map((f: any) => f.url));
         }
     }
     client.on(Events.MessageCreate, async msg => {
         const typing = setInterval(() => msg.channel.sendTyping(), 5000);
         try {
 
-            const agentInvoke: AgentInvoke = async (agent: Agent, callback) => {
+            const agentInvoke: AgentInvoke = async function* (agent: Agent) {
                 const messageToAi = msg.cleanContent.replaceAll(`@${client.user!.username}`, "").trim();
                 const loadedFiles = await Promise.all(msg.attachments.map(async (attachment) => {
                     const response = await downloadFile(attachment.name, attachment.url);
@@ -312,8 +283,25 @@ export const run = async () => {
                         url: response
                     }
                 }));
-                const messageToSend = { message: messageToAi, sharedFiles: loadedFiles };
-                return await agent.call(messageToSend.message, { [FILES_TO_SEND_FIELD]: messageToSend.sharedFiles }, callback)
+                //const messageToSend = { message: messageToAi, sharedFiles: loadedFiles };
+                const generator = agent.call({
+                    message: {
+                        content:[
+                            {
+                                type: "text",
+                                text: messageToAi
+                            }
+                        ],
+                        sharedFiles: loadedFiles
+                    },
+                    requestAttributes: {}
+                })
+
+                let result: IteratorResult<ToolResponseInfo, AgentResponse>;
+                while (!(result = await generator.next()).done) {
+                    yield result.value;
+                }
+                return result.value
             }
 
             if (msg.author.bot) return;
@@ -339,14 +327,15 @@ export const run = async () => {
 
 run();
 
-type PendingMessage = {
-    sharedFiles?: {
-        url: string;
-        fileName: string;
-    }[],
-    message: string;
-}
-type AgentInvoke = (agent: Agent, callback?: FunctionResponseCallBack) => Promise<AgentResponse>;
+
+export type FunctionResponseCallBack = (toolCalls: {
+    agentName: string,
+    name: string;
+    response: ComplexMessageContent[];
+}) => Promise<void>;
+
+
+
 type SendResponse = (message: string, attachments?: string[]) => Promise<void>
 
 async function sendDiscordResponse(msg: Message<boolean>, message: string, attachments?: string[]) {
