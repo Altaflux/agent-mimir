@@ -1,5 +1,5 @@
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { ComplexResponse, } from "../schema.js";
+import { ComplexMessageContent, } from "../schema.js";
 import { Tool } from "@langchain/core/tools";
 import { WorkspacePluginFactory, WorkspanceManager } from "../plugins/workspace.js";
 import { ViewPluginFactory } from "../tools/image_view.js";
@@ -477,12 +477,12 @@ function buildSystemMessage(agentSystemMessages: AgentSystemMessage[]) {
 async function addAdditionalContentToUserMessage(message: InputAgentMessage, plugins: MimirAgentPlugin[], state: typeof StateAnnotation.State) {
     const displayMessage = JSON.parse(JSON.stringify(message)) as InputAgentMessage;
     const persistentMessage = JSON.parse(JSON.stringify(message)) as InputAgentMessage;
-    const spacing: ComplexResponse = {
+    const spacing: ComplexMessageContent = {
         type: "text",
         text: "\n-----------------------------------------------\n\n"
     }
-    const additionalContent: ComplexResponse[] = [];
-    const persistentAdditionalContent: ComplexResponse[] = [];
+    const additionalContent: ComplexMessageContent[] = [];
+    const persistentAdditionalContent: ComplexMessageContent[] = [];
     for (const plugin of plugins) {
         const customizations = await plugin.additionalMessageContent(persistentMessage, state,);
         for (const customization of customizations) {

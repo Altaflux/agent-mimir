@@ -1,6 +1,6 @@
 import { v4 } from "uuid";
 import { AIMessage, BaseMessage, HumanMessage, MessageContent, MessageContentComplex, MessageContentImageUrl, MessageContentText, SystemMessage, ToolMessage } from "@langchain/core/messages";
-import { ComplexResponse, ResponseContentImage, ResponseContentText, SupportedImageTypes, } from "../schema.js";
+import { ComplexMessageContent, ImageMessageContent, TextMessageContent, SupportedImageTypes, } from "../schema.js";
 import { CONSTANTS, ERROR_MESSAGES } from "./constants.js";
 import { complexResponseToLangchainMessageContent } from "../utils/format.js";
 import { AgentMessageToolRequest, ToolResponseInfo, } from "./index.js";
@@ -41,7 +41,7 @@ export function parseToolMessage(aiMessage: AIMessage, responseAttributes: Recor
     };
 }
 
-export function commandContentToBaseMessage(commandContent: { type: string, content: ComplexResponse[] }): BaseMessage {
+export function commandContentToBaseMessage(commandContent: { type: string, content: ComplexMessageContent[] }): BaseMessage {
     const id = v4();
     const content = complexResponseToLangchainMessageContent(commandContent.content);
 
@@ -53,7 +53,7 @@ export function commandContentToBaseMessage(commandContent: { type: string, cont
     throw new Error(ERROR_MESSAGES.UNREACHABLE);
 }
 
-export function lCmessageContentToContent(content: MessageContent): ComplexResponse[] {
+export function lCmessageContentToContent(content: MessageContent): ComplexMessageContent[] {
     if (typeof content === 'string') {
         return [{
             type: "text",
@@ -66,7 +66,7 @@ export function lCmessageContentToContent(content: MessageContent): ComplexRespo
             return {
                 type: "text" as const,
                 text: (c as MessageContentText).text
-            } as ResponseContentText;
+            } as TextMessageContent;
         }
 
         if (c.type === "image_url") {
@@ -82,7 +82,7 @@ export function lCmessageContentToContent(content: MessageContent): ComplexRespo
                     type: imgContent.type as SupportedImageTypes,
                     url: imageUrl,
                 }
-            } as ResponseContentImage;
+            } as ImageMessageContent;
         }
 
         return null

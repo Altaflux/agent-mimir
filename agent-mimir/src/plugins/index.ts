@@ -1,6 +1,6 @@
 import { StateAnnotation } from "../agent-manager/agent.js";
 import { AgentMessageToolRequest, AgentWorkspace, InputAgentMessage } from "../agent-manager/index.js";
-import { ComplexResponse } from "../schema.js";
+import { ComplexMessageContent } from "../schema.js";
 import { AgentTool } from "../tools/index.js";
 
 export type AiResponseMessage = AgentMessageToolRequest;
@@ -43,7 +43,7 @@ export type NextMessageToolResponse = {
     type: "TOOL_RESPONSE",
     toolCallId: string,
     toolName: string,
-    content: ComplexResponse[]
+    content: ComplexMessageContent[]
 }
 
 
@@ -52,7 +52,7 @@ export type NextMessageToolResponse = {
 export type AdditionalContent = {
     saveToChatHistory: boolean,
     displayOnCurrentMessage: boolean,
-    content: ComplexResponse[]
+    content: ComplexMessageContent[]
 }
 
 export type AgentContext = typeof StateAnnotation.State;
@@ -98,14 +98,14 @@ export abstract class MimirAgentPlugin {
 
 export type CommandContent = {
     type: "user",
-    content: ComplexResponse[]
+    content: ComplexMessageContent[]
 } | {
     type: "assistant",
-    content: ComplexResponse[]
+    content: ComplexMessageContent[]
 }
 
 
 
 export type AgentSystemMessage = {
-    content: ComplexResponse[]
+    content: ComplexMessageContent[]
 }

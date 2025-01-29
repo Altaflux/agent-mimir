@@ -20,7 +20,7 @@ import { HelpersPluginFactory } from "agent-mimir/plugins/helpers";
 import { Agent, AgentResponse, ToolResponseInfo } from "agent-mimir/agent";
 import { extractAllTextFromComplexResponse } from "agent-mimir/utils/format";
 import { MimirPluginFactory } from "agent-mimir/plugins";
-import { ComplexResponse } from "agent-mimir/schema";
+import { ComplexMessageContent } from "agent-mimir/schema";
 
 function splitStringInChunks(str: string) {
     const chunkSize = 1900;
@@ -336,20 +336,16 @@ export const run = async () => {
 };
 
 run();
+
+
 export type FunctionResponseCallBack = (toolCalls: {
     agentName: string,
     name: string;
-    response: ComplexResponse[];
+    response: ComplexMessageContent[];
 }) => Promise<void>;
 
-type PendingMessage = {
-    sharedFiles?: {
-        url: string;
-        fileName: string;
-    }[],
-    message: string;
-}
-//type AgentInvoke = (agent: Agent, callback?: FunctionResponseCallBack) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>;
+
+
 type SendResponse = (message: string, attachments?: string[]) => Promise<void>
 
 async function sendDiscordResponse(msg: Message<boolean>, message: string, attachments?: string[]) {

@@ -1,4 +1,4 @@
-import { ComplexResponse, } from "agent-mimir/schema";
+import { ComplexMessageContent, } from "agent-mimir/schema";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
 
@@ -79,7 +79,7 @@ class DesktopControlPlugin extends MimirAgentPlugin {
         ]
     }
 
-    async generateComputerImagePrompt(): Promise<ComplexResponse[]> {
+    async generateComputerImagePrompt(): Promise<ComplexMessageContent[]> {
 
         await new Promise(r => setTimeout(r, 1000));
         const computerScreenshot = await getComputerScreenImage();

@@ -1,7 +1,7 @@
 import { AgentTool, ToolResponse } from "../tools/index.js";
 import { z } from "zod";
 import { v4 } from "uuid";
-import {  ComplexResponse } from "../schema.js";
+import {  ComplexMessageContent } from "../schema.js";
 import { StructuredTool, ToolRunnableConfig } from "@langchain/core/tools";
 import { complexResponseToLangchainMessageContent } from "./format.js";
 import { Command } from "@langchain/langgraph";
@@ -39,7 +39,7 @@ export class MimirToolToLangchainTool extends StructuredTool {
         if ((response as any).rawResponse) {
             return (response as any).rawResponse;
         }
-        return complexResponseToLangchainMessageContent(response as ComplexResponse[]);
+        return complexResponseToLangchainMessageContent(response as ComplexMessageContent[]);
     }
 }
 //TODO: This is a temporary solution, we need to find a better way to check if the response is an AgentMessage

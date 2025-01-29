@@ -1,5 +1,5 @@
 import { AgentCommand } from "../plugins/index.js";
-import { ComplexResponse } from "../schema.js";
+import { ComplexMessageContent } from "../schema.js";
 
 
 export type MessageContentToolUse = {
@@ -10,7 +10,7 @@ export type MessageContentToolUse = {
 export type AgentMessageToolRequest = { toolCalls: MessageContentToolUse[] } & InputAgentMessage;
 
 export type InputAgentMessage = {
-    content: ComplexResponse[], 
+    content: ComplexMessageContent[], 
     sharedFiles?: {
         url: string,
         fileName: string,
@@ -52,7 +52,7 @@ export type CommandRequest = {
     name: string,
     arguments?: Record<string, any>
 }
-export type ToolResponseInfo = { id?:string, name: string, response: ComplexResponse[] }
+export type ToolResponseInfo = { id?:string, name: string, response: ComplexMessageContent[] }
 
 
 export type AgentWorkspace = {

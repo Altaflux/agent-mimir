@@ -1,5 +1,4 @@
 
-////////////////
 export type ImageType = {
     url: string,
     type: SupportedImageTypes
@@ -7,11 +6,11 @@ export type ImageType = {
 
 export type SupportedImageTypes = "url" | "jpeg" | "png";
 
-export type ResponseContentText = {
+export type TextMessageContent = {
     type: "text";
     text: string;
 };
-export type ResponseContentImage = {
+export type ImageMessageContent = {
     type: "image_url";
     image_url: {
         url: string;
@@ -19,7 +18,5 @@ export type ResponseContentImage = {
     };
 };
 
-export type ComplexResponse = ResponseContentText | ResponseContentImage
+export type ComplexMessageContent = TextMessageContent | ImageMessageContent
 
-
-////////////////

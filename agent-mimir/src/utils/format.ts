@@ -1,5 +1,5 @@
 import { AIMessage, MessageContent, MessageContentComplex, MessageContentText } from "@langchain/core/messages";
-import { ComplexResponse,   ResponseContentText, SupportedImageTypes } from "../schema.js";
+import { ComplexMessageContent,   TextMessageContent, SupportedImageTypes } from "../schema.js";
 import { MessageContentToolUse } from "../agent-manager/index.js";
 import { AiResponseMessage } from "../plugins/index.js";
 
@@ -15,7 +15,7 @@ export function extractTextContent(messageContent: MessageContent) {
 }
 
 
-export function complexResponseToLangchainMessageContent(toolResponse: ComplexResponse[]): MessageContentComplex[] {
+export function complexResponseToLangchainMessageContent(toolResponse: ComplexMessageContent[]): MessageContentComplex[] {
   return toolResponse.map((en) => {
     if (en.type === "text") {
       return {
@@ -29,7 +29,7 @@ export function complexResponseToLangchainMessageContent(toolResponse: ComplexRe
   })
 }
 
-export function aiMessageToMimirAiMessage(aiMessage: AIMessage, content: ComplexResponse[], files: AiResponseMessage["sharedFiles"]): AiResponseMessage {
+export function aiMessageToMimirAiMessage(aiMessage: AIMessage, content: ComplexMessageContent[], files: AiResponseMessage["sharedFiles"]): AiResponseMessage {
   
   const mimirMessage = {
     content: content,
@@ -51,8 +51,8 @@ export function aiMessageToMimirAiMessage(aiMessage: AIMessage, content: Complex
   return mimirMessage;
 }
 
-export function extractAllTextFromComplexResponse(toolResponse: ComplexResponse[]): string {
-  return toolResponse.filter((r) => r.type === "text").map((r) => (r as ResponseContentText).text).join("\n");
+export function extractAllTextFromComplexResponse(toolResponse: ComplexMessageContent[]): string {
+  return toolResponse.filter((r) => r.type === "text").map((r) => (r as TextMessageContent).text).join("\n");
 }
 
 export const openAIImageHandler = (image: { url: string, type: SupportedImageTypes }, detail: "high" | "low" = "high") => {

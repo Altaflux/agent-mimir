@@ -2,7 +2,7 @@
 import { promises as fs } from 'fs';
 import { AgentContext, AgentSystemMessage, AttributeDescriptor, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "./index.js";
 import { AgentWorkspace, InputAgentMessage } from "../agent-manager/index.js";
-import { ComplexResponse } from '../schema.js';
+import { ComplexMessageContent } from '../schema.js';
 
 export class WorkspacePluginFactory implements MimirPluginFactory {
     name: string = "workspace";
@@ -37,7 +37,7 @@ export class WorkspanceManager {
         return []
     }
 
-    async additionalMessageContent(nextMessage: InputAgentMessage): Promise<ComplexResponse[]> {
+    async additionalMessageContent(nextMessage: InputAgentMessage): Promise<ComplexMessageContent[]> {
 
         if (nextMessage.sharedFiles && nextMessage.sharedFiles.length > 0) {
             const filesToSendMessage = nextMessage.sharedFiles.map((file: any) => `"${file.fileName}"`).join(", ");
