@@ -14,7 +14,7 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { commandContentToBaseMessage, dividerSystemMessage, langChainToolMessageToMimirHumanMessage, lCmessageContentToContent, mergeSystemMessages, parseToolMessage, toolMessageToToolResponseInfo } from "./message-utils.js";
 import { LangchainToolWrapperPluginFactory } from "./langchain-wrapper.js";
-import { Agent, AgentMessage, AgentMessageToolRequest, AgentUserMessageResponse, InputAgentMessage, WorkspaceFactory } from "./index.js";
+import { Agent, AgentMessage, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, InputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "./index.js";
 import { AgentSystemMessage, AttributeDescriptor, MimirAgentPlugin, MimirPluginFactory } from "../plugins/index.js";
 
 
@@ -326,6 +326,47 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
         await graph.updateState(stateConfig, { messages: messagesToRemove, agentMessage: agentMessagesToRemove }, "output_convert")
     };
 
+    const executeGraph = async function* (graphInput: any): AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>  { 
+
+        let lastKnownMessage: ToolMessage | undefined = undefined;
+        while (true) {
+            let stream = await graph.stream(graphInput, stateConfig);
+            for await (const state of stream) {
+                if (state.messages.length > 0) {
+                    const lastMessage = state.messages[state.messages.length - 1];
+                    if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id)) {
+                        lastKnownMessage = lastMessage;
+                        yield toolMessageToToolResponseInfo(lastMessage);
+                    }
+                }
+            }
+
+            const state = await graph.getState(stateConfig);
+
+            const responseAttributes: Record<string, any> = state.values["responseAttributes"];
+            if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
+                const interruptState = state.tasks[0].interrupts[0];
+                return {
+                    type: "toolRequest",
+                    output: interruptState.value as AgentMessageToolRequest,
+                    responseAttributes: responseAttributes
+                }
+            }
+
+            if (state.tasks.length > 0 && state.tasks[0].name === "agent_call") {
+                const interruptState = state.tasks[0].interrupts[0];
+                return interruptState.value as AgentUserMessageResponse
+
+            }
+
+            let userResponse = (state.values["output"] as AgentMessage);
+            return {
+                type: "agentResponse",
+                output: userResponse,
+                responseAttributes: responseAttributes
+            } as AgentUserMessageResponse
+        }
+    }
 
     return {
         name: shortName,
@@ -353,46 +394,12 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
                 responseAttributes: {}
             };
 
-
-            while (true) {
-                let stream = await graph.stream(graphInput, stateConfig);
-                let lastKnownMessage: ToolMessage | undefined = undefined;
-                for await (const state of stream) {
-                    if (state.messages.length > 0) {
-                        const lastMessage = state.messages[state.messages.length - 1];
-                        if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id)) {
-                            lastKnownMessage = lastMessage;
-                            yield toolMessageToToolResponseInfo(lastMessage);
-                        }
-                    }
-                }
-
-                const state = await graph.getState(stateConfig);
-
-                const responseAttributes: Record<string, any> = state.values["responseAttributes"];
-                if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
-                    const interruptState = state.tasks[0].interrupts[0];
-                    return {
-                        type: "toolRequest",
-                        output: interruptState.value as AgentMessageToolRequest,
-                        responseAttributes: responseAttributes
-                    }
-
-                }
-
-                if (state.tasks.length > 0 && state.tasks[0].name === "agent_call") {
-                    const interruptState = state.tasks[0].interrupts[0];
-                    return interruptState.value as AgentUserMessageResponse
-
-                }
-
-                let userResponse = (state.values["output"] as AgentMessage);
-                return {
-                    type: "agentResponse",
-                    output: userResponse,
-                    responseAttributes: responseAttributes
-                } as AgentUserMessageResponse
+            let generator = executeGraph(graphInput);
+            let result;
+            while (!(result = await generator.next()).done) {
+                yield result.value;
             }
+            return result.value
 
         },
         call: async function* (message, input, noMessagesInTool) {
@@ -420,45 +427,12 @@ export async function createAgent(config: CreateAgentOptions): Promise<Agent> {
                 } : null;
             }
 
-            let lastKnownMessage: ToolMessage | undefined = undefined;
-            while (true) {
-                let stream = await graph.stream(graphInput, stateConfig);
-                for await (const state of stream) {
-                    if (state.messages.length > 0) {
-                        const lastMessage = state.messages[state.messages.length - 1];
-                        if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id)) {
-                            lastKnownMessage = lastMessage;
-                            yield toolMessageToToolResponseInfo(lastMessage);
-
-                        }
-                    }
-                }
-
-                const state = await graph.getState(stateConfig);
-
-                const responseAttributes: Record<string, any> = state.values["responseAttributes"];
-                if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
-                    const interruptState = state.tasks[0].interrupts[0];
-                    return {
-                        type: "toolRequest",
-                        output: interruptState.value as AgentMessageToolRequest,
-                        responseAttributes: responseAttributes
-                    }
-                }
-
-                if (state.tasks.length > 0 && state.tasks[0].name === "agent_call") {
-                    const interruptState = state.tasks[0].interrupts[0];
-                    return interruptState.value as AgentUserMessageResponse
-
-                }
-
-                let userResponse = (state.values["output"] as AgentMessage);
-                return {
-                    type: "agentResponse",
-                    output: userResponse,
-                    responseAttributes: responseAttributes
-                } as AgentUserMessageResponse
+            let generator = executeGraph(graphInput);
+            let result;
+            while (!(result = await generator.next()).done) {
+                yield result.value;
             }
+            return result.value
         }
     }
 }
