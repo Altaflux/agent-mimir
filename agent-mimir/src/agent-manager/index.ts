@@ -52,7 +52,7 @@ export type CommandRequest = {
     name: string,
     arguments?: Record<string, any>
 }
-export type ToolResponseInfo = { id?:string, name: string, response: string }
+export type ToolResponseInfo = { id?:string, name: string, response: ComplexResponse[] }
 
 
 export type AgentWorkspace = {

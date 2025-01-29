@@ -20,6 +20,7 @@ import { HelpersPluginFactory } from "agent-mimir/plugins/helpers";
 import { Agent, AgentResponse, ToolResponseInfo } from "agent-mimir/agent";
 import { extractAllTextFromComplexResponse } from "agent-mimir/utils/format";
 import { MimirPluginFactory } from "agent-mimir/plugins";
+import { ComplexResponse } from "agent-mimir/schema";
 
 function splitStringInChunks(str: string) {
     const chunkSize = 1900;
@@ -235,7 +236,8 @@ export const run = async () => {
     const messageHandler = async (msg: AgentInvoke, sendResponse: SendResponse) => {
 
         let toolCallback: FunctionResponseCallBack = async (call) => {
-            const toolResponse = `Agent: \`${call.agentName}\`  \n---\nCalled function: \`${call.name}\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
+            const formattedResponse = extractAllTextFromComplexResponse(call.response).substring(0, 3000);
+            const toolResponse = `Agent: \`${call.agentName}\`  \n---\nCalled function: \`${call.name}\` \nResponded with: \n\`\`\`${formattedResponse}\`\`\``;
             await sendResponse(toolResponse);
         };
         let intermediateResponseHandler = async (chainResponse: IntermediateAgentResponse) => {
@@ -337,7 +339,7 @@ run();
 export type FunctionResponseCallBack = (toolCalls: {
     agentName: string,
     name: string;
-    response: string;
+    response: ComplexResponse[];
 }) => Promise<void>;
 
 type PendingMessage = {

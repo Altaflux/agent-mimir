@@ -34,7 +34,8 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
 
   let intermediateResponseHandler = async (chainResponse: IntermediateAgentResponse) => {
     if (chainResponse.type === "toolResponse") {
-      const toolResponse = `${chalk.greenBright("Called tool:")} ${chalk.red(chainResponse.name)} \n${chalk.greenBright("Id:")} ${chalk.red(chainResponse.id ?? "N/A")} \n${chalk.greenBright("Responded with:")}\n${chainResponse.response.substring(0, 3000)}`;
+      const formattedResponse = extractAllTextFromComplexResponse(chainResponse.response).substring(0, 3000);
+      const toolResponse = `${chalk.greenBright("Called tool:")} ${chalk.red(chainResponse.name)} \n${chalk.greenBright("Id:")} ${chalk.red(chainResponse.id ?? "N/A")} \n${chalk.greenBright("Responded with:")}\n${formattedResponse}`;
       await sendResponse(chainResponse.agentName, toolResponse);
   
     } else {

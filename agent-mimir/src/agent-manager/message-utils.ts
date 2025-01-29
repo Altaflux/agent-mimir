@@ -6,11 +6,12 @@ import { complexResponseToLangchainMessageContent } from "../utils/format.js";
 import { AgentMessageToolRequest, ToolResponseInfo, } from "./index.js";
 import { NextMessageToolResponse } from "../plugins/index.js";
 
-export function toolMessageToToolResponseInfo(message: ToolMessage):  ToolResponseInfo{
+export function toolMessageToToolResponseInfo(message: ToolMessage): ToolResponseInfo {
+    const toolResponse = lCmessageContentToContent(message.content);
     return {
         id: message.tool_call_id,
         name: message.name ?? "Unknown",
-        response: trimStringToMaxWithEllipsis(JSON.stringify(message.content), CONSTANTS.MAX_TOOL_RESPONSE_LENGTH)
+        response: toolResponse
     };
 }
 
@@ -63,7 +64,7 @@ export function lCmessageContentToContent(content: MessageContent): ComplexRespo
     return (content as MessageContentComplex[]).map(c => {
         if (c.type === "text") {
             return {
-                type: "text"  as const,
+                type: "text" as const,
                 text: (c as MessageContentText).text
             } as ResponseContentText;
         }
@@ -73,7 +74,7 @@ export function lCmessageContentToContent(content: MessageContent): ComplexRespo
             const imageUrl = typeof imgContent.image_url === 'string' ?
                 imgContent.image_url :
                 imgContent.image_url.url;
-                
+
             return {
                 type: "image_url" as const,
                 image_url: {
