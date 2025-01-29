@@ -35,11 +35,15 @@ export type AgentUserMessage = {
     responseAttributes: Record<string, any>
 }
 export class MultiAgentCommunicationOrchestrator {
-    private currentAgent: Agent;
+    public currentAgent: Agent;
     private agentStack: Agent[] = [];
 
     constructor(public readonly agentManager: ReadonlyMap<string, Agent>, currentAgent: Agent) {
         this.currentAgent = currentAgent;
+    }
+
+    getCurrentAgent() {
+        return this.currentAgent;
     }
 
     async* handleMessage(msg: AgentInvoke): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {

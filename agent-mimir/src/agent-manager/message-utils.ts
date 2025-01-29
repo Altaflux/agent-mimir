@@ -3,11 +3,12 @@ import { AIMessage, BaseMessage, HumanMessage, MessageContent, MessageContentCom
 import { ComplexResponse, ResponseContentImage, ResponseContentText, SupportedImageTypes, } from "../schema.js";
 import { CONSTANTS, ERROR_MESSAGES } from "./constants.js";
 import { complexResponseToLangchainMessageContent } from "../utils/format.js";
-import { AgentMessageToolRequest, } from "./index.js";
+import { AgentMessageToolRequest, ToolResponseInfo, } from "./index.js";
 import { NextMessageToolResponse } from "../plugins/index.js";
 
-export function toolMessageToToolResponseInfo(message: { name?: string, content: any }): { name: string, response: string } {
+export function toolMessageToToolResponseInfo(message: ToolMessage):  ToolResponseInfo{
     return {
+        id: message.tool_call_id,
         name: message.name ?? "Unknown",
         response: trimStringToMaxWithEllipsis(JSON.stringify(message.content), CONSTANTS.MAX_TOOL_RESPONSE_LENGTH)
     };
@@ -31,6 +32,7 @@ export function parseToolMessage(aiMessage: AIMessage, responseAttributes: Recor
     const content = lCmessageContentToContent(aiMessage.content);
     return {
         toolCalls: (aiMessage.tool_calls ?? []).map(t => ({
+            id: t.id,
             toolName: t.name,
             input: t.args
         })),

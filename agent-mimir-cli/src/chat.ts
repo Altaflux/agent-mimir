@@ -7,10 +7,12 @@ import { InputAgentMessage } from 'agent-mimir/agent';
 
 export type FunctionResponseCallBack = (toolCalls: {
   agentName: string,
+  id?: string;
   name: string;
   response: string;
 }) => Promise<void>;
 
+const messageDivider = chalk.yellow("---------------------------------------------------\n");
 
 export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchestrator) {
 
@@ -22,35 +24,30 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
   console.log("Available commands:\n")
   console.log("/reset - resets all agents\n\n");
 
-  async function sendResponse(message: string, attachments?: string[]) {
-    const responseMessage = `Files provided by AI: ${attachments?.map((f: any) => f.fileName).join(", ") || "None"}\n\n${message}`;
+  async function sendResponse(agentName: string, message: string, attachments?: string[]) {    
+    const agentNameMessage = `${chalk.magenta("Agent:")} ${chalk.red(agentName)}\n`;
+    const providedFiles = attachments?.map((f: any) => f.fileName).join(", ") || "None";
+    const filesMessage = (attachments?.length ?? 0) > 0 ? `\nFiles provided by AI: ${providedFiles}\n` : "";
+    const responseMessage = `${messageDivider}${agentNameMessage}\n${filesMessage}${message}`;
     console.log(responseMessage)
   }
 
-  let toolCallback: FunctionResponseCallBack = async (call) => {
-    const toolResponse = `Agent: \`${call.agentName}\`  \n---\nCalled function: \`${call.name}\` \nResponded with: \n\`\`\`${call.response.substring(0, 3000)}\`\`\``;
-    await sendResponse(toolResponse);
-  };
-
   let intermediateResponseHandler = async (chainResponse: IntermediateAgentResponse) => {
     if (chainResponse.type === "toolResponse") {
-      toolCallback({
-        agentName: chainResponse.agentName,
-        name: chainResponse.name,
-        response: chainResponse.response
-      });
+      const toolResponse = `${chalk.greenBright("Called tool:")} ${chalk.red(chainResponse.name)} \n${chalk.greenBright("Id:")} ${chalk.red(chainResponse.id ?? "N/A")} \n${chalk.greenBright("Responded with:")}\n${chainResponse.response.substring(0, 3000)}`;
+      await sendResponse(chainResponse.agentName, toolResponse);
+  
     } else {
       const stringResponse = extractAllTextFromComplexResponse(chainResponse.content.content);
-      const discordMessage = `\`${chainResponse.sourceAgent}\` is sending a message to \`${chainResponse.destinationAgent}\`:\n\`\`\`${stringResponse}\`\`\`` +
-        `\nFiles provided: ${chainResponse.content.sharedFiles?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
-      await sendResponse(discordMessage, chainResponse.content.sharedFiles?.map((f: any) => f.url));
+      const discordMessage = `${chalk.greenBright("Sending message to:")} ${chalk.red(chainResponse.destinationAgent)}\n${stringResponse}`;
+      await sendResponse(chainResponse.sourceAgent, discordMessage, chainResponse.content.sharedFiles?.map((f: any) => f.url));
     }
   };
 
   topLoop: while (true) {
-
+    
     let answers = await Promise.race([new Promise<{ message: string }>((resolve, reject) => {
-      rl.question((chalk.blue("Human: ")), (answer) => {
+      rl.question((messageDivider + chalk.blue("Human: ")), (answer) => {
         resolve({ message: answer });
       });
     })]);
@@ -68,13 +65,11 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
 
 
     if (result.value.type === "toolRequest") {
-
-
       do {
         const toolCalls = (result.value.toolCalls ?? []).map(tr => {
-          return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
+          return `${chalk.greenBright("Tool request: ")}${chalk.red(tr.toolName)} \n${chalk.greenBright("Id: ")}${chalk.red(tr.id ?? "N/A")} \n${chalk.greenBright("With Payload: ")}\n${JSON.stringify(tr.input)}`;
         }).join("\n");
-        sendResponse(toolCalls);
+        sendResponse(result.value.callingAgent, toolCalls);
 
         
         let answers = await Promise.race([new Promise<{ message: string }>((resolve, reject) => {
@@ -103,18 +98,11 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
 
       } while (result.value.type === "toolRequest");
     }
-
+    
     const stringResponse = extractAllTextFromComplexResponse(result.value.content.content);
-    sendResponse(stringResponse, result.value.content.sharedFiles?.map((f: any) => f.url));
+    sendResponse(agentManager.currentAgent.name, stringResponse, result.value.content.sharedFiles?.map((f: any) => f.url));
   }
 }
-
-// function userAgentResponseToPendingMessage(msg: AgentUserMessageResponse): PendingMessage {
-//   return {
-//     message: msg.output.message,
-//     sharedFiles: msg.responseAttributes[FILES_TO_SEND_FIELD] ?? []
-//   }
-// }
 
 async function handleCommands(command: string, agentManager: MultiAgentCommunicationOrchestrator) {
   if (command.trim() === "reset") {
@@ -127,13 +115,6 @@ async function handleCommands(command: string, agentManager: MultiAgentCommunica
   }
 }
 
-type PendingMessage = {
-  sharedFiles: {
-    url: string;
-    fileName: string;
-  }[],
-  message: string;
-}
 function extractContentAndText(str: string): {
   type: `command`,
   command: string,
