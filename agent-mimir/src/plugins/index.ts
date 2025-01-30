@@ -108,15 +108,12 @@ export abstract class MimirAgentPlugin {
      * Called when the agent is ready to proceed to the next message.
      * Allows plugins to prepare for the next interaction.
      * @param nextMessage - The next message in the conversation
-     * @param context - Current agent context
      */
     async readyToProceed(nextMessage: NextMessage): Promise<void> {
     }
 
     /**
      * Adds additional content to the user's message.
-     * @param message - The input message from the user
-     * @param context - Current agent context
      * @returns Array of additional content to be added
      */
     async additionalMessageContent(message: InputAgentMessage): Promise<AdditionalContent[]> {
@@ -125,7 +122,6 @@ export abstract class MimirAgentPlugin {
 
     /**
      * Adds additional content to the system message.
-     * @param context - Current agent context
      * @returns System message content to be added
      */
     async getSystemMessages(): Promise<AgentSystemMessage> {
@@ -137,7 +133,6 @@ export abstract class MimirAgentPlugin {
     /**
      * Reads the response from the agent and processes response attributes.
      * @param aiMessage - The response message from the AI
-     * @param context - Current agent context
      * @param responseAttributes - Current response attributes
      * @returns Updated response attributes
      */
