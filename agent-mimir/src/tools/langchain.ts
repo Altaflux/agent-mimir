@@ -47,7 +47,7 @@ class LangchainToolWrapper extends AgentPlugin {
         super();
     }
 
-    tools(): Promise<any[]> | any[] {
+    async tools(): Promise<AgentTool[]> {
         return [new LangchainToolToMimirTool(this.tool)];
     }
 

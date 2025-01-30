@@ -120,7 +120,7 @@ class WebBrowserPlugin extends AgentPlugin {
         await this.driverManager.close();
     }
 
-    tools(): AgentTool[] {
+    async tools(): Promise<AgentTool[]> {
         return this.toolList;
     }
 }

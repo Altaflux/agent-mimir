@@ -96,7 +96,7 @@ export class HelpersPlugin extends AgentPlugin {
     }
 
 
-    tools(): AgentTool[] {
+    async tools(): Promise<AgentTool[]> {
         let tools: AgentTool[] = [new HelperTool(this.helperSingleton, this.agentName)];
         return tools;
     }

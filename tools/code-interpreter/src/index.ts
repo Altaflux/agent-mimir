@@ -29,7 +29,7 @@ class CodeInterpreterPlugin extends AgentPlugin {
         this.workSpace = args.workSpace;
     }
 
-    tools() {
+    async tools() {
         return [
             new PythonCodeInterpreter(this.workSpace?.workingDirectory),
         ];

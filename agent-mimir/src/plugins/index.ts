@@ -158,7 +158,7 @@ export abstract class AgentPlugin {
      * Returns the tools that the plugin provides to the agent.
      * @returns Array of agent tools, either synchronously or as a promise
      */
-    tools(): Promise<(AgentTool)[]> | (AgentTool)[] {
+    async tools(): Promise<(AgentTool)[]> {
         return [];
     }
 

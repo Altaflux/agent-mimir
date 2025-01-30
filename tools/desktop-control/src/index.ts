@@ -130,7 +130,7 @@ The screen's image includes labels of white boxes with numbers on top of element
         ]
     }
 
-    tools(): AgentTool[] {
+    async tools(): Promise<AgentTool[]> {
         const mouseTools = this.options.mouseMode === 'COORDINATES' ? [
             new MoveMouseToCoordinate(this.gridSize, this.options.model!)
         ] : [
