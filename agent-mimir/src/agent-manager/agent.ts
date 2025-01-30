@@ -182,15 +182,16 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(messageContent);
             const sharedFiles = await workspaceManager.readAttributes(rawResponseAttributes);
             let mimirAiMessage = aiMessageToMimirAiMessage(response, extractTextResponseFromMessage(messageContent), sharedFiles);
-            const responseAttributes = (await Promise.all(
-                allCreatedPlugins.map(async (plugin) => await plugin.readResponse(mimirAiMessage, rawResponseAttributes))
-            )).reduce((acc, d) => ({ ...acc, ...d }), {});
+
+            for (const plugin of allCreatedPlugins) {
+                await plugin.readResponse(mimirAiMessage, rawResponseAttributes);
+            }
 
             return {
                 messages: [messageToStore, response],
                 requestAttributes: {},
                 output: mimirAiMessage,
-                responseAttributes: responseAttributes,
+                responseAttributes: rawResponseAttributes,
                 input: null
             };
         };

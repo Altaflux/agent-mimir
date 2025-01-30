@@ -56,7 +56,7 @@ export type NextMessage = NextMessageUser | NextMessageToolResponse;
 /** 
  * Represents a user message in the conversation flow.
  */
-export  type NextMessageUser = InputAgentMessage & {type: "USER_MESSAGE"}
+export type NextMessageUser = InputAgentMessage & { type: "USER_MESSAGE" }
 
 /** 
  * Represents a tool's response message in the conversation flow.
@@ -67,8 +67,6 @@ export type NextMessageToolResponse = {
     toolName: string,
     content: ComplexMessageContent[]
 }
-
-
 
 
 /** 
@@ -90,10 +88,7 @@ export interface PluginFactory {
     name: string;
     create(context: PluginContext): Promise<AgentPlugin>
 }
-// export type PluginFactory = {
-//     name: string,
-//     create: (context: PluginContext) => Promise<MimirAgentPlugin>
-// }
+
 /**
  * Abstract base class for Mimir agent plugins.
  * Provides the core functionality and lifecycle hooks that plugins can implement.
@@ -138,10 +133,9 @@ export abstract class AgentPlugin {
      * Reads the response from the agent and processes response attributes.
      * @param aiMessage - The response message from the AI
      * @param responseAttributes - Current response attributes
-     * @returns Updated response attributes
      */
-    async readResponse(aiMessage: AiResponseMessage, responseAttributes: Record<string, any>): Promise<Record<string, any>> {
-        return {}
+    async readResponse(aiMessage: AiResponseMessage, responseAttributes: Record<string, any>): Promise<void> {
+        return;
     }
 
     /**
