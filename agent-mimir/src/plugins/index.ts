@@ -1,4 +1,3 @@
-import { StateAnnotation } from "../agent-manager/agent.js";
 import { AgentMessageToolRequest, AgentWorkspace, InputAgentMessage } from "../agent-manager/index.js";
 import { ComplexMessageContent } from "../schema.js";
 import { AgentTool } from "../tools/index.js";
@@ -82,10 +81,6 @@ export type AdditionalContent = {
     content: ComplexMessageContent[]
 }
 
-/** 
- * Represents the current state and context of the agent.
- */
-export type AgentContext = typeof StateAnnotation.State;
 
 /** 
  * Factory interface for creating Mimir agent plugins.
@@ -115,7 +110,7 @@ export abstract class MimirAgentPlugin {
      * @param nextMessage - The next message in the conversation
      * @param context - Current agent context
      */
-    async readyToProceed(nextMessage: NextMessage, context: AgentContext): Promise<void> {
+    async readyToProceed(nextMessage: NextMessage): Promise<void> {
     }
 
     /**
@@ -124,7 +119,7 @@ export abstract class MimirAgentPlugin {
      * @param context - Current agent context
      * @returns Array of additional content to be added
      */
-    async additionalMessageContent(message: InputAgentMessage, context: AgentContext): Promise<AdditionalContent[]> {
+    async additionalMessageContent(message: InputAgentMessage): Promise<AdditionalContent[]> {
         return [];
     }
 
@@ -133,7 +128,7 @@ export abstract class MimirAgentPlugin {
      * @param context - Current agent context
      * @returns System message content to be added
      */
-    async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
+    async getSystemMessages(): Promise<AgentSystemMessage> {
         return {
             content: []
         };
@@ -146,7 +141,7 @@ export abstract class MimirAgentPlugin {
      * @param responseAttributes - Current response attributes
      * @returns Updated response attributes
      */
-    async readResponse(aiMessage: AiResponseMessage, context: AgentContext, responseAttributes: Record<string, any>): Promise<Record<string, any>> {
+    async readResponse(aiMessage: AiResponseMessage, responseAttributes: Record<string, any>): Promise<Record<string, any>> {
         return {}
     }
 
@@ -162,7 +157,7 @@ export abstract class MimirAgentPlugin {
      * @param context - Current agent context
      * @returns Array of attribute descriptors
      */
-    async attributes(context: AgentContext): Promise<AttributeDescriptor[]> {
+    async attributes(): Promise<AttributeDescriptor[]> {
         return [];
     }
 

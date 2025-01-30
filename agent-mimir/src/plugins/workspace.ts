@@ -1,6 +1,6 @@
 
 import { promises as fs } from 'fs';
-import { AgentContext, AgentSystemMessage, AttributeDescriptor, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "./index.js";
+import { AgentSystemMessage, AttributeDescriptor, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "./index.js";
 import { AgentWorkspace, InputAgentMessage } from "../agent-manager/index.js";
 import { ComplexMessageContent } from '../schema.js';
 
@@ -70,7 +70,7 @@ class WorkspacePlugin extends MimirAgentPlugin {
 
 
 
-    async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
+    async getSystemMessages(): Promise<AgentSystemMessage> {
         const files = (await this.workspace.listFiles());
         const message = files.length > 0 ? `You have the following files in your workspace: ${files.join(", ")}` : "There are currently no files in your workspace.";
         return {

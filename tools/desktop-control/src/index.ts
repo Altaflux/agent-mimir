@@ -19,7 +19,6 @@ import { Coordinates, PythonServerControl, TextBlocks } from "./sam.js";
 import { ChatPromptTemplate, renderTemplate } from "@langchain/core/prompts";
 import { HumanMessage } from "@langchain/core/messages";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { ChainValues } from "@langchain/core/utils/types";
 import { AdditionalContent, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, PluginContext } from "agent-mimir/plugins";
 
 type DesktopContext = {
@@ -68,7 +67,7 @@ class DesktopControlPlugin extends MimirAgentPlugin {
         await this.pythonServer.close()
     }
 
-    async additionalMessageContent(message: NextMessageUser, inputs: ChainValues): Promise<AdditionalContent[]> {
+    async additionalMessageContent(message: NextMessageUser): Promise<AdditionalContent[]> {
         const computerImages = await this.generateComputerImagePrompt();
         return [
             {

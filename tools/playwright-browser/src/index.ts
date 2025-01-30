@@ -3,7 +3,7 @@ import { WebDriverManager } from "./driver-manager.js";
 import { WebBrowserOptions } from "./driver-manager.js";
 import { Embeddings } from "@langchain/core/embeddings";
 import { WebBrowserTool, PassValueToInput, ClickWebSiteLinkOrButton, ScrollTool } from "./tools.js";
-import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AdditionalContent, AgentContext, NextMessageUser, NextMessage } from "agent-mimir/plugins";
+import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AdditionalContent, NextMessageUser, NextMessage } from "agent-mimir/plugins";
 import { AgentTool } from "agent-mimir/tools";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { promises as fs } from "fs";
@@ -44,12 +44,12 @@ class WebBrowserPlugin extends MimirAgentPlugin {
         ];
     }
 
-    async readyToProceed(message: NextMessage, context: AgentContext): Promise<void> {
+    async readyToProceed(message: NextMessage): Promise<void> {
         await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
 
-    async additionalMessageContent(message: NextMessageUser, context: AgentContext): Promise<AdditionalContent[]> {
+    async additionalMessageContent(message: NextMessageUser): Promise<AdditionalContent[]> {
 
         if (!await this.driverManager.isActive()) {
             return []

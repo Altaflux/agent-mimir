@@ -102,12 +102,12 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                     ...inputMessage
                 } : isToolMessage(lastMessage) ?
                     langChainToolMessageToMimirHumanMessage(lastMessage) : undefined;
-            await Promise.all(allCreatedPlugins.map(p => p.readyToProceed(nextMessage!, state)));
+            await Promise.all(allCreatedPlugins.map(p => p.readyToProceed(nextMessage!,)));
 
 
 
             const pluginAttributes = (await Promise.all(
-                allCreatedPlugins.map(async (plugin) => await plugin.attributes(state))
+                allCreatedPlugins.map(async (plugin) => await plugin.attributes())
             )).flatMap(e => e);
             const fieldMapper = new ResponseFieldMapper([...pluginAttributes, ...defaultAttributes]);
             const responseFormatSystemMessage: AgentSystemMessage = {
@@ -136,7 +136,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 });
 
                 const pluginInputs = (await Promise.all(
-                    allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages(state))
+                    allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages())
                 ));
                 const systemMessage = buildSystemMessage([...pluginInputs, responseFormatSystemMessage]);
                 response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
@@ -145,7 +145,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
                 messageToStore = lastMessage;
                 const pluginInputs = (await Promise.all(
-                    allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages(state))
+                    allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages())
                 ));
                 const systemMessage = buildSystemMessage([...pluginInputs, responseFormatSystemMessage]);
                 response = await modelWithTools.invoke([systemMessage, ...state.messages]);
@@ -183,7 +183,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             const sharedFiles = await workspaceManager.readAttributes(rawResponseAttributes);
             let mimirAiMessage = aiMessageToMimirAiMessage(response, extractTextResponseFromMessage(messageContent), sharedFiles);
             const responseAttributes = (await Promise.all(
-                allCreatedPlugins.map(async (plugin) => await plugin.readResponse(mimirAiMessage, state, rawResponseAttributes))
+                allCreatedPlugins.map(async (plugin) => await plugin.readResponse(mimirAiMessage, rawResponseAttributes))
             )).reduce((acc, d) => ({ ...acc, ...d }), {});
 
             return {
@@ -307,7 +307,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         await graph.updateState(stateConfig, { messages: messagesToRemove, agentMessage: agentMessagesToRemove }, "output_convert")
     };
 
-    const executeGraph = async function* (graphInput: any): AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>  { 
+    const executeGraph = async function* (graphInput: any): AsyncGenerator<ToolResponseInfo, AgentResponse, unknown> {
 
         let lastKnownMessage: ToolMessage | undefined = undefined;
         while (true) {
@@ -447,7 +447,7 @@ async function addAdditionalContentToUserMessage(message: InputAgentMessage, plu
     const additionalContent: ComplexMessageContent[] = [];
     const persistentAdditionalContent: ComplexMessageContent[] = [];
     for (const plugin of plugins) {
-        const customizations = await plugin.additionalMessageContent(persistentMessage, state,);
+        const customizations = await plugin.additionalMessageContent(persistentMessage,);
         for (const customization of customizations) {
             if (customization.displayOnCurrentMessage) {
                 additionalContent.push(...customization.content)

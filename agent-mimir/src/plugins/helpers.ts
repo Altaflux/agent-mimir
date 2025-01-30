@@ -1,6 +1,6 @@
 
 import { z } from "zod";
-import {  AgentContext, AgentSystemMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../plugins/index.js";
+import { AgentSystemMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../plugins/index.js";
 import { AgentTool, ToolResponse } from "../tools/index.js";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { Agent, AgentMessage } from "../agent-manager/index.js";
@@ -75,7 +75,7 @@ export class HelpersPlugin extends MimirAgentPlugin {
         this.agentName = config.name;
     }
 
-    async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
+    async getSystemMessages(): Promise<AgentSystemMessage> {
 
         const helpers = [...this.helperSingleton.values()];
         const whiteList = this.communicationWhitelist ?? helpers.map((helper) => helper.name) ?? [];

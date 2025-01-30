@@ -1,4 +1,4 @@
-import { AgentContext, AgentSystemMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "./index.js";
+import { AgentSystemMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "./index.js";
 
 export class TimePluginFactory implements MimirPluginFactory {
 
@@ -12,7 +12,7 @@ export class TimePluginFactory implements MimirPluginFactory {
 
 class TimePlugin extends MimirAgentPlugin {
 
-    async getSystemMessages(context: AgentContext): Promise<AgentSystemMessage> {
+    async getSystemMessages(): Promise<AgentSystemMessage> {
         return {
             content: [
                 {
