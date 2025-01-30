@@ -12,7 +12,7 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { commandContentToBaseMessage, dividerSystemMessage, langChainToolMessageToMimirHumanMessage, lCmessageContentToContent, mergeSystemMessages, parseToolMessage, toolMessageToToolResponseInfo } from "./message-utils.js";
 import { Agent, AgentMessage, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, CreateAgentArgs, InputAgentMessage, ToolResponseInfo } from "./index.js";
-import { AgentSystemMessage, AttributeDescriptor, MimirAgentPlugin, MimirPluginFactory } from "../plugins/index.js";
+import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory } from "../plugins/index.js";
 
 
 export const StateAnnotation = Annotation.Root({
@@ -37,7 +37,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     const workspace = await config.workspaceFactory(shortName);
     const allPluginFactories = (config.plugins ?? []);
 
-    const toolPlugins: MimirPluginFactory[] = [];
+    const toolPlugins: PluginFactory[] = [];
     toolPlugins.push(new WorkspacePluginFactory());
     toolPlugins.push(new ViewPluginFactory());
     const allCreatedPlugins = await Promise.all([...allPluginFactories, ...toolPlugins].map(async factory => await factory.create({
@@ -437,7 +437,7 @@ function buildSystemMessage(agentSystemMessages: AgentSystemMessage[]) {
 }
 
 
-async function addAdditionalContentToUserMessage(message: InputAgentMessage, plugins: MimirAgentPlugin[], state: typeof StateAnnotation.State) {
+async function addAdditionalContentToUserMessage(message: InputAgentMessage, plugins: AgentPlugin[], state: typeof StateAnnotation.State) {
     const displayMessage = JSON.parse(JSON.stringify(message)) as InputAgentMessage;
     const persistentMessage = JSON.parse(JSON.stringify(message)) as InputAgentMessage;
     const spacing: ComplexMessageContent = {

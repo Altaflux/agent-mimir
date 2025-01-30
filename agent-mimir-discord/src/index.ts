@@ -16,7 +16,7 @@ import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { AgentInvoke, HandleMessageResult, IntermediateAgentResponse, OrchestratorBuilder } from "agent-mimir/communication/multi-agent";
 import { Agent, AgentResponse, ToolResponseInfo } from "agent-mimir/agent";
 import { extractAllTextFromComplexResponse } from "agent-mimir/utils/format";
-import { MimirPluginFactory } from "agent-mimir/plugins";
+import { PluginFactory } from "agent-mimir/plugins";
 import { ComplexMessageContent } from "agent-mimir/schema";
 import { LangchainToolWrapperPluginFactory } from "agent-mimir/tools/langchain";
 
@@ -40,7 +40,7 @@ export type AgentDefinition = {
         taskModel?: BaseLanguageModel;
         constitution?: string;
         visionSupport?: 'openai';
-        plugins?: MimirPluginFactory[];
+        plugins?: PluginFactory[];
         chatHistory: {
             summaryModel: BaseChatModel;
             tokenLimit?: number;

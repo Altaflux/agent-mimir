@@ -19,7 +19,7 @@ import { Coordinates, PythonServerControl, TextBlocks } from "./sam.js";
 import { ChatPromptTemplate, renderTemplate } from "@langchain/core/prompts";
 import { HumanMessage } from "@langchain/core/messages";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { AdditionalContent, MimirAgentPlugin, MimirPluginFactory, NextMessageUser, PluginContext } from "agent-mimir/plugins";
+import { AdditionalContent, AgentPlugin, PluginFactory, NextMessageUser, PluginContext } from "agent-mimir/plugins";
 
 type DesktopContext = {
     coordinates: Coordinates
@@ -30,7 +30,7 @@ export type DesktopControlOptions = {
     model?: BaseChatModel
 }
 
-export class DesktopControlPluginFactory implements MimirPluginFactory {
+export class DesktopControlPluginFactory implements PluginFactory {
 
     name: string = "desktopControl";
 
@@ -38,12 +38,12 @@ export class DesktopControlPluginFactory implements MimirPluginFactory {
 
     }
 
-    async create(context: PluginContext): Promise<MimirAgentPlugin> {
+    async create(context: PluginContext): Promise<AgentPlugin> {
         return new DesktopControlPlugin(context, this.options);
     }
 }
 
-class DesktopControlPlugin extends MimirAgentPlugin {
+class DesktopControlPlugin extends AgentPlugin {
 
     private gridSize = 4;
 

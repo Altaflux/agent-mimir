@@ -1,16 +1,16 @@
 import {  SupportedImageTypes } from "../schema.js";
 import { z } from "zod";
 import { AgentTool, ToolResponse } from "./index.js";
-import { MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../plugins/index.js";
+import { AgentPlugin, PluginFactory, PluginContext } from "../plugins/index.js";
 
-export class ViewPluginFactory implements MimirPluginFactory {
+export class ViewPluginFactory implements PluginFactory {
     name: string = "viewImages";
-    async create(context: PluginContext): Promise<MimirAgentPlugin> {
+    async create(context: PluginContext): Promise<AgentPlugin> {
         return new ViewPlugin(context);
     }
 
 }
-export class ViewPlugin extends MimirAgentPlugin {
+export class ViewPlugin extends AgentPlugin {
     constructor(private context: PluginContext) {
         super();
     }

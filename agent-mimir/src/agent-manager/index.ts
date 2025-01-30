@@ -1,5 +1,5 @@
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { AgentCommand, MimirPluginFactory } from "../plugins/index.js";
+import { AgentCommand, PluginFactory } from "../plugins/index.js";
 import { ComplexMessageContent } from "../schema.js";
 import { Tool } from "@langchain/core/tools";
 
@@ -67,7 +67,7 @@ export type CreateAgentArgs = {
     /** The language model to be used by the agent */
     model: BaseChatModel,
     /** Optional array of plugin factories to extend agent functionality */
-    plugins?: MimirPluginFactory[],
+    plugins?: PluginFactory[],
     /** Optional constitution defining agent behavior guidelines */
     constitution?: string,
     /** Optional vision support type (currently only supports 'openai') */

@@ -3,7 +3,7 @@ import { WebDriverManager } from "./driver-manager.js";
 import { WebBrowserOptions } from "./driver-manager.js";
 import { Embeddings } from "@langchain/core/embeddings";
 import { WebBrowserTool, PassValueToInput, ClickWebSiteLinkOrButton, ScrollTool } from "./tools.js";
-import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AdditionalContent, NextMessageUser, NextMessage } from "agent-mimir/plugins";
+import { AgentPlugin, PluginContext, PluginFactory, AdditionalContent, NextMessageUser, NextMessage } from "agent-mimir/plugins";
 import { AgentTool } from "agent-mimir/tools";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { promises as fs } from "fs";
@@ -15,20 +15,20 @@ export { WebDriverManager, PlaywrightDriverOptions as SeleniumDriverOptions, Web
 export { WebBrowserTool, PassValueToInput, AskSiteQuestion, ClickWebSiteLinkOrButton } from "./tools.js";
 
 
-export class WebBrowserPluginFactory implements MimirPluginFactory {
+export class WebBrowserPluginFactory implements PluginFactory {
 
     name: string = "playwright-browser";
 
     constructor(private config: WebBrowserOptions, private model: BaseLanguageModel, private embeddings: Embeddings) {
     }
 
-    async create(context: PluginContext): Promise<MimirAgentPlugin> {
+    async create(context: PluginContext): Promise<AgentPlugin> {
         return new WebBrowserPlugin(this.config, this.model, this.embeddings, context);
     }
 
 }
 
-class WebBrowserPlugin extends MimirAgentPlugin {
+class WebBrowserPlugin extends AgentPlugin {
 
     driverManager: WebDriverManager;
     toolList: AgentTool[];

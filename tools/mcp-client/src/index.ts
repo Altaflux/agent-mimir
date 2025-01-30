@@ -5,7 +5,7 @@ export { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/webso
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js"
 import { CallToolResult, EmbeddedResource, ImageContent, PromptMessage, TextContent } from "@modelcontextprotocol/sdk/types.js";
 import { jsonSchemaToZod, JsonSchema } from "./json-schema-to-zod/index.js";
-import { AgentCommand, AgentSystemMessage, CommandContent, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "agent-mimir/plugins";
+import { AgentCommand, AgentSystemMessage, CommandContent, AgentPlugin, PluginFactory, PluginContext } from "agent-mimir/plugins";
 import { AgentTool, ToolResponse } from "agent-mimir/tools";
 import { ComplexMessageContent } from "agent-mimir/schema";
 import { z } from "zod";
@@ -22,14 +22,14 @@ export type McpClientParameters = {
         transport: Transport
     }>,
 }
-export class McpClientPluginFactory implements MimirPluginFactory {
+export class McpClientPluginFactory implements PluginFactory {
     public readonly name: string = "mcp-client";
 
     constructor(
         private readonly config: McpClientParameters
     ) { }
 
-    async create(context: PluginContext): Promise<MimirAgentPlugin> {
+    async create(context: PluginContext): Promise<AgentPlugin> {
         try {
             const clientResults = await Promise.all(
                 Object.entries(this.config.servers).map(async ([clientName, config]) => {
@@ -264,7 +264,7 @@ export class McpResourceTool extends AgentTool {
 /**
  * Plugin implementation for the MCP client
  */
-export class McpPlugin extends MimirAgentPlugin {
+export class McpPlugin extends AgentPlugin {
     constructor(
         private readonly clients: { client: Client, clientName: string, description?: string }[],
         private readonly mcpTools: AgentTool[],

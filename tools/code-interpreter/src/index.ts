@@ -1,4 +1,4 @@
-import { MimirAgentPlugin, PluginContext, MimirPluginFactory, AgentCommand } from "agent-mimir/plugins";
+import { AgentPlugin, PluginContext, PluginFactory, AgentCommand } from "agent-mimir/plugins";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
 import { spawn } from 'child_process';
@@ -13,16 +13,16 @@ type CodeInterpreterArgs = {
 }
 
 
-export class CodeInterpreterPluginFactory implements MimirPluginFactory {
+export class CodeInterpreterPluginFactory implements PluginFactory {
 
     name: string = "codeInterpreter";
 
-    async create(context: PluginContext): Promise<MimirAgentPlugin> {
+    async create(context: PluginContext): Promise<AgentPlugin> {
         return new CodeInterpreterPlugin({ workSpace: context.workspace });
     }
 }
 
-class CodeInterpreterPlugin extends MimirAgentPlugin {
+class CodeInterpreterPlugin extends AgentPlugin {
     private workSpace?: AgentWorkspace;
     constructor(private args: CodeInterpreterArgs) {
         super();

@@ -1,6 +1,6 @@
 
 import { OrchestratorBuilder } from "agent-mimir/communication/multi-agent";
-import { MimirPluginFactory } from "agent-mimir/plugins";
+import { PluginFactory } from "agent-mimir/plugins";
 import chalk from "chalk";
 import { Tool } from "@langchain/core/tools";
 import { chatWithAgent } from "./chat.js";
@@ -21,7 +21,7 @@ export type AgentDefinition = {
         chatModel: BaseChatModel;
         taskModel?: BaseLanguageModel;
         constitution?: string;
-        plugins?: MimirPluginFactory[];
+        plugins?: PluginFactory[];
         visionSupport?: 'openai';
         chatHistory?: {
             summaryModel?: BaseChatModel;

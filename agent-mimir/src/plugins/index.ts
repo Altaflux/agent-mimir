@@ -86,15 +86,19 @@ export type AdditionalContent = {
  * Factory interface for creating Mimir agent plugins.
  * Provides a standardized way to instantiate plugins with context.
  */
-export interface MimirPluginFactory {
+export interface PluginFactory {
     name: string;
-    create(context: PluginContext): Promise<MimirAgentPlugin>
+    create(context: PluginContext): Promise<AgentPlugin>
 }
+// export type PluginFactory = {
+//     name: string,
+//     create: (context: PluginContext) => Promise<MimirAgentPlugin>
+// }
 /**
  * Abstract base class for Mimir agent plugins.
  * Provides the core functionality and lifecycle hooks that plugins can implement.
  */
-export abstract class MimirAgentPlugin {
+export abstract class AgentPlugin {
 
     /**
      * Initializes the plugin.

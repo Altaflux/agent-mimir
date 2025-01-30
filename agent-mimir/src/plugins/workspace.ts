@@ -1,16 +1,17 @@
 
 import { promises as fs } from 'fs';
-import { AgentSystemMessage, AttributeDescriptor, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "./index.js";
+import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory, PluginContext } from "./index.js";
 import { AgentWorkspace, InputAgentMessage } from "../agent-manager/index.js";
 import { ComplexMessageContent } from '../schema.js';
 
-export class WorkspacePluginFactory implements MimirPluginFactory {
+export class WorkspacePluginFactory implements PluginFactory {
     name: string = "workspace";
 
-    async create(context: PluginContext): Promise<MimirAgentPlugin> {
+    async create(context: PluginContext): Promise<AgentPlugin> {
         return new WorkspacePlugin(context.workspace);
     }
 }
+
 export class WorkspanceManager {
 
     private workspace: AgentWorkspace;
@@ -53,7 +54,7 @@ export class WorkspanceManager {
 
 
 }
-class WorkspacePlugin extends MimirAgentPlugin {
+class WorkspacePlugin extends AgentPlugin {
 
     private workspace: AgentWorkspace;
 

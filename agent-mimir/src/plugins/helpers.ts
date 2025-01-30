@@ -1,6 +1,6 @@
 
 import { z } from "zod";
-import { AgentSystemMessage, MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../plugins/index.js";
+import { AgentSystemMessage, AgentPlugin, PluginFactory, PluginContext } from "../plugins/index.js";
 import { AgentTool, ToolResponse } from "../tools/index.js";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { Agent, AgentMessage } from "../agent-manager/index.js";
@@ -8,18 +8,18 @@ import { Agent, AgentMessage } from "../agent-manager/index.js";
 
 export type HelperPluginConfig = {
     name: string,
-    helperSingleton:  ReadonlyMap<string, Agent>,
+    helperSingleton: ReadonlyMap<string, Agent>,
     communicationWhitelist: string[] | null,
 }
 
-export class HelpersPluginFactory implements MimirPluginFactory {
+export class HelpersPluginFactory implements PluginFactory {
 
     name: string = "helpers";
 
     constructor(private config: HelperPluginConfig) {
     }
 
-    async create(context: PluginContext): Promise<MimirAgentPlugin> {
+    async create(context: PluginContext): Promise<AgentPlugin> {
 
         return new HelpersPlugin(this.config);
     }
@@ -54,7 +54,7 @@ class HelperTool extends AgentTool {
                     text: message
                 }
             ],
-             sharedFiles: filesToSend,
+            sharedFiles: filesToSend,
         }
         return result;
     }
@@ -62,9 +62,9 @@ class HelperTool extends AgentTool {
     description: string = `Talk to a helper.`;
 
 }
-export class HelpersPlugin extends MimirAgentPlugin {
+export class HelpersPlugin extends AgentPlugin {
 
-    private helperSingleton:  ReadonlyMap<string, Agent>;
+    private helperSingleton: ReadonlyMap<string, Agent>;
     private communicationWhitelist: string[] | null;
     private agentName: string;
 

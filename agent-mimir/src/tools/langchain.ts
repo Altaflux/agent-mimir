@@ -1,7 +1,7 @@
 import { StructuredTool } from "langchain/tools";
 import { AgentTool, ToolResponse } from "./index.js";
 import { z } from "zod";
-import { MimirAgentPlugin, MimirPluginFactory, PluginContext } from "../plugins/index.js";
+import { AgentPlugin, PluginFactory, PluginContext } from "../plugins/index.js";
 
 
 class LangchainToolToMimirTool extends AgentTool {
@@ -27,14 +27,14 @@ class LangchainToolToMimirTool extends AgentTool {
 /**
  * Factory class for creating LangChain tool wrapper plugins
  */
-export class LangchainToolWrapperPluginFactory implements MimirPluginFactory {
+export class LangchainToolWrapperPluginFactory implements PluginFactory {
     readonly name: string;
 
     constructor(private readonly tool: StructuredTool) {
         this.name = tool.name;
     }
 
-    async create(context: PluginContext): Promise<MimirAgentPlugin> {
+    async create(context: PluginContext): Promise<AgentPlugin> {
         return new LangchainToolWrapper(this.tool);
     }
 }
@@ -42,7 +42,7 @@ export class LangchainToolWrapperPluginFactory implements MimirPluginFactory {
 /**
  * Plugin class that wraps LangChain tools for use with Mimir
  */
-class LangchainToolWrapper extends MimirAgentPlugin {
+class LangchainToolWrapper extends AgentPlugin {
     constructor(private readonly tool: StructuredTool) {
         super();
     }
@@ -50,5 +50,5 @@ class LangchainToolWrapper extends MimirAgentPlugin {
     tools(): Promise<any[]> | any[] {
         return [new LangchainToolToMimirTool(this.tool)];
     }
-    
+
 }
