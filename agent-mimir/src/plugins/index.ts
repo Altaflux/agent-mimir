@@ -80,7 +80,7 @@ export abstract class MimirAgentPlugin {
         return {}
     }
 
-    async clear(): Promise<void> {
+    async reset(): Promise<void> {
     }
 
     async attributes(context: AgentContext): Promise<AttributeDescriptor[]> {

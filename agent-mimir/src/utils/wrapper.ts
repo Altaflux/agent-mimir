@@ -1,12 +1,11 @@
 import { AgentTool, ToolResponse } from "../tools/index.js";
 import { z } from "zod";
 import { v4 } from "uuid";
-import {  ComplexMessageContent } from "../schema.js";
+import { ComplexMessageContent } from "../schema.js";
 import { StructuredTool, ToolRunnableConfig } from "@langchain/core/tools";
 import { complexResponseToLangchainMessageContent } from "./format.js";
 import { Command } from "@langchain/langgraph";
-import { ToolCall, ToolMessage } from "@langchain/core/messages/tool";
-import { RunnableConfig } from "@langchain/core/runnables";
+import { ToolMessage } from "@langchain/core/messages/tool";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { AgentMessage } from "../agent-manager/index.js";
 
@@ -21,7 +20,7 @@ export class MimirToolToLangchainTool extends StructuredTool {
         super();
     }
 
-    protected async _call(arg: z.input<this["schema"]>,  runManager?: CallbackManagerForToolRun, parentConfig?: ToolRunnableConfig): Promise<any> {
+    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun, parentConfig?: ToolRunnableConfig): Promise<any> {
         const response = await this.tool.call(arg);
         const toolCallId = parentConfig?.toolCall?.id!
         if (isUserAgentMessage(response)) {

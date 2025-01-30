@@ -64,7 +64,7 @@ class DesktopControlPlugin extends MimirAgentPlugin {
         await this.pythonServer.init()
     }
 
-    async clear(): Promise<void> {
+    async reset(): Promise<void> {
         await this.pythonServer.close()
     }
 

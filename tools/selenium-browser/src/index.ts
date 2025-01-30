@@ -116,7 +116,7 @@ class WebBrowserPlugin extends MimirAgentPlugin {
 
     }
 
-    async clear(): Promise<void> {
+    async reset(): Promise<void> {
         await this.driverManager.close();
     }
 

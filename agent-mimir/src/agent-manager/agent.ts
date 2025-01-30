@@ -296,7 +296,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
 
     const reset = async () => {
-        await Promise.all(allCreatedPlugins.map(async plugin => await plugin.clear()));
+        await Promise.all(allCreatedPlugins.map(async plugin => await plugin.reset()));
         await workspace.reset();
         const state = await graph.getState(stateConfig);
         const messages: BaseMessage[] = state.values["messages"] ?? [];
