@@ -276,7 +276,9 @@ export class McpPlugin extends AgentPlugin {
     async getSystemMessages(): Promise<AgentSystemMessage> {
 
         const resourcesTemplate: string = (await Promise.all(this.clients.map(async c => {
-            const serverInformation = `MCP Server: "${c.clientName}" ${c.description ? ` Description: "${c.description}"` : ""}`;
+
+            const instructions = (c.description ?? "" + " " + c.client.getInstructions() ?? "").trim();
+            const serverInformation = `MCP Server: "${c.clientName}" ${instructions.length > 0 ? ` Description: "${instructions}"` : ""}`;
             const resources = await c.client.listResources({});
 
             if (!resources.resources.length) {
