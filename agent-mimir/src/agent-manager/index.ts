@@ -1,9 +1,6 @@
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { AgentCommand, PluginFactory } from "../plugins/index.js";
 import { ComplexMessageContent } from "../schema.js";
-import { Tool } from "@langchain/core/tools";
-
-
 /**
  * Represents a tool use request from an agent.
  * Contains information about which tool to use and its input parameters.
