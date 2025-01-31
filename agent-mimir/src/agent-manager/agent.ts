@@ -403,7 +403,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
                 graphInput = args.message != null ? {
                     input: args.message,
-                    requestAttributes: args.requestAttributes ?? {},
+                    requestAttributes: {},
                     responseAttributes: {},
                     noMessagesInTool: args.noMessagesInTool ?? false,
                 } : null;

@@ -61,7 +61,6 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
     let result: IteratorResult<IntermediateAgentResponse, HandleMessageResult>;
     let generator = agentManager.handleMessage((agent) => agent.call({
       message: parsedMessage.message,
-      requestAttributes: {},
     }));
     while (!(result = await generator.next()).done) {
       intermediateResponseHandler(result.value);
@@ -78,7 +77,6 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
         if (continousMode) {
           generator = agentManager.handleMessage((agent) => agent.call({
             message: null,
-            requestAttributes: {},
           }));
         } else {
           let answers = await Promise.race([new Promise<{ message: string }>((resolve, reject) => {
@@ -90,7 +88,6 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
           if (answers.message.toLowerCase() === "y" || answers.message === "") {
             generator = agentManager.handleMessage((agent) => agent.call({
               message: null,
-              requestAttributes: {},
             }));
           } else {
             const parsedMessage = extractContentAndText(answers.message);
@@ -99,8 +96,7 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
               continue topLoop;
             }
             generator = agentManager.handleMessage((agent) => agent.call({
-              message: parsedMessage.message,
-              requestAttributes: {},
+              message: parsedMessage.message
             }));
           }
         }

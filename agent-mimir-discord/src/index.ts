@@ -259,8 +259,7 @@ export const run = async () => {
                 const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
                 await sendResponse(toolResponse, []);
                 const generator = chatAgentHandle.handleMessage((agent) => agent.call({
-                    message: null,
-                    requestAttributes: {}
+                    message: null
                 }));
                 while (!(result = await generator.next()).done) {
                     intermediateResponseHandler(result.value);
@@ -293,8 +292,7 @@ export const run = async () => {
                             }
                         ],
                         sharedFiles: loadedFiles
-                    },
-                    requestAttributes: {}
+                    }
                 })
 
                 let result: IteratorResult<ToolResponseInfo, AgentResponse>;

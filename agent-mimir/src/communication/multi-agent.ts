@@ -18,8 +18,7 @@ export type IntermediateAgentResponse = ({
 export type AgentToAgentMessage = {
     sourceAgent: string,
     destinationAgent: string,
-    content: InputAgentMessage,
-    responseAttributes: Record<string, any>
+    content: InputAgentMessage
 }
 export type HandleMessageResult = ({
     type: "agentResponse",
@@ -34,7 +33,6 @@ export type AgentToolRequestTwo = AgentMessageToolRequest & {
 
 export type AgentUserMessage = {
     content: InputAgentMessage,
-    responseAttributes: Record<string, any>
 }
 
 type MultiAgentDefinition = CreateAgentArgs & { communicationWhitelist?: string[] | boolean }
@@ -148,7 +146,6 @@ export class MultiAgentCommunicationOrchestrator {
             let generator = pendingMessage
                 ? this.currentAgent.call({
                     message: pendingMessage.content,
-                    requestAttributes: pendingMessage.responseAttributes,
                     noMessagesInTool: true
                 })
                 : msg(this.currentAgent);
@@ -162,18 +159,16 @@ export class MultiAgentCommunicationOrchestrator {
                     ...result.value
                 };
             }
-            let chainResponse = result.value
+            let graphResponse = result.value;
 
-
-            if (chainResponse.type == "agentResponse") {
+            if (graphResponse.type == "agentResponse") {
                 const sourceAgent = this.currentAgent.name;
-                const routedMessage = await handleMessage(chainResponse, this.agentStack);
+                const routedMessage = await handleMessage(graphResponse, this.agentStack);
                 this.currentAgent = routedMessage.currentAgent;
                 if (routedMessage.conversationComplete) {
                     return {
                         type: "agentResponse",
-                        content: chainResponse.output,
-                        responseAttributes: chainResponse.responseAttributes
+                        content: graphResponse.output,
                     };
                 } else {
                     pendingMessage = routedMessage.pendingMessage;
@@ -181,16 +176,15 @@ export class MultiAgentCommunicationOrchestrator {
                         type: "agentToAgentMessage",
                         sourceAgent: sourceAgent!,
                         destinationAgent: this.currentAgent.name,
-                        content: chainResponse.output,
-                        responseAttributes: chainResponse.responseAttributes
+                        content: graphResponse.output,
                     }
                 }
             } else {
                 return {
                     type: "toolRequest",
                     callingAgent: this.currentAgent.name,
-                    content: chainResponse.output.content,
-                    toolCalls: chainResponse.output.toolCalls,
+                    content: graphResponse.output.content,
+                    toolCalls: graphResponse.output.toolCalls,
                 }
             }
         }

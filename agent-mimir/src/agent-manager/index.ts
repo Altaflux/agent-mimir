@@ -91,13 +91,11 @@ export interface Agent {
      * Primary method for interacting with the agent.
      * Processes input messages and generates responses or tool requests.
      * @param args.message - The input message to process, can be null
-     * @param args.requestAttributes - Optional attributes to modify request behavior
      * @param args.noMessagesInTool - Optional flag to prevent message processing in tools
      * @returns AsyncGenerator yielding tool responses and final agent response
      */
     call: (args: {
-        message: InputAgentMessage | null, 
-        requestAttributes?: Record<string, any>, 
+        message: InputAgentMessage | null,
         noMessagesInTool?: boolean
     }) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>,
     /**
