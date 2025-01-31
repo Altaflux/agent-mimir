@@ -68,7 +68,6 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         const response: AgentUserMessageResponse = {
             type: "agentResponse",
             output: aum,
-            responseAttributes: {}
         }
         const humanReview = interrupt<
             AgentUserMessageResponse,

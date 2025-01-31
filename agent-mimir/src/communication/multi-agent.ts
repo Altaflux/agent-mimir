@@ -3,11 +3,9 @@ import { Agent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse
 import { HelpersPluginFactory } from "../plugins/helpers.js";
 
 type PendingMessage = {
-    responseAttributes: Record<string, any>,
     content: InputAgentMessage;
 }
 export type AgentInvoke = (agent: Agent,) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>;
-
 
 export type IntermediateAgentResponse = ({
     type: "agentToAgentMessage",
@@ -20,6 +18,7 @@ export type AgentToAgentMessage = {
     destinationAgent: string,
     content: InputAgentMessage
 }
+
 export type HandleMessageResult = ({
     type: "agentResponse",
 
@@ -38,10 +37,11 @@ export type AgentUserMessage = {
 type MultiAgentDefinition = CreateAgentArgs & { communicationWhitelist?: string[] | boolean }
 
 export class OrchestratorBuilder {
-    public readonly agentManager: Map<string, Agent> = new Map();
-    constructor() {
+    private readonly agentManager: Map<string, Agent> = new Map();
 
+    constructor() {
     }
+
     async createAgent(args: MultiAgentDefinition): Promise<Agent> {
 
         const canCommunicateWithAgents = args.communicationWhitelist ?? false;
@@ -98,13 +98,13 @@ export class MultiAgentCommunicationOrchestrator {
 
     async* handleMessage(msg: AgentInvoke): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
 
-        const handleMessage = async (chainResponse: AgentUserMessageResponse, agentStack: Agent[]): Promise<{
+        const handleMessage = async (graphResponse: AgentUserMessageResponse, agentStack: Agent[]): Promise<{
             conversationComplete: boolean,
             currentAgent: Agent,
             pendingMessage: PendingMessage | undefined
         }> => {
-            if (chainResponse.output.destinationAgent) {
-                const newAgent = this.agentManager.get(chainResponse.output.destinationAgent);
+            if (graphResponse.output.destinationAgent) {
+                const newAgent = this.agentManager.get(graphResponse.output.destinationAgent);
                 if (!newAgent) {
                     return {
                         conversationComplete: false,
@@ -112,10 +112,10 @@ export class MultiAgentCommunicationOrchestrator {
                         pendingMessage: {
                             content: {
                                 content: [
-                                    { type: "text", text: `Agent ${chainResponse.output.destinationAgent} does not exist.` }
+                                    { type: "text", text: `Agent ${graphResponse.output.destinationAgent} does not exist.` }
                                 ]
                             },
-                            responseAttributes: {}
+
                         }
                     }
                 }
@@ -124,8 +124,7 @@ export class MultiAgentCommunicationOrchestrator {
                     conversationComplete: false,
                     currentAgent: newAgent,
                     pendingMessage: {
-                        content: chainResponse.output,
-                        responseAttributes: chainResponse.responseAttributes
+                        content: graphResponse.output
                     }
                 }
             } else {
@@ -134,8 +133,7 @@ export class MultiAgentCommunicationOrchestrator {
                     conversationComplete: isFinalUser,
                     currentAgent: isFinalUser ? this.currentAgent : agentStack.pop()!,
                     pendingMessage: {
-                        content: chainResponse.output,
-                        responseAttributes: chainResponse.responseAttributes
+                        content: graphResponse.output
                     }
                 }
             }

@@ -136,8 +136,6 @@ export type AgentUserMessageResponse = {
     type: "agentResponse",
     /** The message content */
     output: AgentMessage,
-    /** Additional attributes for the response */
-    responseAttributes: Record<string, any>
 }
 
 /**
