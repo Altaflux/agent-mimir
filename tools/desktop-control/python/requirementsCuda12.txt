@@ -13,6 +13,6 @@ matplotlib
 tensorflow
 
 
---extra-index-ur https://download.pytorch.org/whl/cu121
+--extra-index-ur https://download.pytorch.org/whl/cu126
 torch
 torchvision

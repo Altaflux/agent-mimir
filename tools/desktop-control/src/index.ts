@@ -68,14 +68,15 @@ class DesktopControlPlugin extends AgentPlugin {
     }
 
     async additionalMessageContent(message: NextMessageUser): Promise<AdditionalContent[]> {
-        const computerImages = await this.generateComputerImagePrompt();
-        return [
-            {
-                saveToChatHistory: false,
-                displayOnCurrentMessage: true,
-                content: computerImages
-            }
-        ]
+        // const computerImages = await this.generateComputerImagePrompt();
+        // return [
+        //     {
+        //         saveToChatHistory: false,
+        //         displayOnCurrentMessage: true,
+        //         content: computerImages
+        //     }
+        // ]
+        return []
     }
 
     async generateComputerImagePrompt(): Promise<ComplexMessageContent[]> {
@@ -140,6 +141,7 @@ The screen's image includes labels of white boxes with numbers on top of element
 
         return [
             ...mouseTools,
+            new GetImageOfDesktop(async () => {return await this.generateComputerImagePrompt()}),
             new ClickPositionOnDesktop(),
             new TypeTextOnDesktop(),
             new TypeOnDesktop(),
@@ -555,6 +557,21 @@ class MoveMouseToCoordinate extends AgentTool {
     //     }
 }
 
+
+class GetImageOfDesktop extends AgentTool {
+    schema = z.object({});
+    name: string = "getComputersScreenImage";
+
+    description: string = "Get the image of the computer screen. Use this tool to get the image of the computer screen, this image can be used to identify elements on the screen, move the mouse, click, and type text.";
+
+    constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>) {
+        super();
+    }
+    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
+        return await this.getScreenFunc();
+    }
+
+}
 class ClickPositionOnDesktop extends AgentTool {
 
     schema = z.object({
