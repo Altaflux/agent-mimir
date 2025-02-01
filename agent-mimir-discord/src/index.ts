@@ -17,9 +17,9 @@ import { AgentInvoke, HandleMessageResult, IntermediateAgentResponse, Orchestrat
 import { Agent, AgentResponse, ToolResponseInfo } from "agent-mimir/agent";
 import { extractAllTextFromComplexResponse } from "agent-mimir/utils/format";
 import { PluginFactory } from "agent-mimir/plugins";
-import { ComplexMessageContent } from "agent-mimir/schema";
+import { ComplexMessageContent, ImageMessageContent } from "agent-mimir/schema";
 import { LangchainToolWrapperPluginFactory } from "agent-mimir/tools/langchain";
-
+import { file } from 'tmp-promise';
 function splitStringInChunks(str: string) {
     const chunkSize = 1900;
     let chunks = [];
@@ -211,7 +211,7 @@ export const run = async () => {
             });
 
             messageHandler(agentInvoke, async (message, attachments?: string[]) => {
-                await sendDiscordResponseFromCommand(interaction, message, attachments);
+                await sendDiscordResponseFromCommand(interaction, message.message, attachments);
             })
         }
 
@@ -222,7 +222,11 @@ export const run = async () => {
         let toolCallback: FunctionResponseCallBack = async (call) => {
             const formattedResponse = extractAllTextFromComplexResponse(call.response).substring(0, 3000);
             const toolResponse = `Agent: \`${call.agentName}\`  \n---\nCalled function: \`${call.name}\` \nResponded with: \n\`\`\`${formattedResponse}\`\`\``;
-            await sendResponse(toolResponse);
+            const images = await imagesToFiles(call.response);
+            await sendResponse({
+                message: toolResponse,
+                images: images
+            });
         };
         let intermediateResponseHandler = async (chainResponse: IntermediateAgentResponse) => {
             if (chainResponse.type === "toolResponse") {
@@ -235,7 +239,10 @@ export const run = async () => {
                 const stringResponse = extractAllTextFromComplexResponse(chainResponse.content.content);
                 const discordMessage = `\`${chainResponse.sourceAgent}\` is sending a message to \`${chainResponse.destinationAgent}\`:\n\`\`\`${stringResponse}\`\`\`` +
                     `\nFiles provided: ${chainResponse.content.sharedFiles?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
-                await sendResponse(discordMessage, chainResponse.content.sharedFiles?.map((f: any) => f.url));
+                await sendResponse({
+                    message: discordMessage,
+                    attachments: chainResponse.content.sharedFiles?.map((f: any) => f.url)
+                });
             }
         };
 
@@ -248,7 +255,10 @@ export const run = async () => {
 
         if (result.value.type === "agentResponse") {
             const stringResponse = extractAllTextFromComplexResponse(result.value.content.content);
-            await sendResponse(stringResponse, result.value.content.sharedFiles?.map((f: any) => f.url));
+            await sendResponse({
+                message: stringResponse,
+                attachments: result.value.content.sharedFiles?.map((f: any) => f.url)
+            });
             return
         } else {
             while (result.value.type === "toolRequest") {
@@ -257,7 +267,9 @@ export const run = async () => {
                 }).join("\n");
                 const stringResponse = extractAllTextFromComplexResponse(result.value.content);
                 const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
-                await sendResponse(toolResponse, []);
+                await sendResponse({
+                    message: toolResponse
+                });
                 const generator = chatAgentHandle.handleMessage((agent) => agent.call({
                     message: null
                 }));
@@ -266,7 +278,10 @@ export const run = async () => {
                 }
             }
             const stringResponse = extractAllTextFromComplexResponse(result.value.content.content);
-            await sendResponse(stringResponse, result.value.content.sharedFiles?.map((f: any) => f.url));
+            await sendResponse({
+                message: stringResponse,
+                attachments: result.value.content.sharedFiles?.map((f: any) => f.url)
+            });
         }
     }
     client.on(Events.MessageCreate, async msg => {
@@ -285,7 +300,7 @@ export const run = async () => {
                 //const messageToSend = { message: messageToAi, sharedFiles: loadedFiles };
                 const generator = agent.call({
                     message: {
-                        content:[
+                        content: [
                             {
                                 type: "text",
                                 text: messageToAi
@@ -307,8 +322,8 @@ export const run = async () => {
             if (msg.channel.type !== ChannelType.DM && !msg.mentions.has(client.user!)) {
                 return;
             }
-            messageHandler(agentInvoke, async (message: string, attachments?: string[]) => {
-                await sendDiscordResponse(msg, message, attachments);
+            messageHandler(agentInvoke, async (args) => {
+                await sendDiscordResponse(msg, args.message, args.attachments, args.images);
             });
         } catch (e) {
             console.error("An error occured while processing a message.", e)
@@ -334,15 +349,18 @@ export type FunctionResponseCallBack = (toolCalls: {
 
 
 
-type SendResponse = (message: string, attachments?: string[]) => Promise<void>
+type SendResponse = (args: {
+    message: string, attachments?: string[], images?: string[]
+}) => Promise<void>
 
-async function sendDiscordResponse(msg: Message<boolean>, message: string, attachments?: string[]) {
+async function sendDiscordResponse(msg: Message<boolean>, message: string, attachments?: string[], images?: string[]) {
     const chunks = splitStringInChunks(message);
     for (let i = 0; i < chunks.length; i++) {
         const files = (i === chunks.length - 1) ? (attachments ?? []) : [];
+        const imageFiles = (i === chunks.length - 1) ? (images ?? []) : [];
         await msg.reply({
             content: chunks[i],
-            files: files
+            files: [...files, ...imageFiles]
         });
     }
 }
@@ -356,4 +374,35 @@ async function sendDiscordResponseFromCommand(msg: ChatInputCommandInteraction<C
             files: files
         });
     }
+}
+
+async function imagesToFiles(images: ComplexMessageContent[]): Promise<string[]> {
+
+
+    const imageUlrs = images.filter(i => i.type === "image_url").map(i => (i as ImageMessageContent).image_url);
+    const imagesPath = await Promise.all(imageUlrs.map(async (image) => { return await saveImageFromDataUrl(image.url, image.url); }));
+    return imagesPath;
+}
+
+async function saveImageFromDataUrl(dataUrl: string, outputFileName: string): Promise<string> {
+    const regex = /^data:image\/(png|jpeg);base64,(.+)$/;
+    const matches = dataUrl.match(regex);
+
+    if (!matches) {
+        throw new Error('Invalid image data URL.');
+    }
+
+    const [, imageType, base64Data] = matches;
+
+    const imageBuffer = Buffer.from(base64Data, 'base64');
+
+
+    const filePath = `${outputFileName}.${imageType}`;
+
+    const { fd, path, cleanup } = await file({ postfix: `.${imageType}` });
+
+    await fs.writeFile(path, imageBuffer);
+
+    console.log(`Image saved to ${filePath}`);
+    return path;
 }
