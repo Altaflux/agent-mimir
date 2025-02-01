@@ -380,11 +380,11 @@ async function imagesToFiles(images: ComplexMessageContent[]): Promise<string[]>
 
 
     const imageUlrs = images.filter(i => i.type === "image_url").map(i => (i as ImageMessageContent).image_url);
-    const imagesPath = await Promise.all(imageUlrs.map(async (image) => { return await saveImageFromDataUrl(image.url, image.url); }));
+    const imagesPath = await Promise.all(imageUlrs.map(async (image) => { return await saveImageFromDataUrl(image.url); }));
     return imagesPath;
 }
 
-async function saveImageFromDataUrl(dataUrl: string, outputFileName: string): Promise<string> {
+async function saveImageFromDataUrl(dataUrl: string): Promise<string> {
     const regex = /^data:image\/(png|jpeg);base64,(.+)$/;
     const matches = dataUrl.match(regex);
 
@@ -396,13 +396,10 @@ async function saveImageFromDataUrl(dataUrl: string, outputFileName: string): Pr
 
     const imageBuffer = Buffer.from(base64Data, 'base64');
 
-
-    const filePath = `${outputFileName}.${imageType}`;
-
     const { fd, path, cleanup } = await file({ postfix: `.${imageType}` });
 
     await fs.writeFile(path, imageBuffer);
 
-    console.log(`Image saved to ${filePath}`);
+    console.log(`Image saved to ${path}`);
     return path;
 }
