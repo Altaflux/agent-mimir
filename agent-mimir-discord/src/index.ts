@@ -273,37 +273,43 @@ export const run = async () => {
             return
         } else {
 
-
-            const toolCalls = (result.value.toolCalls ?? []).map(tr => {
-                return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
-            }).join("\n");
-            const stringResponse = extractAllTextFromComplexResponse(result.value.content);
-            const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
-            await sendResponse({
-                message: `${toolResponse}\n\n \`\`\`DO YOU WANT TO CONTINUE??\`\`\``
-            });
-            return;
-            // while (result.value.type === "toolRequest") {
-            //     const toolCalls = (result.value.toolCalls ?? []).map(tr => {
-            //         return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
-            //     }).join("\n");
-            //     const stringResponse = extractAllTextFromComplexResponse(result.value.content);
-            //     const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
-            //     await sendResponse({
-            //         message: toolResponse
-            //     });
-            //     const generator = chatAgentHandle.handleMessage((agent) => agent.call({
-            //         message: null
-            //     }));
-            //     while (!(result = await generator.next()).done) {
-            //         intermediateResponseHandler(result.value);
-            //     }
-            // }
-            // const stringResponse = extractAllTextFromComplexResponse(result.value.content.content);
-            // await sendResponse({
-            //     message: stringResponse,
-            //     attachments: result.value.content.sharedFiles?.map((f: any) => f.url)
-            // });
+            if (agentConfig.continuousMode) {
+                while (result.value.type === "toolRequest") {
+                    const toolCalls = (result.value.toolCalls ?? []).map(tr => {
+                        return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
+                    }).join("\n");
+                    const stringResponse = extractAllTextFromComplexResponse(result.value.content);
+                    const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
+                    await sendResponse({
+                        message: toolResponse
+                    });
+                    const generator = chatAgentHandle.handleMessage((agent) => agent.call({
+                        message: null
+                    }));
+                    while (!(result = await generator.next()).done) {
+                        intermediateResponseHandler(result.value);
+                    }
+                }
+                const stringResponse = extractAllTextFromComplexResponse(result.value.content.content);
+                await sendResponse({
+                    message: stringResponse,
+                    attachments: result.value.content.sharedFiles?.map((f: any) => f.url)
+                });
+                return;
+            } else {
+                const toolCalls = (result.value.toolCalls ?? []).map(tr => {
+                    return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
+                }).join("\n");
+                const stringResponse = extractAllTextFromComplexResponse(result.value.content);
+                const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
+                await sendResponse({
+                    message: `${toolResponse}`
+                });
+                await sendResponse({
+                    message: `\`\`\`DO YOU WANT TO CONTINUE??\`\`\``
+                });
+                return;
+            }
         }
     }
     client.on(Events.MessageCreate, async msg => {
