@@ -143,6 +143,9 @@ export const run = async () => {
     const resetCommand = new SlashCommandBuilder().setName('reset')
         .setDescription('Resets the agent to a clean state.');
 
+    const continueCommand = new SlashCommandBuilder().setName('continue')
+        .setDescription('Continues the conversation with the agent.');
+
     const agentCommands = mainAgent.commands.map(c => {
         const discordCommand = new SlashCommandBuilder().setName(c.name);
         if (c.description) {
@@ -162,7 +165,7 @@ export const run = async () => {
         return discordCommand;
     })
 
-    const commands = [resetCommand, ...agentCommands];
+    const commands = [continueCommand, resetCommand, ...agentCommands];
 
 
     client.on('ready', async () => {
@@ -193,6 +196,14 @@ export const run = async () => {
             }
             await interaction.editReply('The agents have been reset!');
         }
+        if (interaction.commandName === 'continue') {
+            const agentInvoke: AgentInvoke = (agent) => agent.call({
+                message: null
+            });
+            messageHandler(agentInvoke, async (message) => {
+                await sendDiscordResponseFromCommand(interaction, message.message, message.attachments, message.images);
+            })
+        }
 
         if (mainAgent.commands.map(c => c.name).includes(interaction.commandName)) {
             let commandArguments = interaction.options.data.reduce((l, r) => {
@@ -210,8 +221,8 @@ export const run = async () => {
                 }
             });
 
-            messageHandler(agentInvoke, async (message, attachments?: string[]) => {
-                await sendDiscordResponseFromCommand(interaction, message.message, attachments);
+            messageHandler(agentInvoke, async (message) => {
+                await sendDiscordResponseFromCommand(interaction, message.message, message.attachments, message.images);
             })
         }
 
@@ -261,27 +272,38 @@ export const run = async () => {
             });
             return
         } else {
-            while (result.value.type === "toolRequest") {
-                const toolCalls = (result.value.toolCalls ?? []).map(tr => {
-                    return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
-                }).join("\n");
-                const stringResponse = extractAllTextFromComplexResponse(result.value.content);
-                const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
-                await sendResponse({
-                    message: toolResponse
-                });
-                const generator = chatAgentHandle.handleMessage((agent) => agent.call({
-                    message: null
-                }));
-                while (!(result = await generator.next()).done) {
-                    intermediateResponseHandler(result.value);
-                }
-            }
-            const stringResponse = extractAllTextFromComplexResponse(result.value.content.content);
+
+
+            const toolCalls = (result.value.toolCalls ?? []).map(tr => {
+                return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
+            }).join("\n");
+            const stringResponse = extractAllTextFromComplexResponse(result.value.content);
+            const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
             await sendResponse({
-                message: stringResponse,
-                attachments: result.value.content.sharedFiles?.map((f: any) => f.url)
+                message: `${toolResponse}\n\n \`\`\`DO YOU WANT TO CONTINUE??\`\`\``
             });
+            return;
+            // while (result.value.type === "toolRequest") {
+            //     const toolCalls = (result.value.toolCalls ?? []).map(tr => {
+            //         return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
+            //     }).join("\n");
+            //     const stringResponse = extractAllTextFromComplexResponse(result.value.content);
+            //     const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
+            //     await sendResponse({
+            //         message: toolResponse
+            //     });
+            //     const generator = chatAgentHandle.handleMessage((agent) => agent.call({
+            //         message: null
+            //     }));
+            //     while (!(result = await generator.next()).done) {
+            //         intermediateResponseHandler(result.value);
+            //     }
+            // }
+            // const stringResponse = extractAllTextFromComplexResponse(result.value.content.content);
+            // await sendResponse({
+            //     message: stringResponse,
+            //     attachments: result.value.content.sharedFiles?.map((f: any) => f.url)
+            // });
         }
     }
     client.on(Events.MessageCreate, async msg => {
@@ -365,13 +387,14 @@ async function sendDiscordResponse(msg: Message<boolean>, message: string, attac
     }
 }
 
-async function sendDiscordResponseFromCommand(msg: ChatInputCommandInteraction<CacheType>, message: string, attachments?: string[]) {
+async function sendDiscordResponseFromCommand(msg: ChatInputCommandInteraction<CacheType>, message: string, attachments?: string[], images?: string[]) {
     const chunks = splitStringInChunks(message);
     for (let i = 0; i < chunks.length; i++) {
         const files = (i === chunks.length - 1) ? (attachments ?? []) : [];
-        await msg.editReply({
+        const imageFiles = (i === chunks.length - 1) ? (images ?? []) : [];
+        await msg.followUp({
             content: chunks[i],
-            files: files
+            files: [...files, ...imageFiles]
         });
     }
 }

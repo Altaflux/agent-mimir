@@ -25,7 +25,8 @@
     "systeminformation": "5.21.18",
     "tesseract.js": "^5.0.4",
     "async-exit-hook": "^2.0.1",
-    "env-paths": "^3.0.0"
+    "env-paths": "^3.0.0",
+    "fuse.js": "7.0.0"
   },
   "peerDependencies": {
     "agent-mimir": "*"
