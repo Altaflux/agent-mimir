@@ -5,7 +5,7 @@ import { promises as fs } from 'fs';
 import normalFs from 'fs';
 import os from 'os';
 import path from "path";
-import { ChannelType, Client, GatewayIntentBits, Partials, REST, Routes, Events, Message, CacheType, ChatInputCommandInteraction } from 'discord.js';
+import { ChannelType, Client, GatewayIntentBits, Partials, REST, Routes, Events, Message, CacheType, ChatInputCommandInteraction, ButtonInteraction, BaseMessageOptions, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import { Readable } from "stream";
 import { finished } from "stream/promises";
 import { SlashCommandBuilder } from "discord.js";
@@ -143,8 +143,6 @@ export const run = async () => {
     const resetCommand = new SlashCommandBuilder().setName('reset')
         .setDescription('Resets the agent to a clean state.');
 
-    const continueCommand = new SlashCommandBuilder().setName('continue')
-        .setDescription('Continues the conversation with the agent.');
 
     const agentCommands = mainAgent.commands.map(c => {
         const discordCommand = new SlashCommandBuilder().setName(c.name);
@@ -165,7 +163,7 @@ export const run = async () => {
         return discordCommand;
     })
 
-    const commands = [continueCommand, resetCommand, ...agentCommands];
+    const commands = [resetCommand, ...agentCommands];
 
 
     client.on('ready', async () => {
@@ -184,6 +182,25 @@ export const run = async () => {
     });
 
     client.on(Events.InteractionCreate, async interaction => {
+
+        if (interaction.isButton()) {
+            if (interaction.customId === 'continue') {
+                await interaction.deferReply();
+                await interaction.followUp({
+                    content: 'Continuing the conversation...',
+                });
+
+                const agentInvoke: AgentInvoke = (agent) => agent.call({
+                    message: null
+                });
+                messageHandler(agentInvoke, async (message) => {
+                    await sendDiscordResponseFromCommand(interaction, message.message, message.attachments, message.images, message.components);
+                })
+            }
+            return;
+        };
+
+
         if (!interaction.isChatInputCommand()) return;
         await interaction.deferReply();
 
@@ -195,14 +212,6 @@ export const run = async () => {
                 await interaction.editReply('There was an error resetting the agent.');
             }
             await interaction.editReply('The agents have been reset!');
-        }
-        if (interaction.commandName === 'continue') {
-            const agentInvoke: AgentInvoke = (agent) => agent.call({
-                message: null
-            });
-            messageHandler(agentInvoke, async (message) => {
-                await sendDiscordResponseFromCommand(interaction, message.message, message.attachments, message.images);
-            })
         }
 
         if (mainAgent.commands.map(c => c.name).includes(interaction.commandName)) {
@@ -222,7 +231,7 @@ export const run = async () => {
             });
 
             messageHandler(agentInvoke, async (message) => {
-                await sendDiscordResponseFromCommand(interaction, message.message, message.attachments, message.images);
+                await sendDiscordResponseFromCommand(interaction, message.message, message.attachments, message.images, message.components);
             })
         }
 
@@ -298,16 +307,23 @@ export const run = async () => {
                 return;
             } else {
                 const toolCalls = (result.value.toolCalls ?? []).map(tr => {
-                    return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
+                    return `Tool request: \`${tr.toolName}\`\nWith Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
                 }).join("\n");
                 const stringResponse = extractAllTextFromComplexResponse(result.value.content);
                 const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
+                const button = new ButtonBuilder()
+                    .setCustomId('continue')    // Unique ID for the button
+                    .setLabel('Continue?')       // Text that appears on the button
+                    .setStyle(ButtonStyle.Primary);
+                const row = new ActionRowBuilder<ButtonBuilder>()
+                    .addComponents(button);
                 await sendResponse({
-                    message: `${toolResponse}`
+                    message: `${toolResponse}`,
+                    components: [row]
                 });
-                await sendResponse({
-                    message: `\`\`\`DO YOU WANT TO CONTINUE??\`\`\``
-                });
+                // await sendResponse({
+                //     message: `\`\`\`DO YOU WANT TO CONTINUE??\`\`\``
+                // });
                 return;
             }
         }
@@ -351,7 +367,7 @@ export const run = async () => {
                 return;
             }
             messageHandler(agentInvoke, async (args) => {
-                await sendDiscordResponse(msg, args.message, args.attachments, args.images);
+                await sendDiscordResponse(msg, args.message, args.attachments, args.images, args.components);
             });
         } catch (e) {
             console.error("An error occured while processing a message.", e)
@@ -378,29 +394,39 @@ export type FunctionResponseCallBack = (toolCalls: {
 
 
 type SendResponse = (args: {
-    message: string, attachments?: string[], images?: string[]
+    message: string, attachments?: string[], images?: string[],
+    components?: BaseMessageOptions["components"]
 }) => Promise<void>
 
-async function sendDiscordResponse(msg: Message<boolean>, message: string, attachments?: string[], images?: string[]) {
+async function sendDiscordResponse(msg: Message<boolean>, message: string, attachments?: string[], images?: string[], components?: BaseMessageOptions["components"]) {
     const chunks = splitStringInChunks(message);
     for (let i = 0; i < chunks.length; i++) {
         const files = (i === chunks.length - 1) ? (attachments ?? []) : [];
         const imageFiles = (i === chunks.length - 1) ? (images ?? []) : [];
         await msg.reply({
             content: chunks[i],
-            files: [...files, ...imageFiles]
+            files: [...files, ...imageFiles],
+            components: components
+
         });
     }
 }
 
-async function sendDiscordResponseFromCommand(msg: ChatInputCommandInteraction<CacheType>, message: string, attachments?: string[], images?: string[]) {
+async function sendDiscordResponseFromCommand(msg: ChatInputCommandInteraction<CacheType> | ButtonInteraction<CacheType>,
+    message: string,
+    attachments?: string[],
+    images?: string[],
+    components?: BaseMessageOptions["components"]
+) {
     const chunks = splitStringInChunks(message);
     for (let i = 0; i < chunks.length; i++) {
         const files = (i === chunks.length - 1) ? (attachments ?? []) : [];
         const imageFiles = (i === chunks.length - 1) ? (images ?? []) : [];
+
         await msg.followUp({
             content: chunks[i],
-            files: [...files, ...imageFiles]
+            files: [...files, ...imageFiles],
+            components: components
         });
     }
 }

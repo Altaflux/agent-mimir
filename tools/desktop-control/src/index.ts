@@ -47,7 +47,7 @@ export class DesktopControlPluginFactory implements PluginFactory {
 
 class DesktopControlPlugin extends AgentPlugin {
 
-    private gridSize = 4;
+    private gridSize = 1;
 
     private pythonServer: PythonServerControl = new PythonServerControl();
 
