@@ -147,7 +147,13 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 if (displayMessage.content.length > 0) {
                     messageListToSend.push(new HumanMessage({
                         id: v4(),
-                        content: complexResponseToLangchainMessageContent(displayMessage.content)
+                        content: [
+                            {
+                                type: "text",
+                                text: "Tools invoked succesfully, continue please."
+                            },
+                            ...complexResponseToLangchainMessageContent(displayMessage.content)
+                        ]
                     }));
                 }
                 if (persistentMessage.content.length > 0) {

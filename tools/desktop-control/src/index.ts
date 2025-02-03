@@ -61,7 +61,7 @@ class DesktopControlPlugin extends AgentPlugin {
 
     }
     async getSystemMessages(): Promise<AgentSystemMessage> {
-        
+
         return {
             content: [
 
@@ -71,7 +71,7 @@ class DesktopControlPlugin extends AgentPlugin {
 There are multiple ways to move the mouse, the screen's image includes labels of white boxes with numbers on top of elements you can click, you can move the mouse to the element being labeled by it by using the "moveMouseLocationOnComputerScreenToLabel" tool.
 You can also use "moveMouseLocationOnComputerScreenToTextLocation" to move the mouse to a specific piece of text. And you can also use "moveMouseLocationOnComputerScreenToCoordinate" to move the mouse to a specific coordinate on the screen.`
                 },
-               
+
             ]
         }
     }
@@ -84,16 +84,33 @@ You can also use "moveMouseLocationOnComputerScreenToTextLocation" to move the m
     }
 
     async additionalMessageContent(message: NextMessageUser): Promise<AdditionalContent[]> {
-        const screenshot = await this.generateComputerImageContent()
+        const { content, finalImage } = await this.generateComputerImageContent()
         // const computerImages = await this.generateComputerImagePrompt();
         return [
             {
+                saveToChatHistory: true,
+                displayOnCurrentMessage: false,
+                content: [
+                    {
+                        type: "text",
+                        text: "The image of the user's computer screen is displayed below."
+                    }, 
+                    {
+                        type: "image_url",
+                        image_url: {
+                            type: "jpeg",
+                            url: finalImage.toString("base64")
+                        }
+                    }
+                ]
+            },
+            {
                 saveToChatHistory: false,
                 displayOnCurrentMessage: true,
-                content: screenshot
+                content: content
             }
         ]
-       // return []
+        // return []
     }
 
     async generateComputerImagePromptAndUpdateState(): Promise<{ tiles: Buffer[], finalImage: Buffer }> {
@@ -127,14 +144,14 @@ You can also use "moveMouseLocationOnComputerScreenToTextLocation" to move the m
         }
     }
 
-    async generateComputerImageContent(): Promise<ComplexMessageContent[]> {
+    async generateComputerImageContent(): Promise<{ content: ComplexMessageContent[], finalImage: Buffer }> {
         const { finalImage, tiles } = await this.generateComputerImagePromptAndUpdateState();
 
 
         const tilesMessage = this.options.mouseMode.includes('COORDINATES') ? [
             {
                 type: "text" as const,
-                text: `This images are the tiles of pieces of the user's computer's screen. They include a red plot overlay and there tile number to help you identify the coordinates of the screen. In total there are ${this.gridSize} tile images. You can use the "moveMouseLocationOnComputerScreenToCoordinate" tool to move the mouse to a specific location on the screen the other options to move the mouse are not optimal.`
+                text: `This images are the tiles of pieces of the user's computer's screen. They include a red plot overlay and there tile number to help you identify the coordinates of the screen. In total there are ${this.gridSize} tile images. `
             },
             ...tiles.map((tile) => {
                 return {
@@ -150,28 +167,31 @@ You can also use "moveMouseLocationOnComputerScreenToTextLocation" to move the m
 
 
 
-        return [
-            {
-                type: "text",
-                text: `Screenshot of the computer's screen. Before you proceed to use the tools, make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks.`
-            },
-            {
-                type: "image_url",
-                image_url: {
-                    type: "jpeg",
-                    url: finalImage.toString("base64")
-                }
-            },
-            {
-                type: "text",
-                text: "--------------------------------\n\n"
-            },
-            ...tilesMessage,
-            {
-                type: "text",
-                text: "--------------------------------\n\n"
-            },
-        ]
+        return {
+            finalImage: finalImage,
+            content: [
+                {
+                    type: "text",
+                    text: `Screenshot of the computer's screen. Before you proceed to use the tools, make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks.`
+                },
+                {
+                    type: "image_url",
+                    image_url: {
+                        type: "jpeg",
+                        url: finalImage.toString("base64")
+                    }
+                },
+                {
+                    type: "text",
+                    text: "--------------------------------\n\n"
+                },
+                ...tilesMessage,
+                {
+                    type: "text",
+                    text: "--------------------------------\n\n"
+                },
+            ]
+        }
     }
 
     async generateComputerImagePrompt(): Promise<ComplexMessageContent[]> {
