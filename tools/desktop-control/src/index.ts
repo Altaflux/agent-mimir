@@ -22,7 +22,7 @@ import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { AdditionalContent, AgentPlugin, PluginFactory, NextMessageUser, PluginContext, AgentSystemMessage } from "agent-mimir/plugins";
 import Fuse from 'fuse.js';
 
-type MyAtLeastOneType =  'SOM' | 'COORDINATES'
+type MyAtLeastOneType = 'SOM' | 'COORDINATES'
 type DesktopContext = {
     coordinates: Coordinates
     textBlocks: TextBlocks
@@ -310,7 +310,7 @@ async function drawGridForTile(imageBuffer: Buffer, imageNumber: number, padding
     const overlaySvg = `<svg height="${paddedHeight}" width="${paddedWidth}">${svgElements.join('')}</svg>`;
     try {
         const overlayBuffer = Buffer.from(overlaySvg);
-        return await primeImage
+        const img = await primeImage
             .extend({
                 top: padding,
                 bottom: padding,
@@ -321,11 +321,12 @@ async function drawGridForTile(imageBuffer: Buffer, imageNumber: number, padding
             .composite([{ input: overlayBuffer, top: 0, left: 0 }])
             .toFormat('jpeg')
             .jpeg({
-                quality: 65,
+                quality: 100,
                 chromaSubsampling: '4:4:4',
                 force: true, // <----- add this parameter
-            })
-            .toBuffer();
+            });
+        const metadata = await img.metadata()
+        return img.toBuffer();
 
     } catch (error) {
         throw error;
@@ -459,10 +460,10 @@ class MoveMouseToText extends AgentTool {
                     text: "Could not find the element to which move the mouse to, please try again by using the \"moveMouseLocationOnComputerScreenToCoordinate\" tool.",
                 }
             ]
-        } 
-        const searchLocation = fullTextIntact.slice(0, result!.startIndex).split(" ").length -1;
-        const startingLocation = symbols[searchLocation ].bbox;
-        const endingLocation = symbols[searchLocation + result!.matchedText.split(" ").length -1].bbox;
+        }
+        const searchLocation = fullTextIntact.slice(0, result!.startIndex).split(" ").length - 1;
+        const startingLocation = symbols[searchLocation].bbox;
+        const endingLocation = symbols[searchLocation + result!.matchedText.split(" ").length - 1].bbox;
 
         const graphics = await si.graphics();
         const displays = await screenshot.listDisplays();
@@ -493,10 +494,10 @@ function findFuzzyMatch(paragraph: string, searchPhrase: string) {
     // Split the paragraph into overlapping chunks
     const chunks = [];
     const words = paragraph.split(' ');
-    
+
     // Create chunks of 3 words (or however many words are in your search phrase)
     const searchWordCount = searchPhrase.split(' ').length;
-    
+
     for (let i = 0; i <= words.length - searchWordCount; i++) {
         const chunk = words.slice(i, i + searchWordCount).join(' ');
         chunks.push({
