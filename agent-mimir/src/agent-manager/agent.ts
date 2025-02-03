@@ -124,7 +124,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 await workspaceManager.loadFiles(inputMessage);
                 const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage(inputMessage, allCreatedPlugins, state);
 
-                const messageListToSend = state.messages;
+                const messageListToSend = [...state.messages];
                 messageListToSend.push(new HumanMessage({
                     id: v4(),
                     content: complexResponseToLangchainMessageContent(displayMessage.content)
@@ -143,7 +143,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             } else {
                 const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage({ content: [] }, allCreatedPlugins, state);
 
-                const messageListToSend = state.messages;
+                const messageListToSend = [...state.messages];
                 if (displayMessage.content.length > 0) {
                     messageListToSend.push(new HumanMessage({
                         id: v4(),
