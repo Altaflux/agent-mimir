@@ -19,14 +19,16 @@ import { Coordinates, PythonServerControl, TextBlocks } from "./sam.js";
 import { ChatPromptTemplate, renderTemplate } from "@langchain/core/prompts";
 import { HumanMessage } from "@langchain/core/messages";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { AdditionalContent, AgentPlugin, PluginFactory, NextMessageUser, PluginContext } from "agent-mimir/plugins";
+import { AdditionalContent, AgentPlugin, PluginFactory, NextMessageUser, PluginContext, AgentSystemMessage } from "agent-mimir/plugins";
+import Fuse from 'fuse.js';
 
+type MyAtLeastOneType = 'SOM' | 'COORDINATES' | 'TEXT';
 type DesktopContext = {
     coordinates: Coordinates
     textBlocks: TextBlocks
 }
 export type DesktopControlOptions = {
-    mouseMode: 'SOM' | 'COORDINATES',
+    mouseMode: [MyAtLeastOneType, ...MyAtLeastOneType[]]
     model?: BaseChatModel
 }
 
@@ -58,7 +60,21 @@ class DesktopControlPlugin extends AgentPlugin {
         super();
 
     }
+    async getSystemMessages(): Promise<AgentSystemMessage> {
 
+        return {
+            content: [
+
+                {
+                    type: "text",
+                    text: `\nComputer Control Instruction:\n You can control the computer by moving the mouse, clicking and typing. Make sure to pay close attention to the details provided in the screenshot image to confirm the outcomes of the actions you take to ensure accurate completion of tasks.
+There are multiple ways to move the mouse, the screen's image includes labels of white boxes with numbers on top of elements you can click, you can move the mouse to the element being labeled by it by using the "moveMouseLocationOnComputerScreenToLabel" tool.
+You can also use "moveMouseLocationOnComputerScreenToTextLocation" to move the mouse to a specific piece of text. And you can also use "moveMouseLocationOnComputerScreenToCoordinate" to move the mouse to a specific coordinate on the screen.`
+                },
+
+            ]
+        }
+    }
     async init(): Promise<void> {
         await this.pythonServer.init()
     }
@@ -68,36 +84,140 @@ class DesktopControlPlugin extends AgentPlugin {
     }
 
     async additionalMessageContent(message: NextMessageUser): Promise<AdditionalContent[]> {
+        const { content, finalImage } = await this.generateComputerImageContent();
+        const sharpImage = sharp(finalImage);
+        const metadata = await sharpImage.metadata();
+        const resizedImage = await sharpImage.resize({ width: Math.floor(metadata.width! * (30 / 100)) }).toBuffer();
         // const computerImages = await this.generateComputerImagePrompt();
-        // return [
-        //     {
-        //         saveToChatHistory: false,
-        //         displayOnCurrentMessage: true,
-        //         content: computerImages
-        //     }
-        // ]
-        return []
+        return [
+            {
+                saveToChatHistory: true,
+                displayOnCurrentMessage: false,
+                content: [
+                    {
+                        type: "text",
+                        text: "The image of the user's computer screen is displayed below."
+                    }, 
+                    {
+                        type: "image_url",
+                        image_url: {
+                            type: "jpeg",
+                            url: resizedImage.toString("base64")
+                        }
+                    }
+                ]
+            },
+            {
+                saveToChatHistory: false,
+                displayOnCurrentMessage: true,
+                content: content
+            }
+        ]
+        // return []
+    }
+
+    async generateComputerImagePromptAndUpdateState(): Promise<{ tiles: Buffer[], finalImage: Buffer }> {
+        await new Promise(r => setTimeout(r, 1000));
+        const computerScreenshot = await getComputerScreenImage();
+        const tiles = await getScreenTiles(computerScreenshot, this.gridSize, true);
+
+        let textBlocks: TextBlocks = []
+        if (this.options.mouseMode.includes('SOM') || this.options.mouseMode.includes('TEXT')) {
+            textBlocks = await this.pythonServer.getTextBlocks(tiles.originalImage);
+        }
+        this.desktopContext.textBlocks = textBlocks;
+
+        //  const labeledImage = await this.pythonServer.addSam(tiles.originalImage, textBlocks);
+        const labeledImage = this.options.mouseMode.includes('SOM')
+            ? await this.pythonServer.addSam(tiles.originalImage, textBlocks)
+            : { screenshot: tiles.originalImage, coordinates: [] };
+
+        const sharpFinalImage = sharp(labeledImage.screenshot);
+        this.desktopContext.coordinates = labeledImage.coordinates;
+
+
+        const metadata = await sharpFinalImage.metadata();
+        const finalImage = await sharpFinalImage.resize({ width: Math.floor(metadata.width! * (70 / 100)) }).toBuffer();
+
+
+
+        return {
+            tiles: tiles.tiles,
+            finalImage: finalImage
+        }
+    }
+
+    async generateComputerImageContent(): Promise<{ content: ComplexMessageContent[], finalImage: Buffer }> {
+        const { finalImage, tiles } = await this.generateComputerImagePromptAndUpdateState();
+
+
+        const tilesMessage = this.options.mouseMode.includes('COORDINATES') ? [
+            {
+                type: "text" as const,
+                text: `This images are the tiles of pieces of the user's computer's screen. They include a red plot overlay and there tile number to help you identify the coordinates of the screen. In total there are ${this.gridSize} tile images. `
+            },
+            ...tiles.map((tile) => {
+                return {
+                    type: "image_url" as const,
+                    image_url: {
+                        type: "jpeg" as const,
+                        url: tile.toString("base64")
+                    },
+
+                }
+            })
+        ] : [];
+
+
+
+        return {
+            finalImage: finalImage,
+            content: [
+                {
+                    type: "text",
+                    text: `Screenshot of the computer's screen. Before you proceed to use the tools, make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks.`
+                },
+                {
+                    type: "image_url",
+                    image_url: {
+                        type: "jpeg",
+                        url: finalImage.toString("base64")
+                    }
+                },
+                {
+                    type: "text",
+                    text: "--------------------------------\n\n"
+                },
+                ...tilesMessage,
+                {
+                    type: "text",
+                    text: "--------------------------------\n\n"
+                },
+            ]
+        }
     }
 
     async generateComputerImagePrompt(): Promise<ComplexMessageContent[]> {
 
-        await new Promise(r => setTimeout(r, 1000));
-        const computerScreenshot = await getComputerScreenImage();
-        const tiles = await getScreenTiles(computerScreenshot, this.gridSize, true);
-        const labeledImage = await this.pythonServer.addSam(tiles.originalImage);
+        // await new Promise(r => setTimeout(r, 1000));
+        // const computerScreenshot = await getComputerScreenImage();
+        // const tiles = await getScreenTiles(computerScreenshot, this.gridSize, true);
+        // const labeledImage = await this.pythonServer.addSam(tiles.originalImage);
 
-        const sharpFinalImage = sharp(labeledImage.screenshot);
-        const metadata = await sharpFinalImage.metadata();
-        const finalImage = await sharpFinalImage.resize({ width: Math.floor(metadata.width! * (70 / 100)) }).toBuffer();
-        this.desktopContext.coordinates = labeledImage.coordinates;
-        this.desktopContext.textBlocks = labeledImage.textBlocks;
+        // const sharpFinalImage = sharp(labeledImage.screenshot);
+        // const metadata = await sharpFinalImage.metadata();
+        // const finalImage = await sharpFinalImage.resize({ width: Math.floor(metadata.width! * (70 / 100)) }).toBuffer();
+        // this.desktopContext.coordinates = labeledImage.coordinates;
+        // this.desktopContext.textBlocks = labeledImage.textBlocks;
 
-        const tilesMessage = this.options.mouseMode === 'COORDINATES' ? [
+        const { finalImage, tiles } = await this.generateComputerImagePromptAndUpdateState();
+
+        const tilesMessage = this.options.mouseMode.includes('COORDINATES') ? [
             {
                 type: "text" as const,
-                text: `This images are the tiles of pieces of the user's computer's screen. They include a red plot overlay and there tile number to help you identify the coordinates of the screen. In total there are ${this.gridSize} tile images.`
+                text: `This images are the tiles of pieces of the user's computer's screen. They include a red plot overlay and there tile number to help you identify the coordinates of the screen. In total there are ${this.gridSize} tile images. If you want to use this coordinates use the "moveMouseLocationOnComputerScreenToCoordinate" tool to move the mouse to a specific location on the screen.`
             },
-            ...tiles.tiles.map((tile) => {
+            ...tiles.map((tile) => {
                 return {
                     type: "image_url" as const,
                     image_url: {
@@ -112,8 +232,7 @@ class DesktopControlPlugin extends AgentPlugin {
         return [
             {
                 type: "text",
-                text: `\nComputer Control Instruction:\nThis image is the user's computer's screen, you can control the computer by moving the mouse, clicking and typing. Make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks, do not ask me to confirm your executed actions, try to do so yourself.
-The screen's image includes labels of white boxes with numbers on top of elements you can click, you can move the mouse to the element being labeled by it by using the "moveMouseLocationOnComputerScreenToLabel" tool.`
+                text: `\nThis image is the user's computer's screen, you can use the labels and text on this image to move the mouse around by using the appropriate tools.`
             },
             {
                 type: "image_url",
@@ -132,19 +251,26 @@ The screen's image includes labels of white boxes with numbers on top of element
     }
 
     async tools(): Promise<AgentTool[]> {
-        const mouseTools = this.options.mouseMode === 'COORDINATES' ? [
-            new MoveMouseToCoordinate(this.gridSize, this.options.model!)
-        ] : [
-            new MoveMouseToText(this.desktopContext, this.gridSize),
-            new MoveMouseToLabel(this.desktopContext),
-        ]
+        // const screenshot = async () => { return await this.generateComputerImageContent() };
+        const screenshot = async () => { return [] };
+        const mouseTools = [];
+        if (this.options.mouseMode.includes('COORDINATES')) {
+            mouseTools.push(new MoveMouseToCoordinate(screenshot, this.gridSize, this.options.model!));
+        }
+        if (this.options.mouseMode.includes('SOM')) {
+
+            mouseTools.push(new MoveMouseToLabel(screenshot, this.desktopContext));
+        }
+        if (this.options.mouseMode.includes('TEXT')) {
+            mouseTools.push(new MoveMouseToText(screenshot, this.desktopContext));
+        }
 
         return [
             ...mouseTools,
-            new GetImageOfDesktop(async () => {return await this.generateComputerImagePrompt()}),
-            new ClickPositionOnDesktop(),
-            new TypeTextOnDesktop(),
-            new TypeOnDesktop(),
+            //new GetImageOfDesktop(screenshot),
+            new ClickPositionOnDesktop(screenshot),
+            new TypeTextOnDesktop(screenshot),
+            new TypeOnDesktop(screenshot),
         ]
     };
 }
@@ -227,7 +353,7 @@ async function drawGridForTile(imageBuffer: Buffer, imageNumber: number, padding
     const overlaySvg = `<svg height="${paddedHeight}" width="${paddedWidth}">${svgElements.join('')}</svg>`;
     try {
         const overlayBuffer = Buffer.from(overlaySvg);
-        return await primeImage
+        const img = await primeImage
             .extend({
                 top: padding,
                 bottom: padding,
@@ -238,11 +364,12 @@ async function drawGridForTile(imageBuffer: Buffer, imageNumber: number, padding
             .composite([{ input: overlayBuffer, top: 0, left: 0 }])
             .toFormat('jpeg')
             .jpeg({
-                quality: 65,
+                quality: 100,
                 chromaSubsampling: '4:4:4',
                 force: true, // <----- add this parameter
-            })
-            .toBuffer();
+            });
+        const metadata = await img.metadata()
+        return img.toBuffer();
 
     } catch (error) {
         throw error;
@@ -300,7 +427,7 @@ async function getScreenTiles(screenshot: Buffer, numberOfPieces: number, displa
 
 class MoveMouseToLabel extends AgentTool {
 
-    constructor(private context: DesktopContext) {
+    constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>, private context: DesktopContext) {
         super();
     }
 
@@ -319,7 +446,8 @@ class MoveMouseToLabel extends AgentTool {
                 {
                     type: "text",
                     text: "The label number does not exist, please try again with a different label number.",
-                }
+                },
+                ... await this.getScreenFunc()
             ]
 
         }
@@ -337,21 +465,22 @@ class MoveMouseToLabel extends AgentTool {
             {
                 type: "text",
                 text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location (look at the computer screen image).",
-            }
+            },
+            ... await this.getScreenFunc()
         ]
     }
 }
 
 class MoveMouseToText extends AgentTool {
 
-    constructor(private context: DesktopContext, private gridSize: number) {
+    constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>, private context: DesktopContext) {
         super();
     }
 
     schema = z.object({
         elementDescription: z.string().describe("A description of the element to which you are moving the mouse over."),
         location: z.object({
-            text: z.string().describe("The text in the button or link to click.")
+            elementText: z.string().describe("The exact text in the button or link to click. Include ONLY the text to locate.")
         }),
     })
 
@@ -360,20 +489,24 @@ class MoveMouseToText extends AgentTool {
 
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
 
-        const symbols = this.context.textBlocks;
+        const symbols = this.context.textBlocks.filter((el) => el.text.trim() !== '');
 
-        const fullText = symbols.map((symbol) => symbol.text).join('');
-        const searchKeyword = arg.location.text.replaceAll(" ", "");
-        const searchLocation = fullText.indexOf(searchKeyword);
-        if (searchLocation === -1) {
+        ///TEST
+        const fullTextIntact = symbols.map((symbol) => symbol.text).join(' ').toLowerCase();
+        const searchKeywordIntact = arg.location.elementText.toLowerCase();
+        const result = findFuzzyMatch(fullTextIntact, searchKeywordIntact);
+
+        if (result === null) {
             return [
                 {
                     type: "text",
                     text: "Could not find the element to which move the mouse to, please try again by using the \"moveMouseLocationOnComputerScreenToCoordinate\" tool.",
                 }
             ]
-        } const startingLocation = symbols[searchLocation].bbox;
-        const endingLocation = symbols[searchLocation + searchKeyword.length - 1].bbox;
+        }
+        const searchLocation = fullTextIntact.slice(0, result!.startIndex).split(" ").length - 1;
+        const startingLocation = symbols[searchLocation].bbox;
+        const endingLocation = symbols[searchLocation + result!.matchedText.split(" ").length - 1].bbox;
 
         const graphics = await si.graphics();
         const displays = await screenshot.listDisplays();
@@ -393,14 +526,53 @@ class MoveMouseToText extends AgentTool {
             {
                 type: "text",
                 text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location (look at the computer screen image), if that is not the case try again with a different \"text\" value or use the \"moveMouseLocationOnComputerScreenToCoordinate\" tool. .",
-            }
+            },
+            ... await this.getScreenFunc()
         ]
     }
 }
 
+
+function findFuzzyMatch(paragraph: string, searchPhrase: string) {
+    // Split the paragraph into overlapping chunks
+    const chunks = [];
+    const words = paragraph.split(' ');
+
+    // Create chunks of 3 words (or however many words are in your search phrase)
+    const searchWordCount = searchPhrase.split(' ').length;
+
+    for (let i = 0; i <= words.length - searchWordCount; i++) {
+        const chunk = words.slice(i, i + searchWordCount).join(' ');
+        chunks.push({
+            text: chunk,
+            startIndex: words.slice(0, i).join(' ').length + (i > 0 ? 1 : 0)
+        });
+    }
+
+    // Configure Fuse options
+    const options = {
+        includeScore: true,
+        threshold: 0.4, // Adjust this value to control fuzzy matching sensitivity
+        keys: ['text']
+    };
+
+    const fuse = new Fuse(chunks, options);
+    const results = fuse.search(searchPhrase);
+
+    if (results.length > 0) {
+        // Return the best match
+        return {
+            matchedText: results[0].item.text,
+            startIndex: results[0].item.startIndex,
+            score: results[0].score
+        };
+    }
+
+    return null;
+}
 class MoveMouseToCoordinate extends AgentTool {
 
-    constructor(private gridSize: number, private model: BaseChatModel) {
+    constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>, private gridSize: number, private model: BaseChatModel) {
         super();
     }
 
@@ -424,7 +596,8 @@ class MoveMouseToCoordinate extends AgentTool {
                 {
                     type: "text",
                     text: `The tile number must be between 1 and ${this.gridSize}`,
-                }
+                },
+                ... await this.getScreenFunc()
             ]
         }
 
@@ -446,7 +619,8 @@ class MoveMouseToCoordinate extends AgentTool {
             {
                 type: "text",
                 text: "The mouse has moved to the new location, please make sure the mouse has moved to the expected location (look at the computer screen image), if that is not the case try again using different coordinates.",
-            }
+            },
+            ... await this.getScreenFunc()
         ]
     }
 
@@ -583,6 +757,9 @@ class ClickPositionOnDesktop extends AgentTool {
 
     description: string = "Click in a location on the computer screen, be sure the mouse is located correctly at the location intended to be clicked.";
 
+    constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>) {
+        super();
+    }
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
         const button = arg.clickButton === "leftButton" ? Button.LEFT : Button.RIGHT;
 
@@ -596,7 +773,8 @@ class ClickPositionOnDesktop extends AgentTool {
             {
                 type: "text",
                 text: "The mouse has moved to the new location and clicked.",
-            }
+            },
+            ... await this.getScreenFunc()
         ]
 
     }
@@ -663,6 +841,10 @@ class TypeTextOnDesktop extends AgentTool {
     name: string = "typeTextToComputer";
     description: string = "Type a piece of text into the computer. Use this tool when you want to type a piece of text into the computer. IMPORTANT!!! Before calling this tool be sure that the text field where you want to type is clicked first and in focus, also verify that whatever you typed was correctly typed. This tool is preferred over the \"sendKeybordInputToComputer\" tool, but if you are not succeeding try using then try the \"sendKeybordInputToComputer\" tool.";
 
+    constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>) {
+        super();
+    }
+
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
 
         await keyboard.type(arg.keys);
@@ -671,7 +853,8 @@ class TypeTextOnDesktop extends AgentTool {
             {
                 type: "text",
                 text: "The text has been sent to the computer, please verify they were typed as you expected.",
-            }
+            },
+            ... await this.getScreenFunc()
         ]
     }
 }
@@ -685,6 +868,10 @@ class TypeOnDesktop extends AgentTool {
 
     name: string = "sendKeybordInputToComputer";
     description: string = "Send keyboard presses to the computer. Only use this tool to execute special keyboard actions, if you need to type a piece of text into the computer use the \"typeTextToComputer\" tool.";
+
+    constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>) {
+        super();
+    }
 
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
 
@@ -716,7 +903,8 @@ class TypeOnDesktop extends AgentTool {
             {
                 type: "text",
                 text: "The keys have been sent to the computer.",
-            }
+            },
+            ... await this.getScreenFunc()
         ]
 
     }

@@ -5,7 +5,7 @@ import { ChildProcess, spawn } from 'child_process';
 import path from "path";
 import exitHook from 'async-exit-hook';
 import net, { AddressInfo } from "net";
-
+import { promises as fs } from 'fs';
 export type CoordinatesInfo = {
     masks: {
         coordinates: {
@@ -70,10 +70,10 @@ export class PythonServerControl {
         }
     }
 
-    async addSam(screenshotImage: Buffer) {
+    async addSam(screenshotImage: Buffer, textBlocks: TextBlocks) {
 
 
-        const textBlocks = await this.getTextBlocks(screenshotImage);
+       // const textBlocks = await this.getTextBlocks(screenshotImage);
         const mask = await generateTextMask(screenshotImage, textBlocks);
 
 
@@ -93,7 +93,6 @@ export class PythonServerControl {
         return {
             screenshot: labelsWithoutText,
             coordinates: coordinates,
-            textBlocks: textBlocks
         }
     }
 
@@ -110,7 +109,8 @@ export class PythonServerControl {
         });
 
         const inpaintedImage = await response.blob();
-        return Buffer.from(await inpaintedImage.arrayBuffer());
+        const inpaintedImageBuffer =  Buffer.from(await inpaintedImage.arrayBuffer());
+        return inpaintedImageBuffer;
     }
 
 
