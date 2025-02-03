@@ -119,7 +119,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             }
 
             let response: AIMessage;
-            let messageToStore: BaseMessage;
+            let messageToStore: BaseMessage[] = [];
             if (inputMessage) {
                 await workspaceManager.loadFiles(inputMessage);
                 const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage(inputMessage, allCreatedPlugins, state);
@@ -129,10 +129,10 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                     id: v4(),
                     content: complexResponseToLangchainMessageContent(displayMessage.content)
                 }));
-                messageToStore = new HumanMessage({
+                messageToStore = [new HumanMessage({
                     id: v4(),
                     content: complexResponseToLangchainMessageContent(persistentMessage.content)
-                });
+                })];
 
                 const pluginInputs = (await Promise.all(
                     allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages())
@@ -141,13 +141,26 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
 
             } else {
+                const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage({ content: [] }, allCreatedPlugins, state);
 
-                messageToStore = lastMessage;
+                const messageListToSend = state.messages;
+                if (displayMessage.content.length > 0) {
+                    messageListToSend.push(new HumanMessage({
+                        id: v4(),
+                        content: complexResponseToLangchainMessageContent(displayMessage.content)
+                    }));
+                }
+                if (persistentMessage.content.length > 0) {
+                    messageToStore = [new HumanMessage({
+                        id: v4(),
+                        content: complexResponseToLangchainMessageContent(persistentMessage.content)
+                    })];
+                }
                 const pluginInputs = (await Promise.all(
                     allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages())
                 ));
                 const systemMessage = buildSystemMessage([...pluginInputs, responseFormatSystemMessage]);
-                response = await modelWithTools.invoke([systemMessage, ...state.messages]);
+                response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
             }
 
             // Claude sometimes likes to respond with empty messages when there is no more content to send
@@ -187,7 +200,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             }
 
             return {
-                messages: [messageToStore, response],
+                messages: [...messageToStore, response],
                 requestAttributes: {},
                 output: mimirAiMessage,
                 responseAttributes: rawResponseAttributes,
