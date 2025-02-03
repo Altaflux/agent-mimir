@@ -61,6 +61,7 @@ class DesktopControlPlugin extends AgentPlugin {
 
     }
     async getSystemMessages(): Promise<AgentSystemMessage> {
+        
         return {
             content: [
 
@@ -70,6 +71,7 @@ class DesktopControlPlugin extends AgentPlugin {
 There are multiple ways to move the mouse, the screen's image includes labels of white boxes with numbers on top of elements you can click, you can move the mouse to the element being labeled by it by using the "moveMouseLocationOnComputerScreenToLabel" tool.
 You can also use "moveMouseLocationOnComputerScreenToTextLocation" to move the mouse to a specific piece of text. And you can also use "moveMouseLocationOnComputerScreenToCoordinate" to move the mouse to a specific coordinate on the screen.`
                 },
+               
             ]
         }
     }
@@ -82,15 +84,16 @@ You can also use "moveMouseLocationOnComputerScreenToTextLocation" to move the m
     }
 
     async additionalMessageContent(message: NextMessageUser): Promise<AdditionalContent[]> {
+        const screenshot = await this.generateComputerImageContent()
         // const computerImages = await this.generateComputerImagePrompt();
-        // return [
-        //     {
-        //         saveToChatHistory: false,
-        //         displayOnCurrentMessage: true,
-        //         content: computerImages
-        //     }
-        // ]
-        return []
+        return [
+            {
+                saveToChatHistory: false,
+                displayOnCurrentMessage: true,
+                content: screenshot
+            }
+        ]
+       // return []
     }
 
     async generateComputerImagePromptAndUpdateState(): Promise<{ tiles: Buffer[], finalImage: Buffer }> {
@@ -225,7 +228,8 @@ You can also use "moveMouseLocationOnComputerScreenToTextLocation" to move the m
     }
 
     async tools(): Promise<AgentTool[]> {
-        const screenshot = async () => { return await this.generateComputerImageContent() };
+        // const screenshot = async () => { return await this.generateComputerImageContent() };
+        const screenshot = async () => { return [] };
         const mouseTools = [];
         if (this.options.mouseMode.includes('COORDINATES')) {
             mouseTools.push(new MoveMouseToCoordinate(screenshot, this.gridSize, this.options.model!));
@@ -240,7 +244,7 @@ You can also use "moveMouseLocationOnComputerScreenToTextLocation" to move the m
 
         return [
             ...mouseTools,
-            new GetImageOfDesktop(screenshot),
+            //new GetImageOfDesktop(screenshot),
             new ClickPositionOnDesktop(screenshot),
             new TypeTextOnDesktop(screenshot),
             new TypeOnDesktop(screenshot),
