@@ -22,7 +22,7 @@ import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { AdditionalContent, AgentPlugin, PluginFactory, NextMessageUser, PluginContext, AgentSystemMessage } from "agent-mimir/plugins";
 import Fuse from 'fuse.js';
 
-type MyAtLeastOneType = 'SOM' | 'COORDINATES'
+type MyAtLeastOneType = 'SOM' | 'COORDINATES' | 'TEXT';
 type DesktopContext = {
     coordinates: Coordinates
     textBlocks: TextBlocks
@@ -97,13 +97,26 @@ You can also use "moveMouseLocationOnComputerScreenToTextLocation" to move the m
         await new Promise(r => setTimeout(r, 1000));
         const computerScreenshot = await getComputerScreenImage();
         const tiles = await getScreenTiles(computerScreenshot, this.gridSize, true);
-        const labeledImage = await this.pythonServer.addSam(tiles.originalImage);
+
+        let textBlocks: TextBlocks = []
+        if (this.options.mouseMode.includes('SOM') || this.options.mouseMode.includes('TEXT')) {
+            textBlocks = await this.pythonServer.getTextBlocks(tiles.originalImage);
+        }
+        this.desktopContext.textBlocks = textBlocks;
+
+        //  const labeledImage = await this.pythonServer.addSam(tiles.originalImage, textBlocks);
+        const labeledImage = this.options.mouseMode.includes('SOM')
+            ? await this.pythonServer.addSam(tiles.originalImage, textBlocks)
+            : { screenshot: tiles.originalImage, coordinates: [] };
 
         const sharpFinalImage = sharp(labeledImage.screenshot);
+        this.desktopContext.coordinates = labeledImage.coordinates;
+
+
         const metadata = await sharpFinalImage.metadata();
         const finalImage = await sharpFinalImage.resize({ width: Math.floor(metadata.width! * (70 / 100)) }).toBuffer();
-        this.desktopContext.coordinates = labeledImage.coordinates;
-        this.desktopContext.textBlocks = labeledImage.textBlocks;
+
+
 
         return {
             tiles: tiles.tiles,
@@ -218,8 +231,11 @@ You can also use "moveMouseLocationOnComputerScreenToTextLocation" to move the m
             mouseTools.push(new MoveMouseToCoordinate(screenshot, this.gridSize, this.options.model!));
         }
         if (this.options.mouseMode.includes('SOM')) {
-            mouseTools.push(new MoveMouseToText(screenshot, this.desktopContext, this.gridSize));
+
             mouseTools.push(new MoveMouseToLabel(screenshot, this.desktopContext));
+        }
+        if (this.options.mouseMode.includes('TEXT')) {
+            mouseTools.push(new MoveMouseToText(screenshot, this.desktopContext));
         }
 
         return [
@@ -430,7 +446,7 @@ class MoveMouseToLabel extends AgentTool {
 
 class MoveMouseToText extends AgentTool {
 
-    constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>, private context: DesktopContext, private gridSize: number) {
+    constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>, private context: DesktopContext) {
         super();
     }
 
