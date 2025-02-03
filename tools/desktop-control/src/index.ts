@@ -22,12 +22,13 @@ import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { AdditionalContent, AgentPlugin, PluginFactory, NextMessageUser, PluginContext, AgentSystemMessage } from "agent-mimir/plugins";
 import Fuse from 'fuse.js';
 
+type MyAtLeastOneType =  'SOM' | 'COORDINATES'
 type DesktopContext = {
     coordinates: Coordinates
     textBlocks: TextBlocks
 }
 export type DesktopControlOptions = {
-    mouseMode: 'SOM' | 'COORDINATES',
+    mouseMode: [MyAtLeastOneType, ...MyAtLeastOneType[]]
     model?: BaseChatModel
 }
 
@@ -62,10 +63,12 @@ class DesktopControlPlugin extends AgentPlugin {
     async getSystemMessages(): Promise<AgentSystemMessage> {
         return {
             content: [
+
                 {
                     type: "text",
-                    text: `\nComputer Control Instruction:\nThis image is the user's computer's screen, you can control the computer by moving the mouse, clicking and typing. Make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks, do not ask me to confirm your executed actions, try to do so yourself.
-    The screen's image includes labels of white boxes with numbers on top of elements you can click, you can move the mouse to the element being labeled by it by using the "moveMouseLocationOnComputerScreenToLabel" tool.`
+                    text: `\nComputer Control Instruction:\n You can control the computer by moving the mouse, clicking and typing. Make sure to pay close attention to the details provided in the screenshot image to confirm the outcomes of the actions you take to ensure accurate completion of tasks.
+There are multiple ways to move the mouse, the screen's image includes labels of white boxes with numbers on top of elements you can click, you can move the mouse to the element being labeled by it by using the "moveMouseLocationOnComputerScreenToLabel" tool.
+You can also use "moveMouseLocationOnComputerScreenToTextLocation" to move the mouse to a specific piece of text. And you can also use "moveMouseLocationOnComputerScreenToCoordinate" to move the mouse to a specific coordinate on the screen.`
                 },
             ]
         }
@@ -90,7 +93,7 @@ class DesktopControlPlugin extends AgentPlugin {
         return []
     }
 
-    async generateComputerImagePrompt2(): Promise<{ tiles: Buffer[], finalImage: Buffer }> {
+    async generateComputerImagePromptAndUpdateState(): Promise<{ tiles: Buffer[], finalImage: Buffer }> {
         await new Promise(r => setTimeout(r, 1000));
         const computerScreenshot = await getComputerScreenImage();
         const tiles = await getScreenTiles(computerScreenshot, this.gridSize, true);
@@ -109,7 +112,28 @@ class DesktopControlPlugin extends AgentPlugin {
     }
 
     async generateComputerImageContent(): Promise<ComplexMessageContent[]> {
-        const { finalImage, tiles } = await this.generateComputerImagePrompt2();
+        const { finalImage, tiles } = await this.generateComputerImagePromptAndUpdateState();
+
+
+        const tilesMessage = this.options.mouseMode.includes('COORDINATES') ? [
+            {
+                type: "text" as const,
+                text: `This images are the tiles of pieces of the user's computer's screen. They include a red plot overlay and there tile number to help you identify the coordinates of the screen. In total there are ${this.gridSize} tile images. You can use the "moveMouseLocationOnComputerScreenToCoordinate" tool to move the mouse to a specific location on the screen the other options to move the mouse are not optimal.`
+            },
+            ...tiles.map((tile) => {
+                return {
+                    type: "image_url" as const,
+                    image_url: {
+                        type: "jpeg" as const,
+                        url: tile.toString("base64")
+                    },
+
+                }
+            })
+        ] : [];
+
+
+
         return [
             {
                 type: "text",
@@ -126,7 +150,11 @@ class DesktopControlPlugin extends AgentPlugin {
                 type: "text",
                 text: "--------------------------------\n\n"
             },
-
+            ...tilesMessage,
+            {
+                type: "text",
+                text: "--------------------------------\n\n"
+            },
         ]
     }
 
@@ -143,12 +171,12 @@ class DesktopControlPlugin extends AgentPlugin {
         // this.desktopContext.coordinates = labeledImage.coordinates;
         // this.desktopContext.textBlocks = labeledImage.textBlocks;
 
-        const { finalImage, tiles } = await this.generateComputerImagePrompt2();
+        const { finalImage, tiles } = await this.generateComputerImagePromptAndUpdateState();
 
-        const tilesMessage = this.options.mouseMode === 'COORDINATES' ? [
+        const tilesMessage = this.options.mouseMode.includes('COORDINATES') ? [
             {
                 type: "text" as const,
-                text: `This images are the tiles of pieces of the user's computer's screen. They include a red plot overlay and there tile number to help you identify the coordinates of the screen. In total there are ${this.gridSize} tile images.`
+                text: `This images are the tiles of pieces of the user's computer's screen. They include a red plot overlay and there tile number to help you identify the coordinates of the screen. In total there are ${this.gridSize} tile images. If you want to use this coordinates use the "moveMouseLocationOnComputerScreenToCoordinate" tool to move the mouse to a specific location on the screen.`
             },
             ...tiles.map((tile) => {
                 return {
@@ -165,8 +193,7 @@ class DesktopControlPlugin extends AgentPlugin {
         return [
             {
                 type: "text",
-                text: `\nComputer Control Instruction:\nThis image is the user's computer's screen, you can control the computer by moving the mouse, clicking and typing. Make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks, do not ask me to confirm your executed actions, try to do so yourself.
-The screen's image includes labels of white boxes with numbers on top of elements you can click, you can move the mouse to the element being labeled by it by using the "moveMouseLocationOnComputerScreenToLabel" tool.`
+                text: `\nThis image is the user's computer's screen, you can use the labels and text on this image to move the mouse around by using the appropriate tools.`
             },
             {
                 type: "image_url",
@@ -186,19 +213,21 @@ The screen's image includes labels of white boxes with numbers on top of element
 
     async tools(): Promise<AgentTool[]> {
         const screenshot = async () => { return await this.generateComputerImageContent() };
-        const mouseTools = this.options.mouseMode === 'COORDINATES' ? [
-            new MoveMouseToCoordinate(screenshot, this.gridSize, this.options.model!)
-        ] : [
-            new MoveMouseToText(screenshot, this.desktopContext, this.gridSize),
-            new MoveMouseToLabel(screenshot, this.desktopContext),
-        ]
+        const mouseTools = [];
+        if (this.options.mouseMode.includes('COORDINATES')) {
+            mouseTools.push(new MoveMouseToCoordinate(screenshot, this.gridSize, this.options.model!));
+        }
+        if (this.options.mouseMode.includes('SOM')) {
+            mouseTools.push(new MoveMouseToText(screenshot, this.desktopContext, this.gridSize));
+            mouseTools.push(new MoveMouseToLabel(screenshot, this.desktopContext));
+        }
 
         return [
             ...mouseTools,
-            new GetImageOfDesktop(async () => { return await this.generateComputerImageContent() }),
-            new ClickPositionOnDesktop(async () => { return await this.generateComputerImageContent() }),
-            new TypeTextOnDesktop(async () => { return await this.generateComputerImageContent() }),
-            new TypeOnDesktop(async () => { return await this.generateComputerImageContent() }),
+            new GetImageOfDesktop(screenshot),
+            new ClickPositionOnDesktop(screenshot),
+            new TypeTextOnDesktop(screenshot),
+            new TypeOnDesktop(screenshot),
         ]
     };
 }
