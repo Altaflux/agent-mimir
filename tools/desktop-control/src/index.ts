@@ -84,7 +84,10 @@ You can also use "moveMouseLocationOnComputerScreenToTextLocation" to move the m
     }
 
     async additionalMessageContent(message: NextMessageUser): Promise<AdditionalContent[]> {
-        const { content, finalImage } = await this.generateComputerImageContent()
+        const { content, finalImage } = await this.generateComputerImageContent();
+        const sharpImage = sharp(finalImage);
+        const metadata = await sharpImage.metadata();
+        const resizedImage = await sharpImage.resize({ width: Math.floor(metadata.width! * (30 / 100)) }).toBuffer();
         // const computerImages = await this.generateComputerImagePrompt();
         return [
             {
@@ -99,7 +102,7 @@ You can also use "moveMouseLocationOnComputerScreenToTextLocation" to move the m
                         type: "image_url",
                         image_url: {
                             type: "jpeg",
-                            url: finalImage.toString("base64")
+                            url: resizedImage.toString("base64")
                         }
                     }
                 ]
