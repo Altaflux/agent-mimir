@@ -28,7 +28,7 @@
     "cheerio": "^1.0.0-rc.12",
     "jsdom": "22.0.0",
     "sharp": "^0.32.6",
-    "playwright": "1.42.1",
+    "playwright": "1.50.1",
     "turndown": "^7.1.2",
     "gpt-3-encoder": "v1.1.4"
   },

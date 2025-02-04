@@ -10,7 +10,7 @@ import { COMBINE_PROMPT } from "./prompt/combiner-prompt.js";
 import exitHook from 'async-exit-hook';
 import { IS_RELEVANT_PROMPT } from "./prompt/relevance-prompt.js";
 import { encode } from "gpt-3-encoder"
-import { chromium, firefox, Browser, Page, webkit } from 'playwright';
+import { chromium, firefox, Browser, Page, webkit, BrowserContext } from 'playwright';
 import { VectorStore } from "@langchain/core/vectorstores";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { Embeddings } from "@langchain/core/embeddings";
@@ -41,7 +41,7 @@ export class WebDriverManager {
     currentPage?: Document;
     interactableElements: Map<string, InteractableElement> = new Map();
     currentPageView?: string;
-    page?: { page: Page, browser: Browser };
+    page?: { page: Page, browser: Browser, browserContext: BrowserContext };
 
     constructor(private config: WebBrowserOptions, private model: BaseLanguageModel, private embeddings: Embeddings) {
         this.maximumChunkSize = config.maximumChunkSize || 3000;
@@ -85,11 +85,12 @@ export class WebDriverManager {
 
     async executeScript<T>(funk: any, arg?: any): Promise<T> {
         let driver = await this.getBrowser();
-        return driver.evaluate(funk, ...arg);
+        return driver.evaluate(funk, arg);
     }
 
     async getTitle(): Promise<string> {
         let driver = await this.getBrowser();
+        
         const title = await driver.title();
         return title;
     }
@@ -249,21 +250,22 @@ const configureBrowser = async (options: PlaywrightDriverOptions) => {
         case 'chrome': {
 
             const browser = (await chromium.launch({ headless: !(options.disableHeadless), }));
-            const ctx = await browser.newContext({ screen: { height: 1200, width: 1200 }, viewport: { height: 1200, width: 1200 } });
-            const page = await ctx.newPage();
-            return { page, browser }
+            const browserContext = await browser.newContext({ screen: { height: 1200, width: 1200 }, viewport: { height: 1200, width: 1200 } });
+            const page = await browserContext.newPage();
+            return { page, browser, browserContext }
         }
         case 'webkit': {
             const browser = await webkit.launch({ headless: !(options.disableHeadless) });
-            const ctx = await browser.newContext({ screen: { height: 1200, width: 1200 }, viewport: { height: 1200, width: 1200 } });
-            const page = await ctx.newPage();
-            return { page, browser }
+            const browserContext = await browser.newContext({ screen: { height: 1200, width: 1200 }, viewport: { height: 1200, width: 1200 } });
+            const page = await browserContext.newPage();
+            return { page, browser, browserContext }
         }
         case 'firefox': {
             const browser = await firefox.launch({ headless: !(options.disableHeadless), });
-            const ctx = await browser.newContext({ screen: { height: 1200, width: 1200 }, viewport: { height: 1200, width: 1200 } });
-            const page = await ctx.newPage();
-            return { page, browser }
+            const browserContext = await browser.newContext({ screen: { height: 1200, width: 1200 }, viewport: { height: 1200, width: 1200 } });
+            
+            const page = await browserContext.newPage();
+            return { page, browser, browserContext }
         }
         default: {
             throw new Error(`Browser ${options.browserName} not supported`);

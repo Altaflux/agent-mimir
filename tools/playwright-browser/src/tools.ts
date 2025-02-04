@@ -4,6 +4,7 @@ import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { WebDriverManager } from "./driver-manager.js";
 import { z } from "zod";
 import { AgentTool, ToolResponse } from "agent-mimir/tools";
+import { Page } from "playwright";
 export { WebDriverManager, PlaywrightDriverOptions as SeleniumDriverOptions } from "./driver-manager.js";
 
 export class WebBrowserTool extends AgentTool {
@@ -73,10 +74,22 @@ export class ClickWebSiteLinkOrButton extends AgentTool {
             ]
         }
 
+       
         const elementFound = driver.locator(clickableElement.xpath);
         if (await elementFound.isVisible()) {
             try {
+                const waitForNewPage = this.toolManager.page!.browserContext.waitForEvent('page');
                 await elementFound.click();
+
+                const raceWithIdentifier = await Promise.race([
+                    waitForNewPage.then(result => ({ source: 'page', result })),
+                    new Promise(resolve => 
+                        setTimeout(() => resolve({ source: 'timeout', result: null }), 2000)
+                    )
+                ]) as {source: string, result: Page | null};
+                if (raceWithIdentifier.source === 'page') {
+                    this.toolManager.page!.page = raceWithIdentifier.result!;
+                }
                 return [
                     {
                         type: "text",
@@ -103,7 +116,7 @@ export class ClickWebSiteLinkOrButton extends AgentTool {
         }
     }
     name = "click-website-link-or-button";
-    description = `useful for when you need to click on an element from the current page you are on.`;
+    description = `Useful for when you need to click on an element from the current page you are on. You can only click on elements currently visible on the screen, scroll if needed.`;
 
 }
 
@@ -119,21 +132,27 @@ export class ScrollTool extends AgentTool {
         super();
     }
     protected async _call(inputs: z.input<this["schema"]>): Promise<ToolResponse> {
-        const height: number = await this.toolManager.executeScript(() => window.innerHeight,)!;
-        const adjustedHeight = height - 100;
-        if (inputs.direction === "up") {
+        try {
+            const height: number = await this.toolManager.executeScript(() => window.innerHeight,)!;
+            const adjustedHeight = height - 100;
+            if (inputs.direction === "up") {
 
-            await this.toolManager.executeScript((adjustedHeight: number) => window.scrollBy(0, -adjustedHeight), adjustedHeight)
-        } else {
-            await this.toolManager.executeScript((adjustedHeight: number) => window.scrollBy(0, adjustedHeight), adjustedHeight)
-        }
-
-        return [
-            {
-                type: "text",
-                text: "The browser has been scrolled."
+                await this.toolManager.executeScript((adjustedHeight: number) => window.scrollBy(0, -adjustedHeight), adjustedHeight)
+            } else {
+                await this.toolManager.executeScript((adjustedHeight: number) => window.scrollBy(0, adjustedHeight), adjustedHeight)
             }
-        ]
+
+            return [
+                {
+                    type: "text",
+                    text: "The browser has been scrolled."
+                }
+            ]
+
+        } catch (e) {
+            console.error(e);
+            throw e;
+        }
 
     }
     name = "scroll-in-browser";
