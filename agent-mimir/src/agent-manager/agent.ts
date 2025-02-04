@@ -150,7 +150,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                         content: [
                             {
                                 type: "text",
-                                text: "Tools invoked succesfully, continue please but be sure the results from the tools are correct and what you expected."
+                                text: "Tools invoked succesfully (unless a tool call told you it failed or was cancelled), continue please but be sure the results from the tools are correct and what you expected."
                             },
                             ...complexResponseToLangchainMessageContent(displayMessage.content)
                         ]

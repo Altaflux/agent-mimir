@@ -86,7 +86,7 @@ function extractImportantText(text: string, cutPoint: string) {
     const index = text.indexOf(marker);
 
     if (index === -1) {
-        return "";
+        return text;
     }
     return text.substring(index + marker.length).trim();
 }
