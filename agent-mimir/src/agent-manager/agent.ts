@@ -141,27 +141,29 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
 
             } else {
-                const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage({ content: [] }, allCreatedPlugins, state);
-
                 const messageListToSend = [...state.messages];
-                if (displayMessage.content.length > 0) {
-                    messageListToSend.push(new HumanMessage({
-                        id: v4(),
-                        content: [
-                            {
-                                type: "text",
-                                text: "Tools invoked succesfully (unless a tool call told you it failed or was cancelled), continue please but be sure the results from the tools are correct and what you expected."
-                            },
-                            ...complexResponseToLangchainMessageContent(displayMessage.content)
-                        ]
-                    }));
+                if (isToolMessage(lastMessage) && ((lastMessage)).status !== "error") {
+                    const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage({ content: [] }, allCreatedPlugins, state);
+                    if (displayMessage.content.length > 0) {
+                        messageListToSend.push(new HumanMessage({
+                            id: v4(),
+                            content: [
+                                {
+                                    type: "text",
+                                    text: "Tools invoked succesfully (unless a tool call told you it failed or was cancelled), continue please but be sure the results from the tools are correct and what you expected."
+                                },
+                                ...complexResponseToLangchainMessageContent(displayMessage.content)
+                            ]
+                        }));
+                    }
+                    if (persistentMessage.content.length > 0) {
+                        messageToStore = [new HumanMessage({
+                            id: v4(),
+                            content: complexResponseToLangchainMessageContent(persistentMessage.content)
+                        })];
+                    }
                 }
-                if (persistentMessage.content.length > 0) {
-                    messageToStore = [new HumanMessage({
-                        id: v4(),
-                        content: complexResponseToLangchainMessageContent(persistentMessage.content)
-                    })];
-                }
+         
                 const pluginInputs = (await Promise.all(
                     allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages())
                 ));
@@ -251,6 +253,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         } else if (reviewAction === "feedback") {
             await workspaceManager.loadFiles(reviewData);
             const toolMessage = new ToolMessage({
+                status: 'error',
                 id: v4(),
                 name: toolCall.name,
                 content: [
