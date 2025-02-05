@@ -33,7 +33,7 @@ const EMPTY_DOCUMENT_TAG = "(Empty the following piece is the beginning of the w
 export class WebDriverManager {
 
     private browser?: Browser;
-    maximumChunkSize: number
+    maximumChunkSize: number | undefined
     numberOfRelevantDocuments: number | 'all'
     relevanceCheck: boolean = false;
     vectorStore?: VectorStore;
@@ -44,7 +44,7 @@ export class WebDriverManager {
     page?: { page: Page, browser: Browser, browserContext: BrowserContext };
 
     constructor(private config: WebBrowserOptions, private model: BaseLanguageModel, private embeddings: Embeddings) {
-        this.maximumChunkSize = config.maximumChunkSize || 3000;
+        this.maximumChunkSize = config.maximumChunkSize;
         this.numberOfRelevantDocuments = config.numberOfRelevantDocuments || 2;
         this.relevanceCheck = config.doRelevanceCheck || false;
 
@@ -90,7 +90,7 @@ export class WebDriverManager {
 
     async getTitle(): Promise<string> {
         let driver = await this.getBrowser();
-        
+
         const title = await driver.title();
         return title;
     }
@@ -148,14 +148,19 @@ export class WebDriverManager {
         this.interactableElements = webPage.interactableElements;
 
         const siteMarkdown = htmlToMarkdown(this.currentPage!);
+        let texts;
+        if (this.maximumChunkSize === undefined) {
+            texts = [siteMarkdown];
+        } else {
+            const textSplitter = RecursiveCharacterTextSplitter.fromLanguage("markdown", {
+                chunkSize: this.maximumChunkSize,
+                chunkOverlap: 300,
+                lengthFunction: (text) => encode(text).length
+            });
 
-        const textSplitter = RecursiveCharacterTextSplitter.fromLanguage("markdown", {
-            chunkSize: this.maximumChunkSize,
-            chunkOverlap: 300,
-            lengthFunction: (text) => encode(text).length
-        });
+            texts = await textSplitter.splitText(siteMarkdown);
+        }
 
-        const texts = await textSplitter.splitText(siteMarkdown);
         const documents = texts.map((pageContent, index) => new VectorDocument({ pageContent: pageContent, metadata: { pageNumber: index } }));
 
         this.documents = documents;
@@ -177,15 +182,15 @@ export class WebDriverManager {
         if (results.length === 1) {
             return results[0].pageContent;
         }
-
+        const chunkSize = this.maximumChunkSize || 3000;
         const summarizedPageView = await this.combineDocuments(results
-            .sort((doc1, doc2) => doc1.metadata.pageNumber - doc2.metadata.pageNumber)
-            , question, runManager);
+            .sort((doc1, doc2) => doc1.metadata.pageNumber - doc2.metadata.pageNumber,)
+            , question, chunkSize);
 
         if (this.relevanceCheck && !await this.isPageRelevant(summarizedPageView, question, runManager)) {
             return await this.combineDocuments(results
                 .sort((doc1, doc2) => doc1.metadata.pageNumber - doc2.metadata.pageNumber)
-                , "Important information on the site.", runManager);
+                , "Important information on the site.", chunkSize);
         }
 
         this.currentPageView = summarizedPageView;
@@ -207,7 +212,7 @@ export class WebDriverManager {
         return isRelevant != null;
     }
 
-    private async combineDocuments(documents: VectorDocument[], question: string, runManager?: CallbackManagerForToolRun) {
+    private async combineDocuments(documents: VectorDocument[], question: string, chunkSize: number) {
         let focus = question;
         if (!question || question === "") {
             focus = "Main content of the page";
@@ -218,7 +223,7 @@ export class WebDriverManager {
             .reduce(async (prev, current) => {
                 const previousDocument = await prev;
                 const currentDocument = await current;
-                if (encode((previousDocument.pageContent + currentDocument.pageContent)).length < this.maximumChunkSize) {
+                if (encode((previousDocument.pageContent + currentDocument.pageContent)).length < chunkSize) {
                     if (previousDocument.pageContent === EMPTY_DOCUMENT_TAG) {
                         return currentDocument;
                     }
@@ -233,7 +238,7 @@ export class WebDriverManager {
                     document1: previousDocument.pageContent,
                     document2: currentDocument.pageContent,
                     focus: focus
-                }, runManager?.getChild())).text as string);
+                })).text as string);
                 const shouldDiscard = result.substring(0, 15).toLowerCase().match(/\discard\b/g);
                 if (shouldDiscard != null) {
                     return previousDocument;
@@ -263,7 +268,7 @@ const configureBrowser = async (options: PlaywrightDriverOptions) => {
         case 'firefox': {
             const browser = await firefox.launch({ headless: !(options.disableHeadless), });
             const browserContext = await browser.newContext({ screen: { height: 1200, width: 1200 }, viewport: { height: 1200, width: 1200 } });
-            
+
             const page = await browserContext.newPage();
             return { page, browser, browserContext }
         }

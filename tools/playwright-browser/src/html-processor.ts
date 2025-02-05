@@ -40,6 +40,16 @@ function addRandomIdToElements(doc: Element) {
     return doc;
 }
 
+function removeIdsFromInvisibleElements(doc: Element, ids: string[]) {
+    const allElements = doc.querySelectorAll('*');
+    for (const element of Array.from(allElements)) {
+        if (element.hasAttribute('x-interactableId') && !ids.includes(element.getAttribute('x-interactableId')!)) {
+            element.removeAttribute('x-interactableId');
+        }
+    }
+    return doc;
+}
+
 function convertPicturesToImages(doc: Element) {
     const allElements = doc.querySelectorAll('picture');
     for (const pictureElement of Array.from(allElements)) {
@@ -177,7 +187,7 @@ export async function extractHtml(html: string, driver: Page) {
     let cleanHtml = convertPicturesToImages(ogDoc.body);
     cleanHtml = addRandomIdToElements(ogDoc.body);
     let allRelevantElements = await findAllRelevantElements(cleanHtml, driver, ogDoc);
-
+    cleanHtml = removeIdsFromInvisibleElements(ogDoc.body, allRelevantElements.map((e) => e.id));
     let interactables = allRelevantElements
         .filter((relevant) => (relevant.element !== null) && interactableElements.includes(relevant.element.tagName.toLowerCase()))
         .map((entries) => {
@@ -188,7 +198,7 @@ export async function extractHtml(html: string, driver: Page) {
                 location: entries.location,
             } as InteractableElement
         });
-
+    cleanHtml = removeIdsFromInvisibleElements(ogDoc.body, interactables.map((e) => e.id));
     return {
         html: ogDoc,
         interactableElements: interactables.reduce((map, obj) => map.set(obj.id, obj), new Map())
