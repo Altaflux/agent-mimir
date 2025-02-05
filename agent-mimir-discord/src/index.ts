@@ -142,7 +142,8 @@ export const run = async () => {
 
     const resetCommand = new SlashCommandBuilder().setName('reset')
         .setDescription('Resets the agent to a clean state.');
-
+    const continuousModeToggleCommand = new SlashCommandBuilder().setName('continuous-mode')
+        .setDescription('Toggles the continuous mode of the agent.');
 
     const agentCommands = mainAgent.commands.map(c => {
         const discordCommand = new SlashCommandBuilder().setName(c.name);
@@ -163,7 +164,7 @@ export const run = async () => {
         return discordCommand;
     })
 
-    const commands = [resetCommand, ...agentCommands];
+    const commands = [continuousModeToggleCommand, resetCommand, ...agentCommands];
 
 
     client.on('ready', async () => {
@@ -203,6 +204,10 @@ export const run = async () => {
 
         if (!interaction.isChatInputCommand()) return;
         await interaction.deferReply();
+        if (interaction.commandName === 'continuous-mode') {
+            agentConfig.continuousMode = !agentConfig.continuousMode;
+            await interaction.editReply(`Continuous mode is now ${agentConfig.continuousMode ? 'enabled' : 'disabled'}.`);
+        }
 
         if (interaction.commandName === 'reset') {
             try {

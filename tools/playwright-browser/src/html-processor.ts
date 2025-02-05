@@ -57,7 +57,7 @@ function convertPicturesToImages(doc: Element) {
 
 async function findAllRelevantElements(doc: Element, driver: Page, document: Document) {
     const allElements = doc.querySelectorAll('*');
-
+    const currentScrollBlock = await driver.evaluate(async () => document.documentElement.scrollTop || document.body.scrollTop);
     const htmlElements = ((Array.from(allElements)
         .filter((e) => isRelevantElement(e))
         .map((element) => {
@@ -89,9 +89,6 @@ async function findAllRelevantElements(doc: Element, driver: Page, document: Doc
             const rect = element.getBoundingClientRect();
             const topElement = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
 
-            if (element.getAttribute("id") === 'search-input'){
-                debugger;
-            }
             //return topElement !== element && !element.contains(topElement) && topElement?.tagName !== 'HTML';
             return topElement !== element && !element.contains(topElement);
         }
@@ -121,12 +118,13 @@ async function findAllRelevantElements(doc: Element, driver: Page, document: Doc
             };
         }
         let elements = foo;
-
-        return elements.map((info) => {
+        const results = elements.map((info) => {
             const webDriverElement = getElementByXpath(info.xpath);
             if (!webDriverElement) {
                 return null;
             }
+            window.document.documentElement.style.setProperty("scroll-behavior", "auto", "important");
+            webDriverElement.scrollIntoView({ behavior: "instant", block: "center", inline: "nearest" });
             const rect = getOffset(webDriverElement);
             const isViewable = !isElementUnderOverlay(webDriverElement) && isElementClickable(webDriverElement) && elementIsVisibleInViewport(webDriverElement);
     
@@ -139,10 +137,11 @@ async function findAllRelevantElements(doc: Element, driver: Page, document: Doc
                 }
             };
         });
-        return []
+        //await driver.evaluate(async () => window.scroll(0, currentScrollBlock));
+        return results
     }, minimalHtmlInformation)) as any[]).filter((e) => e !== null);
 
-
+    await driver.evaluate(async (currentScrollBlock: number) => window.scroll(0, currentScrollBlock), currentScrollBlock);
     const elements = htmlElementInformation.map((el) => ({ ...el, element: map.get(el.id)! }));
 
     for (const foundElement of elements) {

@@ -95,6 +95,10 @@ class WebBrowserPlugin extends AgentPlugin {
                         type: "text",
                         text: `The following is a page summary in markdown format of the website in the browser.:\n\nSTART OF SITE MARKDOWN:\n${resultWithoutIds}\n\nEND OF SITE MARKDOWN\n\n`
                     },
+                    {
+                        type: "text",
+                        text: `You are currently viewing part "${currentScrollBlock.currentBlock}" of "${currentScrollBlock.totalBlocks}", you can use the scroll tool to view other parts of the page.`
+                    },
 
                 ]
             },
