@@ -134,7 +134,7 @@ async function resizeToDimensions(buffer: Buffer, dimensions: { width: number, h
     return await img.resize(dimensions.width, dimensions.height)
         .toBuffer();
 }
-
+//TODO MAke labels bigger
 async function addLabels(buffer: Buffer, coordinates: Map<string, InteractableElement>) {
     const img = sharp(buffer);
     const metadata = await img.metadata();

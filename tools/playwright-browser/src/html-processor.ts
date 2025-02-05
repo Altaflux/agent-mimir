@@ -122,9 +122,10 @@ async function findAllRelevantElements(doc: Element, driver: Page, document: Doc
 
         function getOffset(el: Element) {
             const rect = el.getBoundingClientRect();
+            const scrollOffset = document.documentElement.scrollTop || document.body.scrollTop;
             return {
                 left: rect.left,
-                top: rect.top
+                top: rect.top + scrollOffset
             };
         }
         let elements = foo;
