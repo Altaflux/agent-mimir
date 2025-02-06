@@ -41,7 +41,7 @@ export class WebBrowserTool extends AgentTool {
 export class ClickWebSiteLinkOrButton extends AgentTool {
 
     schema = z.object({
-        id: z.string().describe("A valid id of a link or button"),
+        id: z.string().describe("A valid id of a link or button that is currently visible."),
         keywords: z.array(z.string()).describe("keywords representing what you want to find."),
         searchDescription: z.string().describe("a long and detailed description of what do expect to find in the page."),
     })
@@ -116,7 +116,7 @@ export class ClickWebSiteLinkOrButton extends AgentTool {
         }
     }
     name = "click-website-link-or-button";
-    description = `Useful for when you need to click on an element from the current page you are on. You can only click on elements currently visible on the screen, scroll if needed.`;
+    description = `Useful for when you need to click on an element from the current page you are on. You can only click on elements that have an ID and are currently visible on the screen, scroll if needed.`;
 
 }
 
