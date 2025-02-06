@@ -93,7 +93,7 @@ export class ClickWebSiteLinkOrButton extends AgentTool {
                 return [
                     {
                         type: "text",
-                        text: `You are currently in page: ${await driver.title()}`
+                        text: `Click executed.`
                     }
                 ]
             } catch (e) {
