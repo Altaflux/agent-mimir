@@ -12,7 +12,7 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { commandContentToBaseMessage, dividerSystemMessage, langChainToolMessageToMimirHumanMessage, lCmessageContentToContent, mergeSystemMessages, parseToolMessage, toolMessageToToolResponseInfo } from "./message-utils.js";
 import { Agent, AgentMessage, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, CreateAgentArgs, InputAgentMessage, ToolResponseInfo } from "./index.js";
-import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory } from "../plugins/index.js";
+import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory, AdditionalContent } from "../plugins/index.js";
 
 
 export const StateAnnotation = Annotation.Root({
@@ -60,7 +60,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 return new Send("agent_call", am);
             })
         }
-        return "call_llm";
+        return "message_prep";
     }
     const agentCall = async (state: ToolMessage) => {
         const agenrM = state;
@@ -122,7 +122,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             let messageToStore: BaseMessage[] = [];
             if (inputMessage) {
                 await workspaceManager.loadFiles(inputMessage);
-                const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage(inputMessage, allCreatedPlugins, state);
+                const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage(inputMessage, allCreatedPlugins);
 
                 const messageListToSend = [...state.messages];
                 messageListToSend.push(new HumanMessage({
@@ -130,8 +130,11 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                     content: complexResponseToLangchainMessageContent(displayMessage.content)
                 }));
                 messageToStore = [new HumanMessage({
+                    response_metadata: {
+                        persistentMessageRetentionPolicy: persistentMessage.retentionPolicy
+                    },
                     id: v4(),
-                    content: complexResponseToLangchainMessageContent(persistentMessage.content)
+                    content: complexResponseToLangchainMessageContent(persistentMessage.message.content)
                 })];
 
                 const pluginInputs = (await Promise.all(
@@ -143,7 +146,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             } else {
                 const messageListToSend = [...state.messages];
                 if (isToolMessage(lastMessage) && ((lastMessage)).status !== "error") {
-                    const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage({ content: [] }, allCreatedPlugins, state);
+                    const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage({ content: [] }, allCreatedPlugins);
                     if (displayMessage.content.length > 0) {
                         messageListToSend.push(new HumanMessage({
                             id: v4(),
@@ -156,10 +159,13 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                             ]
                         }));
                     }
-                    if (persistentMessage.content.length > 0) {
+                    if (persistentMessage.message.content.length > 0) {
                         messageToStore = [new HumanMessage({
                             id: v4(),
-                            content: complexResponseToLangchainMessageContent(persistentMessage.content)
+                            response_metadata: {
+                                persistentMessageRetentionPolicy: persistentMessage.retentionPolicy
+                            },
+                            content: complexResponseToLangchainMessageContent(persistentMessage.message.content)
                         })];
                     }
                 }
@@ -231,7 +237,43 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             return "human_review_node";
         }
     }
-
+    async function messageRetentionNode(state: typeof MessagesAnnotation.State) {
+        const messages = state.messages;
+        const modifiedMessages: BaseMessage[] = []
+        const messagesWithRetentionPolicy = messages.filter(m => m.response_metadata.persistentMessageRetentionPolicy != undefined).reverse();
+        for (const [idx, message] of messagesWithRetentionPolicy.entries()) {
+            const retentionPolicy: (number | null)[] = message.response_metadata?.persistentMessageRetentionPolicy;
+            const newRetentionPolicy:(number | null)[] = []
+            if (retentionPolicy) {
+                const messageContent = message.content as MessageContentComplex[];
+                const newMessageContent:  MessageContentComplex[] = messageContent.map((content, index) => { 
+                    const retention = retentionPolicy[index];
+                    if (!retention) {
+                        newRetentionPolicy.push(retention)
+                        return content
+                    }
+                    if (retention > idx) {
+                        newRetentionPolicy.push(retention)
+                        return content
+                    }
+                    return null
+                 }).filter(e => e !== null).map(e => e!);
+                const newMessage = new HumanMessage({
+                    id: message.id!,
+                    content: newMessageContent,
+                    response_metadata: {
+                        ...message.response_metadata,
+                        persistentMessageRetentionPolicy: newRetentionPolicy
+                    }
+                });
+                if (retentionPolicy.length !== newRetentionPolicy.length) {
+                    modifiedMessages.push(newMessage);
+                }
+                
+            }
+        }
+        return { messages: modifiedMessages }
+    }
     async function humanReviewNode(state: typeof MessagesAnnotation.State) {
         const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
         const toolCall = lastMessage.tool_calls![lastMessage.tool_calls!.length - 1];
@@ -275,19 +317,21 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     const workflow = new StateGraph(StateAnnotation)
         .addNode("call_llm", callLLm())
         .addNode("run_tool", new ToolNode(langChainTools, { handleToolErrors: true }))
+        .addNode("message_prep", messageRetentionNode)
         .addNode("human_review_node", humanReviewNode, {
-            ends: ["run_tool", "call_llm"]
+            ends: ["run_tool", "message_prep"]
         })
         .addNode("output_convert", outputConvert)
         .addNode("agent_call", agentCall)
-        .addEdge(START, "call_llm")
+        .addEdge(START, "message_prep")
         .addConditionalEdges(
             "call_llm",
             routeAfterLLM,
             ["human_review_node", "output_convert"]
         )
-        .addConditionalEdges("run_tool", agentCallCondition, ["agent_call", "call_llm"])
-        .addEdge("agent_call", "call_llm")
+        .addConditionalEdges("run_tool", agentCallCondition, ["agent_call", "message_prep"])
+        .addEdge("agent_call", "message_prep")
+        .addEdge("message_prep", "call_llm")
         .addEdge("output_convert", END);
 
     for (const plugin of allCreatedPlugins) {
@@ -459,15 +503,17 @@ function buildSystemMessage(agentSystemMessages: AgentSystemMessage[]) {
 }
 
 
-async function addAdditionalContentToUserMessage(message: InputAgentMessage, plugins: AgentPlugin[], state: typeof StateAnnotation.State) {
+async function addAdditionalContentToUserMessage(message: InputAgentMessage, plugins: AgentPlugin[]) {
     const displayMessage = JSON.parse(JSON.stringify(message)) as InputAgentMessage;
     const persistentMessage = JSON.parse(JSON.stringify(message)) as InputAgentMessage;
+    const persistantMessageRetentionPolicy: (number | null)[] = [];
     const spacing: ComplexMessageContent = {
         type: "text",
         text: "\n-----------------------------------------------\n\n"
     }
     const additionalContent: ComplexMessageContent[] = [];
     const persistentAdditionalContent: ComplexMessageContent[] = [];
+    const userContent = message.content;
     for (const plugin of plugins) {
         const customizations = await plugin.additionalMessageContent(persistentMessage,);
         for (const customization of customizations) {
@@ -476,16 +522,24 @@ async function addAdditionalContentToUserMessage(message: InputAgentMessage, plu
                 additionalContent.push(spacing)
             }
             if (customization.saveToChatHistory) {
+                const retention = typeof customization.saveToChatHistory === "number" ? customization.saveToChatHistory : null;
+                persistantMessageRetentionPolicy.push(...customization.content.map(() => retention));
                 persistentAdditionalContent.push(...customization.content);
                 persistentAdditionalContent.push(spacing)
+                persistantMessageRetentionPolicy.push(retention); //This one is for spacing
             }
         }
     }
     displayMessage.content.unshift(...additionalContent);
     persistentMessage.content.unshift(...persistentAdditionalContent);
+    //Add nulls to the retention policy for the user content
+    persistantMessageRetentionPolicy.push(...userContent.map(() => null));
 
     return {
         displayMessage,
-        persistentMessage
+        persistentMessage: {
+            message: persistentMessage,
+            retentionPolicy: persistantMessageRetentionPolicy
+        }   
     }
 }

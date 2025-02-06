@@ -74,7 +74,7 @@ export type NextMessageToolResponse = {
  * Controls whether content should be saved to history and/or displayed.
  */
 export type AdditionalContent = {
-    saveToChatHistory: boolean,
+    saveToChatHistory: boolean | number,
     displayOnCurrentMessage: boolean,
     content: ComplexMessageContent[]
 }
