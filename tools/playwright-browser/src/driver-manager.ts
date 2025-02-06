@@ -141,6 +141,11 @@ export class WebDriverManager {
         }
     }
 
+    async getCurrentScrollBlock() {
+        const currentScrollBlock = await this.page!.page.evaluate(async () => document.documentElement.scrollTop || document.body.scrollTop);
+        return currentScrollBlock;
+    }
+
     async refreshPageState() {
         let driver = await this.getBrowser();
         let webPage = await extractHtml(await driver!.content(), driver);

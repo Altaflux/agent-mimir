@@ -65,7 +65,7 @@ function convertPicturesToImages(doc: Element) {
     return doc;
 }
 
-async function findAllRelevantElements(doc: Element, driver: Page, document: Document) {
+async function findAllRelevantElements(doc: Element, driver: Page, document: Document, scrollPosition: number ) {
     const allElements = doc.querySelectorAll('*');
     const currentScrollBlock = await driver.evaluate(async () => document.documentElement.scrollTop || document.body.scrollTop);
     const htmlElements = ((Array.from(allElements)
@@ -92,9 +92,12 @@ async function findAllRelevantElements(doc: Element, driver: Page, document: Doc
         type: e.type,
         xpath: e.xpath
     }));
+
+
+
     const htmlElementInformation: {
         id: string, xpath: string, type: RelevantElement, location: { top: number, left: number, isViewable: boolean }
-    }[] = ((await driver.evaluate(async (foo) => {
+    }[] = ((await driver.evaluate(async (elements) => {
         function isElementUnderOverlay(element: Element) {
             const rect = element.getBoundingClientRect();
             const topElement = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
@@ -125,17 +128,17 @@ async function findAllRelevantElements(doc: Element, driver: Page, document: Doc
             const scrollOffset = document.documentElement.scrollTop || document.body.scrollTop;
             return {
                 left: rect.left,
-                top: rect.top + scrollOffset
+                top: rect.top //+ scrollOffset - elements.scrollPosition
             };
         }
-        let elements = foo;
-        const results = elements.map((info) => {
+      
+        const results = elements.elements.map((info) => {
             const webDriverElement = getElementByXpath(info.xpath);
             if (!webDriverElement) {
                 return null;
             }
             window.document.documentElement.style.setProperty("scroll-behavior", "auto", "important");
-            webDriverElement.scrollIntoView({ behavior: "instant", block: "center", inline: "nearest" });
+            //webDriverElement.scrollIntoView({ behavior: "instant", block: "center", inline: "nearest" });
             const rect = getOffset(webDriverElement);
             const isViewable = !isElementUnderOverlay(webDriverElement) && isElementClickable(webDriverElement) && elementIsVisibleInViewport(webDriverElement);
     
@@ -150,7 +153,10 @@ async function findAllRelevantElements(doc: Element, driver: Page, document: Doc
         });
         //await driver.evaluate(async () => window.scroll(0, currentScrollBlock));
         return results
-    }, minimalHtmlInformation)) as any[]).filter((e) => e !== null);
+    }, {
+        elements: minimalHtmlInformation,
+        scrollPosition: scrollPosition
+    })) as any[]).filter((e) => e !== null);
 
     await driver.evaluate(async (currentScrollBlock: number) => window.scroll(0, currentScrollBlock), currentScrollBlock);
     const elements = htmlElementInformation.map((el) => ({ ...el, element: map.get(el.id)! }));
@@ -182,12 +188,12 @@ export type InteractableElement = {
         left: number;
     }
 }
-export async function extractHtml(html: string, driver: Page) {
+export async function extractHtml(html: string, driver: Page,) {
     const ogDoc = new JSDOM(html).window.document;
 
     let cleanHtml = convertPicturesToImages(ogDoc.body);
     cleanHtml = addRandomIdToElements(ogDoc.body);
-    let allRelevantElements = await findAllRelevantElements(cleanHtml, driver, ogDoc);
+    let allRelevantElements = await findAllRelevantElements(cleanHtml, driver, ogDoc, 0);
     cleanHtml = removeIdsFromInvisibleElements(ogDoc.body, allRelevantElements.map((e) => e.id));
     let interactables = allRelevantElements
         .filter((relevant) => (relevant.element !== null) && interactableElements.includes(relevant.element.tagName.toLowerCase()))

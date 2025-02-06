@@ -109,7 +109,7 @@ class WebBrowserPlugin extends AgentPlugin {
 
                     {
                         type: "text",
-                        text: `The following is a page summary in markdown format of the website in the browser. You can use the IDs in the elements to click or type on them:\n\nSTART OF SITE MARKDOWN:\n${result}\n\nEND OF SITE MARKDOWN\n\n`
+                        text: `The following is a page summary in markdown format of the website in the browser. You can use the IDs in the elements to click or type on them. To interact with elements that are not currently visible on the screen you need scroll it into view first.\n\nSTART OF SITE MARKDOWN:\n${result}\n\nEND OF SITE MARKDOWN\n\n`
                     },
                     {
                         type: "text",
