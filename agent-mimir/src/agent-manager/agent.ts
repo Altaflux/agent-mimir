@@ -243,24 +243,21 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         const messagesWithRetentionPolicy = messages.filter(m => m.response_metadata.persistentMessageRetentionPolicy != undefined).reverse();
         for (const [idx, message] of messagesWithRetentionPolicy.entries()) {
             const retentionPolicy: (number | null)[] = message.response_metadata?.persistentMessageRetentionPolicy;
-            const newRetentionPolicy:(number | null)[] = []
+         
             if (retentionPolicy) {
                 const messageContent = message.content as MessageContentComplex[];
-                const newMessageContent:  MessageContentComplex[] = messageContent.map((content, index) => { 
+                const newMessageContent= messageContent.map((content, index) => { 
                     const retention = retentionPolicy[index];
-                    if (!retention) {
-                        newRetentionPolicy.push(retention)
-                        return content
+                    if (retention === null || retention > idx) {
+                        return {content: content, retention: retention}
                     }
-                    if (retention > idx) {
-                        newRetentionPolicy.push(retention)
-                        return content
-                    }
+                  
                     return null
                  }).filter(e => e !== null).map(e => e!);
+                 const newRetentionPolicy:(number | null)[] = newMessageContent.map(e => e.retention);
                 const newMessage = new HumanMessage({
                     id: message.id!,
-                    content: newMessageContent,
+                    content: newMessageContent.map(e => e.content),
                     response_metadata: {
                         ...message.response_metadata,
                         persistentMessageRetentionPolicy: newRetentionPolicy
