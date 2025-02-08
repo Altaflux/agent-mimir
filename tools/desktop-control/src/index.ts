@@ -146,7 +146,7 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
         const tilesMessage = this.options.mouseMode.includes('COORDINATES') ? [
             {
                 type: "text" as const,
-                text: `This image includes a grid of tiles overlay with numbers to help you identify the coordinates of the screen.If you want to use this coordinates use the "moveMouseLocationOnComputerScreenToCoordinate" tool to move the mouse to a specific location on the screen.`
+                text: `This image includes a grid of cells with numbers to help you identify the coordinates of the computer screen.If you want to use this coordinates use the "moveMouseLocationOnComputerScreenGridCell" tool to move the mouse to a specific location on the screen.`
             },
             {
                 type: "image_url" as const,
@@ -162,26 +162,26 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
         return {
             finalImage: finalImage,
             content: [
-                {
-                    type: "text",
-                    text: `Screenshot of the computer's screen. Before you proceed to use the tools, make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks.`
-                },
-                {
-                    type: "image_url",
-                    image_url: {
-                        type: "jpeg",
-                        url: finalImage.toString("base64")
-                    }
-                },
-                {
-                    type: "text",
-                    text: "--------------------------------\n\n"
-                },
+                // {
+                //     type: "text",
+                //     text: `Screenshot of the computer's screen. Before you proceed to use the tools, make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks.`
+                // },
+                // {
+                //     type: "image_url",
+                //     image_url: {
+                //         type: "jpeg",
+                //         url: finalImage.toString("base64")
+                //     }
+                // },
+                // {
+                //     type: "text",
+                //     text: "--------------------------------\n\n"
+                // },
                 ...tilesMessage,
-                {
-                    type: "text",
-                    text: "--------------------------------\n\n"
-                },
+                // {
+                //     type: "text",
+                //     text: "--------------------------------\n\n"
+                // },
             ]
         }
     }
