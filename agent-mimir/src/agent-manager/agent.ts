@@ -263,15 +263,21 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 const updatedContent = filteredContentWithRetention.map(item => item.content);
                 const updatedRetention = filteredContentWithRetention.map(item => item.retention);
 
-                const newMessage = new HumanMessage({
-                    id: message.id!,
-                    content: updatedContent,
-                    response_metadata: {
-                        ...message.response_metadata,
-                        persistentMessageRetentionPolicy: updatedRetention
-                    }
-                });
-                modifiedMessages.push(newMessage);
+                if (updatedContent.length > 0) {
+                    modifiedMessages.push(new HumanMessage({
+                        id: message.id!,
+                        content: updatedContent,
+                        response_metadata: {
+                            ...message.response_metadata,
+                            persistentMessageRetentionPolicy: updatedRetention
+                        }
+                    }));
+                } else {
+                    modifiedMessages.push(new RemoveMessage({
+                        id: message.id!,
+                    }));
+                }
+ 
             }
         }
         return { messages: modifiedMessages };
