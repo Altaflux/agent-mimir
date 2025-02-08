@@ -80,10 +80,10 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
         const sharpImage = sharp(finalImage);
         const metadata = await sharpImage.metadata();
         const resizedImage = await sharpImage.resize({ width: Math.floor(metadata.width! * (30 / 100)) }).toBuffer();
-        // const computerImages = await this.generateComputerImagePrompt();
+
         return [
             {
-                saveToChatHistory: true,
+                saveToChatHistory: 2,
                 displayOnCurrentMessage: false,
                 content: [
                     {
@@ -105,7 +105,6 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
                 content: content
             }
         ]
-        // return []
     }
 
     async generateComputerImagePromptAndUpdateState(): Promise<{ tiled: Buffer, finalImage: Buffer }> {
@@ -119,7 +118,6 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
         }
         this.desktopContext.textBlocks = textBlocks;
 
-        //  const labeledImage = await this.pythonServer.addSam(tiles.originalImage, textBlocks);
         const labeledImage = this.options.mouseMode.includes('SOM')
             ? await this.pythonServer.addSam(tiles.originalImage, textBlocks)
             : { screenshot: tiles.originalImage, coordinates: [] };
@@ -149,7 +147,7 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
             {
                 type: "text" as const,
                 text: `This image includes a grid of tiles overlay with numbers to help you identify the coordinates of the screen.If you want to use this coordinates use the "moveMouseLocationOnComputerScreenToCoordinate" tool to move the mouse to a specific location on the screen.`
-            },  
+            },
             {
                 type: "image_url" as const,
                 image_url: {
@@ -188,58 +186,6 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
         }
     }
 
-    // async generateComputerImagePrompt(): Promise<ComplexMessageContent[]> {
-
-    //     // await new Promise(r => setTimeout(r, 1000));
-    //     // const computerScreenshot = await getComputerScreenImage();
-    //     // const tiles = await getScreenTiles(computerScreenshot, this.gridSize, true);
-    //     // const labeledImage = await this.pythonServer.addSam(tiles.originalImage);
-
-    //     // const sharpFinalImage = sharp(labeledImage.screenshot);
-    //     // const metadata = await sharpFinalImage.metadata();
-    //     // const finalImage = await sharpFinalImage.resize({ width: Math.floor(metadata.width! * (70 / 100)) }).toBuffer();
-    //     // this.desktopContext.coordinates = labeledImage.coordinates;
-    //     // this.desktopContext.textBlocks = labeledImage.textBlocks;
-
-    //     const { finalImage, tiles } = await this.generateComputerImagePromptAndUpdateState();
-
-    //     const tilesMessage = this.options.mouseMode.includes('COORDINATES') ? [
-    //         {
-    //             type: "text" as const,
-    //             text: `This images are the tiles of pieces of the user's computer's screen. They include a red plot overlay and there tile number to help you identify the coordinates of the screen. In total there are ${this.gridSize} tile images. If you want to use this coordinates use the "moveMouseLocationOnComputerScreenToCoordinate" tool to move the mouse to a specific location on the screen.`
-    //         },
-    //         ...tiles.map((tile) => {
-    //             return {
-    //                 type: "image_url" as const,
-    //                 image_url: {
-    //                     type: "jpeg" as const,
-    //                     url: tile.toString("base64")
-    //                 },
-
-    //             }
-    //         })
-    //     ] : [];
-
-    //     return [
-    //         {
-    //             type: "text",
-    //             text: `\nThis image is the user's computer's screen, you can use the labels and text on this image to move the mouse around by using the appropriate tools.`
-    //         },
-    //         {
-    //             type: "image_url",
-    //             image_url: {
-    //                 type: "jpeg",
-    //                 url: finalImage.toString("base64")
-    //             }
-    //         },
-    //         ...tilesMessage,
-    //         {
-    //             type: "text",
-    //             text: "--------------------------------\n\n"
-    //         },
-
-    //     ]
-    // }
 
     async tools(): Promise<AgentTool[]> {
         // const screenshot = async () => { return await this.generateComputerImageContent() };
@@ -318,12 +264,14 @@ async function drawGridForTile(imageBuffer: Buffer) {
 
             // Add semi-transparent white background for each cell
             svgElements.push(`<rect x="${xPos}" y="${yPos}" width="${cellWidth}" height="${cellHeight}" 
-                fill="white" fill-opacity="0.3" stroke="gray" stroke-width="1"/>`);
+                fill="white" fill-opacity="0.4" stroke="gray" stroke-width="1"/>`);
 
             // Add text with outline
             const fontSize = Math.min(cellWidth * 0.4, cellHeight * 0.4);
-            svgElements.push(`<text x="${xPos + cellWidth/2}" y="${yPos + cellHeight/2}" 
+            svgElements.push(`<text x="${xPos + cellWidth / 2}" y="${yPos + cellHeight / 2}" 
                 font-size="${fontSize}"
+                font-family="Arial, Helvetica Neue, sans-serif"
+                font-weight="500"
                 fill="black"
                 stroke="white"
                 stroke-width="1"
@@ -345,7 +293,7 @@ async function drawGridForTile(imageBuffer: Buffer) {
             .jpeg({
                 quality: 100,
                 chromaSubsampling: '4:4:4',
-                force: true, 
+                force: true,
             });
         return img.toBuffer();
 
@@ -354,135 +302,6 @@ async function drawGridForTile(imageBuffer: Buffer) {
     }
 }
 
-// async function drawGridForTile(imageBuffer: Buffer) {
-//     const primeImage = sharp(imageBuffer)
-//     const metadata = await primeImage.metadata();
-//     const width = metadata.width!;
-//     const height = metadata.height!;
-
-//     // Calculate the number of cells (37 horizontally x 27 vertically = 999)
-//     const cellsX = 37;
-//     const cellsY = 27;
-
-//     // Calculate cell dimensions
-//     const cellWidth = width / cellsX;
-//     const cellHeight = height / cellsY;
-
-//     const svgElements = [];
-
-//     // Create grid lines and numbers
-//     let counter = 0;
-//     for (let y = 0; y < cellsY; y++) {
-//         for (let x = 0; x < cellsX; x++) {
-//             if (counter > 999) break;
-
-//             // Calculate position for current cell
-//             const xPos = x * cellWidth;
-//             const yPos = y * cellHeight;
-
-//             // Add cell borders
-//             svgElements.push(`<rect x="${xPos}" y="${yPos}" width="${cellWidth}" height="${cellHeight}" 
-//                 fill="none" stroke="gray" stroke-width="1"/>`);
-
-//             // Add number in cell
-//             // Adjust font size based on cell size
-//             const fontSize = Math.min(cellWidth * 0.4, cellHeight * 0.4);
-//             svgElements.push(`<text x="${xPos + cellWidth/2}" y="${yPos + cellHeight/2}" 
-//                 font-size="${fontSize}" fill="gray" 
-//                 text-anchor="middle" dominant-baseline="middle">${counter}</text>`);
-
-//             counter++;
-//         }
-//     }
-
-//     const overlaySvg = `<svg height="${height}" width="${width}">${svgElements.join('')}</svg>`;
-
-//     try {
-//         const overlayBuffer = Buffer.from(overlaySvg);
-//         const img = await primeImage
-//             .composite([{ input: overlayBuffer, top: 0, left: 0 }])
-//             .toFormat('jpeg')
-//             .jpeg({
-//                 quality: 100,
-//                 chromaSubsampling: '4:4:4',
-//                 force: true, 
-//             });
-//         return img.toBuffer();
-
-//     } catch (error) {
-//         throw error;
-//     }
-// }
-
-async function drawGridForTile2(imageBuffer: Buffer, imageNumber: number, padding = 100) {
-
-
-    const primeImage = sharp(imageBuffer)
-    const metadata = await primeImage.metadata();
-    const width = metadata.width!;
-    const height = metadata.height!;
-
-    // Adjust the total width and height to include padding
-    const paddedWidth = width + padding * 2;
-    const paddedHeight = height + padding * 2;
-
-    // Adjust the spacing for the lines
-    const lineSpacingX = width / 10;
-    const lineSpacingY = height / 10;
-
-    const svgElements = [];
-
-    svgElements.push(`<text x="${width / 2}" y="${padding - 60}" font-size="35" fill="red">Tile Number: ${imageNumber}</text>`);
-    for (let i = 0; i <= 100; i = i + 10) {
-        // Calculate positions for lines and text, offset by padding
-        const x = (i / 10) * lineSpacingX + padding;
-        const y = (i / 10) * lineSpacingY + padding;
-
-        // Vertical lines and numbering
-        svgElements.push(`<line x1="${x}" y1="${padding}" x2="${x}" y2="${height + padding}" stroke="red" stroke-width="2"/>`);
-        svgElements.push(`<text x="${x - 10}" y="${height + padding + 40}" font-size="35" fill="red">${i}</text>`);
-
-        // Horizontal lines and numbering
-        svgElements.push(`<line x1="${padding}" y1="${y}" x2="${width + padding}" y2="${y}" stroke="red" stroke-width="2"/>`);
-
-        const reverseValue = (i - 100) * -1;
-        svgElements.push(`<text x="${padding - 60}" y="${y + 5}" font-size="35" fill="red">${reverseValue}</text>`);
-
-
-        let initialY = padding;
-        for (let j = 0; j <= 100; j = j + 10) {
-            const secondReverseValue = (j - 100) * -1;
-            svgElements.push(`<text x="${x}" y="${initialY}" font-size="25" fill="red">(${i}, ${secondReverseValue})</text>`);
-            initialY = initialY + lineSpacingY;
-        }
-
-    }
-
-    const overlaySvg = `<svg height="${paddedHeight}" width="${paddedWidth}">${svgElements.join('')}</svg>`;
-    try {
-        const overlayBuffer = Buffer.from(overlaySvg);
-        const img = await primeImage
-            .extend({
-                top: padding,
-                bottom: padding,
-                left: padding,
-                right: padding,
-                background: { r: 255, g: 255, b: 255, alpha: 1 }
-            })
-            .composite([{ input: overlayBuffer, top: 0, left: 0 }])
-            .toFormat('jpeg')
-            .jpeg({
-                quality: 100,
-                chromaSubsampling: '4:4:4',
-                force: true, 
-            });
-        const metadata = await img.metadata()
-        return img.toBuffer();
-
-    } catch (error) {
-        throw error;
-    }
-}
 
 async function getComputerScreenImage() {
 
@@ -703,7 +522,7 @@ class MoveMouseToCoordinate extends AgentTool {
         // try {
         //     const newCoordinates = await this.veryifyMousePosition(arg.coordinates.tileNumber, arg.elementDescription, { x: arg.coordinates.xCoordinate, y: arg.coordinates.yCoordinate });
         //     const newLocation = convertToPixelCoordinates(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, newCoordinates.x, newCoordinates.y, arg.coordinates.tileNumber, this.gridSize);
-             await mouse.setPosition(new Point(cords.x, cords.y));
+        await mouse.setPosition(new Point(cords.x, cords.y));
 
         // } catch (error) {
         //     console.warn("Error verifying mouse position.", error);
