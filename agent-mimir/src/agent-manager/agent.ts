@@ -12,7 +12,7 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { commandContentToBaseMessage, dividerSystemMessage, langChainToolMessageToMimirHumanMessage, lCmessageContentToContent, mergeSystemMessages, parseToolMessage, toolMessageToToolResponseInfo } from "./message-utils.js";
 import { Agent, AgentMessage, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, CreateAgentArgs, InputAgentMessage, ToolResponseInfo } from "./index.js";
-import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory, AdditionalContent } from "../plugins/index.js";
+import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory } from "../plugins/index.js";
 
 
 export const StateAnnotation = Annotation.Root({
@@ -237,39 +237,44 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             return "human_review_node";
         }
     }
+
     async function messageRetentionNode(state: typeof MessagesAnnotation.State) {
-        const messages = state.messages;
-        const modifiedMessages: BaseMessage[] = []
-        const messagesWithRetentionPolicy = messages.filter(m => m.response_metadata.persistentMessageRetentionPolicy != undefined).reverse();
-        for (const [idx, message] of messagesWithRetentionPolicy.entries()) {
-            const retentionPolicy: (number | null)[] = message.response_metadata?.persistentMessageRetentionPolicy;
-         
-            if (retentionPolicy) {
-                const messageContent = message.content as MessageContentComplex[];
-                const newMessageContent= messageContent.map((content, index) => { 
-                    const retention = retentionPolicy[index];
-                    if (retention === null || retention > idx) {
-                        return {content: content, retention: retention}
-                    }
-                  
-                    return null
-                 }).filter(e => e !== null).map(e => e!);
-                 const newRetentionPolicy:(number | null)[] = newMessageContent.map(e => e.retention);
+        const modifiedMessages: BaseMessage[] = [];
+
+        // Get messages with a persistent retention policy and reverse the order
+        const messagesWithRetention = state.messages
+            .filter(m => m.response_metadata?.persistentMessageRetentionPolicy)
+            .reverse();
+
+        // Iterate over messages with retention policies
+        for (const [idx, message] of messagesWithRetention.entries()) {
+            const retentionPolicy = message.response_metadata!.persistentMessageRetentionPolicy;
+            const messageContent = message.content as MessageContentComplex[];
+
+            // Map content with its corresponding retention value and filter those
+            // whose retention is either null or greater than the current idx.
+            const filteredContentWithRetention = messageContent.map((content, index) => ({
+                content,
+                retention: retentionPolicy[index]
+            })).filter(({ retention }) => retention === null || (retention !== null && retention > idx));
+
+            // If the content was modified drop the unwanted elements
+            if (filteredContentWithRetention.length < messageContent.length) {
+                const updatedContent = filteredContentWithRetention.map(item => item.content);
+                const updatedRetention = filteredContentWithRetention.map(item => item.retention);
+
                 const newMessage = new HumanMessage({
                     id: message.id!,
-                    content: newMessageContent.map(e => e.content),
+                    content: updatedContent,
                     response_metadata: {
                         ...message.response_metadata,
-                        persistentMessageRetentionPolicy: newRetentionPolicy
+                        persistentMessageRetentionPolicy: updatedRetention
                     }
                 });
-                if (retentionPolicy.length !== newRetentionPolicy.length) {
-                    modifiedMessages.push(newMessage);
-                }
-                
+                modifiedMessages.push(newMessage);
             }
         }
-        return { messages: modifiedMessages }
+        return { messages: modifiedMessages };
     }
     async function humanReviewNode(state: typeof MessagesAnnotation.State) {
         const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
