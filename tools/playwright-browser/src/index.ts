@@ -71,6 +71,38 @@ class WebBrowserPlugin extends AgentPlugin {
 
         return [
             {
+                saveToChatHistory: true,
+                displayOnCurrentMessage: false,
+                content: [
+                    {
+                        type: "text",
+                        text: `The following is a page summary in markdown format of the website in the browser.:\n\nSTART OF SITE MARKDOWN:\n${resultWithoutIds}\n\nEND OF SITE MARKDOWN\n\n`
+                    },
+                    {
+                        type: "text",
+                        text: `You are currently viewing part "${currentScrollBlock.currentBlock}" of "${currentScrollBlock.totalBlocks}", you can use the scroll tool to view other parts of the page.`
+                    },
+
+                ]
+            },
+            {
+                saveToChatHistory: 2,
+                displayOnCurrentMessage: false,
+                content: [
+                    {
+                        type: "text",
+                        text: `The following image is a screenshot of the browser which is currently at page ${title}:`
+                    },
+                    {
+                        type: "image_url",
+                        image_url: {
+                            type: "png",
+                            url: resizedImaged.toString("base64")
+                        }
+                    }
+                ]
+            },
+            {
                 saveToChatHistory: false,
                 displayOnCurrentMessage: true,
                 content: [
@@ -85,21 +117,6 @@ class WebBrowserPlugin extends AgentPlugin {
                             url: imageWithLabels.toString("base64")
                         }
                     }
-                ]
-            },
-            {
-                saveToChatHistory: true,
-                displayOnCurrentMessage: false,
-                content: [
-                    {
-                        type: "text",
-                        text: `The following is a page summary in markdown format of the website in the browser.:\n\nSTART OF SITE MARKDOWN:\n${resultWithoutIds}\n\nEND OF SITE MARKDOWN\n\n`
-                    },
-                    {
-                        type: "text",
-                        text: `You are currently viewing part "${currentScrollBlock.currentBlock}" of "${currentScrollBlock.totalBlocks}", you can use the scroll tool to view other parts of the page.`
-                    },
-
                 ]
             },
             {
