@@ -155,33 +155,27 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
                     url: tiled.toString("base64")
                 },
             },
-        ] : [];
+        ] : [
+            {
+                type: "text" as const,
+                text: `Screenshot of the computer's screen. Before you proceed to use the tools, make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks.`
+            },
+            {
+                type: "image_url" as const,
+                image_url: {
+                    type: "jpeg" as const,
+                    url: finalImage.toString("base64")
+                }
+            }
+        ];
 
 
 
         return {
             finalImage: finalImage,
             content: [
-                // {
-                //     type: "text",
-                //     text: `Screenshot of the computer's screen. Before you proceed to use the tools, make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks.`
-                // },
-                // {
-                //     type: "image_url",
-                //     image_url: {
-                //         type: "jpeg",
-                //         url: finalImage.toString("base64")
-                //     }
-                // },
-                // {
-                //     type: "text",
-                //     text: "--------------------------------\n\n"
-                // },
                 ...tilesMessage,
-                // {
-                //     type: "text",
-                //     text: "--------------------------------\n\n"
-                // },
+
             ]
         }
     }
@@ -512,135 +506,19 @@ class MoveMouseToCoordinate extends AgentTool {
 
         const graphics = await si.graphics();
         const mainScreen = graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0];
-        // const location = convertToPixelCoordinates(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, arg.coordinates.xCoordinate, arg.coordinates.yCoordinate, arg.coordinates.tileNumber, this.gridSize);
-        // console.log(`Moving mouse to: ${arg.coordinates.xCoordinate}, ${arg.coordinates.yCoordinate}`);
-        // await mouse.setPosition(new Point(location.xPixelCoordinate, location.yPixelCoordinate));
-
-
         const cords = getTileCenterCoordinates(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, arg.gridCellNumber);
         console.log(`Moving mouse to: ${cords.x}, ${cords.y}`);
-        // try {
-        //     const newCoordinates = await this.veryifyMousePosition(arg.coordinates.tileNumber, arg.elementDescription, { x: arg.coordinates.xCoordinate, y: arg.coordinates.yCoordinate });
-        //     const newLocation = convertToPixelCoordinates(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, newCoordinates.x, newCoordinates.y, arg.coordinates.tileNumber, this.gridSize);
         await mouse.setPosition(new Point(cords.x, cords.y));
 
-        // } catch (error) {
-        //     console.warn("Error verifying mouse position.", error);
-        // }
         return [
             {
                 type: "text",
-                text: "The mouse has moved to the new location, please make sure the mouse has moved to the expected location (look at the computer screen image), if that is not the case try again using different coordinates.",
+                text: "The mouse has moved to the new location, please make sure the mouse has moved to the correct location (look at the computer screen image), if that is not the case try again using different cell grid number.",
             },
             ... await this.getScreenFunc()
         ]
     }
 
-    //     private async veryifyMousePosition(tileNumber: number, elementDescription: string, existingCoordinates: { x: number, y: number }): Promise<{ x: number, y: number }> {
-
-    //         const tiles = await getScreenTiles(await getComputerScreenImage(), this.gridSize, false);
-    //         const specificTile = tiles.tiles[tileNumber - 1];
-
-    //         const responseSchema = z.object({
-    //             elementFound: z.boolean().describe("A boolean value indicating if you were able to find the element."),
-    //             coordinates: z.object({
-    //                 xCoordinate: z.number().int().min(1).max(100).describe("The x axis coordinate of the of the position of the click on the screen, the axis can be any value between 1 and 100."),
-    //                 yCoordinate: z.number().int().min(1).max(100).describe("The y axis coordinate of the of the position of the click on the screen, the axis can be any value between 1 and 100."),
-    //             }).nullable().describe("The coordinates of the element on the screen, be as precise as possible!")
-
-    //         });
-
-    //         const instrucction = `From the given image verify the existence and location of the following element: \"{elementDescription}\"
-
-    // Return the correct coordinates of location of the element, use x and y coordinates value as shown in the graph drawn over the image.
-
-    // IMPORTANT! Your response must be conformed with the following JSON schema:
-    // \`\`\`json
-    // {tool_schema}
-    // \`\`\`
-
-    // Example of a valid response when the element is found:
-    // \`\`\`json
-    // {{
-    //     "elementFound": true,
-    //     "coordinates": {{
-    //         "xCoordinate": 34,
-    //         "yCoordinate": 76
-    //     }}
-    // }}
-    // \`\`\`
-
-    // Example of a valid response when the element not is found:
-    // \`\`\`json
-    // {{
-    //     "elementFound": false,
-    //     "coordinates": null
-    // }}
-    // \`\`\`
-
-    // -----------------
-    // Your JSON response:
-    // `;
-    //         const renderedHumanMessage = renderTemplate(instrucction, "f-string", {
-    //             tool_schema: JSON.stringify(
-    //                 (zodToJsonSchema(responseSchema) as JsonSchema7ObjectType).properties
-    //             ),
-    //             elementDescription: elementDescription,
-    //             previousCoordinates: `x${existingCoordinates.x}, y${existingCoordinates.y}`
-    //         });
-
-    //         const instructionMessage = new HumanMessage({
-    //             content: [
-    //                 {
-    //                     type: "text",
-    //                     text: renderedHumanMessage
-    //                 },
-    //                 {
-    //                     type: "image_url",
-    //                     image_url: `data:image/png;base64,${specificTile.toString("base64")}`
-    //                 }
-    //             ]
-    //         });
-
-    //         const messagePrompt = ChatPromptTemplate.fromMessages([instructionMessage]);
-    //         const chain: LLMChain<string> = new LLMChain({
-    //             llm: this.model,
-    //             prompt: messagePrompt,
-    //         });
-
-    //         const functionResponse = await chain.predict({
-    //             tool_schema: JSON.stringify(
-    //                 (zodToJsonSchema(responseSchema) as JsonSchema7ObjectType).properties
-    //             )
-    //         });
-
-    //         let newCoordinates: z.infer<typeof responseSchema> = {
-    //             elementFound: true,
-    //             coordinates: {
-    //                 xCoordinate: existingCoordinates.x,
-    //                 yCoordinate: existingCoordinates.y
-    //             }
-    //         };
-    //         try {
-    //             newCoordinates = responseSchema.parse((await simpleParseJson(functionResponse)));
-    //         } catch (error) {
-    //             console.warn("Error parsing coordinates.", error);
-    //         }
-
-    //         console.log(`Element Description: ${elementDescription}, New coordinates:  ${newCoordinates.coordinates?.xCoordinate}, ${newCoordinates.coordinates?.yCoordinate}`)
-
-    //         if (newCoordinates.elementFound === false) {
-    //             return {
-    //                 x: existingCoordinates.x,
-    //                 y: existingCoordinates.y
-    //             }
-    //         }
-    //         return {
-    //             x: newCoordinates?.coordinates?.xCoordinate ?? 0,
-    //             y: newCoordinates.coordinates?.yCoordinate ?? 0
-    //         }
-
-    //     }
 }
 
 
