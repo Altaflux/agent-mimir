@@ -259,7 +259,7 @@ async function drawGridForTile(imageBuffer: Buffer) {
 
             // Add semi-transparent white background for each cell
             svgElements.push(`<rect x="${xPos}" y="${yPos}" width="${cellWidth}" height="${cellHeight}" 
-                fill="white" fill-opacity="0.4" stroke="gray" stroke-width="1"/>`);
+                fill="white" fill-opacity="0.3" stroke="gray" stroke-width="1"/>`);
 
             // Add text with outline
             const fontSize = Math.min(cellWidth * 0.4, cellHeight * 0.4);

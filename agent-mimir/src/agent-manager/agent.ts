@@ -13,7 +13,7 @@ import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { commandContentToBaseMessage, dividerSystemMessage, langChainToolMessageToMimirHumanMessage, lCmessageContentToContent, mergeSystemMessages, parseToolMessage, toolMessageToToolResponseInfo } from "./message-utils.js";
 import { Agent, AgentMessage, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, CreateAgentArgs, InputAgentMessage, ToolResponseInfo } from "./index.js";
 import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory } from "../plugins/index.js";
-
+import { toolNodeFunction } from "../tools/toolNode.js"
 
 export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
@@ -169,7 +169,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                         })];
                     }
                 }
-         
+
                 const pluginInputs = (await Promise.all(
                     allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages())
                 ));
@@ -277,7 +277,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                         id: message.id!,
                     }));
                 }
- 
+
             }
         }
         return { messages: modifiedMessages };
@@ -321,7 +321,8 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
     const workflow = new StateGraph(StateAnnotation)
         .addNode("call_llm", callLLm())
-        .addNode("run_tool", new ToolNode(langChainTools, { handleToolErrors: true }))
+        //.addNode("run_tool", new ToolNode(langChainTools, { handleToolErrors: true }))
+        .addNode("run_tool", toolNodeFunction(langChainTools, { handleToolErrors: true }))
         .addNode("message_prep", messageRetentionNode)
         .addNode("human_review_node", humanReviewNode, {
             ends: ["run_tool", "message_prep"]
@@ -545,6 +546,6 @@ async function addAdditionalContentToUserMessage(message: InputAgentMessage, plu
         persistentMessage: {
             message: persistentMessage,
             retentionPolicy: persistantMessageRetentionPolicy
-        }   
+        }
     }
 }
