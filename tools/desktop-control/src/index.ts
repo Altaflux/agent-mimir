@@ -202,6 +202,7 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
             new ClickPositionOnDesktop(screenshot),
             new TypeTextOnDesktop(screenshot),
             new TypeOnDesktop(screenshot),
+            new ScrollScreen(),
         ]
     };
 }
@@ -663,6 +664,9 @@ class TypeTextOnDesktop extends AgentTool {
 
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
 
+
+        await mouse.click(Button.LEFT);
+
         await keyboard.type(arg.keys);
 
         return [
@@ -674,10 +678,38 @@ class TypeTextOnDesktop extends AgentTool {
         ]
     }
 }
+
+
+class ScrollScreen extends AgentTool {
+    schema = z.object({
+        direction: z.enum(["up", "down"]).describe(`The direction to which scroll the website.`),
+    })
+
+    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
+
+        if (arg.direction === "up") {
+            await keyboard.type(Key.PageUp);
+        } else {
+            await keyboard.type(Key.PageDown);
+        }
+
+        return [
+            {
+                type: "text",
+                text: "The application has been scrolled.",
+            },
+            
+        ]
+    }
+    name = "scrollComputerScreen";
+    description = `Use when you need to scroll up or down the current application in the computer.`;
+}
+
+
 class TypeOnDesktop extends AgentTool {
     schema = z.object({
         keys: z.array(z.object({
-            key: z.string().describe("The key to type."),
+            key: z.string().describe("The key to type. Keys must be in Upper Cammel Case format, for example 'Enter', 'Backspace', 'Delete', 'PageDown', 'PageUp'."),
             action: z.enum(["typeKey", "pressKey", "releaseKey"]).describe(`The action to perform to a key. You can use any keys (including special keys) that are available in the nut-js library.`),
         })).describe("The keys to type."),
     });
