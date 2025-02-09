@@ -302,17 +302,14 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             return new Command({ goto: "run_tool" });
         } else if (reviewAction === "feedback") {
             await workspaceManager.loadFiles(reviewData);
-            const toolMessage = new ToolMessage({
-                status: 'error',
+            const responseMessage = new HumanMessage({
                 id: v4(),
-                name: toolCall.name,
                 content: [
-                    { type: "text", text: `The user has cancelled the execution of this function as instead has given you the following feedback:\n` },
+                    { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
                     ...complexResponseToLangchainMessageContent(reviewData.content)
                 ],
-                tool_call_id: toolCall.id!
             });
-            return new Command({ goto: "call_llm", update: { messages: [toolMessage] } });
+            return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
         }
         throw new Error("Unreachable");
     }
