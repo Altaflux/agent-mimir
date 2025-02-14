@@ -8,7 +8,6 @@ import { AIMessage, BaseMessage, HumanMessage, MessageContentComplex, MessageCon
 import { Annotation, Command, END, interrupt, Messages, MessagesAnnotation, messagesStateReducer, Send, START, StateDefinition, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
 import { extractTextResponseFromMessage, ResponseFieldMapper } from "../utils/instruction-mapper.js";
-import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { commandContentToBaseMessage, dividerSystemMessage, langChainToolMessageToMimirHumanMessage, lCmessageContentToContent, mergeSystemMessages, parseToolMessage, toolMessageToToolResponseInfo } from "./message-utils.js";
 import { Agent, AgentMessage, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, CreateAgentArgs, InputAgentMessage, ToolResponseInfo } from "./index.js";
@@ -284,7 +283,6 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     }
     async function humanReviewNode(state: typeof MessagesAnnotation.State) {
         const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
-        const toolCall = lastMessage.tool_calls![lastMessage.tool_calls!.length - 1];
         const toolRequest: AgentMessage = parseToolMessage(lastMessage, {});
         const humanReview = interrupt<
             AgentMessage,
@@ -321,7 +319,6 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
     const workflow = new StateGraph(StateAnnotation)
         .addNode("call_llm", callLLm())
-        //.addNode("run_tool", new ToolNode(langChainTools, { handleToolErrors: true }))
         .addNode("run_tool", toolNodeFunction(langChainTools, { handleToolErrors: true }))
         .addNode("message_prep", messageRetentionNode)
         .addNode("human_review_node", humanReviewNode, {
