@@ -14,6 +14,7 @@ import { Coordinates, PythonServerControl, TextBlocks } from "./sam.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { AdditionalContent, AgentPlugin, PluginFactory, NextMessageUser, PluginContext, AgentSystemMessage } from "agent-mimir/plugins";
 import Fuse from 'fuse.js';
+import { MolmoServerControl } from "./molmo.js";
 
 type MyAtLeastOneType = 'SOM' | 'COORDINATES' | 'TEXT';
 type DesktopContext = {
@@ -44,6 +45,8 @@ class DesktopControlPlugin extends AgentPlugin {
 
     private pythonServer: PythonServerControl = new PythonServerControl();
 
+    private molmoServer: MolmoServerControl = new MolmoServerControl();
+
     private readonly desktopContext: DesktopContext = {
         coordinates: [],
         textBlocks: []
@@ -69,10 +72,12 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
     }
     async init(): Promise<void> {
         await this.pythonServer.init()
+        //await this.molmoServer.init()
     }
 
     async reset(): Promise<void> {
         await this.pythonServer.close()
+        //await this.molmoServer.close()
     }
 
     async additionalMessageContent(message: NextMessageUser): Promise<AdditionalContent[]> {
@@ -186,7 +191,7 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
         const screenshot = async () => { return [] };
         const mouseTools = [];
         if (this.options.mouseMode.includes('COORDINATES')) {
-            mouseTools.push(new MoveMouseToCoordinate(screenshot, this.gridSize, this.options.model!));
+            mouseTools.push(new MoveMouseToCoordinate(screenshot, this.gridSize, this.molmoServer, this.context.persistenceDirectory));
         }
         if (this.options.mouseMode.includes('SOM')) {
 
@@ -298,27 +303,24 @@ async function drawGridForTile(imageBuffer: Buffer) {
 }
 
 
-async function getComputerScreenImage() {
+async function getComputerScreenImage(displayMouse: boolean = true) {
 
     const graphics = await si.graphics();
     const displays = await screenshot.listDisplays();
     const mainDisplay = (displays.find((el) => (graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0]).deviceName === el.name) ?? displays[0]) as { id: number; name: string, height: number, width: number };
     const screenshotImage = sharp(await screenshot({ screen: mainDisplay.id, format: 'png' }));
 
-    return await screenshotImage.toBuffer();
+
+    return await addMouse(screenshotImage);
 }
 
 async function getScreenTiles(screenshot: Buffer, displayMouse: boolean) {
 
     const screenshotImage = sharp(screenshot);
 
-    let sharpImage = sharp(displayMouse ? await addMouse(screenshotImage) : await screenshotImage.toBuffer())
+    const tiledImage = await drawGridForTile(await screenshotImage.toBuffer())
 
-
-
-    const tiledImage = await drawGridForTile(await sharpImage.toBuffer())
-
-    const fullImage = await sharpImage
+    const fullImage = await screenshotImage
         .toFormat('jpeg')
         .jpeg({
             quality: 100,
@@ -480,7 +482,7 @@ function findFuzzyMatch(paragraph: string, searchPhrase: string) {
 }
 class MoveMouseToCoordinate extends AgentTool {
 
-    constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>, private gridSize: number, private model: BaseChatModel) {
+    constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>, private gridSize: number, private molmo: MolmoServerControl, private persistantDir: string) {
         super();
     }
 
@@ -510,6 +512,18 @@ class MoveMouseToCoordinate extends AgentTool {
         const cords = getTileCenterCoordinates(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, arg.gridCellNumber);
         console.log(`Moving mouse to: ${cords.x}, ${cords.y}`);
         await mouse.setPosition(new Point(cords.x, cords.y));
+
+        try {
+            const screenshot = await getComputerScreenImage();
+            await fs.writeFile(path.join(this.persistantDir, `molmo.png`), screenshot);
+            const newCoords = await this.molmo.locateItem(screenshot, arg.elementDescription, mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0);
+
+            await mouse.setPosition(new Point(newCoords.x, newCoords.y));
+        } catch (e) {
+            console.error(e);
+        }
+
+
 
         return [
             {
@@ -698,7 +712,7 @@ class ScrollScreen extends AgentTool {
                 type: "text",
                 text: "The application has been scrolled.",
             },
-            
+
         ]
     }
     name = "scrollComputerScreen";
@@ -729,9 +743,10 @@ class TypeOnDesktop extends AgentTool {
             if (!keyValue) {
                 keyValue = Key[key.key.toUpperCase() as keyof typeof Key];
             }
-            if (!keyValue) {
-                await keyboard.type(key.key);
 
+            if (!keyValue) {
+                console.log(`Typing Key: ${key.key}`);
+                await keyboard.type(key.key);
                 return [
                     {
                         type: "text",
@@ -739,6 +754,8 @@ class TypeOnDesktop extends AgentTool {
                     }
                 ]
             }
+
+            console.log(`Clicking Key: ${key.key} - ${keyValue}`);
             if (key.action === "typeKey") {
                 await keyboard.type(keyValue);
             } else if (key.action === "pressKey") {
