@@ -33,6 +33,10 @@ async function start() {
     const mobileSam = path.resolve(process.cwd(), 'python', 'mobile_sam.pt');
     await fs.copyFile(mobileSam, path.join(dataDir, "mobile_sam.pt"));
 
+
+    const dockerMolmo = path.resolve(process.cwd(), 'molmo', 'docker-compose.yml');
+    await fs.copyFile(dockerMolmo, path.join(dataDir, 'docker-compose.yml'));
+
 }
 
 
