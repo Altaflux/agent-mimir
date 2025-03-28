@@ -47,11 +47,13 @@ export class MolmoServerControl {
     }
 
 
-    async locateItem(screenshotImage: Buffer, description: string, imageWidth: number, imageHeight: number): Promise<{
+    async locateItem(screenshotImage: Buffer, description: string, imageWidth: number, imageHeight: number, currentPointer: { x: number, y: number}): Promise<{
         x: number,
         y: number
     }> {
        
+        console.log('Locating item:', description);
+        console.log('Current pointer:', currentPointer);
         const requestBody = {
             model: "allenai/Molmo-7B-D-0924",
             messages: [
@@ -60,7 +62,7 @@ export class MolmoServerControl {
                     content: [
                         {
                             type: "text",
-                            text: `Point to the position of: "${description}", it may be close to the current position of the mouse pointer if the mouse is visible.`
+                            text: `Point to the position of: "${description}", it should be close or at point (x: ${currentPointer.x}, y: ${currentPointer.y}).`
                         },
                         {
                             type: "image_url",

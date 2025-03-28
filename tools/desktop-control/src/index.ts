@@ -82,9 +82,9 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
 
     async additionalMessageContent(message: NextMessageUser): Promise<AdditionalContent[]> {
         const { content, finalImage } = await this.generateComputerImageContent();
-        const sharpImage = sharp(finalImage);
-        const metadata = await sharpImage.metadata();
-        const resizedImage = await sharpImage.resize({ width: Math.floor(metadata.width! * (30 / 100)) }).toBuffer();
+        // const sharpImage = sharp(finalImage);
+        //   const metadata = await sharpImage.metadata();
+        //const resizedImage = await sharpImage.resize({ width: Math.floor(metadata.width! * (30 / 100)) }).toBuffer();
 
         return [
             {
@@ -99,7 +99,7 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
                         type: "image_url",
                         image_url: {
                             type: "jpeg",
-                            url: resizedImage.toString("base64")
+                            url: finalImage.toString("base64")
                         }
                     }
                 ]
@@ -127,25 +127,37 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
             ? await this.pythonServer.addSam(tiles.originalImage, textBlocks)
             : { screenshot: tiles.originalImage, coordinates: [] };
 
-        const sharpFinalImage = sharp(labeledImage.screenshot);
+        //const sharpFinalImage = sharp(labeledImage.screenshot);
         this.desktopContext.coordinates = labeledImage.coordinates;
 
-
-        const metadata = await sharpFinalImage.metadata();
-        const finalImage = await sharpFinalImage.resize({ width: Math.floor(metadata.width! * (70 / 100)) }).toBuffer();
+        //const sharpFinalImage = sharp(labeledImage.screenshot);
+        // const metadata = await sharpFinalImage.metadata();
+        //const finalImage = await sharpFinalImage.resize({ width: Math.floor(metadata.width! * (70 / 100)) }).toBuffer();
 
 
 
         return {
             tiled: tiles.tiled,
-            finalImage: finalImage
+            finalImage: labeledImage.screenshot
         }
     }
 
     async generateComputerImageContent(): Promise<{ content: ComplexMessageContent[], finalImage: Buffer }> {
         const { finalImage, tiled } = await this.generateComputerImagePromptAndUpdateState();
-        await fs.writeFile(path.join(this.context.persistenceDirectory, `tiled_image.png`), tiled);
-        await fs.writeFile(path.join(this.context.persistenceDirectory, `final_image.png`), finalImage);
+
+
+        const sharpFinalImage = sharp(finalImage);
+        const finalImageMetadata = await sharpFinalImage.metadata();
+        const finalImageResized = await sharpFinalImage.resize({ width: Math.floor(finalImageMetadata.width! * (70 / 100)) }).toBuffer();
+
+
+        const sharpTiledImage = sharp(tiled);
+        const finalTiledImageMetadata = await sharpTiledImage.metadata();
+        const finalTiledImageResized = await sharpTiledImage.resize({ width: Math.floor(finalTiledImageMetadata.width! * (70 / 100)) }).toBuffer();
+
+
+        await fs.writeFile(path.join(this.context.persistenceDirectory, `tiled_image.jpg`), finalTiledImageResized);
+        await fs.writeFile(path.join(this.context.persistenceDirectory, `final_image.jpg`), finalImageResized);
 
 
         const tilesMessage = this.options.mouseMode.includes('COORDINATES') ? [
@@ -157,7 +169,7 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
                 type: "image_url" as const,
                 image_url: {
                     type: "jpeg" as const,
-                    url: tiled.toString("base64")
+                    url: finalTiledImageResized.toString("base64")
                 },
             },
         ] : [
@@ -169,7 +181,7 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
                 type: "image_url" as const,
                 image_url: {
                     type: "jpeg" as const,
-                    url: finalImage.toString("base64")
+                    url: finalImageResized.toString("base64")
                 }
             }
         ];
@@ -238,7 +250,7 @@ async function addMouse(strurcturedImage: sharp.Sharp) {
     strurcturedImage = strurcturedImage
         .composite([{ input: overlayBuffer, top: 0, left: 0 }])
 
-    return await strurcturedImage.toBuffer();
+    return strurcturedImage;
 }
 
 async function drawGridForTile(imageBuffer: Buffer) {
@@ -271,10 +283,10 @@ async function drawGridForTile(imageBuffer: Buffer) {
             svgElements.push(`<text x="${xPos + cellWidth / 2}" y="${yPos + cellHeight / 2}" 
                 font-size="${fontSize}"
                 font-family="Arial, Helvetica Neue, sans-serif"
-                font-weight="500"
+                font-weight="700"
                 fill="black"
                 stroke="white"
-                stroke-width="1"
+                stroke-width="2"
                 paint-order="stroke"
                 text-anchor="middle" 
                 dominant-baseline="middle">${counter}</text>`);
@@ -287,14 +299,8 @@ async function drawGridForTile(imageBuffer: Buffer) {
 
     try {
         const overlayBuffer = Buffer.from(overlaySvg);
-        const img = await primeImage
+        const img = primeImage
             .composite([{ input: overlayBuffer, top: 0, left: 0 }])
-            .toFormat('jpeg')
-            .jpeg({
-                quality: 100,
-                chromaSubsampling: '4:4:4',
-                force: true,
-            });
         return img.toBuffer();
 
     } catch (error) {
@@ -307,11 +313,17 @@ async function getComputerScreenImage(displayMouse: boolean = true) {
 
     const graphics = await si.graphics();
     const displays = await screenshot.listDisplays();
-    const mainDisplay = (displays.find((el) => (graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0]).deviceName === el.name) ?? displays[0]) as { id: number; name: string, height: number, width: number };
-    const screenshotImage = sharp(await screenshot({ screen: mainDisplay.id, format: 'png' }));
+    const mainGraphics = (graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0]);
+    const mainDisplay = (displays.find((el) => (mainGraphics).deviceName === el.name) ?? displays[0]) as { id: number; name: string, height: number, width: number };
+    const screenshotImage = sharp(await screenshot({ screen: mainDisplay.id, format: 'jpg' }));
 
 
-    return await addMouse(screenshotImage);
+    const imageWithMouse = await addMouse(screenshotImage);
+    const meta = await imageWithMouse.metadata();
+    // const mainGraphics =  (graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0]);
+    // const rezised = imageWithMouse.resize({ width: mainGraphics.resolutionX! })
+    const asBuffer = await imageWithMouse.toBuffer();
+    return asBuffer;
 }
 
 async function getScreenTiles(screenshot: Buffer, displayMouse: boolean) {
@@ -321,12 +333,12 @@ async function getScreenTiles(screenshot: Buffer, displayMouse: boolean) {
     const tiledImage = await drawGridForTile(await screenshotImage.toBuffer())
 
     const fullImage = await screenshotImage
-        .toFormat('jpeg')
-        .jpeg({
-            quality: 100,
-            chromaSubsampling: '4:4:4',
-            force: true,
-        })
+        // .toFormat('jpeg')
+        // .jpeg({
+        //     quality: 100,
+        //     chromaSubsampling: '4:4:4',
+        //     force: true,
+        // })
         .toBuffer();
 
     return {
@@ -515,8 +527,12 @@ class MoveMouseToCoordinate extends AgentTool {
 
         try {
             const screenshot = await getComputerScreenImage();
-            await fs.writeFile(path.join(this.persistantDir, `molmo.png`), screenshot);
-            const newCoords = await this.molmo.locateItem(screenshot, arg.elementDescription, mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0);
+            await fs.writeFile(path.join(this.persistantDir, `molmo.jpg`), screenshot);
+            const coordsAsPercentage = {
+                x: Math.floor((cords.x / (mainScreen.resolutionX ?? 0)) * 100),
+                y: Math.floor((cords.y / (mainScreen.resolutionY ?? 0)) * 100)
+            };
+            const newCoords = await this.molmo.locateItem(screenshot, arg.elementDescription, mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, coordsAsPercentage);
 
             await mouse.setPosition(new Point(newCoords.x, newCoords.y));
         } catch (e) {
