@@ -13,7 +13,7 @@ import { FileSystemAgentWorkspace } from "agent-mimir/nodejs";
 import { Embeddings } from "@langchain/core/embeddings";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { AgentInvoke, HandleMessageResult, IntermediateAgentResponse, OrchestratorBuilder } from "agent-mimir/communication/multi-agent";
+import { AgentInvoke, AgentToolRequestTwo, HandleMessageResult, IntermediateAgentResponse, OrchestratorBuilder } from "agent-mimir/communication/multi-agent";
 import { Agent, AgentResponse, ToolResponseInfo } from "agent-mimir/agent";
 import { extractAllTextFromComplexResponse } from "agent-mimir/utils/format";
 import { PluginFactory } from "agent-mimir/plugins";
@@ -278,6 +278,24 @@ export const run = async () => {
             intermediateResponseHandler(result.value);
         }
 
+        const sendToolInvocationPermissionRequest = async (toolRequest: AgentToolRequestTwo) => {
+            const toolCalls = (toolRequest.toolCalls ?? []).map(tr => {
+                return `Tool request: \`${tr.toolName}\`\nWith Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
+            }).join("\n");
+            const stringResponse = extractAllTextFromComplexResponse(toolRequest.content);
+            const toolResponse = `Agent: \`${toolRequest.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
+            const button = new ButtonBuilder()
+                .setCustomId('continue')    // Unique ID for the button
+                .setLabel('Continue?')       // Text that appears on the button
+                .setStyle(ButtonStyle.Primary);
+            const row = new ActionRowBuilder<ButtonBuilder>()
+                .addComponents(button);
+            await sendResponse({
+                message: `${toolResponse}`,
+                components: [row]
+            });
+        }
+
         if (result.value.type === "agentResponse") {
             const stringResponse = extractAllTextFromComplexResponse(result.value.content.content);
             await sendResponse({
@@ -288,7 +306,7 @@ export const run = async () => {
         } else {
 
             if (agentConfig.continuousMode) {
-                while (result.value.type === "toolRequest") {
+                while (result.value.type === "toolRequest" && agentConfig.continuousMode) {
                     const toolCalls = (result.value.toolCalls ?? []).map(tr => {
                         return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
                     }).join("\n");
@@ -304,31 +322,20 @@ export const run = async () => {
                         intermediateResponseHandler(result.value);
                     }
                 }
-                const stringResponse = extractAllTextFromComplexResponse(result.value.content.content);
-                await sendResponse({
-                    message: stringResponse,
-                    attachments: result.value.content.sharedFiles?.map((f: any) => f.url)
-                });
-                return;
+                if (result.value.type === "agentResponse") {
+                    const stringResponse = extractAllTextFromComplexResponse(result.value.content.content);
+                    await sendResponse({
+                        message: stringResponse,
+                        attachments: result.value.content.sharedFiles?.map((f: any) => f.url)
+                    });
+                    return;
+                } else {
+                    sendToolInvocationPermissionRequest(result.value);
+                    return;
+                }
+                
             } else {
-                const toolCalls = (result.value.toolCalls ?? []).map(tr => {
-                    return `Tool request: \`${tr.toolName}\`\nWith Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
-                }).join("\n");
-                const stringResponse = extractAllTextFromComplexResponse(result.value.content);
-                const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
-                const button = new ButtonBuilder()
-                    .setCustomId('continue')    // Unique ID for the button
-                    .setLabel('Continue?')       // Text that appears on the button
-                    .setStyle(ButtonStyle.Primary);
-                const row = new ActionRowBuilder<ButtonBuilder>()
-                    .addComponents(button);
-                await sendResponse({
-                    message: `${toolResponse}`,
-                    components: [row]
-                });
-                // await sendResponse({
-                //     message: `\`\`\`DO YOU WANT TO CONTINUE??\`\`\``
-                // });
+                sendToolInvocationPermissionRequest(result.value);
                 return;
             }
         }
