@@ -30,7 +30,7 @@ class GameboyPlugin extends AgentPlugin {
         return Promise.resolve();
     }
     async readyToProceed(nextMessage: NextMessageUser): Promise<void> {
-        await new Promise(r => setTimeout(r, 100));
+        await new Promise(r => setTimeout(r, 500));
         return Promise.resolve();
     }
 
@@ -39,7 +39,7 @@ class GameboyPlugin extends AgentPlugin {
         let screen = await this.controller.captureScreen();
         return [
             {
-                saveToChatHistory: 3,
+                saveToChatHistory: 10,
                 displayOnCurrentMessage: true,
                 content: [
                     {
