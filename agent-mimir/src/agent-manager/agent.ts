@@ -50,6 +50,13 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     const langChainTools = allTools.map(t => new MimirToolToLangchainTool(t));
     const modelWithTools = model.bindTools!(langChainTools);
     const defaultAttributes: AttributeDescriptor[] = [
+        {
+            name: "taskResultDescription",
+            attributeType: "string",
+            variableName: "taskDesc",
+            description: "Description of results of your previous action as well as a description of the state of the lastest element you interacted with.",
+            example: "Example 1: I can see that the file was modified correctly and now contains the edited text. Example 2: I can see that the file was not modified correctly the text was not added.",
+        }
     ]
 
     const workspaceManager = new WorkspanceManager(workspace)
