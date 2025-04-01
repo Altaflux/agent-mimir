@@ -65,6 +65,7 @@ class GameboyControllerPlugin extends AgentTool {
 
     schema = z.object({
         action: z.enum(["a", "b", "start", "select", "up", "down", "left", "right"]).describe("The button to click on the gameboy."),
+        stepsToTake: z.number().optional().describe("The number of steps to move the characted in the game, this only applies to the up, down, left and right buttons."),
     })
 
     name: string = "gameboy_controller";
@@ -77,7 +78,14 @@ class GameboyControllerPlugin extends AgentTool {
     }
 
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
-        await this.controller.pressButton(arg.action, 100);
+        if (arg.stepsToTake && ["up", "down", "left", "right"].includes(arg.action)) {
+            for (let i = 0; i < arg.stepsToTake; i++) {
+                await this.controller.pressButton(arg.action, 100);
+            }
+        } else {
+            await this.controller.pressButton(arg.action, 100);
+        }
+
         return [
             {
                 type: "text",

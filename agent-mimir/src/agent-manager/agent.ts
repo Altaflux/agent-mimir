@@ -301,20 +301,34 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
         const reviewAction = humanReview.action;
         const reviewData = humanReview.data;
-
+        const name = modelWithTools.getName();
         // Approve the tool call and continue
         if (reviewAction === "continue") {
             return new Command({ goto: "run_tool" });
         } else if (reviewAction === "feedback") {
             await workspaceManager.loadFiles(reviewData);
-            const responseMessage = new HumanMessage({
-                id: v4(),
-                content: [
-                    { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
-                    ...complexResponseToLangchainMessageContent(reviewData.content)
-                ],
-            });
-            return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
+
+            //Claude forcefully needs a tool message after a tool call, so we need to send it a tool message with the feedback. Every other model can just receive a human message.
+            if (name === "ChatAnthropic") {
+                const responseMessage = new ToolMessage({
+                    id: v4(),
+                    tool_call_id: lastMessage.tool_calls![0].id!,
+                    content: [
+                        { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
+                        ...complexResponseToLangchainMessageContent(reviewData.content)
+                    ],
+                })
+                return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
+            } else {
+                const responseMessage = new HumanMessage({
+                    id: v4(),
+                    content: [
+                        { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
+                        ...complexResponseToLangchainMessageContent(reviewData.content)
+                    ],
+                });
+                return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
+            }
         }
         throw new Error("Unreachable");
     }
