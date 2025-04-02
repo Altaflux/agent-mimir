@@ -18,6 +18,7 @@
     "@types/screenshot-desktop": "^1.12.3"
   },
   "dependencies": {
+    "pixelmatch": "7.1.0",
     "screenshot-desktop": "1.15.0",
     "node-window-manager":"2.2.4",
     "@nut-tree-fork/nut-js": "4.2.4",

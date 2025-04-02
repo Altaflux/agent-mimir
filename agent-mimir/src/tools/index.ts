@@ -1,5 +1,4 @@
 
-import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
 import { ComplexMessageContent } from "../schema.js";
 import { AgentMessage } from "../agent-manager/index.js";
@@ -16,7 +15,6 @@ export abstract class AgentTool<
 
     protected abstract _call(
         arg: z.output<T>,
-        runManager?: CallbackManagerForToolRun
     ): Promise<ToolResponse>;
 
     async invoke(
