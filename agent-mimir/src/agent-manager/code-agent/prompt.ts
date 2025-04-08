@@ -1,0 +1,59 @@
+
+import { zodToJsonSchema } from "zod-to-json-schema";
+import { AgentTool } from "../../tools/index.js";
+export const FUNCTION_PROMPT = `
+
+You have the ability to execute code in a Python environment. To execute code, you can use response with python code wrapped in an "<execution-code>" xml tag. The code will be executed in a Python environment, and whatever you print into the console will be returned to you.
+Your code is running inside an async environment, so you can use async/await syntax.
+
+
+Example:
+<execution-code>
+import time
+import random
+
+print("Hello, world!")
+time.sleep(2)
+print("Random number:", random.randint(1, 100))
+
+result = await some_async_function();
+print(result)
+</execution-code>
+
+You are not allowed to execute any code that is not wrapped in the <execution-code> tag, it will be ignored.
+ONLY use the <execution-code> tag to execute code when needed, do not use it for any other purpose.
+
+`
+
+
+function getFunctions(tool: AgentTool) {
+    let outParameter = tool.outSchema ? JSON.stringify(zodToJsonSchema(tool.outSchema)) : "ToolResponse";
+    const toolDefinition = `
+- FunctionName: ${tool.name}
+- Async Function: true (must be awaited)
+- Description: ${tool.description}
+- Input Parameter:\n${JSON.stringify(zodToJsonSchema(tool.schema))}
+- Function Output:\n${outParameter}
+`
+    return toolDefinition;
+}
+
+export const getFunctionsPrompt = (tool: AgentTool[]) => {
+    if (tool.length === 0) {
+        return "";
+    }
+
+    let functions = tool.map((tool) => getFunctions(tool)).join("\n------\n");
+    return `\nThe python environment has the following functions available to it, use them to accomnplish the requested goal.
+The result of functions with an output parameter of "ToolResponse" can be printed with the "print" function, and the result will be returned to you.
+If the function has a different defined output type then its output can be used in other functions as an normal Python type.
+All functions are async and must be awaited.
+FUNCTION LIST:\n${functions}\n\n---------------------------------\n`;
+
+}
+
+export const PYTHON_SCRIPT_EXAMPLE = `
+<execution-code>
+...PYTHON CODE HERE...
+</execution-code>
+`

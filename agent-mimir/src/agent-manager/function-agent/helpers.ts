@@ -1,9 +1,9 @@
 
 import { z } from "zod";
-import { AgentSystemMessage, AgentPlugin, PluginFactory, PluginContext } from "../plugins/index.js";
-import { AgentTool, ToolResponse } from "../tools/index.js";
+import { AgentSystemMessage, AgentPlugin, PluginFactory, PluginContext } from "../../plugins/index.js";
+import { AgentTool, ToolResponse } from "../../tools/index.js";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
-import { Agent, AgentMessage } from "../agent-manager/index.js";
+import { Agent, AgentMessage } from "../index.js";
 
 
 export type HelperPluginConfig = {

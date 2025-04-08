@@ -10,8 +10,11 @@ export type ToolResponse = ComplexMessageContent[] | AgentMessage | {
 
 
 export abstract class AgentTool<
-    T extends z.ZodObject<any, any, any, any> = z.ZodObject<any, any, any, any>> {
+    T extends z.ZodObject<any, any, any, any> = z.ZodObject<any, any, any, any>,
+    O extends z.ZodObject<any, any, any, any> = z.ZodObject<any, any, any, any>> {
     abstract schema: T | z.ZodEffects<T>;
+
+    outSchema: O | z.ZodEffects<O> | undefined =  undefined
 
     protected abstract _call(
         arg: z.output<T>,

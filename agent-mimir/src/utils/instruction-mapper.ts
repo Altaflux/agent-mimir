@@ -6,23 +6,24 @@ const responseHeader = `RESPONSE FORMAT INSTRUCTIONS
 
 When responding to me please, please output a response in the following format:
 --------------------`;
+const USER_RESPONSE = `RESPONSE TO USER:`;
 
 const USER_RESPONSE_HEADER = `
-RESPONSE TO USER:
+${USER_RESPONSE}
 The message to the user...\n`;
 
 const USER_RESPONSE_EXAMPLE_HEADER = `
-RESPONSE TO USER:
+${USER_RESPONSE}
 Hi, I am a helpful assistant, how can I help you?\n`;
 
 
 
-const USER_RESPONSE = `RESPONSE TO USER:`;
+
 
 export class ResponseFieldMapper<T = any> {
     constructor(private readonly attributeSetters: AttributeDescriptor[]) { }
 
-    createFieldInstructions(): string {
+    createFieldInstructions(additionalExampleInstructions: string = ""): string {
         const fields = this.attributeSetters.map((attributeSetter) => {
             return `- ${attributeSetter.name}: (Type: ${attributeSetter.attributeType} ) \\ ${attributeSetter.description}`
         }).join('\n');
@@ -33,7 +34,7 @@ export class ResponseFieldMapper<T = any> {
                 return `- ${attributeSetter.name}: ${attributeSetter.example}`
             }).join('\n');
 
-        const results = `${responseHeader}\n${fields}\n\n${USER_RESPONSE_HEADER}\n\nExample Response:\n--------------------\n${examples}\n${USER_RESPONSE_EXAMPLE_HEADER}`;
+        const results = `${responseHeader}\n${fields}\n\n${USER_RESPONSE_HEADER}\n\nExample Response:\n--------------------\n${examples}\n${additionalExampleInstructions}\n${USER_RESPONSE_EXAMPLE_HEADER}`;
         return results
     }
 

@@ -6,40 +6,14 @@ import { complexResponseToLangchainMessageContent } from "../utils/format.js";
 import { AgentMessageToolRequest, ToolResponseInfo, } from "./index.js";
 import { NextMessageToolResponse } from "../plugins/index.js";
 
-export function toolMessageToToolResponseInfo(message: ToolMessage): ToolResponseInfo {
-    const toolResponse = lCmessageContentToContent(message.content);
-    return {
-        id: message.tool_call_id,
-        name: message.name ?? "Unknown",
-        response: toolResponse
-    };
-}
 
 export function trimStringToMaxWithEllipsis(str: string, max: number): string {
     return str.length > max ? str.substring(0, max) + "..." : str;
 }
 
 
-export function langChainToolMessageToMimirHumanMessage(message: ToolMessage): NextMessageToolResponse {
-    return {
-        type: "TOOL_RESPONSE",
-        toolName: message.name ?? "Unknown",
-        toolCallId: message.tool_call_id,
-        content: lCmessageContentToContent(message.content)
-    };
-}
 
-export function parseToolMessage(aiMessage: AIMessage, responseAttributes: Record<string, any>): AgentMessageToolRequest {
-    const content = lCmessageContentToContent(aiMessage.content);
-    return {
-        toolCalls: (aiMessage.tool_calls ?? []).map(t => ({
-            id: t.id,
-            toolName: t.name,
-            input: t.args
-        })),
-        content: content
-    };
-}
+
 
 export function commandContentToBaseMessage(commandContent: { type: string, content: ComplexMessageContent[] }): BaseMessage {
     const id = v4();

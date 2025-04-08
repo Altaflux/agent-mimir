@@ -4,7 +4,7 @@ import { MessageContentToolUse } from "../agent-manager/index.js";
 import { AiResponseMessage } from "../plugins/index.js";
 
 
-export function extractTextContent(messageContent: MessageContent) {
+export function extractTextContent(messageContent: MessageContent): string {
   if (typeof messageContent === "string") {
     return messageContent;
   } else if (Array.isArray(messageContent)) {
@@ -29,27 +29,6 @@ export function complexResponseToLangchainMessageContent(toolResponse: ComplexMe
   })
 }
 
-export function aiMessageToMimirAiMessage(aiMessage: AIMessage, content: ComplexMessageContent[], files: AiResponseMessage["sharedFiles"]): AiResponseMessage {
-  
-  const mimirMessage = {
-    content: content,
-    toolCalls: [],
-    sharedFiles: files
-  } as AiResponseMessage;
- 
-  if (aiMessage.tool_calls) {
-    const tool_calls = aiMessage.tool_calls.map(t => {
-      return {
-        toolName: t.name,
-        input: t.args,
-        id: t.id
-      } satisfies MessageContentToolUse
-    });
-    mimirMessage.toolCalls = tool_calls;
-  }
-
-  return mimirMessage;
-}
 
 export function extractAllTextFromComplexResponse(toolResponse: ComplexMessageContent[]): string {
   return toolResponse.filter((r) => r.type === "text").map((r) => (r as TextMessageContent).text).join("\n");

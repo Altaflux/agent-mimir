@@ -1,18 +1,19 @@
-import { ComplexMessageContent, } from "../schema.js";
-import { WorkspacePluginFactory, WorkspanceManager } from "../plugins/workspace.js";
-import { ViewPluginFactory } from "../tools/image_view.js";
-import { MimirToolToLangchainTool } from "../utils/wrapper.js";
+import { ComplexMessageContent, } from "../../schema.js";
+import { WorkspacePluginFactory, WorkspanceManager } from "../../plugins/workspace.js";
+import { ViewPluginFactory } from "../../tools/image_view.js";
+import { MimirToolToLangchainTool } from "./wrapper.js";
 import { isToolMessage, ToolMessage } from "@langchain/core/messages/tool";
-import { aiMessageToMimirAiMessage, complexResponseToLangchainMessageContent } from "../utils/format.js";
+import { complexResponseToLangchainMessageContent } from "../../utils/format.js";
 import { AIMessage, BaseMessage, HumanMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage } from "@langchain/core/messages";
 import { Annotation, Command, END, interrupt, Messages, MessagesAnnotation, messagesStateReducer, Send, START, StateDefinition, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
-import { extractTextResponseFromMessage, ResponseFieldMapper } from "../utils/instruction-mapper.js";
+import { extractTextResponseFromMessage, ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
-import { commandContentToBaseMessage, dividerSystemMessage, langChainToolMessageToMimirHumanMessage, lCmessageContentToContent, mergeSystemMessages, parseToolMessage, toolMessageToToolResponseInfo } from "./message-utils.js";
-import { Agent, AgentMessage, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, CreateAgentArgs, InputAgentMessage, ToolResponseInfo } from "./index.js";
-import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory } from "../plugins/index.js";
-import { toolNodeFunction } from "../tools/toolNode.js"
+import { commandContentToBaseMessage, dividerSystemMessage,  lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
+import { Agent, AgentMessage, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, CreateAgentArgs, InputAgentMessage, ToolResponseInfo } from "./../index.js";
+import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory } from "../../plugins/index.js";
+import { toolNodeFunction } from "./toolNode.js"
+import { aiMessageToMimirAiMessage, langChainToolMessageToMimirHumanMessage, parseToolMessage, toolMessageToToolResponseInfo } from "./utils.js";
 
 export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,

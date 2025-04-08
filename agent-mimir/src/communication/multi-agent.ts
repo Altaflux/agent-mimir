@@ -1,6 +1,6 @@
-import { createAgent } from "../agent-manager/agent.js";
+import { createAgent } from "../agent-manager/code-agent/index.js";
 import { Agent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, ToolResponseInfo, InputAgentMessage, CreateAgentArgs } from "../agent-manager/index.js";
-import { HelpersPluginFactory } from "../plugins/helpers.js";
+import { HelpersPluginFactory } from "../agent-manager/function-agent/helpers.js";
 
 type PendingMessage = {
     content: InputAgentMessage;
