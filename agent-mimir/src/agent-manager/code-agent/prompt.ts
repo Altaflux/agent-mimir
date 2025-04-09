@@ -2,8 +2,11 @@
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { AgentTool } from "../../tools/index.js";
 export const FUNCTION_PROMPT = `
+You are an expert assistant who can solve any task using code blobs. You will be given a task to solve as best you can.
+To do so, you have been given access to a list of tools: these tools are basically Python functions which you can call with code.
 
-You have the ability to execute code in a Python environment. To execute code, you can use response with python code wrapped in an "<execution-code>" xml tag. The code will be executed in a Python environment, and whatever you print into the console will be returned to you.
+You have the ability to execute code in a Python environment. To execute code, you can use response with python code wrapped in an "<execution-code>" xml tag. 
+The code will be executed inside the Python environment, and whatever you print into the console will be returned to you.
 Your code is running inside an async environment, so you can use async/await syntax.
 
 
@@ -16,7 +19,7 @@ print("Hello, world!")
 time.sleep(2)
 print("Random number:", random.randint(1, 100))
 
-result = await some_async_function();
+result = await some_async_function({"field": "value"});
 print(result)
 </execution-code>
 
@@ -47,6 +50,7 @@ export const getFunctionsPrompt = (tool: AgentTool[]) => {
     return `\nThe python environment has the following functions available to it, use them to accomnplish the requested goal.
 The result of functions with an output parameter of "ToolResponse" can be printed with the "print" function, and the result will be returned to you.
 If the function has a different defined output type then its output can be used in other functions as an normal Python type.
+The parameters of this functions is a single Dictionary parameter, not a list of parameters. Example: await functionName({"param1": "value1", "param2": "value2"}).
 All functions are async and must be awaited.
 FUNCTION LIST:\n${functions}\n\n---------------------------------\n`;
 

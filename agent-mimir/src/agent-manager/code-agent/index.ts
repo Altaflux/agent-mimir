@@ -16,6 +16,7 @@ import { pythonToolNodeFunction } from "./toolNode.js";
 import { FUNCTION_PROMPT, getFunctionsPrompt, PYTHON_SCRIPT_EXAMPLE } from "./prompt.js";
 import { AgentTool, ToolResponse } from "../../tools/index.js";
 import { z } from "zod";
+import { DefaultPluginFactory } from "../../plugins/defaultPlugins.js";
 
 export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
@@ -42,6 +43,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     const toolPlugins: PluginFactory[] = [];
     toolPlugins.push(new WorkspacePluginFactory());
     toolPlugins.push(new ViewPluginFactory());
+    toolPlugins.push(new DefaultPluginFactory());
     const allCreatedPlugins = await Promise.all([...allPluginFactories, ...toolPlugins].map(async factory => await factory.create({
         workspace: workspace,
         agentName: shortName,
@@ -53,15 +55,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     const allTools = [new WeatherTool()];
    
     const modelWithTools = model;
-    const defaultAttributes: AttributeDescriptor[] = [
-        {
-            name: "taskResultDescription",
-            attributeType: "string",
-            variableName: "taskDesc",
-            description: "Description of results of your previous action as well as a description of the state of the lastest element you interacted with.",
-            example: "Example 1: I can see that the file was modified correctly and now contains the edited text. Example 2: I can see that the file was not modified correctly the text was not added.",
-        }
-    ]
+
 
     const workspaceManager = new WorkspanceManager(workspace)
     const agentCallCondition = async (state: typeof StateAnnotation.State) => {
@@ -129,14 +123,15 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
                 } : isToolMessage(lastMessage) ?
                     langChainToolMessageToMimirHumanMessage(lastMessage) : undefined;
-            await Promise.all(allCreatedPlugins.map(p => p.readyToProceed(nextMessage!,)));
-
-
+            if (nextMessage === undefined) {
+                throw new Error("No next message found");
+            }
+            await Promise.all(allCreatedPlugins.map(p => p.readyToProceed(nextMessage!)));
 
             const pluginAttributes = (await Promise.all(
-                allCreatedPlugins.map(async (plugin) => await plugin.attributes())
+                allCreatedPlugins.map(async (plugin) => await plugin.attributes(nextMessage!))
             )).flatMap(e => e);
-            const fieldMapper = new ResponseFieldMapper([...pluginAttributes, ...defaultAttributes]);
+            const fieldMapper = new ResponseFieldMapper([...pluginAttributes]);
             const responseFormatSystemMessage: AgentSystemMessage = {
                 content: [
                     {

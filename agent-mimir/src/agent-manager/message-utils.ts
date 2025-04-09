@@ -1,18 +1,8 @@
 import { v4 } from "uuid";
-import { AIMessage, BaseMessage, HumanMessage, MessageContent, MessageContentComplex, MessageContentImageUrl, MessageContentText, SystemMessage, ToolMessage } from "@langchain/core/messages";
+import { AIMessage, BaseMessage, HumanMessage, MessageContent, MessageContentComplex, MessageContentImageUrl, MessageContentText, SystemMessage } from "@langchain/core/messages";
 import { ComplexMessageContent, ImageMessageContent, TextMessageContent, SupportedImageTypes, } from "../schema.js";
 import { CONSTANTS, ERROR_MESSAGES } from "./constants.js";
 import { complexResponseToLangchainMessageContent } from "../utils/format.js";
-import { AgentMessageToolRequest, ToolResponseInfo, } from "./index.js";
-import { NextMessageToolResponse } from "../plugins/index.js";
-
-
-export function trimStringToMaxWithEllipsis(str: string, max: number): string {
-    return str.length > max ? str.substring(0, max) + "..." : str;
-}
-
-
-
 
 
 export function commandContentToBaseMessage(commandContent: { type: string, content: ComplexMessageContent[] }): BaseMessage {

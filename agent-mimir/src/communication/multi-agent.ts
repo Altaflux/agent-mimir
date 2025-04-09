@@ -1,5 +1,5 @@
-// import { createAgent } from "../agent-manager/code-agent/index.js";
-import { createAgent } from "../agent-manager/function-agent/agent.js";
+import { createAgent } from "../agent-manager/code-agent/index.js";
+//import { createAgent } from "../agent-manager/function-agent/agent.js";
 import { Agent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, ToolResponseInfo, InputAgentMessage, CreateAgentArgs } from "../agent-manager/index.js";
 import { HelpersPluginFactory } from "../agent-manager/function-agent/helpers.js";
 

@@ -7,9 +7,9 @@ import { complexResponseToLangchainMessageContent } from "../../utils/format.js"
 import { AIMessage, BaseMessage, HumanMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage } from "@langchain/core/messages";
 import { Annotation, Command, END, interrupt, Messages, MessagesAnnotation, messagesStateReducer, Send, START, StateDefinition, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
-import { extractTextResponseFromMessage, ResponseFieldMapper } from "../../utils/instruction-mapper.js";
+import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
-import { commandContentToBaseMessage, dividerSystemMessage,  lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
+import { commandContentToBaseMessage, dividerSystemMessage, lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
 import { Agent, AgentMessage, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, CreateAgentArgs, InputAgentMessage, ToolResponseInfo } from "./../index.js";
 import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory, AiResponseMessage } from "../../plugins/index.js";
 import { toolNodeFunction } from "./toolNode.js"
@@ -52,7 +52,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     //const allTools = (await Promise.all(allCreatedPlugins.map(async plugin => await plugin.tools()))).flat();
     const allTools = [new WeatherTool()];
 
-    
+
     const langChainTools = allTools.map(t => new MimirToolToLangchainTool(t));
     const modelWithTools = model.bindTools!(langChainTools);
     const defaultAttributes: AttributeDescriptor[] = [
@@ -113,12 +113,16 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                     ...inputMessage
                 } : isToolMessage(lastMessage) ?
                     langChainToolMessageToMimirHumanMessage(lastMessage) : undefined;
-            await Promise.all(allCreatedPlugins.map(p => p.readyToProceed(nextMessage!,)));
+
+            if (nextMessage === undefined) {
+                throw new Error("No next message found");
+            }
+            await Promise.all(allCreatedPlugins.map(p => p.readyToProceed(nextMessage!)));
 
 
 
             const pluginAttributes = (await Promise.all(
-                allCreatedPlugins.map(async (plugin) => await plugin.attributes())
+                allCreatedPlugins.map(async (plugin) => await plugin.attributes(nextMessage!))
             )).flatMap(e => e);
             const fieldMapper = new ResponseFieldMapper([...pluginAttributes, ...defaultAttributes]);
             const responseFormatSystemMessage: AgentSystemMessage = {
@@ -219,7 +223,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             const messageContent = lCmessageContentToContent(response.content);
             const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(messageContent);
             const sharedFiles = await workspaceManager.readAttributes(rawResponseAttributes);
-            let mimirAiMessage = aiMessageToMimirAiMessage(response,  sharedFiles);
+            let mimirAiMessage = aiMessageToMimirAiMessage(response, sharedFiles);
 
             for (const plugin of allCreatedPlugins) {
                 await plugin.readResponse(mimirAiMessage, rawResponseAttributes);
@@ -294,7 +298,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         }
         return { messages: modifiedMessages };
     }
-    async function humanReviewNode(state:  typeof StateAnnotation.State) {
+    async function humanReviewNode(state: typeof StateAnnotation.State) {
         //const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
         const toolRequest: AgentMessageToolRequest = state.output;
         toolRequest.content
@@ -590,12 +594,12 @@ class WeatherTool extends AgentTool {
     name: string = "getWeather";
     description: string = "Get the weather for a city.";
 
-     protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
+    protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
         return [
             {
                 type: "text",
                 text: `The weather in ${arg.city}, ${arg.country} is sunny with a temperature of 25 degrees Celsius.`
             }
         ]
-     }
+    }
 }
