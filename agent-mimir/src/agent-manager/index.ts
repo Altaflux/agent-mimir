@@ -9,7 +9,7 @@ export type MessageContentToolUse = {
     /** The name of the tool to be executed */
     toolName: string;
     /** Input parameters for the tool as key-value pairs */
-    input: Record<string, any>,
+    input: string,
     /** Optional unique identifier for this tool use request */
     id?: string,
 }

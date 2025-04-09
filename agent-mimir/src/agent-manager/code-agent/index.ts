@@ -6,12 +6,12 @@ import { complexResponseToLangchainMessageContent, extractTextContent } from "..
 import { AIMessage, BaseMessage, HumanMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage } from "@langchain/core/messages";
 import { Annotation, Command, END, interrupt, Messages, MessagesAnnotation, messagesStateReducer, Send, START, StateDefinition, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
-import { extractTextResponseFromMessage, ResponseFieldMapper } from "../../utils/instruction-mapper.js";
+import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { commandContentToBaseMessage, dividerSystemMessage,  lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
 import { Agent, AgentMessage, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, CreateAgentArgs, InputAgentMessage, ToolResponseInfo } from "./../index.js";
 import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory } from "../../plugins/index.js";
-import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex, getTextAfterLastExecutionCode, isToolMessage, langChainToolMessageToMimirHumanMessage, parseToolMessage, toolMessageToToolResponseInfo } from "./utils.js";
+import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex, getTextAfterLastExecutionCode, isToolMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo } from "./utils.js";
 import { pythonToolNodeFunction } from "./toolNode.js";
 import { FUNCTION_PROMPT, getFunctionsPrompt, PYTHON_SCRIPT_EXAMPLE } from "./prompt.js";
 import { AgentTool, ToolResponse } from "../../tools/index.js";
@@ -213,8 +213,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                     content: [{
                         type: "text",
                         text: "I have completed my task.",
-                    }],
-                    tool_calls: response.tool_calls
+                    }]
                 })
             }
             //Agents calling agents cannot see the messages from the tool, so we remove them so the AI doesn't think it has already responded.
@@ -225,14 +224,13 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                         content: [{
                             type: "text",
                             text: `<execution-code>\n${codeScript}\n</execution-code>`
-                        }],
-                        tool_calls: response.tool_calls
+                        }]
                     })
             }
             const messageContent = lCmessageContentToContent(response.content);
             const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(messageContent);
             const sharedFiles = await workspaceManager.readAttributes(rawResponseAttributes);
-            let mimirAiMessage = aiMessageToMimirAiMessage(response, extractTextResponseFromMessage(messageContent), sharedFiles); //TODO FIX
+            let mimirAiMessage = aiMessageToMimirAiMessage(response, sharedFiles); //TODO FIX
 
             for (const plugin of allCreatedPlugins) {
                 await plugin.readResponse(mimirAiMessage, rawResponseAttributes);
@@ -311,9 +309,8 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         }
         return { messages: modifiedMessages };
     }
-    async function humanReviewNode(state: typeof MessagesAnnotation.State) {
-        const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
-        const toolRequest: AgentMessage = parseToolMessage(lastMessage, {}); //TODO FIX
+    async function humanReviewNode(state: typeof StateAnnotation.State) {
+        const toolRequest: AgentMessage = state.output;
         const humanReview = interrupt<
             AgentMessage,
             {

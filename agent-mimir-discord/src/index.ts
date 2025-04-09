@@ -280,10 +280,10 @@ export const run = async () => {
 
         const sendToolInvocationPermissionRequest = async (toolRequest: AgentToolRequestTwo) => {
             const toolCalls = (toolRequest.toolCalls ?? []).map(tr => {
-                return `Tool request: \`${tr.toolName}\`\nWith Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
+                return `Tool request: \`${tr.toolName}\`\nWith Payload: \n\`\`\`${tr.input}\`\`\``;
             }).join("\n");
             const stringResponse = extractAllTextFromComplexResponse(toolRequest.content);
-            const toolResponse = `Agent: \`${toolRequest.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
+            const toolResponse = `Agent: \`${toolRequest.callingAgent}\` \n ${stringResponse} \n---\nCalling functions:\n${toolCalls} `;
             const button = new ButtonBuilder()
                 .setCustomId('continue')    // Unique ID for the button
                 .setLabel('Continue?')       // Text that appears on the button

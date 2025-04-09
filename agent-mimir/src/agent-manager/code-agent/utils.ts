@@ -1,9 +1,8 @@
 import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
-import { AgentMessageToolRequest, MessageContentToolUse, ToolResponseInfo } from "../index.js";
+import { ToolResponseInfo } from "../index.js";
 import { lCmessageContentToContent } from "../message-utils.js";
 import { AiResponseMessage, NextMessageToolResponse } from "../../plugins/index.js";
-import { extractTextContent } from "../../utils/format.js";
-import { ComplexMessageContent } from "../../schema.js";
+import { extractTextContent, getTextAfterUserResponseFromArray } from "../../utils/format.js";
 
 export function getExecutionCodeContentRegex(xmlString: string): string | null {
   if (typeof xmlString !== 'string') {
@@ -109,33 +108,12 @@ export function toolMessageToToolResponseInfo(message: HumanMessage): ToolRespon
 }
 
 
-export function parseToolMessage(aiMessage: AIMessage, responseAttributes: Record<string, any>): AgentMessageToolRequest {
+export function aiMessageToMimirAiMessage(aiMessage: AIMessage, files: AiResponseMessage["sharedFiles"]): AiResponseMessage {
   const textContent = extractTextContent(aiMessage.content);
   const scriptCode = getExecutionCodeContentRegex(textContent);
-  const content = lCmessageContentToContent(aiMessage.content);
-
-
-  return {
-    toolCalls: [
-      {
-        id: "N/A",
-        toolName: "PYTHON_EXECUTION",
-        input: {
-          script: scriptCode,
-        }
-      }
-    ],
-    content: content
-  };
-}
-
-
-
-export function aiMessageToMimirAiMessage(aiMessage: AIMessage, content: ComplexMessageContent[], files: AiResponseMessage["sharedFiles"]): AiResponseMessage {
-  const textContent = extractTextContent(aiMessage.content);
-  const scriptCode = getExecutionCodeContentRegex(textContent);
-  const mimirMessage = {
-    content: content,
+  const userContent = getTextAfterUserResponseFromArray(lCmessageContentToContent(aiMessage.content));
+  const mimirMessage: AiResponseMessage = {
+    content: userContent,
     toolCalls: [],
     sharedFiles: files
   } as AiResponseMessage;
@@ -143,12 +121,12 @@ export function aiMessageToMimirAiMessage(aiMessage: AIMessage, content: Complex
   if (scriptCode) {
     mimirMessage.toolCalls = [
       {
+        id: "N/A",
         toolName: "PYTHON_EXECUTION",
-        input: {
-          script: scriptCode,
-        }
+        input: scriptCode
       },
     ]
   }
   return mimirMessage;
 }
+
