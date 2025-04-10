@@ -257,7 +257,7 @@ export class McpResourceTool extends AgentTool {
 
     }
 
-    name: string = "fetch-mcp-resource";
+    name: string = "fetch_mcp_resource";
     description: string = "Use this tool to read a resource from an MCP server.";
 
 }
@@ -298,7 +298,7 @@ export class McpPlugin extends AgentPlugin {
                     {
                         type: "text",
                         text: `You have access to toolkits which allow you to execute different actions, this toolkits are called MCP servers.\n
-The servers besides providing tools, they also provide resources that you can read from as needed using the fetch-mcp-resource tool.\n
+The servers besides providing tools, they also provide resources that you can read from as needed using the fetch_mcp_resource tool.\n
 MCP Servers:\n${resourcesTemplate}`
 
                     }
