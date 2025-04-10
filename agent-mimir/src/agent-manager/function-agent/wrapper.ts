@@ -7,7 +7,7 @@ import { complexResponseToLangchainMessageContent } from "../../utils/format.js"
 import { Command } from "@langchain/langgraph";
 import { ToolMessage } from "@langchain/core/messages/tool";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
-import { AgentMessage } from "../index.js";
+import { AgentMessageToolRequest } from "../index.js";
 
 export class MimirToolToLangchainTool extends StructuredTool {
 
@@ -42,7 +42,7 @@ export class MimirToolToLangchainTool extends StructuredTool {
     }
 }
 //TODO: This is a temporary solution, we need to find a better way to check if the response is an AgentMessage
-export function isUserAgentMessage(x: ToolResponse): x is AgentMessage {
+export function isUserAgentMessage(x: ToolResponse): x is AgentMessageToolRequest {
     if ((x as any).content) {
         return true;
     }

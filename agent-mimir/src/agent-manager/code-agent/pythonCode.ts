@@ -31,14 +31,12 @@ ws_channel: RpcChannel | None = None
 ${tools.map(tool => getPythonFunction(tool)).join('\n')}
 
 
-async def allow_queries(args:dict):
-    result = await asyncio.create_task(ws_channel.call("allow_queries", args=args))
-    return result.result
-
 async def do_work():
     """Performs the main task and signals for shutdown."""
     try:
+        print("Executing code...")
 ${indentText(code, '        ')}
+        print("Code execution completed.")
         pass
     except Exception as e:
         print(f"Error in executing code: {e}")

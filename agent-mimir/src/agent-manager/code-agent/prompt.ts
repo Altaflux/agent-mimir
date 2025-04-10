@@ -8,7 +8,10 @@ To do so, you have been given access to a list of tools: these tools are basical
 You have the ability to execute code in a Python environment. To execute code, you can use response with python code wrapped in an "<execution-code>" xml tag. 
 The code will be executed inside the Python environment, and whatever you print into the console will be returned to you.
 Your code is running inside an async environment, so you can use async/await syntax.
+You can only include ONE <execution-code> block per response, do not include more than one <execution-code> block in your response.
 
+Use this python environment to accomplish the task you are given, be proactive and use the function available to you but ask for help if you feel stuck on a task.
+Do not ask permission or notify the user you plan on executing code, just do it.
 
 Example:
 <execution-code>
@@ -47,7 +50,7 @@ export const getFunctionsPrompt = (tool: AgentTool[]) => {
     }
 
     let functions = tool.map((tool) => getFunctions(tool)).join("\n------\n");
-    return `\nThe python environment has the following functions available to it, use them to accomnplish the requested goal.
+    return `\nThe python environment has the following functions available to it, use them to accomplish the requested goal from the user.
 The result of functions with an output parameter of "ToolResponse" can be printed with the "print" function, and the result will be returned to you.
 If the function has a different defined output type then its output can be used in other functions as an normal Python type.
 The parameters of this functions is a single Dictionary parameter, not a list of parameters. Example: await functionName({"param1": "value1", "param2": "value2"}).

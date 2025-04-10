@@ -37,6 +37,7 @@ export type AgentUserMessage = {
 
 type MultiAgentDefinition = CreateAgentArgs & { communicationWhitelist?: string[] | boolean }
 
+const DESTINATION_AGENT_ATTRIBUTE = "destinationAgent";
 export class OrchestratorBuilder {
     private readonly agentManager: Map<string, Agent> = new Map();
 
@@ -53,7 +54,8 @@ export class OrchestratorBuilder {
         const helpersPlugin = new HelpersPluginFactory({
             name: args.name,
             helperSingleton: this.agentManager,
-            communicationWhitelist: communicationWhitelist ?? null
+            communicationWhitelist: communicationWhitelist ?? null,
+            destinationAgentFieldName: DESTINATION_AGENT_ATTRIBUTE
         });
 
 
@@ -83,7 +85,6 @@ export class MultiAgentCommunicationOrchestrator {
 
     constructor(private readonly agentManager: ReadonlyMap<string, Agent>, currentAgent: Agent) {
         this.currentAgent = currentAgent;
-
     }
 
 
@@ -104,8 +105,8 @@ export class MultiAgentCommunicationOrchestrator {
             currentAgent: Agent,
             pendingMessage: PendingMessage | undefined
         }> => {
-            if (graphResponse.output.destinationAgent) {
-                const newAgent = this.agentManager.get(graphResponse.output.destinationAgent);
+            if (graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE]) {
+                const newAgent = this.agentManager.get(graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE]);
                 if (!newAgent) {
                     return {
                         conversationComplete: false,
@@ -113,7 +114,7 @@ export class MultiAgentCommunicationOrchestrator {
                         pendingMessage: {
                             content: {
                                 content: [
-                                    { type: "text", text: `Agent ${graphResponse.output.destinationAgent} does not exist.` }
+                                    { type: "text", text: `Agent ${graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE]} does not exist.` }
                                 ]
                             },
 

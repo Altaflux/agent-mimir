@@ -6,7 +6,7 @@ const responseHeader = `RESPONSE FORMAT INSTRUCTIONS
 
 When responding to me please, please output a response in the following format:
 --------------------`;
-export const USER_RESPONSE = `RESPONSE TO USER:`;
+export const USER_RESPONSE = `MESSAGE TO SEND:`;
 
 const USER_RESPONSE_HEADER = `
 ${USER_RESPONSE}

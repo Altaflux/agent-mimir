@@ -1,10 +1,10 @@
 
 import { z } from "zod";
 import { ComplexMessageContent } from "../schema.js";
-import { AgentMessage } from "../agent-manager/index.js";
+import { AgentMessageToolRequest } from "../agent-manager/index.js";
 
 
-export type ToolResponse = ComplexMessageContent[] | AgentMessage | {
+export type ToolResponse = ComplexMessageContent[] | AgentMessageToolRequest | {
     rawResponse: any
 };
 

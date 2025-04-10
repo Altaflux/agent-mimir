@@ -10,7 +10,7 @@ import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { commandContentToBaseMessage, dividerSystemMessage, lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
-import { Agent, AgentMessage, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, CreateAgentArgs, InputAgentMessage, ToolResponseInfo } from "./../index.js";
+import { Agent,  AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, CreateAgentArgs, InputAgentMessage, ToolResponseInfo } from "./../index.js";
 import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory, AiResponseMessage } from "../../plugins/index.js";
 import { toolNodeFunction } from "./toolNode.js"
 import { aiMessageToMimirAiMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo } from "./utils.js";
@@ -80,6 +80,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         const response: AgentUserMessageResponse = {
             type: "agentResponse",
             output: aum,
+            responseAttributes: {}
         }
         const humanReview = interrupt<
             AgentUserMessageResponse,
@@ -303,7 +304,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         const toolRequest: AgentMessageToolRequest = state.output;
         toolRequest.content
         const humanReview = interrupt<
-            AgentMessage,
+        AgentMessageToolRequest,
             {
                 action: string;
                 data: InputAgentMessage;
@@ -441,7 +442,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
             }
 
-            let userResponse = (state.values["output"] as AgentMessage);
+            let userResponse = (state.values["output"] as AgentMessageToolRequest);
             return {
                 type: "agentResponse",
                 output: userResponse,

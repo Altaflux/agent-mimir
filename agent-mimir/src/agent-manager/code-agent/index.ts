@@ -9,7 +9,7 @@ import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { commandContentToBaseMessage, dividerSystemMessage,  lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
-import { Agent, AgentMessage, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, CreateAgentArgs, InputAgentMessage, ToolResponseInfo } from "./../index.js";
+import { Agent,  AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, CreateAgentArgs, InputAgentMessage, ToolResponseInfo } from "./../index.js";
 import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory } from "../../plugins/index.js";
 import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex, getTextAfterLastExecutionCode, isToolMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo } from "./utils.js";
 import { pythonToolNodeFunction } from "./toolNode.js";
@@ -22,7 +22,7 @@ export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
     requestAttributes: Annotation<Record<string, any>>,
     responseAttributes: Annotation<Record<string, any>>,
-    output: Annotation<AgentMessage>,
+    output: Annotation<AgentMessageToolRequest>,
     input: Annotation<InputAgentMessage | null>,
     noMessagesInTool: Annotation<Boolean>,
     agentMessage: Annotation<BaseMessage[]>({
@@ -51,8 +51,8 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     })));
 
 
-    //const allTools = (await Promise.all(allCreatedPlugins.map(async plugin => await plugin.tools()))).flat();
-    const allTools = [new WeatherTool()];
+    const allTools = (await Promise.all(allCreatedPlugins.map(async plugin => await plugin.tools()))).flat();
+    //const allTools = [new WeatherTool()];
    
     const modelWithTools = model;
 
@@ -69,44 +69,44 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         }
         return "message_prep";
     }
-    const agentCall = async (state: {
-        destinationAgent: string,
-        message: AIMessage
-    }) => {
-        const agenrM = state;
-        const textContent = getTextAfterLastExecutionCode(extractTextContent(agenrM.message.content));
+    // const agentCall = async (state: {
+    //     destinationAgent: string,
+    //     message: AIMessage
+    // }) => {
+    //     const agenrM = state;
+    //     const textContent = getTextAfterLastExecutionCode(extractTextContent(agenrM.message.content));
 
-        const response: AgentUserMessageResponse = {
-            type: "agentResponse",
-            output: {
-                content: [
-                    {
-                        type: "text",
-                        text: textContent,
-                    },
-                ],
-                destinationAgent: agenrM.destinationAgent,
+    //     const response: AgentUserMessageResponse = {
+    //         type: "agentResponse",
+    //         output: {
+    //             content: [
+    //                 {
+    //                     type: "text",
+    //                     text: textContent,
+    //                 },
+    //             ],
+    //             destinationAgent: agenrM.destinationAgent,
 
-            },
-        }
-        const humanReview = interrupt<
-            AgentUserMessageResponse,
-            {
-                response: InputAgentMessage;
-            }>(response);
+    //         },
+    //     }
+    //     const humanReview = interrupt<
+    //         AgentUserMessageResponse,
+    //         {
+    //             response: InputAgentMessage;
+    //         }>(response);
 
-        await workspaceManager.loadFiles(humanReview.response);
-        const additionalContent = await workspaceManager.additionalMessageContent(humanReview.response);
-        const toolResponse = new HumanMessage({
-            id: v4(),
-            content: complexResponseToLangchainMessageContent([{
-                type: "text",
-                text: `Helper ${agenrM.destinationAgent} has responded:\n`,
-            }, ...humanReview.response.content, ...additionalContent])
-        })
-        return { messages: [toolResponse] };
+    //     await workspaceManager.loadFiles(humanReview.response);
+    //     const additionalContent = await workspaceManager.additionalMessageContent(humanReview.response);
+    //     const toolResponse = new HumanMessage({
+    //         id: v4(),
+    //         content: complexResponseToLangchainMessageContent([{
+    //             type: "text",
+    //             text: `Helper ${agenrM.destinationAgent} has responded:\n`,
+    //         }, ...humanReview.response.content, ...additionalContent])
+    //     })
+    //     return { messages: [toolResponse] };
 
-    }
+    // }
 
 
     const callLLm = () => {
@@ -305,9 +305,9 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         return { messages: modifiedMessages };
     }
     async function humanReviewNode(state: typeof StateAnnotation.State) {
-        const toolRequest: AgentMessage = state.output;
+        const toolRequest: AgentMessageToolRequest = state.output;
         const humanReview = interrupt<
-            AgentMessage,
+        AgentMessageToolRequest,
             {
                 action: string;
                 data: InputAgentMessage;
@@ -348,15 +348,16 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             ends: ["run_tool", "message_prep"]
         })
         .addNode("output_convert", outputConvert)
-        .addNode("agent_call", agentCall)
+        //.addNode("agent_call", agentCall)
         .addEdge(START, "message_prep")
         .addConditionalEdges(
             "call_llm",
             routeAfterLLM,
             ["human_review_node", "output_convert"]
         )
-        .addConditionalEdges("run_tool", agentCallCondition, ["agent_call", "message_prep"])
-        .addEdge("agent_call", "message_prep")
+        //.addConditionalEdges("run_tool", agentCallCondition, ["agent_call", "message_prep"])
+        .addEdge("run_tool", "message_prep")
+       // .addEdge("agent_call", "message_prep")
         .addEdge("message_prep", "call_llm")
         .addEdge("output_convert", END);
 
@@ -426,13 +427,8 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 }
             }
 
-            if (state.tasks.length > 0 && state.tasks[0].name === "agent_call") {
-                const interruptState = state.tasks[0].interrupts[0];
-                return interruptState.value as AgentUserMessageResponse
 
-            }
-
-            let userResponse = (state.values["output"] as AgentMessage);
+            let userResponse = (state.values["output"] as InputAgentMessage);
             return {
                 type: "agentResponse",
                 output: userResponse,

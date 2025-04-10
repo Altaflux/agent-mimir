@@ -35,14 +35,14 @@ export type InputAgentMessage = {
     }[]
 };
 
-/**
- * Represents a message that can be directed to a specific agent.
- * Extends InputAgentMessage to include an optional destination agent.
- */
-export type AgentMessage = { 
-    /** Optional name of the agent this message should be sent to */
-    destinationAgent?: string 
-} & InputAgentMessage
+// /**
+//  * Represents a message that can be directed to a specific agent.
+//  * Extends InputAgentMessage to include an optional destination agent.
+//  */
+// export type AgentMessage = { 
+//     /** Optional name of the agent this message should be sent to */
+//   //  destinationAgent?: string 
+// } & InputAgentMessage
 
 /**
  * Factory function type for creating agent workspaces.
@@ -122,7 +122,7 @@ export type AgentToolRequestResponse = {
     /** The tool request message */
     output: AgentMessageToolRequest,
     /** Additional attributes for the response */
-    responseAttributes: Record<string, any>
+    responseAttributes: Record<string, string>
 }
 
 /**
@@ -132,7 +132,9 @@ export type AgentUserMessageResponse = {
     /** Identifies this as an agent response */
     type: "agentResponse",
     /** The message content */
-    output: AgentMessage,
+    output: InputAgentMessage,
+    /** Additional attributes for the response */
+    responseAttributes: Record<string, string>
 }
 
 /**
