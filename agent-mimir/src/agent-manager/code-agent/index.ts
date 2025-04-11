@@ -7,5 +7,5 @@ export { createAgent } from "./agent.js";
 
 export interface CodeToolExecutor {
 
-    execte(wsPort: number, tools: AgentTool[], code: string, toolInitCallback: (tools: AgentTool[]) => void): Promise<string>;
+    execute(tools: AgentTool[], code: string, toolInitCallback: (wsUrl: string, tools: AgentTool[]) => void): Promise<string>;
 }

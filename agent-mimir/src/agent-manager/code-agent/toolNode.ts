@@ -4,7 +4,7 @@ import {
 } from "@langchain/core/messages";
 import { RunnableConfig } from "@langchain/core/runnables";
 
-import {  MessagesAnnotation } from "@langchain/langgraph";
+import { MessagesAnnotation } from "@langchain/langgraph";
 import { complexResponseToLangchainMessageContent, extractAllTextFromComplexResponse, extractTextContent } from "../../utils/format.js";
 import { getExecutionCodeContentRegex } from "./utils.js";
 export type ToolNodeOptions = {
@@ -17,7 +17,6 @@ import { AgentTool, ToolResponse } from "../../tools/index.js";
 import { ComplexMessageContent } from "../../schema.js";
 import { v4 } from "uuid";
 import { CodeToolExecutor } from "./index.js";
-
 
 export type ToolOutput = {
     tool_name: string,
@@ -162,8 +161,9 @@ export const pythonToolNodeFunction = (
         const pythonScript = getExecutionCodeContentRegex(textConent)!;
 
         const toolResponses = new Map<string, ToolOutput>();
-        const result = await executor.execte(9000, tools, pythonScript, (tools) => {
-            toolHandler(`ws://localhost:${9000}/ws`, tools, toolResponses)
+
+        const result = await executor.execute(tools, pythonScript, (wsUrl, tools) => {
+            toolHandler(wsUrl, tools, toolResponses)
         });
 
         const messageContent = splitByToolResponse(result)
@@ -175,7 +175,7 @@ export const pythonToolNodeFunction = (
                         const resp: MessageContentComplex[] = complexResponseToLangchainMessageContent(toolResponse.response as ComplexMessageContent[]);
                         return resp;
                     } else {
-                        return [ {
+                        return [{
                             type: "text",
                             text: `((Tool response with ID ${toolResponseId} not found.))`,
                         }]
@@ -190,7 +190,7 @@ export const pythonToolNodeFunction = (
                 }
             }).flatMap((e) => e);
         const userMesage = new HumanMessage({
-            response_metadata:{
+            response_metadata: {
                 toolMessage: true,
             },
             id: v4(),
@@ -205,7 +205,7 @@ export const pythonToolNodeFunction = (
 
         // Handle mixed Command and non-Command outputs
 
-        return {messages: [userMesage],} ;
+        return { messages: [userMesage], };
     }
 };
 
@@ -244,7 +244,7 @@ export async function toolHandler(url: string, tools: AgentTool[], toolResponses
                     response: output,
                 });
             }
-            
+
             ws.send(JSON.stringify({
                 response: {
                     jsonrpc: "2.0",
@@ -273,10 +273,10 @@ type PythonFunctionRequest = {
 
 function splitByToolResponse(text: string) {
     if (typeof text !== 'string' || text === null) {
-      console.error("Input must be a non-null string.");
-      return []; // Or throw an error, depending on desired behavior
+        console.error("Input must be a non-null string.");
+        return []; // Or throw an error, depending on desired behavior
     }
-  
+
     // The regex:
     // (          )- Start capturing group
     // <<TOOL_RESPONSE: - Match the literal starting part of the marker
@@ -284,23 +284,23 @@ function splitByToolResponse(text: string) {
     // >>         - Match the literal ending part of the marker
     // )          - End capturing group
     const regex = /(<<TOOL_RESPONSE:[^>]+>>)/;
-  
+
     // Split the string using the regex. Because of the capturing group,
     // the matched delimiters (the <<TOOL_RESPONSE:...>> parts) will be included.
     const parts = text.split(regex);
-  
+
     // The split operation might leave empty strings in the array,
     // for example, if a marker is at the very beginning or end of the string,
     // or if two markers are adjacent. We filter these out.
     const filteredParts = parts.filter(part => part !== '');
-  
+
     return filteredParts;
-  }
+}
 function extractToolResponseIdRegex(markerString: string) {
     if (typeof markerString !== 'string' || markerString === null) {
-      return null; // Ensure input is a string
+        return null; // Ensure input is a string
     }
-  
+
     // Regex breakdown:
     // ^                 - Anchors the match to the start of the string.
     // <<TOOL_RESPONSE: - Matches the literal prefix.
@@ -311,13 +311,15 @@ function extractToolResponseIdRegex(markerString: string) {
     // $                 - Anchors the match to the end of the string.
     const regex = /^<<TOOL_RESPONSE:([^>]+)>>$/;
     const match = markerString.match(regex);
-  
+
     // If a match is found, the result is an array where:
     // match[0] is the full matched string (e.g., "<<TOOL_RESPONSE:abc123>>")
     // match[1] is the content of the first capturing group (e.g., "abc123")
     if (match && match[1]) {
-      return match[1];
+        return match[1];
     } else {
-      return null; // The string didn't match the expected format
+        return null; // The string didn't match the expected format
     }
-  }
+}
+
+

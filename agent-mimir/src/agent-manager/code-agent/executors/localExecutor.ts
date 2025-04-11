@@ -5,21 +5,23 @@ import { promises as fs } from 'fs';
 import path from "path";
 import { getPythonScript } from './pythonCode.js';
 import { spawn } from 'child_process';
-
+import net, { AddressInfo } from "net";
 
 export class LocalPythonExecutor implements CodeToolExecutor {
 
-    private tempDir: string| undefined ;
+    private tempDir: string | undefined;
     private initialized: boolean = false;
 
 
-    async execte(wsPort: number, tools: AgentTool[], code: string, toolInitCallback: (tools: AgentTool[]) => void): Promise<string> {
+    async execute(tools: AgentTool[], code: string, toolInitCallback: (url: string, tools: AgentTool[]) => void): Promise<string> {
 
         if (!this.tempDir) {
-            this.tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-code-interpreter-'));
+            this.tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-python-code'));
         }
-       
 
+        const wsPort = await getPortFree();
+        const wsUrl = `ws://localhost:${wsPort}/ws`;
+        
         const scriptPath = path.join(this.tempDir, 'script.py');
         const pythonScript = getPythonScript(wsPort, tools.map((t) => t.name), code);
         await fs.writeFile(scriptPath, pythonScript);
@@ -31,9 +33,9 @@ export class LocalPythonExecutor implements CodeToolExecutor {
         try {
 
             if (!this.initialized) {
-        const scriptPath = path.join(this.tempDir, 'script.py');
-        console.debug(`Creating python virtual environment in ${this.tempDir} ...`);
-             
+
+                console.debug(`Creating python virtual environment in ${this.tempDir} ...`);
+
                 const pyenv = await executeShellCommand(`cd ${this.tempDir} && python -m venv .`);
                 if (pyenv.exitCode !== 0) {
                     throw new Error(`Failed to create python virtual environment: ${pyenv.output}`);
@@ -64,7 +66,7 @@ export class LocalPythonExecutor implements CodeToolExecutor {
             let toolInitExecuted = false;
             const result = await executeShellCommandAndTrigger(`cd ${path.join(this.tempDir, scriptsDir)} && ${activeScriptCall} && python ${scriptPath}`, (data: string) => {
                 if (data.includes("INITIALIZED SERVER") && !toolInitExecuted) {
-                    toolInitCallback(tools);
+                    toolInitCallback(wsUrl, tools);
                     toolInitExecuted = true;
                     return true;
                 }
@@ -150,3 +152,15 @@ async function executeShellCommand(command: string) {
         });
     });
 }
+
+async function getPortFree(): Promise<number> {
+    return new Promise(res => {
+        const srv = net.createServer();
+        srv.listen(0, () => {
+            const port = (srv.address()! as AddressInfo).port
+            srv.close((err) => res(port))
+        });
+    })
+}
+
+
