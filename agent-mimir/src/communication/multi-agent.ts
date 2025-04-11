@@ -5,6 +5,7 @@ import { HelpersPluginFactory } from "../agent-manager/function-agent/helpers.js
 
 type PendingMessage = {
     content: InputAgentMessage;
+    originAgent: string | undefined;
 }
 export type AgentInvoke = (agent: Agent,) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>;
 
@@ -112,6 +113,7 @@ export class MultiAgentCommunicationOrchestrator {
                         conversationComplete: false,
                         currentAgent: this.currentAgent,
                         pendingMessage: {
+                            originAgent: undefined,
                             content: {
                                 content: [
                                     { type: "text", text: `Agent ${graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE]} does not exist.` }
@@ -126,6 +128,7 @@ export class MultiAgentCommunicationOrchestrator {
                     conversationComplete: false,
                     currentAgent: newAgent,
                     pendingMessage: {
+                        originAgent: undefined,
                         content: graphResponse.output
                     }
                 }
@@ -135,6 +138,7 @@ export class MultiAgentCommunicationOrchestrator {
                     conversationComplete: isFinalUser,
                     currentAgent: isFinalUser ? this.currentAgent : agentStack.pop()!,
                     pendingMessage: {
+                        originAgent: this.currentAgent.name,
                         content: graphResponse.output
                     }
                 }
@@ -145,7 +149,16 @@ export class MultiAgentCommunicationOrchestrator {
 
             let generator = pendingMessage
                 ? this.currentAgent.call({
-                    message: pendingMessage.content,
+                    message: {
+                        ...pendingMessage.content,
+                        content: [
+                            {
+                                type: "text",
+                                text: pendingMessage.originAgent ? `This message is from ${pendingMessage.originAgent}:\n`: "",
+                            },
+                            ...pendingMessage.content.content,
+                        ]
+                    },
                     noMessagesInTool: true
                 })
                 : msg(this.currentAgent);

@@ -1,8 +1,5 @@
 
-import { z } from "zod";
 import { AgentSystemMessage, AgentPlugin, PluginFactory, PluginContext, NextMessage, AttributeDescriptor } from "../../plugins/index.js";
-import { AgentTool, ToolResponse } from "../../tools/index.js";
-import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { Agent } from "../index.js";
 
 
@@ -33,7 +30,7 @@ export class HelpersPlugin extends AgentPlugin {
     private communicationWhitelist: string[] | null;
     private agentName: string;
     private destinationAgentFieldName: string;
-    
+
     constructor(config: HelperPluginConfig) {
         super();
         this.helperSingleton = config.helperSingleton;
@@ -52,6 +49,7 @@ export class HelpersPlugin extends AgentPlugin {
             }
         ];
     }
+
     async getSystemMessages(): Promise<AgentSystemMessage> {
 
         const helpers = [...this.helperSingleton.values()];
@@ -70,11 +68,5 @@ export class HelpersPlugin extends AgentPlugin {
                 }
             ]
         }
-    }
-
-
-    async tools(): Promise<AgentTool[]> {
-        //let tools: AgentTool[] = [new HelperTool(this.helperSingleton, this.agentName)];
-        return [];
     }
 }
