@@ -1,12 +1,8 @@
 
 import { z } from "zod";
 import { ComplexMessageContent } from "../schema.js";
-import { AgentMessageToolRequest } from "../agent-manager/index.js";
 
-
-export type ToolResponse = ComplexMessageContent[] | AgentMessageToolRequest | {
-    rawResponse: any
-};
+export type ToolResponse = ComplexMessageContent[];
 
 
 export abstract class AgentTool<
