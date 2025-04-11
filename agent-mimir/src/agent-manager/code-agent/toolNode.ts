@@ -1,22 +1,12 @@
 import {
-    BaseMessage,
-    ToolMessage,
-    AIMessage,
-    isBaseMessage,
     MessageContentComplex,
     HumanMessage,
 } from "@langchain/core/messages";
-import { RunnableConfig, RunnableToolLike } from "@langchain/core/runnables";
-import { StructuredToolInterface } from "@langchain/core/tools";
-// import { RunnableCallable } from "../utils.js";
+import { RunnableConfig } from "@langchain/core/runnables";
 
-//import { isGraphInterrupt } from "../errors.js";
-//   import { isCommand } from "../constants.js";
-
-import { Annotation, Command, END, interrupt, isCommand, isGraphInterrupt, Messages, MessagesAnnotation, messagesStateReducer, Send, START, StateDefinition, StateGraph, } from "@langchain/langgraph";
+import {  MessagesAnnotation } from "@langchain/langgraph";
 import { complexResponseToLangchainMessageContent, extractAllTextFromComplexResponse, extractTextContent } from "../../utils/format.js";
 import { getExecutionCodeContentRegex } from "./utils.js";
-import { localPythonEnvironment } from "./localPythonEnv.js";
 export type ToolNodeOptions = {
     name?: string;
     tags?: string[];
@@ -26,6 +16,7 @@ import WebSocket from 'ws';
 import { AgentTool, ToolResponse } from "../../tools/index.js";
 import { ComplexMessageContent } from "../../schema.js";
 import { v4 } from "uuid";
+import { CodeToolExecutor } from "./index.js";
 
 
 export type ToolOutput = {
@@ -154,6 +145,7 @@ export type ToolOutput = {
 
 export const pythonToolNodeFunction = (
     tools: (AgentTool)[],
+    executor: CodeToolExecutor,
     options?: ToolNodeOptions) => {
 
     return async (input: typeof MessagesAnnotation.State, config: RunnableConfig) => {
@@ -170,9 +162,9 @@ export const pythonToolNodeFunction = (
         const pythonScript = getExecutionCodeContentRegex(textConent)!;
 
         const toolResponses = new Map<string, ToolOutput>();
-        const result = await localPythonEnvironment(9000, tools.map(tool => tool.name), pythonScript, () => {
-            toolHandler(9000, tools, toolResponses)
-         })
+        const result = await executor.execte(9000, tools, pythonScript, (tools) => {
+            toolHandler(`ws://localhost:${9000}/ws`, tools, toolResponses)
+        });
 
         const messageContent = splitByToolResponse(result)
             .map((part) => {
@@ -219,9 +211,9 @@ export const pythonToolNodeFunction = (
 
 
 
-export async function toolHandler(port: number, tools: AgentTool[], toolResponses: Map<string, ToolOutput>) {
+export async function toolHandler(url: string, tools: AgentTool[], toolResponses: Map<string, ToolOutput>) {
 
-    let ws = new WebSocket(`ws://localhost:${port}/ws`, { perMessageDeflate: false });
+    let ws = new WebSocket(url, { perMessageDeflate: false });
     ws.on('open', function open(dc: any, f: any) {
         ws.on('message', async function (data: any) {
             console.log('Received message:', data);
