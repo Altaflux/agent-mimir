@@ -45,7 +45,7 @@ export class HelpersPlugin extends AgentPlugin {
                 attributeType: "string",
                 name: "helperName",
                 variableName: this.destinationAgentFieldName,
-                description: "Set this parameter to the name of the helper you want to talk to. Only set it if you want to talk to a helper, else do not set it. When set, the message you send will be sent to that helper instead of the user.",
+                description: "Set this parameter to the name of the helper you want to send a message. Only set it if you want to send a message to a helper, else do not set it. When set, the message you send will be sent to that helper instead of the user. If not set you will be responding to the user.",
             }
         ];
     }

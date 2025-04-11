@@ -5,7 +5,7 @@ import { HelpersPluginFactory } from "../agent-manager/function-agent/helpers.js
 
 type PendingMessage = {
     content: InputAgentMessage;
-    originAgent: string | undefined;
+    replyFromAgent: string | undefined;
 }
 export type AgentInvoke = (agent: Agent,) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>;
 
@@ -113,7 +113,7 @@ export class MultiAgentCommunicationOrchestrator {
                         conversationComplete: false,
                         currentAgent: this.currentAgent,
                         pendingMessage: {
-                            originAgent: undefined,
+                            replyFromAgent: undefined,
                             content: {
                                 content: [
                                     { type: "text", text: `Agent ${graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE]} does not exist.` }
@@ -128,7 +128,7 @@ export class MultiAgentCommunicationOrchestrator {
                     conversationComplete: false,
                     currentAgent: newAgent,
                     pendingMessage: {
-                        originAgent: undefined,
+                        replyFromAgent: undefined,
                         content: graphResponse.output
                     }
                 }
@@ -138,7 +138,7 @@ export class MultiAgentCommunicationOrchestrator {
                     conversationComplete: isFinalUser,
                     currentAgent: isFinalUser ? this.currentAgent : agentStack.pop()!,
                     pendingMessage: {
-                        originAgent: this.currentAgent.name,
+                        replyFromAgent: this.currentAgent.name,
                         content: graphResponse.output
                     }
                 }
@@ -154,7 +154,7 @@ export class MultiAgentCommunicationOrchestrator {
                         content: [
                             {
                                 type: "text",
-                                text: pendingMessage.originAgent ? `This message is from ${pendingMessage.originAgent}:\n`: "",
+                                text: pendingMessage.replyFromAgent ? `This message is from ${pendingMessage.replyFromAgent}:\n`: "",
                             },
                             ...pendingMessage.content.content,
                         ]
