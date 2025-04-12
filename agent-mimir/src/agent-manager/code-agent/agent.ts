@@ -299,16 +299,13 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             ends: ["run_tool", "message_prep"]
         })
         .addNode("output_convert", outputConvert)
-        //.addNode("agent_call", agentCall)
         .addEdge(START, "message_prep")
         .addConditionalEdges(
             "call_llm",
             routeAfterLLM,
             ["human_review_node", "output_convert"]
         )
-        //.addConditionalEdges("run_tool", agentCallCondition, ["agent_call", "message_prep"])
         .addEdge("run_tool", "message_prep")
-       // .addEdge("agent_call", "message_prep")
         .addEdge("message_prep", "call_llm")
         .addEdge("output_convert", END);
 
@@ -433,9 +430,6 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                     graphInput = new Command({ resume: { action: "continue" } })
                 }
 
-            }
-            else if (state.next.length > 0 && state.next[0] === "agent_call") {
-                graphInput = new Command({ resume: { response: args.message } })
             }
             else {
 

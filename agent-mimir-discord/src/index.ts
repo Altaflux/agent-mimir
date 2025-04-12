@@ -308,7 +308,7 @@ export const run = async () => {
             if (agentConfig.continuousMode) {
                 while (result.value.type === "toolRequest" && agentConfig.continuousMode) {
                     const toolCalls = (result.value.toolCalls ?? []).map(tr => {
-                        return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
+                        return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${tr.input}\`\`\``;
                     }).join("\n");
                     const stringResponse = extractAllTextFromComplexResponse(result.value.content);
                     const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
