@@ -14,8 +14,6 @@ import { Agent,  AgentMessageToolRequest, AgentResponse, AgentUserMessageRespons
 import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory, AiResponseMessage } from "../../plugins/index.js";
 import { toolNodeFunction } from "./toolNode.js"
 import { aiMessageToMimirAiMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo } from "./utils.js";
-import { AgentTool, ToolResponse } from "../../tools/index.js";
-import { z } from "zod";
 
 export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
@@ -49,9 +47,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     })));
 
 
-    //const allTools = (await Promise.all(allCreatedPlugins.map(async plugin => await plugin.tools()))).flat();
-    const allTools = [new WeatherTool()];
-
+    const allTools = (await Promise.all(allCreatedPlugins.map(async plugin => await plugin.tools()))).flat();
 
     const langChainTools = allTools.map(t => new MimirToolToLangchainTool(t));
     const modelWithTools = model.bindTools!(langChainTools);
@@ -577,30 +573,5 @@ async function addAdditionalContentToUserMessage(message: InputAgentMessage, plu
             message: persistentMessage,
             retentionPolicy: persistantMessageRetentionPolicy
         }
-    }
-}
-
-
-
-class WeatherTool extends AgentTool {
-    // schema = z.object({
-    //     helperName: z.string().describe("The name of the helper you want to talk to and the message you want to send them."),
-    //     message: z.string().describe("The message to the helper, be as detailed as possible."),
-    //     workspaceFilesToSend: z.array(z.string().describe("File to share with the helper.")).optional().describe("The list of files of your workspace you want to share with the helper. You do not share the same workspace as the helpers, if you want the helper to have access to a file from your workspace you must share it with them."),
-    // })
-    schema = z.object({
-        city: z.string().describe("The city to get the weather for."),
-        country: z.string().describe("The country to get the weather for."),
-    })
-    name: string = "getWeather";
-    description: string = "Get the weather for a city.";
-
-    protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
-        return [
-            {
-                type: "text",
-                text: `The weather in ${arg.city}, ${arg.country} is sunny with a temperature of 25 degrees Celsius.`
-            }
-        ]
     }
 }
