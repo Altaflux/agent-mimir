@@ -1,7 +1,5 @@
-import { AIMessage, MessageContent, MessageContentComplex, MessageContentText } from "@langchain/core/messages";
-import { ComplexMessageContent,   TextMessageContent, SupportedImageTypes } from "../schema.js";
-import { MessageContentToolUse } from "../agent-manager/index.js";
-import { AiResponseMessage } from "../plugins/index.js";
+import { MessageContent, MessageContentComplex, MessageContentText } from "@langchain/core/messages";
+import { ComplexMessageContent, TextMessageContent, SupportedImageTypes } from "../schema.js";
 import { USER_RESPONSE } from "./instruction-mapper.js";
 
 
@@ -53,11 +51,11 @@ export const openAIImageHandler = (image: { url: string, type: SupportedImageTyp
 
 
 
-export function getTextAfterUserResponseFromArray(inputArray: ComplexMessageContent[]) {
+export function getTextAfterUserResponseFromArray(inputArray: ComplexMessageContent[]): { tagFound: boolean, result: ComplexMessageContent[] } {
   // Validate input: Ensure it's an array
   if (!Array.isArray(inputArray)) {
     console.error("Input must be an array.");
-    return []; // Return empty array for invalid input
+    return { tagFound: false, result: [] }; // Return empty array for invalid input
   }
 
   const marker = USER_RESPONSE; // Note: Using the exact marker from your example
@@ -68,7 +66,7 @@ export function getTextAfterUserResponseFromArray(inputArray: ComplexMessageCont
   for (let i = 0; i < inputArray.length; i++) {
     const entry = inputArray[i];
     // Make sure the element is a string before calling indexOf
-    if ( entry.type === "text" && entry.text.includes(marker)) {
+    if (entry.type === "text" && entry.text.includes(marker)) {
       markerFoundAtIndex = i;
       break; // Stop searching once the first occurrence is found
     }
@@ -76,13 +74,13 @@ export function getTextAfterUserResponseFromArray(inputArray: ComplexMessageCont
 
   // If the marker was not found in any element
   if (markerFoundAtIndex === -1) {
-    return inputArray; // Return the original array if marker not found
+    return { tagFound: false, result: inputArray }; // Return the original array if marker not found
   }
 
   // --- Marker was found ---
 
   // Get the string where the marker was found
-  const stringContainingMarker =  (inputArray[markerFoundAtIndex] as TextMessageContent);
+  const stringContainingMarker = (inputArray[markerFoundAtIndex] as TextMessageContent);
 
   // Find the position *within* that string where the marker ends
   const markerIndexInString = (stringContainingMarker as TextMessageContent).text.indexOf(marker);
@@ -108,6 +106,6 @@ export function getTextAfterUserResponseFromArray(inputArray: ComplexMessageCont
   result = [extractedPart, ...remainingElements];
   */
 
-  return result;
+  return { tagFound: true, result: result }; // Return the result array with the extracted part
 }
 

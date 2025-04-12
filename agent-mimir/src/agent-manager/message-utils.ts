@@ -30,7 +30,7 @@ export function lCmessageContentToContent(content: MessageContent): ComplexMessa
             return {
                 type: "text" as const,
                 text: (c as MessageContentText).text
-            } as TextMessageContent;
+            } satisfies TextMessageContent;
         }
 
         if (c.type === "image_url") {
@@ -43,10 +43,11 @@ export function lCmessageContentToContent(content: MessageContent): ComplexMessa
                 type: "image_url" as const,
                 image_url: {
                     //TODO: We need to handle images per LLM provider, no LLM currently supports responding image types.
-                    type: imgContent.type as SupportedImageTypes,
+                    //TODO THIS IS WRONG, WE DONT KNOW THE TYPE OF IMAGE RETURNED FROM THE LLM
+                    type: "jpeg" satisfies SupportedImageTypes,
                     url: imageUrl,
                 }
-            } as ImageMessageContent;
+            } satisfies ImageMessageContent;
         }
 
         return null
@@ -56,12 +57,12 @@ export function lCmessageContentToContent(content: MessageContent): ComplexMessa
 export function mergeSystemMessages(messages: SystemMessage[]): SystemMessage {
     return messages.reduce((prev, next) => {
         const prevContent = typeof prev.content === 'string' ?
-            [{ type: "text", text: prev.content }] as MessageContentText[] :
-            prev.content as MessageContentComplex[];
+            [{ type: "text", text: prev.content }] satisfies MessageContentText[] :
+            prev.content satisfies MessageContentComplex[];
 
         const nextContent = typeof next.content === 'string' ?
-            [{ type: "text", text: next.content }] as MessageContentText[] :
-            next.content as MessageContentComplex[];
+            [{ type: "text", text: next.content }] satisfies MessageContentText[] :
+            next.content satisfies MessageContentComplex[];
 
         return new SystemMessage({ content: [...prevContent, ...nextContent] });
     }, new SystemMessage({ content: [] }));

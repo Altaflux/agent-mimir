@@ -3,6 +3,7 @@ import { ToolResponseInfo } from "../index.js";
 import { lCmessageContentToContent } from "../message-utils.js";
 import { AiResponseMessage, NextMessageToolResponse } from "../../plugins/index.js";
 import { extractTextContent, getTextAfterUserResponseFromArray } from "../../utils/format.js";
+import { ComplexMessageContent } from "../../schema.js";
 
 export function getExecutionCodeContentRegex(xmlString: string): string | null {
   if (typeof xmlString !== 'string') {
@@ -112,11 +113,12 @@ export function aiMessageToMimirAiMessage(aiMessage: AIMessage, files: AiRespons
   const textContent = extractTextContent(aiMessage.content);
   const scriptCode = getExecutionCodeContentRegex(textContent);
   const userContent = getTextAfterUserResponseFromArray(lCmessageContentToContent(aiMessage.content));
+  
   const mimirMessage: AiResponseMessage = {
-    content: userContent,
+    content: userContent.tagFound ? userContent.result : scriptCode ? [] : [{ type: "text", text: textContent }],
     toolCalls: [],
     sharedFiles: files
-  } as AiResponseMessage;
+  };
 
   if (scriptCode) {
     mimirMessage.toolCalls = [
