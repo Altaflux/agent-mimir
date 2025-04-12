@@ -45,7 +45,7 @@ export class OrchestratorBuilder {
     constructor() {
     }
 
-    async createAgent(args: MultiAgentDefinition): Promise<Agent> {
+    async initializeAgent(args: MultiAgentDefinition): Promise<Agent> {
 
         const canCommunicateWithAgents = args.communicationWhitelist ?? false;
         let communicationWhitelist = undefined;

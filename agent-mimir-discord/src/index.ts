@@ -103,7 +103,7 @@ export const run = async () => {
             const newAgent = {
                 mainAgent: agentDefinition.mainAgent,
                 name: agentName,
-                agent: await orchestratorBuilder.createAgent({
+                agent: await orchestratorBuilder.initializeAgent({
                     communicationWhitelist: agentDefinition.definition.communicationWhitelist,
                     name: agentName,
                     description: agentDefinition.description,

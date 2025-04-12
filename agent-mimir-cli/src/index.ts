@@ -76,7 +76,7 @@ export const run = async () => {
             const newAgent = {
                 mainAgent: agentDefinition.mainAgent,
                 name: agentName,
-                agent: await orchestratorBuilder.createAgent({
+                agent: await orchestratorBuilder.initializeAgent({
                     name: agentName,
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,

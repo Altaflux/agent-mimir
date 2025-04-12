@@ -14,8 +14,6 @@ import { AgentSystemMessage, AgentPlugin, PluginFactory } from "../../plugins/in
 import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex, isToolMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo } from "./utils.js";
 import { pythonToolNodeFunction } from "./toolNode.js";
 import { FUNCTION_PROMPT, getFunctionsPrompt, PYTHON_SCRIPT_EXAMPLE } from "./prompt.js";
-import { AgentTool, ToolResponse } from "../../tools/index.js";
-import { z } from "zod";
 import { DefaultPluginFactory } from "../../plugins/defaultPlugins.js";
 import { LocalPythonExecutor } from "./executors/localExecutor.js";
 
