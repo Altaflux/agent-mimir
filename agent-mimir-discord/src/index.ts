@@ -20,6 +20,8 @@ import { PluginFactory } from "agent-mimir/plugins";
 import { ComplexMessageContent, ImageMessageContent } from "agent-mimir/schema";
 import { LangchainToolWrapperPluginFactory } from "agent-mimir/tools/langchain";
 import { file } from 'tmp-promise';
+import { CodeAgentFactory, LocalPythonExecutor } from "agent-mimir/agent/code-agent";
+
 function splitStringInChunks(str: string) {
     const chunkSize = 1900;
     let chunks = [];
@@ -100,12 +102,11 @@ export const run = async () => {
 
     const agents = await Promise.all(Object.entries(agentConfig.agents).map(async ([agentName, agentDefinition]) => {
         if (agentDefinition.definition) {
+
             const newAgent = {
                 mainAgent: agentDefinition.mainAgent,
                 name: agentName,
-                agent: await orchestratorBuilder.initializeAgent({
-                    communicationWhitelist: agentDefinition.definition.communicationWhitelist,
-                    name: agentName,
+                agent: await orchestratorBuilder.initializeAgent(new CodeAgentFactory({
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,
                     model: agentDefinition.definition.chatModel,
@@ -113,7 +114,8 @@ export const run = async () => {
                     constitution: agentDefinition.definition.constitution,
                     plugins: [...agentDefinition.definition.plugins ?? [], ...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))],
                     workspaceFactory: workspaceFactory,
-                })
+                    codeExecutor: new LocalPythonExecutor(),
+                }), agentName, agentDefinition.definition.communicationWhitelist)
             }
             console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.definition.profession}" and description "${agentDefinition.description}"`));
             return newAgent;
@@ -333,7 +335,7 @@ export const run = async () => {
                     sendToolInvocationPermissionRequest(result.value);
                     return;
                 }
-                
+
             } else {
                 sendToolInvocationPermissionRequest(result.value);
                 return;

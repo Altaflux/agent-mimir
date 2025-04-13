@@ -1,21 +1,51 @@
 import { ComplexMessageContent, } from "../../schema.js";
 import { WorkspacePluginFactory, WorkspanceManager } from "../../plugins/workspace.js";
 import { ViewPluginFactory } from "../../tools/image_view.js";
-import {  ToolMessage } from "@langchain/core/messages/tool";
+import { ToolMessage } from "@langchain/core/messages/tool";
 import { complexResponseToLangchainMessageContent, extractTextContent } from "../../utils/format.js";
 import { AIMessage, BaseMessage, HumanMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage } from "@langchain/core/messages";
 import { Annotation, Command, END, interrupt, Messages, MessagesAnnotation, messagesStateReducer, Send, START, StateDefinition, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
-import { commandContentToBaseMessage, dividerSystemMessage,  lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
-import { Agent,  AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, CreateAgentArgs, InputAgentMessage, ToolResponseInfo } from "./../index.js";
+import { commandContentToBaseMessage, dividerSystemMessage, lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
+import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, InputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "./../index.js";
 import { AgentSystemMessage, AgentPlugin, PluginFactory } from "../../plugins/index.js";
 import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex, isToolMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo } from "./utils.js";
 import { pythonToolNodeFunction } from "./toolNode.js";
 import { FUNCTION_PROMPT, getFunctionsPrompt, PYTHON_SCRIPT_EXAMPLE } from "./prompt.js";
 import { DefaultPluginFactory } from "../../plugins/defaultPlugins.js";
 import { LocalPythonExecutor } from "./executors/localExecutor.js";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { CodeToolExecutor } from "./index.js";
+
+
+/**
+ * Configuration options for creating a new agent.
+ * Contains all necessary parameters to initialize an agent with its capabilities.
+ */
+export type CreateAgentArgs = {
+    /** The professional role or expertise of the agent */
+    profession: string,
+    /** A description of the agent's purpose and capabilities */
+    description: string,
+    /** The unique name identifier for the agent */
+    name: string,
+    /** The language model to be used by the agent */
+    model: BaseChatModel,
+    /** Optional array of plugin factories to extend agent functionality */
+    plugins?: PluginFactory[],
+    /** Optional constitution defining agent behavior guidelines */
+    constitution?: string,
+    /** Optional vision support type (currently only supports 'openai') */
+    visionSupport?: 'openai',
+    /** Factory function to create the agent's workspace */
+    workspaceFactory: WorkspaceFactory,
+
+    codeExecutor: CodeToolExecutor
+}
+
+
 
 export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
@@ -85,7 +115,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 content: [
                     {
                         type: "text",
-                        text:  FUNCTION_PROMPT + "\n" + getFunctionsPrompt(allTools)
+                        text: FUNCTION_PROMPT + "\n" + getFunctionsPrompt(allTools)
                     },
                     {
                         text: fieldMapper.createFieldInstructions(PYTHON_SCRIPT_EXAMPLE),
@@ -127,7 +157,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                         messageListToSend.push(new HumanMessage({
                             id: v4(),
                             content: [
-                          
+
                                 ...complexResponseToLangchainMessageContent(displayMessage.content)
                             ]
                         }));
@@ -151,7 +181,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             }
 
             // Claude sometimes likes to respond with empty messages when there is no more content to send
-            if (response.content.length === 0 ) {
+            if (response.content.length === 0) {
                 response = new AIMessage({
                     id: response.id,
                     content: [{
@@ -163,13 +193,13 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             //Agents calling agents cannot see the messages from the tool, so we remove them so the AI doesn't think it has already responded.
             if (getExecutionCodeContentRegex(extractTextContent(response.content)) !== null && state.noMessagesInTool) {
                 const codeScript = getExecutionCodeContentRegex(extractTextContent(response.content));
-                    response = new AIMessage({
-                        id: response.id,
-                        content: [{
-                            type: "text",
-                            text: `<execution-code>\n${codeScript}\n</execution-code>`
-                        }]
-                    })
+                response = new AIMessage({
+                    id: response.id,
+                    content: [{
+                        type: "text",
+                        text: `<execution-code>\n${codeScript}\n</execution-code>`
+                    }]
+                })
             }
             const messageContent = lCmessageContentToContent(response.content);
             const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(messageContent);
@@ -256,7 +286,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     async function humanReviewNode(state: typeof StateAnnotation.State) {
         const toolRequest: AgentMessageToolRequest = state.output;
         const humanReview = interrupt<
-        AgentMessageToolRequest,
+            AgentMessageToolRequest,
             {
                 action: string;
                 data: InputAgentMessage;
@@ -291,7 +321,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
     const workflow = new StateGraph(StateAnnotation)
         .addNode("call_llm", callLLm())
-        .addNode("run_tool", pythonToolNodeFunction(allTools, new LocalPythonExecutor(),{ handleToolErrors: true }))
+        .addNode("run_tool", pythonToolNodeFunction(allTools, config.codeExecutor, { handleToolErrors: true }))
         .addNode("message_prep", messageRetentionNode)
         .addNode("human_review_node", humanReviewNode, {
             ends: ["run_tool", "message_prep"]

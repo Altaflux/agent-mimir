@@ -12,7 +12,7 @@ import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { Embeddings } from "@langchain/core/embeddings";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { LangchainToolWrapperPluginFactory } from "agent-mimir/tools/langchain";
-
+import { CodeAgentFactory, LocalPythonExecutor } from "agent-mimir/agent/code-agent";
 export type AgentDefinition = {
     mainAgent?: boolean;
     description: string;
@@ -76,16 +76,16 @@ export const run = async () => {
             const newAgent = {
                 mainAgent: agentDefinition.mainAgent,
                 name: agentName,
-                agent: await orchestratorBuilder.initializeAgent({
-                    name: agentName,
+                agent: await orchestratorBuilder.initializeAgent( new CodeAgentFactory({
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,
                     model: agentDefinition.definition.chatModel,
                     visionSupport: agentDefinition.definition.visionSupport,
                     constitution: agentDefinition.definition.constitution,
                     plugins: [...agentDefinition.definition.plugins ?? [],  ...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))],
-                    workspaceFactory: workspaceFactory
-                })
+                    workspaceFactory: workspaceFactory,
+                    codeExecutor: new LocalPythonExecutor(),
+                }), agentName, agentDefinition.definition.communicationWhitelist)
             }
             console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.definition.profession}" and description "${agentDefinition.description}"`));
             return newAgent;

@@ -1,6 +1,6 @@
 
-import { AgentSystemMessage, AgentPlugin, PluginFactory, PluginContext, NextMessage, AttributeDescriptor } from "../../plugins/index.js";
-import { Agent } from "../index.js";
+import { AgentSystemMessage, AgentPlugin, PluginFactory, PluginContext, NextMessage, AttributeDescriptor } from "../plugins/index.js";
+import { Agent } from "../agent-manager/index.js";
 
 
 export type HelperPluginConfig = {

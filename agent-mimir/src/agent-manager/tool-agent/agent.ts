@@ -9,11 +9,12 @@ import { Annotation, Command, END, interrupt, Messages, MessagesAnnotation, mess
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
-import { commandContentToBaseMessage, dividerSystemMessage, lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
-import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, CreateAgentArgs, InputAgentMessage, ToolResponseInfo } from "./../index.js";
+import { commandContentToBaseMessage, dividerSystemMessage, lCmessageContentToContent, mergeSystemMessages } from "../message-utils.js";
+import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse,  InputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "../index.js";
 import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory, AiResponseMessage } from "../../plugins/index.js";
 import { toolNodeFunction } from "./toolNode.js"
 import { aiMessageToMimirAiMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo } from "./utils.js";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
@@ -27,6 +28,30 @@ export const StateAnnotation = Annotation.Root({
         default: () => [],
     }),
 });
+
+/**
+ * Configuration options for creating a new agent.
+ * Contains all necessary parameters to initialize an agent with its capabilities.
+ */
+export type CreateAgentArgs = {
+    /** The professional role or expertise of the agent */
+    profession: string,
+    /** A description of the agent's purpose and capabilities */
+    description: string,
+    /** The unique name identifier for the agent */
+    name: string,
+    /** The language model to be used by the agent */
+    model: BaseChatModel,
+    /** Optional array of plugin factories to extend agent functionality */
+    plugins?: PluginFactory[],
+    /** Optional constitution defining agent behavior guidelines */
+    constitution?: string,
+    /** Optional vision support type (currently only supports 'openai') */
+    visionSupport?: 'openai',
+    /** Factory function to create the agent's workspace */
+    workspaceFactory: WorkspaceFactory,
+}
+
 
 
 

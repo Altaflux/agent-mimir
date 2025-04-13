@@ -1,7 +1,6 @@
-import { createAgent } from "../agent-manager/code-agent/index.js";
-//import { createAgent } from "../agent-manager/function-agent/index.js";
-import { Agent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, ToolResponseInfo, InputAgentMessage, CreateAgentArgs } from "../agent-manager/index.js";
-import { HelpersPluginFactory } from "../agent-manager/function-agent/helpers.js";
+import { Agent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, ToolResponseInfo, InputAgentMessage, AgentFactory } from "../agent-manager/index.js";
+import { HelpersPluginFactory } from "./helpers.js";
+import { PluginFactory } from "../plugins/index.js";
 
 type PendingMessage = {
     content: InputAgentMessage;
@@ -36,8 +35,6 @@ export type AgentUserMessage = {
     content: InputAgentMessage,
 }
 
-type MultiAgentDefinition = CreateAgentArgs & { communicationWhitelist?: string[] | boolean }
-
 const DESTINATION_AGENT_ATTRIBUTE = "destinationAgent";
 export class OrchestratorBuilder {
     private readonly agentManager: Map<string, Agent> = new Map();
@@ -45,33 +42,33 @@ export class OrchestratorBuilder {
     constructor() {
     }
 
-    async initializeAgent(args: MultiAgentDefinition): Promise<Agent> {
-
-        const canCommunicateWithAgents = args.communicationWhitelist ?? false;
-        let communicationWhitelist = undefined;
-        if (Array.isArray(canCommunicateWithAgents)) {
-            communicationWhitelist = canCommunicateWithAgents
+    /**
+     * Initializes an agent using the provided factory and adds it to the orchestrator.
+     * @param factory The factory to use for creating the agent
+     * @param name The name of the agent
+     * @param communicationWhitelist Optional whitelist of agent names this agent can communicate with
+     * @param additionalPlugins Optional additional plugins to add to the agent
+     * @returns The created agent
+     */
+    async initializeAgent(
+        factory: AgentFactory,
+        name: string,
+        communicationWhitelist?: string[] | boolean
+    ): Promise<Agent> {
+        let whitelist = undefined;
+        if (Array.isArray(communicationWhitelist)) {
+            whitelist = communicationWhitelist;
         }
+        
         const helpersPlugin = new HelpersPluginFactory({
-            name: args.name,
+            name: name,
             helperSingleton: this.agentManager,
-            communicationWhitelist: communicationWhitelist ?? null,
+            communicationWhitelist: whitelist ?? null,
             destinationAgentFieldName: DESTINATION_AGENT_ATTRIBUTE
         });
 
-
-        const agent = await createAgent({
-            name: args.name,
-            description: args.description,
-            profession: args.profession,
-            model: args.model,
-            visionSupport: args.visionSupport,
-            constitution: args.constitution,
-            plugins: [helpersPlugin, ...args.plugins ?? []],
-            workspaceFactory: args.workspaceFactory,
-        });
-
-        this.agentManager.set(args.name, agent);
+        const agent = await factory.create(name,  [helpersPlugin]);
+        this.agentManager.set(name, agent);
         return agent;
     }
 
