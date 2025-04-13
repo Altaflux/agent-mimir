@@ -3,7 +3,7 @@ import { CodeToolExecutor } from "../index.js";
 import os from 'os';
 import { promises as fs } from 'fs';
 import path from "path";
-import { getPythonScript } from './pythonCode.js';
+import { getPythonScript } from './python-code.js';
 import { spawn } from 'child_process';
 import net, { AddressInfo } from "net";
 

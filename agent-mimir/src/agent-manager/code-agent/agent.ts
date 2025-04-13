@@ -4,7 +4,7 @@ import { ViewPluginFactory } from "../../tools/image_view.js";
 import { ToolMessage } from "@langchain/core/messages/tool";
 import { complexResponseToLangchainMessageContent, extractTextContent } from "../../utils/format.js";
 import { AIMessage, BaseMessage, HumanMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage } from "@langchain/core/messages";
-import { Annotation, Command, END, interrupt, Messages, MessagesAnnotation, messagesStateReducer, Send, START, StateDefinition, StateGraph } from "@langchain/langgraph";
+import { Annotation, Command, END, interrupt, Messages, MessagesAnnotation, messagesStateReducer, START, StateDefinition, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
@@ -12,10 +12,9 @@ import { commandContentToBaseMessage, dividerSystemMessage, lCmessageContentToCo
 import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, InputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "./../index.js";
 import { AgentSystemMessage, AgentPlugin, PluginFactory } from "../../plugins/index.js";
 import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex, isToolMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo } from "./utils.js";
-import { pythonToolNodeFunction } from "./toolNode.js";
+import { pythonToolNodeFunction } from "./tool-node.js";
 import { FUNCTION_PROMPT, getFunctionsPrompt, PYTHON_SCRIPT_EXAMPLE } from "./prompt.js";
-import { DefaultPluginFactory } from "../../plugins/defaultPlugins.js";
-import { LocalPythonExecutor } from "./executors/localExecutor.js";
+import { DefaultPluginFactory } from "../../plugins/default-plugins.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { CodeToolExecutor } from "./index.js";
 

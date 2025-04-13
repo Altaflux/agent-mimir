@@ -12,7 +12,7 @@ import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { commandContentToBaseMessage, dividerSystemMessage, lCmessageContentToContent, mergeSystemMessages } from "../message-utils.js";
 import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse,  InputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "../index.js";
 import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory, AiResponseMessage } from "../../plugins/index.js";
-import { toolNodeFunction } from "./toolNode.js"
+import { toolNodeFunction } from "./tool-node.js"
 import { aiMessageToMimirAiMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo } from "./utils.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
