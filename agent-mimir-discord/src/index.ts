@@ -20,6 +20,8 @@ import { PluginFactory } from "agent-mimir/plugins";
 import { ComplexMessageContent, ImageMessageContent } from "agent-mimir/schema";
 import { LangchainToolWrapperPluginFactory } from "agent-mimir/tools/langchain";
 import { file } from 'tmp-promise';
+import { CodeAgentFactory, LocalPythonExecutor } from "agent-mimir/agent/code-agent";
+
 function splitStringInChunks(str: string) {
     const chunkSize = 1900;
     let chunks = [];
@@ -100,12 +102,11 @@ export const run = async () => {
 
     const agents = await Promise.all(Object.entries(agentConfig.agents).map(async ([agentName, agentDefinition]) => {
         if (agentDefinition.definition) {
+
             const newAgent = {
                 mainAgent: agentDefinition.mainAgent,
                 name: agentName,
-                agent: await orchestratorBuilder.createAgent({
-                    communicationWhitelist: agentDefinition.definition.communicationWhitelist,
-                    name: agentName,
+                agent: await orchestratorBuilder.initializeAgent(new CodeAgentFactory({
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,
                     model: agentDefinition.definition.chatModel,
@@ -113,7 +114,8 @@ export const run = async () => {
                     constitution: agentDefinition.definition.constitution,
                     plugins: [...agentDefinition.definition.plugins ?? [], ...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))],
                     workspaceFactory: workspaceFactory,
-                })
+                    codeExecutor: new LocalPythonExecutor(),
+                }), agentName, agentDefinition.definition.communicationWhitelist)
             }
             console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.definition.profession}" and description "${agentDefinition.description}"`));
             return newAgent;
@@ -280,10 +282,10 @@ export const run = async () => {
 
         const sendToolInvocationPermissionRequest = async (toolRequest: AgentToolRequestTwo) => {
             const toolCalls = (toolRequest.toolCalls ?? []).map(tr => {
-                return `Tool request: \`${tr.toolName}\`\nWith Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
+                return `Tool request: \`${tr.toolName}\`\nWith Payload: \n\`\`\`${tr.input}\`\`\``;
             }).join("\n");
             const stringResponse = extractAllTextFromComplexResponse(toolRequest.content);
-            const toolResponse = `Agent: \`${toolRequest.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
+            const toolResponse = `Agent: \`${toolRequest.callingAgent}\` \n ${stringResponse} \n---\nCalling functions:\n${toolCalls} `;
             const button = new ButtonBuilder()
                 .setCustomId('continue')    // Unique ID for the button
                 .setLabel('Continue?')       // Text that appears on the button
@@ -308,7 +310,7 @@ export const run = async () => {
             if (agentConfig.continuousMode) {
                 while (result.value.type === "toolRequest" && agentConfig.continuousMode) {
                     const toolCalls = (result.value.toolCalls ?? []).map(tr => {
-                        return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${JSON.stringify(tr.input)}\`\`\``;
+                        return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${tr.input}\`\`\``;
                     }).join("\n");
                     const stringResponse = extractAllTextFromComplexResponse(result.value.content);
                     const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
@@ -333,7 +335,7 @@ export const run = async () => {
                     sendToolInvocationPermissionRequest(result.value);
                     return;
                 }
-                
+
             } else {
                 sendToolInvocationPermissionRequest(result.value);
                 return;

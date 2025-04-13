@@ -1,24 +1,57 @@
-import { ComplexMessageContent, } from "../schema.js";
-import { WorkspacePluginFactory, WorkspanceManager } from "../plugins/workspace.js";
-import { ViewPluginFactory } from "../tools/image_view.js";
-import { MimirToolToLangchainTool } from "../utils/wrapper.js";
-import { isToolMessage, ToolMessage } from "@langchain/core/messages/tool";
-import { aiMessageToMimirAiMessage, complexResponseToLangchainMessageContent } from "../utils/format.js";
+import { ComplexMessageContent, } from "../../schema.js";
+import { WorkspacePluginFactory, WorkspanceManager } from "../../plugins/workspace.js";
+import { ViewPluginFactory } from "../../tools/image_view.js";
+import { ToolMessage } from "@langchain/core/messages/tool";
+import { complexResponseToLangchainMessageContent, extractTextContent } from "../../utils/format.js";
 import { AIMessage, BaseMessage, HumanMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage } from "@langchain/core/messages";
 import { Annotation, Command, END, interrupt, Messages, MessagesAnnotation, messagesStateReducer, Send, START, StateDefinition, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
-import { extractTextResponseFromMessage, ResponseFieldMapper } from "../utils/instruction-mapper.js";
+import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
-import { commandContentToBaseMessage, dividerSystemMessage, langChainToolMessageToMimirHumanMessage, lCmessageContentToContent, mergeSystemMessages, parseToolMessage, toolMessageToToolResponseInfo } from "./message-utils.js";
-import { Agent, AgentMessage, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, CreateAgentArgs, InputAgentMessage, ToolResponseInfo } from "./index.js";
-import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory } from "../plugins/index.js";
-import { toolNodeFunction } from "../tools/toolNode.js"
+import { commandContentToBaseMessage, dividerSystemMessage, lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
+import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, InputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "./../index.js";
+import { AgentSystemMessage, AgentPlugin, PluginFactory } from "../../plugins/index.js";
+import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex, isToolMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo } from "./utils.js";
+import { pythonToolNodeFunction } from "./toolNode.js";
+import { FUNCTION_PROMPT, getFunctionsPrompt, PYTHON_SCRIPT_EXAMPLE } from "./prompt.js";
+import { DefaultPluginFactory } from "../../plugins/defaultPlugins.js";
+import { LocalPythonExecutor } from "./executors/localExecutor.js";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { CodeToolExecutor } from "./index.js";
+
+
+/**
+ * Configuration options for creating a new agent.
+ * Contains all necessary parameters to initialize an agent with its capabilities.
+ */
+export type CreateAgentArgs = {
+    /** The professional role or expertise of the agent */
+    profession: string,
+    /** A description of the agent's purpose and capabilities */
+    description: string,
+    /** The unique name identifier for the agent */
+    name: string,
+    /** The language model to be used by the agent */
+    model: BaseChatModel,
+    /** Optional array of plugin factories to extend agent functionality */
+    plugins?: PluginFactory[],
+    /** Optional constitution defining agent behavior guidelines */
+    constitution?: string,
+    /** Optional vision support type (currently only supports 'openai') */
+    visionSupport?: 'openai',
+    /** Factory function to create the agent's workspace */
+    workspaceFactory: WorkspaceFactory,
+
+    codeExecutor: CodeToolExecutor
+}
+
+
 
 export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
     requestAttributes: Annotation<Record<string, any>>,
     responseAttributes: Annotation<Record<string, any>>,
-    output: Annotation<AgentMessage>,
+    output: Annotation<AgentMessageToolRequest>,
     input: Annotation<InputAgentMessage | null>,
     noMessagesInTool: Annotation<Boolean>,
     agentMessage: Annotation<BaseMessage[]>({
@@ -39,6 +72,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     const toolPlugins: PluginFactory[] = [];
     toolPlugins.push(new WorkspacePluginFactory());
     toolPlugins.push(new ViewPluginFactory());
+    toolPlugins.push(new DefaultPluginFactory());
     const allCreatedPlugins = await Promise.all([...allPluginFactories, ...toolPlugins].map(async factory => await factory.create({
         workspace: workspace,
         agentName: shortName,
@@ -47,51 +81,11 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
 
     const allTools = (await Promise.all(allCreatedPlugins.map(async plugin => await plugin.tools()))).flat();
-    const langChainTools = allTools.map(t => new MimirToolToLangchainTool(t));
-    const modelWithTools = model.bindTools!(langChainTools);
-    const defaultAttributes: AttributeDescriptor[] = [
-        {
-            name: "taskResultDescription",
-            attributeType: "string",
-            variableName: "taskDesc",
-            description: "Description of results of your previous action as well as a description of the state of the lastest element you interacted with.",
-            example: "Example 1: I can see that the file was modified correctly and now contains the edited text. Example 2: I can see that the file was not modified correctly the text was not added.",
-        }
-    ]
+
+    const modelWithTools = model;
+
 
     const workspaceManager = new WorkspanceManager(workspace)
-    const agentCallCondition = async (state: typeof StateAnnotation.State) => {
-        if (state.agentMessage.length > 0) {
-            return state.agentMessage.map(am => {
-                return new Send("agent_call", am);
-            })
-        }
-        return "message_prep";
-    }
-    const agentCall = async (state: ToolMessage) => {
-        const agenrM = state;
-        const aum: AgentMessageToolRequest = JSON.parse(agenrM.content as string);
-        const response: AgentUserMessageResponse = {
-            type: "agentResponse",
-            output: aum,
-        }
-        const humanReview = interrupt<
-            AgentUserMessageResponse,
-            {
-                response: InputAgentMessage;
-            }>(response);
-
-        await workspaceManager.loadFiles(humanReview.response);
-        const additionalContent = await workspaceManager.additionalMessageContent(humanReview.response);
-        const toolResponse = new ToolMessage({
-            id: v4(),
-            name: agenrM.name,
-            tool_call_id: agenrM.tool_call_id,
-            content: complexResponseToLangchainMessageContent([...humanReview.response.content, ...additionalContent])
-        })
-        return { messages: [toolResponse], agentMessage: [new RemoveMessage({ id: agenrM.id! })] };
-
-    }
 
 
     const callLLm = () => {
@@ -105,20 +99,26 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 {
                     type: "USER_MESSAGE" as const,
                     ...inputMessage
+
                 } : isToolMessage(lastMessage) ?
                     langChainToolMessageToMimirHumanMessage(lastMessage) : undefined;
-            await Promise.all(allCreatedPlugins.map(p => p.readyToProceed(nextMessage!,)));
-
-
+            if (nextMessage === undefined) {
+                throw new Error("No next message found");
+            }
+            await Promise.all(allCreatedPlugins.map(p => p.readyToProceed(nextMessage!)));
 
             const pluginAttributes = (await Promise.all(
-                allCreatedPlugins.map(async (plugin) => await plugin.attributes())
+                allCreatedPlugins.map(async (plugin) => await plugin.attributes(nextMessage!))
             )).flatMap(e => e);
-            const fieldMapper = new ResponseFieldMapper([...pluginAttributes, ...defaultAttributes]);
+            const fieldMapper = new ResponseFieldMapper([...pluginAttributes]);
             const responseFormatSystemMessage: AgentSystemMessage = {
                 content: [
                     {
-                        text: fieldMapper.createFieldInstructions(),
+                        type: "text",
+                        text: FUNCTION_PROMPT + "\n" + getFunctionsPrompt(allTools)
+                    },
+                    {
+                        text: fieldMapper.createFieldInstructions(PYTHON_SCRIPT_EXAMPLE),
                         type: "text"
                     }
                 ]
@@ -151,16 +151,13 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
             } else {
                 const messageListToSend = [...state.messages];
-                if (isToolMessage(lastMessage) && ((lastMessage)).status !== "error") {
+                if (isToolMessage(lastMessage)) {
                     const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage({ content: [] }, allCreatedPlugins);
                     if (displayMessage.content.length > 0) {
                         messageListToSend.push(new HumanMessage({
                             id: v4(),
                             content: [
-                                {
-                                    type: "text",
-                                    text: "Tools invoked succesfully (unless a tool call told you it failed or was cancelled), continue please but be sure the results from the tools are correct and what you expected."
-                                },
+
                                 ...complexResponseToLangchainMessageContent(displayMessage.content)
                             ]
                         }));
@@ -184,36 +181,30 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             }
 
             // Claude sometimes likes to respond with empty messages when there is no more content to send
-            if (response.content.length === 0 && response.tool_calls?.length === 0) {
+            if (response.content.length === 0) {
                 response = new AIMessage({
                     id: response.id,
                     content: [{
                         type: "text",
                         text: "I have completed my task.",
-                    }],
-                    tool_calls: response.tool_calls
+                    }]
                 })
             }
             //Agents calling agents cannot see the messages from the tool, so we remove them so the AI doesn't think it has already responded.
-            if ((response.tool_calls?.length ?? 0 > 0) && state.noMessagesInTool) {
-                if (Array.isArray(response.content)) {
-                    response = new AIMessage({
-                        id: response.id,
-                        content: [...response.content.filter(e => e.type !== "text")],
-                        tool_calls: response.tool_calls
-                    })
-                } else {
-                    response = new AIMessage({
-                        id: response.id,
-                        content: [],
-                        tool_calls: response.tool_calls
-                    })
-                }
+            if (getExecutionCodeContentRegex(extractTextContent(response.content)) !== null && state.noMessagesInTool) {
+                const codeScript = getExecutionCodeContentRegex(extractTextContent(response.content));
+                response = new AIMessage({
+                    id: response.id,
+                    content: [{
+                        type: "text",
+                        text: `<execution-code>\n${codeScript}\n</execution-code>`
+                    }]
+                })
             }
             const messageContent = lCmessageContentToContent(response.content);
             const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(messageContent);
             const sharedFiles = await workspaceManager.readAttributes(rawResponseAttributes);
-            let mimirAiMessage = aiMessageToMimirAiMessage(response, extractTextResponseFromMessage(messageContent), sharedFiles);
+            let mimirAiMessage = aiMessageToMimirAiMessage(response, sharedFiles); //TODO FIX
 
             for (const plugin of allCreatedPlugins) {
                 await plugin.readResponse(mimirAiMessage, rawResponseAttributes);
@@ -234,10 +225,14 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         state: typeof MessagesAnnotation.State,
     ): "output_convert" | "human_review_node" {
         const lastMessage: AIMessage = state.messages[state.messages.length - 1];
+        let messageText = "";
+        if (typeof lastMessage.content === "string") {
+            messageText = lastMessage.content;
+        } else {
+            messageText = extractTextContent(lastMessage.content);
+        }
 
-        if (
-            (lastMessage as AIMessage).tool_calls?.length === 0
-        ) {
+        if (getExecutionCodeContentRegex(messageText) === null) {
             return "output_convert";
         } else {
             return "human_review_node";
@@ -288,11 +283,10 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         }
         return { messages: modifiedMessages };
     }
-    async function humanReviewNode(state: typeof MessagesAnnotation.State) {
-        const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
-        const toolRequest: AgentMessage = parseToolMessage(lastMessage, {});
+    async function humanReviewNode(state: typeof StateAnnotation.State) {
+        const toolRequest: AgentMessageToolRequest = state.output;
         const humanReview = interrupt<
-            AgentMessage,
+            AgentMessageToolRequest,
             {
                 action: string;
                 data: InputAgentMessage;
@@ -308,27 +302,14 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         } else if (reviewAction === "feedback") {
             await workspaceManager.loadFiles(reviewData);
 
-            //Claude forcefully needs a tool message after a tool call, so we need to send it a tool message with the feedback. Every other model can just receive a human message.
-            if (name === "ChatAnthropic") {
-                const responseMessage = new ToolMessage({
-                    id: v4(),
-                    tool_call_id: lastMessage.tool_calls![0].id!,
-                    content: [
-                        { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
-                        ...complexResponseToLangchainMessageContent(reviewData.content)
-                    ],
-                })
-                return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
-            } else {
-                const responseMessage = new HumanMessage({
-                    id: v4(),
-                    content: [
-                        { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
-                        ...complexResponseToLangchainMessageContent(reviewData.content)
-                    ],
-                });
-                return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
-            }
+            const responseMessage = new HumanMessage({
+                id: v4(),
+                content: [
+                    { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
+                    ...complexResponseToLangchainMessageContent(reviewData.content)
+                ],
+            });
+            return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
         }
         throw new Error("Unreachable");
     }
@@ -340,21 +321,19 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
     const workflow = new StateGraph(StateAnnotation)
         .addNode("call_llm", callLLm())
-        .addNode("run_tool", toolNodeFunction(langChainTools, { handleToolErrors: true }))
+        .addNode("run_tool", pythonToolNodeFunction(allTools, config.codeExecutor, { handleToolErrors: true }))
         .addNode("message_prep", messageRetentionNode)
         .addNode("human_review_node", humanReviewNode, {
             ends: ["run_tool", "message_prep"]
         })
         .addNode("output_convert", outputConvert)
-        .addNode("agent_call", agentCall)
         .addEdge(START, "message_prep")
         .addConditionalEdges(
             "call_llm",
             routeAfterLLM,
             ["human_review_node", "output_convert"]
         )
-        .addConditionalEdges("run_tool", agentCallCondition, ["agent_call", "message_prep"])
-        .addEdge("agent_call", "message_prep")
+        .addEdge("run_tool", "message_prep")
         .addEdge("message_prep", "call_llm")
         .addEdge("output_convert", END);
 
@@ -377,7 +356,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     const memory = SqliteSaver.fromConnString(workspace.rootDirectory + "/agent-chat.db");
 
     let stateConfig = {
-        configurable: { thread_id: "1" },
+        configurable: { thread_id: "2" },
         streamMode: "values" as const,
     };
     const graph = workflow.compile({
@@ -424,13 +403,8 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 }
             }
 
-            if (state.tasks.length > 0 && state.tasks[0].name === "agent_call") {
-                const interruptState = state.tasks[0].interrupts[0];
-                return interruptState.value as AgentUserMessageResponse
 
-            }
-
-            let userResponse = (state.values["output"] as AgentMessage);
+            let userResponse = (state.values["output"] as InputAgentMessage);
             return {
                 type: "agentResponse",
                 output: userResponse,
@@ -484,9 +458,6 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                     graphInput = new Command({ resume: { action: "continue" } })
                 }
 
-            }
-            else if (state.next.length > 0 && state.next[0] === "agent_call") {
-                graphInput = new Command({ resume: { response: args.message } })
             }
             else {
 
@@ -567,3 +538,4 @@ async function addAdditionalContentToUserMessage(message: InputAgentMessage, plu
         }
     }
 }
+

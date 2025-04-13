@@ -1,17 +1,16 @@
 
 import { z } from "zod";
 import { ComplexMessageContent } from "../schema.js";
-import { AgentMessage } from "../agent-manager/index.js";
 
-
-export type ToolResponse = ComplexMessageContent[] | AgentMessage | {
-    rawResponse: any
-};
+export type ToolResponse = ComplexMessageContent[];
 
 
 export abstract class AgentTool<
-    T extends z.ZodObject<any, any, any, any> = z.ZodObject<any, any, any, any>> {
+    T extends z.ZodObject<any, any, any, any> = z.ZodObject<any, any, any, any>,
+    O extends z.ZodObject<any, any, any, any> = z.ZodObject<any, any, any, any>> {
     abstract schema: T | z.ZodEffects<T>;
+
+    outSchema: O | z.ZodEffects<O> | undefined =  undefined
 
     protected abstract _call(
         arg: z.output<T>,

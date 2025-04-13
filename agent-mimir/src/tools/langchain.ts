@@ -2,6 +2,8 @@ import { StructuredTool } from "langchain/tools";
 import { AgentTool, ToolResponse } from "./index.js";
 import { z } from "zod";
 import { AgentPlugin, PluginFactory, PluginContext } from "../plugins/index.js";
+import { lCmessageContentToContent } from "../agent-manager/message-utils.js";
+import { MessageContent } from "@langchain/core/messages";
 
 
 class LangchainToolToMimirTool extends AgentTool {
@@ -17,9 +19,10 @@ class LangchainToolToMimirTool extends AgentTool {
 
     protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
         const response = await this.tool.invoke(arg);
-        return {
-            rawResponse: response
+        if (this.tool.responseFormat === "content_and_artifact") {
+            return lCmessageContentToContent(response[0] as MessageContent)
         }
+        return lCmessageContentToContent(response as MessageContent)
 
     }
 }

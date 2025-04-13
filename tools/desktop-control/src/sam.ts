@@ -5,7 +5,6 @@ import { ChildProcess, spawn } from 'child_process';
 import path from "path";
 import exitHook from 'async-exit-hook';
 import net, { AddressInfo } from "net";
-import { promises as fs } from 'fs';
 export type CoordinatesInfo = {
     masks: {
         coordinates: {

@@ -150,7 +150,7 @@ export abstract class AgentPlugin {
      * @param context - Current agent context
      * @returns Array of attribute descriptors
      */
-    async attributes(): Promise<AttributeDescriptor[]> {
+    async attributes(nextMessage: NextMessage): Promise<AttributeDescriptor[]> {
         return [];
     }
 

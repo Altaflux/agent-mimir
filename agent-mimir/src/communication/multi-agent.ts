@@ -1,9 +1,10 @@
-import { createAgent } from "../agent-manager/agent.js";
-import { Agent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, ToolResponseInfo, InputAgentMessage, CreateAgentArgs } from "../agent-manager/index.js";
-import { HelpersPluginFactory } from "../plugins/helpers.js";
+import { Agent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, ToolResponseInfo, InputAgentMessage, AgentFactory } from "../agent-manager/index.js";
+import { HelpersPluginFactory } from "./helpers.js";
+import { PluginFactory } from "../plugins/index.js";
 
 type PendingMessage = {
     content: InputAgentMessage;
+    replyFromAgent: string | undefined;
 }
 export type AgentInvoke = (agent: Agent,) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>;
 
@@ -34,40 +35,40 @@ export type AgentUserMessage = {
     content: InputAgentMessage,
 }
 
-type MultiAgentDefinition = CreateAgentArgs & { communicationWhitelist?: string[] | boolean }
-
+const DESTINATION_AGENT_ATTRIBUTE = "destinationAgent";
 export class OrchestratorBuilder {
     private readonly agentManager: Map<string, Agent> = new Map();
 
     constructor() {
     }
 
-    async createAgent(args: MultiAgentDefinition): Promise<Agent> {
-
-        const canCommunicateWithAgents = args.communicationWhitelist ?? false;
-        let communicationWhitelist = undefined;
-        if (Array.isArray(canCommunicateWithAgents)) {
-            communicationWhitelist = canCommunicateWithAgents
+    /**
+     * Initializes an agent using the provided factory and adds it to the orchestrator.
+     * @param factory The factory to use for creating the agent
+     * @param name The name of the agent
+     * @param communicationWhitelist Optional whitelist of agent names this agent can communicate with
+     * @param additionalPlugins Optional additional plugins to add to the agent
+     * @returns The created agent
+     */
+    async initializeAgent(
+        factory: AgentFactory,
+        name: string,
+        communicationWhitelist?: string[] | boolean
+    ): Promise<Agent> {
+        let whitelist = undefined;
+        if (Array.isArray(communicationWhitelist)) {
+            whitelist = communicationWhitelist;
         }
+        
         const helpersPlugin = new HelpersPluginFactory({
-            name: args.name,
+            name: name,
             helperSingleton: this.agentManager,
-            communicationWhitelist: communicationWhitelist ?? null
+            communicationWhitelist: whitelist ?? null,
+            destinationAgentFieldName: DESTINATION_AGENT_ATTRIBUTE
         });
 
-
-        const agent = await createAgent({
-            name: args.name,
-            description: args.description,
-            profession: args.profession,
-            model: args.model,
-            visionSupport: args.visionSupport,
-            constitution: args.constitution,
-            plugins: [helpersPlugin, ...args.plugins ?? []],
-            workspaceFactory: args.workspaceFactory,
-        });
-
-        this.agentManager.set(args.name, agent);
+        const agent = await factory.create(name,  [helpersPlugin]);
+        this.agentManager.set(name, agent);
         return agent;
     }
 
@@ -82,7 +83,6 @@ export class MultiAgentCommunicationOrchestrator {
 
     constructor(private readonly agentManager: ReadonlyMap<string, Agent>, currentAgent: Agent) {
         this.currentAgent = currentAgent;
-
     }
 
 
@@ -103,16 +103,17 @@ export class MultiAgentCommunicationOrchestrator {
             currentAgent: Agent,
             pendingMessage: PendingMessage | undefined
         }> => {
-            if (graphResponse.output.destinationAgent) {
-                const newAgent = this.agentManager.get(graphResponse.output.destinationAgent);
+            if (graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE]) {
+                const newAgent = this.agentManager.get(graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE]);
                 if (!newAgent) {
                     return {
                         conversationComplete: false,
                         currentAgent: this.currentAgent,
                         pendingMessage: {
+                            replyFromAgent: undefined,
                             content: {
                                 content: [
-                                    { type: "text", text: `Agent ${graphResponse.output.destinationAgent} does not exist.` }
+                                    { type: "text", text: `Agent ${graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE]} does not exist.` }
                                 ]
                             },
 
@@ -124,6 +125,7 @@ export class MultiAgentCommunicationOrchestrator {
                     conversationComplete: false,
                     currentAgent: newAgent,
                     pendingMessage: {
+                        replyFromAgent: undefined,
                         content: graphResponse.output
                     }
                 }
@@ -133,6 +135,7 @@ export class MultiAgentCommunicationOrchestrator {
                     conversationComplete: isFinalUser,
                     currentAgent: isFinalUser ? this.currentAgent : agentStack.pop()!,
                     pendingMessage: {
+                        replyFromAgent: this.currentAgent.name,
                         content: graphResponse.output
                     }
                 }
@@ -143,7 +146,16 @@ export class MultiAgentCommunicationOrchestrator {
 
             let generator = pendingMessage
                 ? this.currentAgent.call({
-                    message: pendingMessage.content,
+                    message: {
+                        ...pendingMessage.content,
+                        content: [
+                            {
+                                type: "text",
+                                text: pendingMessage.replyFromAgent ? `This message is from ${pendingMessage.replyFromAgent}:\n`: "",
+                            },
+                            ...pendingMessage.content.content,
+                        ]
+                    },
                     noMessagesInTool: true
                 })
                 : msg(this.currentAgent);

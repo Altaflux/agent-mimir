@@ -1,6 +1,6 @@
-import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { AgentCommand, PluginFactory } from "../plugins/index.js";
+import { AgentCommand } from "../plugins/index.js";
 import { ComplexMessageContent } from "../schema.js";
+export { AgentFactory, AgentConfig } from "./factory.js";
 /**
  * Represents a tool use request from an agent.
  * Contains information about which tool to use and its input parameters.
@@ -9,7 +9,7 @@ export type MessageContentToolUse = {
     /** The name of the tool to be executed */
     toolName: string;
     /** Input parameters for the tool as key-value pairs */
-    input: Record<string, any>,
+    input: string,
     /** Optional unique identifier for this tool use request */
     id?: string,
 }
@@ -35,43 +35,12 @@ export type InputAgentMessage = {
     }[]
 };
 
-/**
- * Represents a message that can be directed to a specific agent.
- * Extends InputAgentMessage to include an optional destination agent.
- */
-export type AgentMessage = { 
-    /** Optional name of the agent this message should be sent to */
-    destinationAgent?: string 
-} & InputAgentMessage
 
 /**
  * Factory function type for creating agent workspaces.
  * Takes a working directory path and returns a Promise that resolves to an AgentWorkspace.
  */
 export type WorkspaceFactory = (workDirectory: string) => Promise<AgentWorkspace>;
-
-/**
- * Configuration options for creating a new agent.
- * Contains all necessary parameters to initialize an agent with its capabilities.
- */
-export type CreateAgentArgs = {
-    /** The professional role or expertise of the agent */
-    profession: string,
-    /** A description of the agent's purpose and capabilities */
-    description: string,
-    /** The unique name identifier for the agent */
-    name: string,
-    /** The language model to be used by the agent */
-    model: BaseChatModel,
-    /** Optional array of plugin factories to extend agent functionality */
-    plugins?: PluginFactory[],
-    /** Optional constitution defining agent behavior guidelines */
-    constitution?: string,
-    /** Optional vision support type (currently only supports 'openai') */
-    visionSupport?: 'openai',
-    /** Factory function to create the agent's workspace */
-    workspaceFactory: WorkspaceFactory,
-}
 
 
 
@@ -122,7 +91,7 @@ export type AgentToolRequestResponse = {
     /** The tool request message */
     output: AgentMessageToolRequest,
     /** Additional attributes for the response */
-    responseAttributes: Record<string, any>
+    responseAttributes: Record<string, string>
 }
 
 /**
@@ -132,7 +101,9 @@ export type AgentUserMessageResponse = {
     /** Identifies this as an agent response */
     type: "agentResponse",
     /** The message content */
-    output: AgentMessage,
+    output: InputAgentMessage,
+    /** Additional attributes for the response */
+    responseAttributes: Record<string, string>
 }
 
 /**
