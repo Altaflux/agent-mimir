@@ -145,7 +145,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 const pluginInputs = (await Promise.all(
                     allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages())
                 ));
-                const systemMessage = buildSystemMessage([...pluginInputs, responseFormatSystemMessage]);
+                const systemMessage = buildSystemMessage([responseFormatSystemMessage, ...pluginInputs]);
                 response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
 
             } else {
@@ -175,7 +175,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 const pluginInputs = (await Promise.all(
                     allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages())
                 ));
-                const systemMessage = buildSystemMessage([...pluginInputs, responseFormatSystemMessage]);
+                const systemMessage = buildSystemMessage([responseFormatSystemMessage, ...pluginInputs]);
                 response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
             }
 

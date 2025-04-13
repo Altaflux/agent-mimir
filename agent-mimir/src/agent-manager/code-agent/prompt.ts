@@ -5,7 +5,7 @@ export const FUNCTION_PROMPT = `
 You are an expert assistant who can solve any task using code blobs. You will be given a task to solve as best you can.
 To do so, you have been given access to a list of tools: these tools are basically Python functions which you can call with code.
 
-You have the ability to execute code in a Python environment. To execute code, you can use response with python code wrapped in an "<execution-code>" xml tag. 
+You have the ability to execute code in a Python environment. To execute code, you can respond with a python code block wrapped in an "<execution-code>" xml tag. 
 The code will be executed inside the Python environment, and whatever you print into the console will be returned to you.
 Your code is running inside an async environment, so you can use async/await syntax.
 You can only include ONE <execution-code> block per response, do not include more than one <execution-code> block in your response.

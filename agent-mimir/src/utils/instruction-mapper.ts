@@ -1,23 +1,30 @@
 import { AttributeDescriptor } from "../plugins/index.js";
 import { ComplexMessageContent, TextMessageContent } from "../schema.js";
 
-const responseHeader = `RESPONSE FORMAT INSTRUCTIONS
+
+
+function responseHeader(anyParameter: boolean) {
+
+    return `RESPONSE FORMAT INSTRUCTIONS
 ----------------------------
 
-When responding to me please, please output a response in the following format:
+When responding to me please, ALWAYS respond in the following format:
+${anyParameter ? "//A set of parameters to include in your response when applicable." : ""}
 --------------------`;
+}
+
 export const USER_RESPONSE = `MESSAGE TO SEND:`;
 
 const USER_RESPONSE_HEADER = `
-${USER_RESPONSE}
+${USER_RESPONSE} //The message you want to send to the user.
 The message to the user...\n`;
 
 const USER_RESPONSE_EXAMPLE_HEADER = `
 ${USER_RESPONSE}
-Hi, I am a helpful assistant, how can I help you?\n`;
+Hi, I am a helpful assistant, how can I help you?\n
 
-
-
+-----END OF EXAMPLE RESPONSE---------
+`;
 
 
 export class ResponseFieldMapper<T = any> {
@@ -34,7 +41,7 @@ export class ResponseFieldMapper<T = any> {
                 return `- ${attributeSetter.name}: ${attributeSetter.example}`
             }).join('\n');
 
-        const results = `${responseHeader}\n${fields}\n\n${USER_RESPONSE_HEADER}\n\nExample Response:\n--------------------\n${examples}\n${additionalExampleInstructions}\n${USER_RESPONSE_EXAMPLE_HEADER}`;
+        const results = `${responseHeader(this.attributeSetters.length > 0)}\n${fields}\n\n${USER_RESPONSE_HEADER}\n\nExample Response:\n--------------------\n${examples}\n${additionalExampleInstructions}\n${USER_RESPONSE_EXAMPLE_HEADER}`;
         return results
     }
 
@@ -73,13 +80,13 @@ export function extractTextResponseFromMessage(complexResponse: ComplexMessageCo
             return prev + next;
         }, "");
 
-        const userMessage = extractImportantText(response, USER_RESPONSE);
-        return [
-            {
-                type: "text",
-                text: userMessage
-            }
-        ]
+    const userMessage = extractImportantText(response, USER_RESPONSE);
+    return [
+        {
+            type: "text",
+            text: userMessage
+        }
+    ]
 
 }
 function extractImportantText(text: string, cutPoint: string) {
