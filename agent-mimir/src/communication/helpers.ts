@@ -43,9 +43,10 @@ export class HelpersPlugin extends AgentPlugin {
         return [
             {
                 attributeType: "string",
-                name: "helperName",
+                name: "agentNameToWhichSendTheMessage",
+                required: false,
                 variableName: this.destinationAgentFieldName,
-                description: "Set this parameter to the name of the helper you want to send a message. Only set it if you want to send a message to a helper, else do not set it. When set, the message you send will be sent to that helper instead of the user. If not set you will be responding to the user.",
+                description: "Set this parameter to the name of the Agents you want to send a message. Only set it if you want to send a message to an Agents, else do not set it. When set, the message you send will be sent to that helper instead of the user. If not set you will be responding to the user.",
             }
         ];
     }
@@ -58,7 +59,7 @@ export class HelpersPlugin extends AgentPlugin {
             .filter(element => whiteList.includes(element.name))
             .map((helper) => `${helper.name}: ${helper.description}`)
             .join("\n") ?? "";
-        const helpersMessage = helperList !== "" ? `You have the following helpers that can be used to assist you in your task:\n${helperList}` : ``;
+        const helpersMessage = helperList !== "" ? `You have access to the following Agents that you can talk to in order to assist you in your task:\n${helperList}` : ``;
 
         return {
             content: [

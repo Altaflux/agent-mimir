@@ -91,6 +91,7 @@ class WorkspacePlugin extends AgentPlugin {
                 description: "The list of files from your workspace you want to send back to the user. Respond back files you want to send back or the user has requested.",
                 name: "workspaceFilesToShare",
                 example: `["image.jpg", "textFile.txt", "movie.avi"]`,
+                required: false,
                 variableName: "workspaceFilesToShare"
             }
         ];

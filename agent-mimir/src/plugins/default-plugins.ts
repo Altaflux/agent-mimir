@@ -29,6 +29,7 @@ class DefaultPlugin extends AgentPlugin {
             attributes.push({
                 name: "taskResultDescription",
                 attributeType: "string",
+                required: true,
                 variableName: "taskDesc",
                 description: "Description of results of your previous action as well as a description of the state of the lastest element you interacted with.",
                 example: "Example 1: I can see that the file was modified correctly and now contains the edited text. Example 2: I can see that the file was not modified correctly the text was not added.",

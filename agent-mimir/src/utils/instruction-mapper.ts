@@ -32,7 +32,7 @@ export class ResponseFieldMapper<T = any> {
 
     createFieldInstructions(additionalExampleInstructions: string = ""): string {
         const fields = this.attributeSetters.map((attributeSetter) => {
-            return `- ${attributeSetter.name}: (Type: ${attributeSetter.attributeType} ) \\ ${attributeSetter.description}`
+            return `- ${attributeSetter.name}: (Type: ${attributeSetter.attributeType} (${attributeSetter.required ? 'required' : 'optional'})) \\ ${attributeSetter.description}`
         }).join('\n');
 
         const examples = this.attributeSetters

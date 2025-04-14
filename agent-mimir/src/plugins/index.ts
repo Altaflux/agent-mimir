@@ -16,6 +16,7 @@ export type AttributeDescriptor = {
     attributeType: string,
     variableName: string,
     description: string,
+    required: boolean,
     example?: string,
 }
 
