@@ -2,7 +2,7 @@
 import { OrchestratorBuilder } from "agent-mimir/communication/multi-agent";
 import { PluginFactory } from "agent-mimir/plugins";
 import chalk from "chalk";
-import { Tool } from "@langchain/core/tools";
+import { StructuredTool } from "@langchain/core/tools";
 import { chatWithAgent } from "./chat.js";
 import { promises as fs } from 'fs';
 import os from 'os';
@@ -28,7 +28,7 @@ export type AgentDefinition = {
             tokenLimit?: number;
             conversationTokenThreshold?: number;
         }
-        langChainTools?: Tool[];
+        langChainTools?: StructuredTool[];
         communicationWhitelist?: string[] | boolean;
     },
 

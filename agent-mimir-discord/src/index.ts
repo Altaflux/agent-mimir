@@ -1,6 +1,6 @@
 
 import chalk from "chalk";
-import { Tool } from "@langchain/core/tools";
+import { StructuredTool } from "@langchain/core/tools";
 import { promises as fs } from 'fs';
 import normalFs from 'fs';
 import os from 'os';
@@ -21,7 +21,7 @@ import { ComplexMessageContent, ImageMessageContent } from "agent-mimir/schema";
 import { LangchainToolWrapperPluginFactory } from "agent-mimir/tools/langchain";
 import { file } from 'tmp-promise';
 import { CodeAgentFactory, LocalPythonExecutor } from "agent-mimir/agent/code-agent";
-
+import { FunctionAgentFactory } from "agent-mimir/agent/tool-agent";
 function splitStringInChunks(str: string) {
     const chunkSize = 1900;
     let chunks = [];
@@ -48,7 +48,7 @@ export type AgentDefinition = {
             tokenLimit?: number;
             conversationTokenThreshold?: number;
         }
-        langChainTools?: Tool[];
+        langChainTools?: StructuredTool[];
         communicationWhitelist?: string[] | boolean;
     },
 
@@ -106,7 +106,7 @@ export const run = async () => {
             const newAgent = {
                 mainAgent: agentDefinition.mainAgent,
                 name: agentName,
-                agent: await orchestratorBuilder.initializeAgent(new CodeAgentFactory({
+                agent: await orchestratorBuilder.initializeAgent(new FunctionAgentFactory({
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,
                     model: agentDefinition.definition.chatModel,
@@ -114,7 +114,7 @@ export const run = async () => {
                     constitution: agentDefinition.definition.constitution,
                     plugins: [...agentDefinition.definition.plugins ?? [], ...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))],
                     workspaceFactory: workspaceFactory,
-                    codeExecutor: new LocalPythonExecutor(),
+                   // codeExecutor: new LocalPythonExecutor(),
                 }), agentName, agentDefinition.definition.communicationWhitelist)
             }
             console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.definition.profession}" and description "${agentDefinition.description}"`));

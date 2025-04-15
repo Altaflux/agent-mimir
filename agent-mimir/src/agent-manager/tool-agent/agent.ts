@@ -10,7 +10,7 @@ import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { commandContentToBaseMessage, dividerSystemMessage, lCmessageContentToContent, mergeSystemMessages } from "../message-utils.js";
-import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse,  InputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "../index.js";
+import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, InputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "../index.js";
 import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory, AiResponseMessage } from "../../plugins/index.js";
 import { toolNodeFunction } from "./tool-node.js"
 import { aiMessageToMimirAiMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo } from "./utils.js";
@@ -77,7 +77,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     const langChainTools = allTools.map(t => new MimirToolToLangchainTool(t));
     const modelWithTools = model.bindTools!(langChainTools);
     const defaultAttributes: AttributeDescriptor[] = [
-      
+
     ]
 
     const workspaceManager = new WorkspanceManager(workspace)
@@ -302,7 +302,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             await workspaceManager.loadFiles(reviewData);
 
             //Claude forcefully needs a tool message after a tool call, so we need to send it a tool message with the feedback. Every other model can just receive a human message.
-            if (name === "ChatAnthropic") {
+            if (name === "ChatAnthropic" || name === "ChatOpenAI") {
                 const responseMessage = new ToolMessage({
                     id: v4(),
                     tool_call_id: toolRequest.toolCalls![0].id!,
@@ -313,14 +313,13 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 })
                 return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
             } else {
-                const responseMessage = new HumanMessage({
-                    id: v4(),
+                const responseMessage: InputAgentMessage = {
                     content: [
                         { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
-                        ...complexResponseToLangchainMessageContent(reviewData.content)
+                        ...(reviewData.content)
                     ],
-                });
-                return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
+                };
+                return new Command({ goto: "call_llm", update: { input: responseMessage } });
             }
         }
         throw new Error("Unreachable");
