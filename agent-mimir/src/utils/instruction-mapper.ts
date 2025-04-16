@@ -3,7 +3,7 @@ import { ComplexMessageContent, TextMessageContent } from "../schema.js";
 
 import xml2js from "xml2js";
 
-function responseHeader(attributeSetters: AttributeDescriptor[]) {
+function responseHeader(additionalExampleInstructions: string, attributeSetters: AttributeDescriptor[]) {
     const xsdAttributeDefinitions = attributeSetters.map((attributeSetter) => {
         return `
               <xs:element type="xs:string" name="${attributeSetter.name}" minOccurs="${attributeSetter.required ? '1' : '0'}" maxOccurs="1">
@@ -43,6 +43,7 @@ ${xsdAttributeDefinitions}
           </xs:complexType>
         </xs:element>
       </xs:sequence>
+${additionalExampleInstructions}
     </xs:complexType>
   </xs:element>
 </xs:schema>
@@ -74,7 +75,7 @@ export class ResponseFieldMapper<T = any> {
             `
         }).join('\n');
         const exampleAttributes = `<response-output>\n\t<attributes>\n${xsdAttributeExamples ? xsdAttributeExamples : ''}\n\t</attributes>\n</response-output>`;
-        const results = `${responseHeader(this.attributeSetters)}\n\nExample Response:\n--------------------\n${exampleAttributes}\n${USER_RESPONSE_EXAMPLE_HEADER}`
+        const results = `${responseHeader(additionalExampleInstructions, this.attributeSetters)}\n\nExample Response:\n--------------------\n${exampleAttributes}\n${USER_RESPONSE_EXAMPLE_HEADER}`
         return results
     }
 

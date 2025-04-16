@@ -64,3 +64,15 @@ export const PYTHON_SCRIPT_EXAMPLE = `
 ...PYTHON CODE HERE...
 </execution-code>
 `
+export const PYTHON_SCRIPT_SCHEMA = `
+<xs:element name="execution-code" type="xs:string" minOccurs="0" maxOccurs="1">
+    <xsd:annotation>
+        <xsd:documentation xml:lang="en">
+            Python code to be executed in the Python environment. The code must be wrapped in this tag.
+            You can only include ONE <execution-code> block per response, do not include more than one <execution-code> block in your response.
+            Only use the <execution-code> tag to execute code when needed, do not use it for any other purpose.
+        </xsd:documentation>
+    </xsd:annotation>
+</xs:element>
+
+`
