@@ -2,9 +2,11 @@ import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { ToolResponseInfo } from "../index.js";
 import { lCmessageContentToContent } from "../message-utils.js";
 import { AiResponseMessage, NextMessageToolResponse } from "../../plugins/index.js";
-import { extractTextContent, getTextAfterUserResponseFromArray } from "../../utils/format.js";
-import { ComplexMessageContent } from "../../schema.js";
+import { extractTextContent } from "../../utils/format.js";
+import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 
+
+//TODO: remove this when we have a better way to handle this
 export function getExecutionCodeContentRegex(xmlString: string): string | null {
   if (typeof xmlString !== 'string') {
     console.error("Input must be a string.");
@@ -109,10 +111,10 @@ export function toolMessageToToolResponseInfo(message: HumanMessage): ToolRespon
 }
 
 
-export function aiMessageToMimirAiMessage(aiMessage: AIMessage, files: AiResponseMessage["sharedFiles"]): AiResponseMessage {
+export function aiMessageToMimirAiMessage(aiMessage: AIMessage, files: AiResponseMessage["sharedFiles"], mapper: ResponseFieldMapper): AiResponseMessage {
   const textContent = extractTextContent(aiMessage.content);
   const scriptCode = getExecutionCodeContentRegex(textContent);
-  const userContent = getTextAfterUserResponseFromArray(lCmessageContentToContent(aiMessage.content));
+  const userContent = mapper.getUserMessage(lCmessageContentToContent(aiMessage.content));
   
   const mimirMessage: AiResponseMessage = {
     content: userContent.tagFound ? userContent.result : scriptCode ? [] : [{ type: "text", text: textContent }],

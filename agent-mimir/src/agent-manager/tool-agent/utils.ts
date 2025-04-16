@@ -2,7 +2,7 @@ import { AIMessage, ToolMessage } from "@langchain/core/messages";
 import { AiResponseMessage, NextMessageToolResponse } from "../../plugins/index.js";
 import { lCmessageContentToContent } from "../message-utils.js";
 import {  MessageContentToolUse, ToolResponseInfo } from "../index.js";
-import { getTextAfterUserResponseFromArray } from "../../utils/format.js";
+import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 
 export function langChainToolMessageToMimirHumanMessage(message: ToolMessage): NextMessageToolResponse {
   return {
@@ -23,8 +23,8 @@ export function toolMessageToToolResponseInfo(message: ToolMessage): ToolRespons
 }
 
 
-export function aiMessageToMimirAiMessage(aiMessage: AIMessage, files: AiResponseMessage["sharedFiles"]): AiResponseMessage {
-  const userContent = getTextAfterUserResponseFromArray(lCmessageContentToContent(aiMessage.content));
+export function aiMessageToMimirAiMessage(aiMessage: AIMessage, files: AiResponseMessage["sharedFiles"], mapper: ResponseFieldMapper): AiResponseMessage {
+  const userContent = mapper.getUserMessage(lCmessageContentToContent(aiMessage.content));
   const mimirMessage: AiResponseMessage = {
     content: userContent.result,
     toolCalls: [],
