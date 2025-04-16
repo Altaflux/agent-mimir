@@ -59,11 +59,6 @@ FUNCTION LIST:\n${functions}\n\n---------------------------------\n`;
 
 }
 
-export const PYTHON_SCRIPT_EXAMPLE = `
-<execution-code>
-...PYTHON CODE HERE...
-</execution-code>
-`
 export const PYTHON_SCRIPT_SCHEMA = `
 <xs:element name="execution-code" type="xs:string" minOccurs="0" maxOccurs="1">
     <xsd:annotation>
