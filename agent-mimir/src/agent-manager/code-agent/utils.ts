@@ -29,7 +29,9 @@ export function getExecutionCodeContentRegex(xmlString: string): string | null {
   // match[0] is the full matched string (e.g., "<execution-code>content</execution-code>")
   // match[1] is the content of the first capturing group (e.g., "content")
   if (match && match[1] !== undefined) {
-    return match[1]; // Return the captured content
+    let scriptCode: string | null = match[1];
+    scriptCode = scriptCode.trim().length === 0 ? null : scriptCode; // Trim whitespace from the captured content
+    return scriptCode; // Return the captured content
   } else {
     return null; // Tag not found or content is missing somehow
   }

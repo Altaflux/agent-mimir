@@ -194,6 +194,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 })
             }
             //Agents calling agents cannot see the messages from the tool, so we remove them so the AI doesn't think it has already responded.
+            
             if (getExecutionCodeContentRegex(extractTextContent(response.content)) !== null && state.noMessagesInTool) {
                 const codeScript = getExecutionCodeContentRegex(extractTextContent(response.content));
                 response = new AIMessage({
