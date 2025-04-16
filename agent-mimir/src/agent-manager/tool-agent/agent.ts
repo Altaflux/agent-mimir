@@ -211,7 +211,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             const messageContent = lCmessageContentToContent(response.content);
             const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(messageContent);
             const sharedFiles = await workspaceManager.readAttributes(rawResponseAttributes);
-            let mimirAiMessage = aiMessageToMimirAiMessage(response, sharedFiles);
+            let mimirAiMessage = aiMessageToMimirAiMessage(response, sharedFiles, fieldMapper);
 
             for (const plugin of allCreatedPlugins) {
                 await plugin.readResponse(mimirAiMessage, rawResponseAttributes);

@@ -1,6 +1,7 @@
 
 import { AgentSystemMessage, AgentPlugin, PluginFactory, PluginContext, NextMessage, AttributeDescriptor } from "../plugins/index.js";
 import { Agent } from "../agent-manager/index.js";
+import { USER_RESPONSE } from "../utils/instruction-mapper.js";
 
 
 export type HelperPluginConfig = {
@@ -59,7 +60,7 @@ export class HelpersPlugin extends AgentPlugin {
             .filter(element => whiteList.includes(element.name))
             .map((helper) => `${helper.name}: ${helper.description}`)
             .join("\n") ?? "";
-        const helpersMessage = helperList !== "" ? `You have access to the following Agents that you can talk to in order to assist you in your task:\n${helperList}` : ``;
+        const helpersMessage = helperList !== "" ? `You have access to the following Agents that you can talk to in order to assist you in your tasks. To talk to them set their name on the <agentNameToWhichSendTheMessage> XML element and what you want to send tell them below ${USER_RESPONSE} :\n${helperList}` : ``;
 
         return {
             content: [

@@ -13,7 +13,7 @@ import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse
 import { AgentSystemMessage, AgentPlugin, PluginFactory } from "../../plugins/index.js";
 import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex, isToolMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo } from "./utils.js";
 import { pythonToolNodeFunction } from "./tool-node.js";
-import { FUNCTION_PROMPT, getFunctionsPrompt, PYTHON_SCRIPT_EXAMPLE } from "./prompt.js";
+import { FUNCTION_PROMPT, getFunctionsPrompt, PYTHON_SCRIPT_SCHEMA } from "./prompt.js";
 import { DefaultPluginFactory } from "../../plugins/default-plugins.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { CodeToolExecutor } from "./index.js";
@@ -117,7 +117,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                         text: FUNCTION_PROMPT + "\n" + getFunctionsPrompt(allTools)
                     },
                     {
-                        text: fieldMapper.createFieldInstructions(PYTHON_SCRIPT_EXAMPLE),
+                        text: fieldMapper.createFieldInstructions(PYTHON_SCRIPT_SCHEMA),
                         type: "text"
                     }
                 ]
@@ -194,6 +194,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 })
             }
             //Agents calling agents cannot see the messages from the tool, so we remove them so the AI doesn't think it has already responded.
+
             if (getExecutionCodeContentRegex(extractTextContent(response.content)) !== null && state.noMessagesInTool) {
                 const codeScript = getExecutionCodeContentRegex(extractTextContent(response.content));
                 response = new AIMessage({
@@ -207,7 +208,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             const messageContent = lCmessageContentToContent(response.content);
             const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(messageContent);
             const sharedFiles = await workspaceManager.readAttributes(rawResponseAttributes);
-            let mimirAiMessage = aiMessageToMimirAiMessage(response, sharedFiles); //TODO FIX
+            let mimirAiMessage = aiMessageToMimirAiMessage(response, sharedFiles, fieldMapper);
 
             for (const plugin of allCreatedPlugins) {
                 await plugin.readResponse(mimirAiMessage, rawResponseAttributes);
