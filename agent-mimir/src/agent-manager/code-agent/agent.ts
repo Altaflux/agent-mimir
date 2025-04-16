@@ -2,7 +2,7 @@ import { ComplexMessageContent, } from "../../schema.js";
 import { WorkspacePluginFactory, WorkspanceManager } from "../../plugins/workspace.js";
 import { ViewPluginFactory } from "../../tools/image_view.js";
 import { ToolMessage } from "@langchain/core/messages/tool";
-import { complexResponseToLangchainMessageContent, extractTextContent } from "../../utils/format.js";
+import { complexResponseToLangchainMessageContent, extractTextContent, trimAndAsnitizeMessageContent } from "../../utils/format.js";
 import { AIMessage, BaseMessage, HumanMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage } from "@langchain/core/messages";
 import { Annotation, Command, END, interrupt, Messages, MessagesAnnotation, messagesStateReducer, START, StateDefinition, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
@@ -128,7 +128,9 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             if (inputMessage) {
                 await workspaceManager.loadFiles(inputMessage);
                 const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage(inputMessage, allCreatedPlugins);
-
+                displayMessage.content = trimAndAsnitizeMessageContent(displayMessage.content);
+                persistentMessage.message.content = trimAndAsnitizeMessageContent(persistentMessage.message.content);
+                
                 const messageListToSend = [...state.messages];
                 messageListToSend.push(new HumanMessage({
                     id: v4(),
@@ -152,6 +154,8 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 const messageListToSend = [...state.messages];
                 if (isToolMessage(lastMessage)) {
                     const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage({ content: [] }, allCreatedPlugins);
+                    displayMessage.content = trimAndAsnitizeMessageContent(displayMessage.content);
+                    persistentMessage.message.content = trimAndAsnitizeMessageContent(persistentMessage.message.content);
                     if (displayMessage.content.length > 0) {
                         messageListToSend.push(new HumanMessage({
                             id: v4(),
