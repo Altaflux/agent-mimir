@@ -9,7 +9,7 @@ function responseHeader(anyParameter: boolean) {
 ----------------------------
 
 When responding to me please, ALWAYS respond in the following format:
-${anyParameter ? "//A set of parameters to include in your response when applicable." : ""}
+${anyParameter ? "//A set of attributes to include in your response when applicable." : ""}
 --------------------`;
 }
 

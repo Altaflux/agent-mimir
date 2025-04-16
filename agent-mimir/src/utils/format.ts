@@ -48,7 +48,12 @@ export const openAIImageHandler = (image: { url: string, type: SupportedImageTyp
   return res;
 }
 
-
+export function trimAndAsnitizeMessageContent(inputArray: ComplexMessageContent[]): ComplexMessageContent[] {
+  return inputArray.filter((c) => {
+    const isEmpty = (c.type === "text" && c.text.length === 0);
+    return !isEmpty;
+  })
+}
 
 
 export function getTextAfterUserResponseFromArray(inputArray: ComplexMessageContent[]): { tagFound: boolean, result: ComplexMessageContent[] } {
