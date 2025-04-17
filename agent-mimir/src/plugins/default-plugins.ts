@@ -27,7 +27,7 @@ class DefaultPlugin extends AgentPlugin {
         const attributes: AttributeDescriptor[] = [];
         if (nextMessage.type === "TOOL_RESPONSE") {
             attributes.push({
-                name: "taskResultDescription",
+                name: "stepResult",
                 attributeType: "string",
                 required: true,
                 variableName: "taskDesc",
