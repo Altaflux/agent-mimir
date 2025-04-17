@@ -2,8 +2,6 @@
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { AgentTool } from "../../tools/index.js";
 export const FUNCTION_PROMPT = `
-You are an expert assistant who can solve any task using code blobs. You will be given a task to solve as best you can.
-To do so, you have been given access to a list of tools: these tools are basically Python functions which you can call with code.
 
 You have the ability to execute code in a Python environment. To execute code, you can respond with a python code block wrapped in an "<execution-code>" xml tag. 
 The code will be executed inside the Python environment, and whatever you print into the console will be returned to you.
@@ -12,6 +10,7 @@ You can only include ONE <execution-code> block per response, do not include mor
 
 Use this python environment to accomplish the task you are given, be proactive and use the function available to you but ask for help if you feel stuck on a task.
 You must not ask permission or notify the user you plan on executing code, just do it.
+You have been given access to a list of tools: these tools are Python functions which you can call with code.
 
 Example:
 <execution-code>

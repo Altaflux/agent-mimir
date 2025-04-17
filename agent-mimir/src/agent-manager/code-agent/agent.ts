@@ -17,6 +17,7 @@ import { FUNCTION_PROMPT, getFunctionsPrompt, PYTHON_SCRIPT_SCHEMA } from "./pro
 import { DefaultPluginFactory } from "../../plugins/default-plugins.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { CodeToolExecutor } from "./index.js";
+import { DEFAULT_CONSTITUTION } from "../constants.js";
 
 
 /**
@@ -114,6 +115,10 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 content: [
                     {
                         type: "text",
+                        text: config.constitution ?? DEFAULT_CONSTITUTION
+                    },
+                    {
+                        type: "text",
                         text: FUNCTION_PROMPT + "\n" + getFunctionsPrompt(allTools)
                     },
                     {
@@ -160,7 +165,6 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                         messageListToSend.push(new HumanMessage({
                             id: v4(),
                             content: [
-
                                 ...complexResponseToLangchainMessageContent(displayMessage.content)
                             ]
                         }));

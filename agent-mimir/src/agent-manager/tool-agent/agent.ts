@@ -15,6 +15,7 @@ import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory, Ai
 import { toolNodeFunction } from "./tool-node.js"
 import { aiMessageToMimirAiMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo } from "./utils.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { DEFAULT_CONSTITUTION } from "../constants.js";
 
 export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
@@ -110,6 +111,10 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             const responseFormatSystemMessage: AgentSystemMessage = {
                 content: [
                     {
+                        type: "text",
+                        text: config.constitution ?? DEFAULT_CONSTITUTION
+                    },
+                    {
                         text: fieldMapper.createFieldInstructions(),
                         type: "text"
                     }
@@ -150,7 +155,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                     const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage({ content: [] }, allCreatedPlugins);
                     displayMessage.content = trimAndAsnitizeMessageContent(displayMessage.content);
                     persistentMessage.message.content = trimAndAsnitizeMessageContent(persistentMessage.message.content);
-    
+
                     if (displayMessage.content.length > 0) {
                         messageListToSend.push(new HumanMessage({
                             id: v4(),
