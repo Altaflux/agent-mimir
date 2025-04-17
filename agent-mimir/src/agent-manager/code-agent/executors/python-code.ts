@@ -1,8 +1,9 @@
+import { toPythonFunctionName } from "../utils.js";
 
 
 function getPythonFunction(functionName: string): string {
     return `
-async def ${functionName}(args:dict):
+async def ${toPythonFunctionName(functionName)}(args:dict):
     result = await asyncio.create_task(ws_channel.call("${functionName}", args=args))
     return result.result
 \n`

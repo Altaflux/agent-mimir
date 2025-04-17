@@ -136,3 +136,17 @@ export function aiMessageToMimirAiMessage(aiMessage: AIMessage, files: AiRespons
   return mimirMessage;
 }
 
+
+
+export function toPythonFunctionName(input: string): string {
+  // 1. Replace invalid characters with underscore
+  let sanitized = input.replace(/[^A-Za-z0-9_]/g, '_');
+
+  // 2. If it starts with a digit, prefix an underscore
+  if (/^[0-9]/.test(sanitized)) {
+    sanitized = `_${sanitized}`;
+  }
+
+  // 3. Ensure it’s not empty (optional—returns '_' if input was all invalid)
+  return sanitized.length > 0 ? sanitized : '_';
+}

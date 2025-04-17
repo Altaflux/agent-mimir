@@ -1,6 +1,7 @@
 
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { AgentTool } from "../../tools/index.js";
+import { toPythonFunctionName } from "./utils.js";
 export const FUNCTION_PROMPT = `
 
 You have the ability to execute code in a Python environment. To execute code, you can respond with a python code block wrapped in an "<execution-code>" xml tag. 
@@ -34,7 +35,7 @@ ONLY use the <execution-code> tag to execute code when needed, do not use it for
 function getFunctions(tool: AgentTool) {
     let outParameter = tool.outSchema ? JSON.stringify(zodToJsonSchema(tool.outSchema)) : "ToolResponse";
     const toolDefinition = `
-- FunctionName: ${tool.name}
+- FunctionName: ${toPythonFunctionName(tool.name)}
 - Async Function: true (must be awaited)
 - Description: ${tool.description}
 - Input Parameter:\n${JSON.stringify(zodToJsonSchema(tool.schema))}
