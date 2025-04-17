@@ -316,5 +316,3 @@ Hi, I am a helpful assistant, how can I help you?
     }
 }
 
-// --- Exporting the marker constant might still be useful if needed externally ---
-export { USER_RESPONSE_MARKER };
