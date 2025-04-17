@@ -58,7 +58,7 @@ export class HelpersPlugin extends AgentPlugin {
             .filter(element => whiteList.includes(element.name))
             .map((helper) => `${helper.name}: ${helper.description}`)
             .join("\n") ?? "";
-        const helpersMessage = helperList !== "" ? `You have access to the following Agents that you can talk to in order to assist you in your tasks. To talk to them set their name on the <agentNameToWhichSendTheMessage> XML element:\n${helperList}` : ``;
+        const helpersMessage = helperList !== "" ? `You have access to the following Agents that you can talk to in order to assist you in your tasks. To talk to them you must set their name on the <agentNameToWhichSendTheMessage> XML element or else the message will be incorrectly sent to the user:\n${helperList}` : ``;
 
         return {
             content: [
