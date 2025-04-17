@@ -119,7 +119,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                     },
                     {
                         type: "text",
-                        text: FUNCTION_PROMPT + "\n" + getFunctionsPrompt(allTools)
+                        text: FUNCTION_PROMPT + "\n" + getFunctionsPrompt(config.codeExecutor.availableDependencies, allTools)
                     },
                     {
                         text: fieldMapper.createFieldInstructions(PYTHON_SCRIPT_SCHEMA),

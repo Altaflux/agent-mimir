@@ -44,7 +44,7 @@ function getFunctions(tool: AgentTool) {
     return toolDefinition;
 }
 
-export const getFunctionsPrompt = (tool: AgentTool[]) => {
+export const getFunctionsPrompt = (dependencies: string[], tool: AgentTool[]) => {
     if (tool.length === 0) {
         return "";
     }
@@ -55,7 +55,11 @@ The result of functions with an output parameter of "ToolResponse" can be printe
 If the function has a different defined output type then its output can be used in other functions as an normal Python type.
 The parameters of this functions is a single Dictionary parameter, not a list of parameters. Example: await functionName({"param1": "value1", "param2": "value2"}).
 All functions are async and must be awaited.
-FUNCTION LIST:\n${functions}\n\n---------------------------------\n`;
+FUNCTION LIST:\n${functions}\n\n---------------------------------\n
+${dependencies.length > 0 ? `The following libraries are available in the Python environment: ${dependencies.join(", ")}` : ""}
+\n---------------------------------\n
+`
+;
 
 }
 

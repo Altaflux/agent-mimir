@@ -114,7 +114,7 @@ export const run = async () => {
                     constitution: agentDefinition.definition.constitution,
                     plugins: [...agentDefinition.definition.plugins ?? [], ...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))],
                     workspaceFactory: workspaceFactory,
-                    codeExecutor: new LocalPythonExecutor(),
+                    codeExecutor: new LocalPythonExecutor({additionalPackages: ["pandas", "numpy"]}),
                 }), agentName, agentDefinition.definition.communicationWhitelist)
             }
             console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.definition.profession}" and description "${agentDefinition.description}"`));

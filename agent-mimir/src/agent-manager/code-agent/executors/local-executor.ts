@@ -7,10 +7,20 @@ import { getPythonScript } from './python-code.js';
 import { spawn } from 'child_process';
 import net, { AddressInfo } from "net";
 
+
+export interface PythonExecutorOptions {
+    additionalPackages?: string[];
+}
 export class LocalPythonExecutor implements CodeToolExecutor {
 
     private tempDir: string | undefined;
     private initialized: boolean = false;
+    availableDependencies: string[] = this.config.additionalPackages ?? [];
+
+    
+    constructor(private config: PythonExecutorOptions) {
+    }
+    
 
 
     async execute(tools: AgentTool[], code: string, toolInitCallback: (url: string, tools: AgentTool[]) => void): Promise<string> {
@@ -41,7 +51,7 @@ export class LocalPythonExecutor implements CodeToolExecutor {
                     throw new Error(`Failed to create python virtual environment: ${pyenv.output}`);
                 }
 
-                const externalDependencies = ["asyncio", "uvicorn", "fastapi_websocket_rpc"];
+                const externalDependencies = ["asyncio", "uvicorn", "fastapi_websocket_rpc", ...this.config.additionalPackages ?? []];
 
                 let libraryInstallationResult = {
                     exitCode: 0,
