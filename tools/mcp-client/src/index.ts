@@ -276,20 +276,29 @@ export class McpPlugin extends AgentPlugin {
     async getSystemMessages(): Promise<AgentSystemMessage> {
 
         const resourcesTemplate: string = (await Promise.all(this.clients.map(async c => {
+            let instructions = c.description ?? ""
+            try {
+                instructions = instructions + ((" " + c.client.getInstructions()).trim() ?? "");
+            } catch {
 
-            const instructions = (c.description ?? "" + " " + c.client.getInstructions() ?? "").trim();
+            }
+
             const serverInformation = `MCP Server: "${c.clientName}" ${instructions.length > 0 ? ` Description: "${instructions}"` : ""}`;
-            const resources = await c.client.listResources({});
+            try {
+                const resources = await c.client.listResources({});
 
-            if (!resources.resources.length) {
+                if (!resources.resources.length) {
+                    return serverInformation;
+                }
+                const resourceTemplate = resources.resources.map(r => {
+                    const description = r.description ? `Description: "${r.description}"` : "";
+                    const mimeType = r.mimeType ? `MimeType: "${r.mimeType}"` : "";
+                    return `-- Resource Name: "${r.name}" Resource URI: "${r.uri}" ${description} ${mimeType}`;
+                }).join("\n");
+                return `- ${serverInformation} with resources:\n${resourceTemplate}\n`;
+            } catch {
                 return serverInformation;
             }
-            const resourceTemplate = resources.resources.map(r => {
-                const description = r.description ? `Description: "${r.description}"` : "";
-                const mimeType = r.mimeType ? `MimeType: "${r.mimeType}"` : "";
-                return `-- Resource Name: "${r.name}" Resource URI: "${r.uri}" ${description} ${mimeType}`;
-            }).join("\n");
-            return `- ${serverInformation} with resources:\n${resourceTemplate}\n`;
         }))).join("\n\n");
 
         if (resourcesTemplate.trim().length > 0) {
