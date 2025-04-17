@@ -94,8 +94,10 @@ async function executeShellCommandAndTrigger(command: string, callback: (data: s
         output: string,
     }>((resolve, reject) => {
         let output = '';
+        let totalOutput = '';
         const ls = spawn(command, [], { shell: true, env: process.env });
         ls.stdout.on("data", data => {
+            totalOutput += data;
             if (!commenceRecording) {
                 commenceRecording = callback(data.toString())
                 return;
@@ -105,11 +107,13 @@ async function executeShellCommandAndTrigger(command: string, callback: (data: s
         });
 
         ls.stderr.on("data", data => {
+            totalOutput += data;
             if (!commenceRecording) {
                 commenceRecording = callback(data.toString())
                 return;
             }
             output += data;
+           
         });
 
         ls.on('error', (error) => {
@@ -117,9 +121,10 @@ async function executeShellCommandAndTrigger(command: string, callback: (data: s
         });
 
         ls.on("close", code => {
+
             resolve({
                 exitCode: code ?? 0,
-                output: output,
+                output: commenceRecording ? output : totalOutput,
             })
         });
     });

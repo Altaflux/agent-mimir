@@ -6,7 +6,7 @@ import { RunnableConfig } from "@langchain/core/runnables";
 
 import { MessagesAnnotation } from "@langchain/langgraph";
 import { complexResponseToLangchainMessageContent, extractAllTextFromComplexResponse, extractTextContent } from "../../utils/format.js";
-import { getExecutionCodeContentRegex, toPythonFunctionName } from "./utils.js";
+import { getExecutionCodeContentRegex } from "./utils.js";
 export type ToolNodeOptions = {
     name?: string;
     tags?: string[];
@@ -29,8 +29,6 @@ export const pythonToolNodeFunction = (
     executor: CodeToolExecutor,
     options?: ToolNodeOptions) => {
 
-    const sanitizedToolNames = tools.map((tool) => ({ [tool.name]: toPythonFunctionName(tool.name) }))
-        .reduce((prev, tool) => ({ ...prev, ...tool }), {});
 
     return async (input: typeof MessagesAnnotation.State, config: RunnableConfig) => {
         const message = Array.isArray(input)
@@ -97,8 +95,6 @@ export const pythonToolNodeFunction = (
 
 
 export async function toolHandler(url: string, tools: AgentTool[], toolResponses: Map<string, ToolOutput>) {
-    const sanitizedToolNames = tools.map((tool) => ({ [tool.name]: toPythonFunctionName(tool.name) }))
-        .reduce((prev, tool) => ({ ...prev, ...tool }), {});
     let ws = new WebSocket(url, { perMessageDeflate: false });
     ws.on('open', function open(dc: any, f: any) {
         ws.on('message', async function (data: any) {
@@ -110,10 +106,7 @@ export async function toolHandler(url: string, tools: AgentTool[], toolResponses
             }
 
             const parsedData = JSON.parse(data as string) as PythonFunctionRequest
-
-            const originalToolName = Object.keys(sanitizedToolNames).find((key) => sanitizedToolNames[key] === parsedData.request.method) ?? parsedData.request.method;
-            
-            const tool = tools.find((tool) => tool.name === originalToolName)!;
+            const tool = tools.find((tool) => tool.name ===  parsedData.request.method)!;
 
             let output = await tool.invoke(
                 parsedData.request.arguments,
