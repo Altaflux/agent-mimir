@@ -106,27 +106,38 @@ export async function toolHandler(url: string, tools: AgentTool[], toolResponses
             }
 
             const parsedData = JSON.parse(data as string) as PythonFunctionRequest
-            const tool = tools.find((tool) => tool.name ===  parsedData.request.method)!;
+            const tool = tools.find((tool) => tool.name === parsedData.request.method)!;
 
-            let output = await tool.invoke(
-                parsedData.request.arguments,
+            let actualOutput;
+            let error = false;
+            try {
+                let output = await tool.invoke(
+                    parsedData.request.arguments,
 
-            );
-            let actualOutput = output as any;
-            if (tool.outSchema) {
-                actualOutput = tool.outSchema.parse(extractAllTextFromComplexResponse(output as ComplexMessageContent[]));
-            } else {
-                actualOutput = `<<TOOL_RESPONSE:${parsedData.request.call_id}>>`;
-                toolResponses.set(parsedData.request.call_id, {
-                    tool_name: parsedData.request.method,
-                    response: output,
-                });
+                );
+                actualOutput = output as any;
+                if (tool.outSchema) {
+                    actualOutput = JSON.parse(extractAllTextFromComplexResponse(output as ComplexMessageContent[]));
+                } else {
+                    actualOutput = `<<TOOL_RESPONSE:${parsedData.request.call_id}>>`;
+                    toolResponses.set(parsedData.request.call_id, {
+                        tool_name: parsedData.request.method,
+                        response: output,
+                    });
+                }
+                error = false;
+            } catch (e) {
+                error = true;
+                actualOutput = typeof e === "string" ? e : JSON.stringify(e);
             }
 
             ws.send(JSON.stringify({
                 response: {
                     jsonrpc: "2.0",
-                    result: actualOutput,
+                    result: {
+                        error: error,
+                        value: actualOutput
+                    },
                     result_type: null,
                     call_id: parsedData.request.call_id,
                 },

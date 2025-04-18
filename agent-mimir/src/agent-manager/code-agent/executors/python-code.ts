@@ -5,7 +5,10 @@ function getPythonFunction(functionName: string): string {
     return `
 async def ${toPythonFunctionName(functionName)}(args:dict):
     result = await asyncio.create_task(ws_channel.call("${functionName}", args=args))
-    return result.result
+    call_value = result.result["value"]
+    if result.result["error"]:
+        raise Exception(f"Error in function call ${toPythonFunctionName(functionName)}: {call_value}")
+    return call_value
 \n`
 }
 

@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { ComplexMessageContent } from "../schema.js";
 //import { JSONSchema } from "@langchain/core/utils/json_schema";
-import { type JsonSchema7Type as  JSONSchema } from "zod-to-json-schema";
+import { type JsonSchema7Type as JSONSchema } from "zod-to-json-schema";
 export type ToolResponse = ComplexMessageContent[];
 export type ZodObjectAny = z.ZodObject<any, any, any, any>;
 export type ToolInputSchemaBase = ZodObjectAny | z.ZodEffects<ZodObjectAny> | JSONSchema;
@@ -20,16 +20,16 @@ export type ToolInputSchemaOutputType<T extends ToolInputSchemaBase> = T extends
  * types will be the same.
  */
 export type ToolInputSchemaInputType<T extends ToolInputSchemaBase> = T extends z.ZodSchema ? z.input<T> : T extends JSONSchema ? unknown : never;
-export type StructuredToolCallInput<SchemaT extends ToolInputSchemaBase = ZodObjectAny, SchemaInputT = ToolInputSchemaInputType<SchemaT>> = (ToolInputSchemaOutputType<SchemaT> extends string ? string : never) | SchemaInputT ;
+export type StructuredToolCallInput<SchemaT extends ToolInputSchemaBase = ZodObjectAny, SchemaInputT = ToolInputSchemaInputType<SchemaT>> = (ToolInputSchemaOutputType<SchemaT> extends string ? string : never) | SchemaInputT;
 
 export abstract class AgentTool<
-SchemaT extends ToolInputSchemaBase = ZodObjectAny,
-SchemaOutputT = ToolInputSchemaOutputType<SchemaT>,
-SchemaInputT = ToolInputSchemaInputType<SchemaT>,
-    O extends z.ZodObject<any, any, any, any> = z.ZodObject<any, any, any, any>> {
+    SchemaT extends ToolInputSchemaBase = ZodObjectAny,
+    SchemaOutputT = ToolInputSchemaOutputType<SchemaT>,
+    SchemaInputT = ToolInputSchemaInputType<SchemaT>,
+    O extends z.ZodTypeAny = z.ZodTypeAny> {
     abstract schema: SchemaT;
 
-    outSchema: O | z.ZodEffects<O> | undefined =  undefined
+    outSchema: O | z.ZodEffects<O> | undefined = undefined
 
     protected abstract _call(
         arg: SchemaOutputT,
@@ -55,7 +55,7 @@ SchemaInputT = ToolInputSchemaInputType<SchemaT>,
     ): Promise<ToolResponse> {
         let parsed;
         try {
-            parsed =  await (this.schema as z.ZodSchema).parseAsync(arg);
+            parsed = await (this.schema as z.ZodSchema).parseAsync(arg);
         } catch (e) {
             throw new Error(
                 `Received tool input did not match expected schema ${JSON.stringify(arg)}`,
@@ -75,6 +75,4 @@ SchemaInputT = ToolInputSchemaInputType<SchemaT>,
     abstract name: string;
 
     abstract description: string;
-
-    returnDirect = false;
 } 

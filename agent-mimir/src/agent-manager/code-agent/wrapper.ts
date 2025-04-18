@@ -11,7 +11,6 @@ export class MimirToolToLangchainTool extends StructuredTool {
     schema = this.tool.schema;
     name: string = this.tool.name;
     description: string = this.tool.description;
-    returnDirect: boolean = this.tool.returnDirect
 
     constructor(private tool: AgentTool) {
         super();
