@@ -42,7 +42,6 @@ export type AgentCommand = {
  */
 export type PluginContext = {
     workspace: AgentWorkspace,
-    persistenceDirectory: string,
 }
 
 

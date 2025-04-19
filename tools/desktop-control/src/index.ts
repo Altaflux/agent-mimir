@@ -8,8 +8,6 @@ import screenshot, { DisplayID } from 'screenshot-desktop';
 import si from 'systeminformation';
 import { Key, keyboard, mouse, Button, Point } from "@nut-tree-fork/nut-js";
 import sharp from 'sharp';
-import { promises as fs } from "fs";
-import path from "path";
 import { Coordinates, PythonServerControl, TextBlocks } from "./sam.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { AdditionalContent, AgentPlugin, PluginFactory, NextMessageUser, PluginContext, AgentSystemMessage } from "agent-mimir/plugins";
@@ -156,9 +154,6 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
         const finalTiledImageResized = await sharpTiledImage.resize({ width: Math.floor(finalTiledImageMetadata.width! * (70 / 100)) }).toBuffer();
 
 
-        await fs.writeFile(path.join(this.context.persistenceDirectory, `tiled_image.jpg`), finalTiledImageResized);
-        await fs.writeFile(path.join(this.context.persistenceDirectory, `final_image.jpg`), finalImageResized);
-
 
         const tilesMessage = this.options.mouseMode.includes('COORDINATES') ? [
             {
@@ -203,7 +198,7 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
         const screenshot = async () => { return [] };
         const mouseTools = [];
         if (this.options.mouseMode.includes('COORDINATES')) {
-            mouseTools.push(new MoveMouseToCoordinate(screenshot, this.gridSize, this.molmoServer, this.context.persistenceDirectory));
+            mouseTools.push(new MoveMouseToCoordinate(screenshot, this.gridSize, this.molmoServer));
         }
         if (this.options.mouseMode.includes('SOM')) {
 
@@ -494,7 +489,7 @@ function findFuzzyMatch(paragraph: string, searchPhrase: string) {
 }
 class MoveMouseToCoordinate extends AgentTool {
 
-    constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>, private gridSize: number, private molmo: MolmoServerControl, private persistantDir: string) {
+    constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>, private gridSize: number, private molmo: MolmoServerControl) {
         super();
     }
 
@@ -527,7 +522,6 @@ class MoveMouseToCoordinate extends AgentTool {
 
         try {
             const screenshot = await getComputerScreenImage();
-            await fs.writeFile(path.join(this.persistantDir, `molmo.jpg`), screenshot);
             const coordsAsPercentage = {
                 x: Math.floor((cords.x / (mainScreen.resolutionX ?? 0)) * 100),
                 y: Math.floor((cords.y / (mainScreen.resolutionY ?? 0)) * 100)

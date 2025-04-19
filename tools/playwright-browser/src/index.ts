@@ -6,8 +6,6 @@ import { WebBrowserTool, PassValueToInput, ClickWebSiteLinkOrButton, ScrollTool 
 import { AgentPlugin, PluginContext, PluginFactory, AdditionalContent, NextMessageUser, NextMessage } from "agent-mimir/plugins";
 import { AgentTool } from "agent-mimir/tools";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
-import { promises as fs } from "fs";
-import path from "path";
 import sharp from "sharp";
 import { InteractableElement } from "html-processor.js";
 
@@ -65,9 +63,6 @@ class WebBrowserPlugin extends AgentPlugin {
         const result = await this.driverManager.obtainSummaryOfPage("", "");
         const resultWithoutIds = removeIdAttribute(result);
         const currentScrollBlock = await this.driverManager.calculateCurrentScrollBlock();
-
-        await fs.writeFile(path.join(this.context.persistenceDirectory, "browser-screenshot.png"), imageWithLabels);
-        await fs.writeFile(path.join(this.context.persistenceDirectory, "summary.txt"), result);
 
         return [
             {

@@ -149,8 +149,6 @@ export type AgentWorkspace = {
     getUrlForFile(fileName: string): Promise<string | undefined>,
     /** Gets a file's contents as a Buffer */
     fileAsBuffer(fileName: string): Promise<Buffer | undefined>,
-    /** Gets the directory path for a plugin */
-    pluginDirectory(pluginName: string): Promise<string>,
     /** The current working directory path */
     workingDirectory: string,
     /** The root directory path of the workspace */

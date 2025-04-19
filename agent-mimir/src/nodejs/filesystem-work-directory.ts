@@ -32,11 +32,6 @@ export class FileSystemAgentWorkspace implements AgentWorkspace {
         }
     }
 
-    async pluginDirectory(pluginName: string): Promise<string> {
-        const pluginPath = path.join(this.agentRootDirectory, "plugins", pluginName);
-        await fs.mkdir(pluginPath, { recursive: true });
-        return pluginPath;
-    }
 
     async listFiles(): Promise<string[]> {
         const files = await fs.readdir(this.workingDirectory);
