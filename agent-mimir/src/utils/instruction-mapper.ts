@@ -3,7 +3,7 @@ import { ComplexMessageContent, TextMessageContent } from "../schema.js";
 import xml2js from "xml2js"; // Consider adding @types/xml2js for better type support if not already present
 
 // --- Constants ---
-const RESPONSE_OUTPUT_TAG = "response-output";
+const RESPONSE_OUTPUT_TAG = "response-metadata";
 const ATTRIBUTES_TAG = "attributes";
 const USER_RESPONSE_MARKER = `MESSAGE TO SEND:`; // Renamed from USER_RESPONSE for clarity
 const XSD_NAMESPACE = "http://www.w3.org/2001/XMLSchema";
