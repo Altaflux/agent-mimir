@@ -69,7 +69,6 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     toolPlugins.push(new ViewPluginFactory());
     const allCreatedPlugins = await Promise.all([...allPluginFactories, ...toolPlugins].map(async factory => await factory.create({
         workspace: workspace,
-        agentName: shortName,
         persistenceDirectory: await workspace.pluginDirectory(factory.name),
     })));
 
