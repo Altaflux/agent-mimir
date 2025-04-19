@@ -9,6 +9,7 @@
         "internalStartDiscord": "npm run build && dotenv -- npm run start -w agent-mimir-discord",
         "internalStartDiscordNoBuild": "dotenv -- npm run start -w agent-mimir-discord",
         "internalStart": "npm run build && dotenv -- npm run start -w agent-mimir-cli",
+        "test": "npm run test -w agent-mimir",
         "dev": "turbo run dev",
         "lint": "turbo run lint",
         "publish": "bash scripts/release-branch.sh && turbo run build lint && npm run release -w agent-mimir && echo '🔗 Open https://github.com/Altaflux/agent-mimir/compare/release?expand=1 and merge the release PR'",

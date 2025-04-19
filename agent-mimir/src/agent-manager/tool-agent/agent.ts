@@ -114,7 +114,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             const responseFormatSystemMessage = [
                 {
                     type: "text",
-                    text: config.constitution ?? DEFAULT_CONSTITUTION
+                    text: `${config.constitution ?? DEFAULT_CONSTITUTION}\n`
                 } satisfies ComplexMessageContent,
                 {
                     text: fieldMapper.createFieldInstructions(),
