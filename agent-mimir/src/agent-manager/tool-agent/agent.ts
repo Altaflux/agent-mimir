@@ -3,7 +3,7 @@ import { WorkspacePluginFactory, WorkspanceManager } from "../../plugins/workspa
 import { ViewPluginFactory } from "../../tools/image_view.js";
 import { MimirToolToLangchainTool } from "./wrapper.js";
 import { isToolMessage, ToolMessage } from "@langchain/core/messages/tool";
-import { complexResponseToLangchainMessageContent, trimAndAsnitizeMessageContent } from "../../utils/format.js";
+import { complexResponseToLangchainMessageContent, trimAndSanitizeMessageContent } from "../../utils/format.js";
 import { AIMessage, BaseMessage, HumanMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage } from "@langchain/core/messages";
 import { Annotation, Command, END, interrupt, Messages, MessagesAnnotation, messagesStateReducer, START, StateDefinition, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
@@ -127,8 +127,8 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 await workspaceManager.loadFiles(inputMessage);
                 const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage(inputMessage, allCreatedPlugins);
 
-                displayMessage.content = trimAndAsnitizeMessageContent(displayMessage.content);
-                persistentMessage.message.content = trimAndAsnitizeMessageContent(persistentMessage.message.content);
+                displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
+                persistentMessage.message.content = trimAndSanitizeMessageContent(persistentMessage.message.content);
 
                 const messageListToSend = [...state.messages];
                 messageListToSend.push(new HumanMessage({
@@ -153,8 +153,8 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 const messageListToSend = [...state.messages];
                 if (isToolMessage(lastMessage) && ((lastMessage)).status !== "error") {
                     const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage({ content: [] }, allCreatedPlugins);
-                    displayMessage.content = trimAndAsnitizeMessageContent(displayMessage.content);
-                    persistentMessage.message.content = trimAndAsnitizeMessageContent(persistentMessage.message.content);
+                    displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
+                    persistentMessage.message.content = trimAndSanitizeMessageContent(persistentMessage.message.content);
 
                     if (displayMessage.content.length > 0) {
                         messageListToSend.push(new HumanMessage({

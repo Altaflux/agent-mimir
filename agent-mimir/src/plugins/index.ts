@@ -97,6 +97,12 @@ export interface PluginFactory {
 export abstract class AgentPlugin {
 
     /**
+     * Name of the plugin.
+     */
+    name?: string;
+    
+
+    /**
      * Initializes the plugin.
      * Called when the plugin is first loaded.
      */

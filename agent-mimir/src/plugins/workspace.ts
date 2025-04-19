@@ -58,6 +58,7 @@ class WorkspacePlugin extends AgentPlugin {
 
     private workspace: AgentWorkspace;
 
+
     constructor(workspace: AgentWorkspace) {
         super();
         this.workspace = workspace;

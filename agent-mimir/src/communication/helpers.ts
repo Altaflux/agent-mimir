@@ -30,6 +30,8 @@ export class HelpersPlugin extends AgentPlugin {
     private agentName: string;
     private destinationAgentFieldName: string;
 
+    name: string = "Multi Agent Communication Plugin";
+
     constructor(config: HelperPluginConfig) {
         super();
         this.helperSingleton = config.helperSingleton;
