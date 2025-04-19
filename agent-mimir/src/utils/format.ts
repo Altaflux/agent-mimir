@@ -63,3 +63,11 @@ export function isEmptyMessageContent(message: ComplexMessageContent): boolean {
     return false
   }
 }
+
+
+export function textComplexMessage(text: string): TextMessageContent {
+  return {
+    type: "text",
+    text: text
+  } satisfies TextMessageContent
+}

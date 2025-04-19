@@ -115,7 +115,7 @@ async function addAdditionalContentToUserMessage(message: InputAgentMessage, plu
         if (!customizations) continue;
         const pluginContextName = {
             type: "text",
-            text: plugin.name ? `### PLUGIN ${plugin.name} CONTEXT ###` : '----------------------'
+            text: plugin.name ? `\n### PLUGIN ${plugin.name} CONTEXT ###` : '----------------------'
         } satisfies ComplexMessageContent;
 
         if (customizations.some((customization) => customization.displayOnCurrentMessage)) {
@@ -127,7 +127,8 @@ async function addAdditionalContentToUserMessage(message: InputAgentMessage, plu
                 .filter(f => (f.saveToChatHistory as number) > 0)
                 .map(f => f.saveToChatHistory as number));
 
-            const calculatedRetention = maxRetention === 0 ? null : maxRetention; //We need to remove the current message from the retention policy
+            const containsOnePermanent = customizations.some((customization) => customization.saveToChatHistory === true);
+            const calculatedRetention = containsOnePermanent ? null : maxRetention === -Infinity ? null : maxRetention; //We need to remove the current message from the retention policy
             persistantMessageRetentionPolicy.push(calculatedRetention);
             persistentAdditionalContent.push(pluginContextName);
         }
@@ -146,10 +147,15 @@ async function addAdditionalContentToUserMessage(message: InputAgentMessage, plu
             }
         }
     }
-    displayMessage.content.unshift(...additionalContent);
-    persistentMessage.content.unshift(...persistentAdditionalContent);
+    // displayMessage.content.unshift(...additionalContent);
+    // persistentMessage.content.unshift(...persistentAdditionalContent);
+    // //Add nulls to the retention policy for the user content
+    // persistantMessageRetentionPolicy.push(...userContent.map(() => null));
+
+    displayMessage.content.push(...additionalContent);
+    persistentMessage.content.push(...persistentAdditionalContent);
     //Add nulls to the retention policy for the user content
-    persistantMessageRetentionPolicy.push(...userContent.map(() => null));
+    persistantMessageRetentionPolicy.unshift(...userContent.map(() => null));
 
     return {
         displayMessage,
