@@ -102,7 +102,7 @@ Here goes the message you want to send to the user or agent. The user will only 
 }
 
 /**
- * Extracts the XML content between <response-output> tags.
+ * Extracts the XML content between <RESPONSE_OUTPUT_TAG> tags.
  * @param textContent - The string potentially containing the XML.
  * @returns The extracted XML string, or null if not found.
  */
@@ -215,7 +215,7 @@ export class ResponseFieldMapper<T = any> { // Consider making T more specific i
         this.xmlParser = new xml2js.Parser({
             explicitArray: false, // Keeps structure simpler if elements don't repeat unexpectedly
             trim: true,
-            // explicitRoot: false // Might simplify accessing 'response-output' directly, but check xml2js docs
+            // explicitRoot: false // Might simplify accessing 'RESPONSE_OUTPUT_TAG' directly, but check xml2js docs
         });
     }
 
@@ -308,7 +308,7 @@ Hi, I am a helpful assistant, how can I help you?
      * @returns An object indicating if the marker was found and the resulting message content array.
      */
     public getUserMessage(messages: ComplexMessageContent[]): ExtractResult {
-        // Directly use the primary marker. The fallback to </response-output> in the original
+        // Directly use the primary marker. The fallback to </RESPONSE_OUTPUT_TAG> in the original
         // seemed less reliable as it depends on the XML structure itself being the delimiter.
         // If the response *must* contain the marker when a user message is present,
         // searching only for it is cleaner.
