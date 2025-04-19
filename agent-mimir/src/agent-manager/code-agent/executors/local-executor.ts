@@ -6,7 +6,7 @@ import path from "path";
 import { getPythonScript } from './python-code.js';
 import { spawn } from 'child_process';
 import net, { AddressInfo } from "net";
-
+import crypto from "crypto";
 
 export interface PythonExecutorOptions {
     additionalPackages?: string[];
@@ -17,10 +17,10 @@ export class LocalPythonExecutor implements CodeToolExecutor {
     private initialized: boolean = false;
     availableDependencies: string[] = this.config.additionalPackages ?? [];
 
-    
+
     constructor(private config: PythonExecutorOptions) {
     }
-    
+
 
 
     async execute(tools: AgentTool[], code: string, toolInitCallback: (url: string, tools: AgentTool[]) => void): Promise<string> {
@@ -31,8 +31,9 @@ export class LocalPythonExecutor implements CodeToolExecutor {
 
         const wsPort = await getPortFree();
         const wsUrl = `ws://localhost:${wsPort}/ws`;
-        
-        const scriptPath = path.join(this.tempDir, 'script.py');
+        const uniqueSuffix = crypto.randomBytes(16).toString('hex');
+        const tempFileName = `script-${uniqueSuffix}.py`;
+        const scriptPath = path.join(this.tempDir, tempFileName);
         const pythonScript = getPythonScript(wsPort, tools.map((t) => t.name), code);
         await fs.writeFile(scriptPath, pythonScript);
 
@@ -88,6 +89,12 @@ export class LocalPythonExecutor implements CodeToolExecutor {
         } catch (error) {
             console.error('Error:', error);
             return `Error: ${error}`;
+        } finally {
+            try {
+                await fs.rm(scriptPath, { force: true });
+            } catch (error) {
+                console.warn('Error removing script:', error);
+            }
         }
 
     }
@@ -123,7 +130,7 @@ async function executeShellCommandAndTrigger(command: string, callback: (data: s
                 return;
             }
             output += data;
-           
+
         });
 
         ls.on('error', (error) => {
