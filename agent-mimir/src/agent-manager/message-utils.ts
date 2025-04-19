@@ -68,9 +68,7 @@ export function mergeSystemMessages(messages: SystemMessage[]): SystemMessage {
     }, new SystemMessage({ content: [] }));
 }
 
-export const dividerSystemMessage = new SystemMessage({
-    content: [{
-        type: "text",
-        text: CONSTANTS.MESSAGE_DIVIDER
-    }]
-});
+export const dividerSystemMessage = {
+    type: "text",
+    text: CONSTANTS.MESSAGE_DIVIDER
+} satisfies ComplexMessageContent;

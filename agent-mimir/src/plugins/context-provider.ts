@@ -1,5 +1,6 @@
 import { InputAgentMessage } from "../agent-manager/index.js";
 import { ComplexMessageContent } from "../schema.js";
+import { isEmptyMessageContent } from "../utils/format.js";
 import { AgentPlugin } from "./index.js";
 
 
@@ -38,6 +39,12 @@ export class PluginContextProvider {
             const pluginList = (await plugin.tools()).map((tool) => {
                 return `- ${this.config.toolNameSanitizer ? this.config.toolNameSanitizer(tool.name) : tool.name}`
             });
+
+            //No system message content, no plugin list, return empty
+            if (content.every(c => isEmptyMessageContent(c)) && pluginList.length === 0) {
+                return content;
+            }
+
             let pluginMessage: ComplexMessageContent[] = pluginList.length === 0 ? [] : [
                 {
                     type: "text",
@@ -57,6 +64,9 @@ export class PluginContextProvider {
         const namelessPlugins = this.plugins.filter((plugin) => !plugin.name);
         const namelessPluginsSysMessage = (await Promise.all(namelessPlugins.map(async (plugin) => {
             const { content } = await plugin.getSystemMessages();
+            if (content.every(c => isEmptyMessageContent(c))) {
+                return content;
+            }
             return [
                 {
                     type: "text",
@@ -67,7 +77,7 @@ export class PluginContextProvider {
         }))).flatMap((x) => x);
 
         return [
-            ...(results.length > 0 ? [{ type: "text", text: PROMPT } satisfies ComplexMessageContent] : []),
+            ...(results.every(e => isEmptyMessageContent(e)) ? [] : [{ type: "text", text: PROMPT } satisfies ComplexMessageContent]),
             ...results,
             ...namelessPluginsSysMessage
         ]

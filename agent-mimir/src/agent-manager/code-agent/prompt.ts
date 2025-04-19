@@ -38,8 +38,8 @@ function getFunctions(tool: AgentTool) {
 - FunctionName: ${toPythonFunctionName(tool.name)}
 - Async Function: true (must be awaited)
 - Description: ${tool.description}
-- Input Parameter:\n${JSON.stringify(zodToJsonSchema(tool.schema))}
-- Function Output:\n${outParameter}
+- Input Parameter: ${JSON.stringify(zodToJsonSchema(tool.schema))}
+- Function Output: ${outParameter}
 `
     return toolDefinition;
 }

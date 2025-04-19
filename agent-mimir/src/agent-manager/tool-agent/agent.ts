@@ -16,6 +16,7 @@ import { toolNodeFunction } from "./tool-node.js"
 import { aiMessageToMimirAiMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo } from "./utils.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { DEFAULT_CONSTITUTION } from "../constants.js";
+import { PluginContextProvider } from "../../plugins/context-provider.js";
 
 export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
@@ -81,7 +82,9 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
     ]
 
-    const workspaceManager = new WorkspanceManager(workspace)
+    const workspaceManager = new WorkspanceManager(workspace);
+
+    const pluginContextProvider = new PluginContextProvider(allCreatedPlugins, {});
 
     const callLLm = () => {
         return async (state: typeof StateAnnotation.State) => {
@@ -108,18 +111,16 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 allCreatedPlugins.map(async (plugin) => await plugin.attributes(nextMessage!))
             )).flatMap(e => e);
             const fieldMapper = new ResponseFieldMapper([...pluginAttributes, ...defaultAttributes]);
-            const responseFormatSystemMessage: AgentSystemMessage = {
-                content: [
-                    {
-                        type: "text",
-                        text: config.constitution ?? DEFAULT_CONSTITUTION
-                    },
-                    {
-                        text: fieldMapper.createFieldInstructions(),
-                        type: "text"
-                    }
-                ]
-            }
+            const responseFormatSystemMessage = [
+                {
+                    type: "text",
+                    text: config.constitution ?? DEFAULT_CONSTITUTION
+                } satisfies ComplexMessageContent,
+                {
+                    text: fieldMapper.createFieldInstructions(),
+                    type: "text"
+                } satisfies ComplexMessageContent
+            ]
 
             let response: AIMessage;
             let messageToStore: BaseMessage[] = [];
@@ -143,10 +144,8 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                     content: complexResponseToLangchainMessageContent(persistentMessage.message.content)
                 })];
 
-                const pluginInputs = (await Promise.all(
-                    allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages())
-                ));
-                const systemMessage = buildSystemMessage([responseFormatSystemMessage, ...pluginInputs]);
+                const pluginInputs = await pluginContextProvider.getSystemPromptContext();
+                const systemMessage = buildSystemMessage([...responseFormatSystemMessage, dividerSystemMessage, ...pluginInputs]);
                 response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
 
             } else {
@@ -179,10 +178,8 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                     }
                 }
 
-                const pluginInputs = (await Promise.all(
-                    allCreatedPlugins.map(async (plugin) => await plugin.getSystemMessages())
-                ));
-                const systemMessage = buildSystemMessage([responseFormatSystemMessage, ...pluginInputs]);
+                const pluginInputs = await pluginContextProvider.getSystemPromptContext();
+                const systemMessage = buildSystemMessage([...responseFormatSystemMessage, dividerSystemMessage, ...pluginInputs]);
                 response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
             }
 
@@ -501,9 +498,9 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     }
 }
 
-function buildSystemMessage(agentSystemMessages: AgentSystemMessage[]) {
+function buildSystemMessage(agentSystemMessages: ComplexMessageContent[]) {
     const messages = agentSystemMessages.map((m) => {
-        return mergeSystemMessages([dividerSystemMessage, new SystemMessage({ content: complexResponseToLangchainMessageContent(m.content) })])
+        return mergeSystemMessages([new SystemMessage({ content: complexResponseToLangchainMessageContent([m]) })])
     });
 
     const finalMessage = mergeSystemMessages(messages);
@@ -518,6 +515,7 @@ function buildSystemMessage(agentSystemMessages: AgentSystemMessage[]) {
     }
     return finalMessage;
 }
+
 
 
 async function addAdditionalContentToUserMessage(message: InputAgentMessage, plugins: AgentPlugin[]) {

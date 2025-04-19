@@ -22,6 +22,8 @@ export class SqliteToolPluginFactory implements PluginFactory {
 
 class SqliteToolPlugin extends AgentPlugin {
     private db: Sqlite.Database;
+
+    name?: string | undefined = "SQLITE Database Access";
     constructor(private args: SqliteConfig) {
         super();
         this.db = new Sqlite(this.args.dbPath);

@@ -54,3 +54,12 @@ export function trimAndSanitizeMessageContent(inputArray: ComplexMessageContent[
 }
 
 
+export function isEmptyMessageContent(message: ComplexMessageContent): boolean {
+  if (message.type === "text") {
+    return message.text.trim().length === 0;
+  } else if (message.type === "image_url") {
+    return false; // Images are not considered empty
+  } else {
+    return false
+  }
+}
