@@ -10,7 +10,7 @@ import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { commandContentToBaseMessage, dividerSystemMessage, lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
 import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, InputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "./../index.js";
-import { AgentSystemMessage, AgentPlugin, PluginFactory } from "../../plugins/index.js";
+import { PluginFactory } from "../../plugins/index.js";
 import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex, isToolMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo, toPythonFunctionName } from "./utils.js";
 import { pythonToolNodeFunction } from "./tool-node.js";
 import { FUNCTION_PROMPT, getFunctionsPrompt, PYTHON_SCRIPT_SCHEMA } from "./prompt.js";
@@ -131,7 +131,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             let messageToStore: BaseMessage[] = [];
             if (inputMessage) {
                 await workspaceManager.loadFiles(inputMessage);
-                const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage(inputMessage, allCreatedPlugins);
+                const { displayMessage, persistentMessage } = await pluginContextProvider.additionalMessageContent(inputMessage);
                 displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
                 persistentMessage.message.content = trimAndSanitizeMessageContent(persistentMessage.message.content);
 
@@ -156,7 +156,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             } else {
                 const messageListToSend = [...state.messages];
                 if (isToolMessage(lastMessage)) {
-                    const { displayMessage, persistentMessage } = await addAdditionalContentToUserMessage({ content: [] }, allCreatedPlugins);
+                    const { displayMessage, persistentMessage } = await pluginContextProvider.additionalMessageContent({content: []});
                     displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
                     persistentMessage.message.content = trimAndSanitizeMessageContent(persistentMessage.message.content);
                     if (displayMessage.content.length > 0) {
@@ -500,47 +500,5 @@ function buildSystemMessage(agentSystemMessages: ComplexMessageContent[]) {
         return new SystemMessage(systemMessageText);
     }
     return finalMessage;
-}
-
-
-async function addAdditionalContentToUserMessage(message: InputAgentMessage, plugins: AgentPlugin[]) {
-    const displayMessage = JSON.parse(JSON.stringify(message)) as InputAgentMessage;
-    const persistentMessage = JSON.parse(JSON.stringify(message)) as InputAgentMessage;
-    const persistantMessageRetentionPolicy: (number | null)[] = [];
-    const spacing: ComplexMessageContent = {
-        type: "text",
-        text: "\n-----------------------------------------------\n\n"
-    }
-    const additionalContent: ComplexMessageContent[] = [];
-    const persistentAdditionalContent: ComplexMessageContent[] = [];
-    const userContent = message.content;
-    for (const plugin of plugins) {
-        const customizations = await plugin.additionalMessageContent(persistentMessage,);
-        for (const customization of customizations) {
-            if (customization.displayOnCurrentMessage) {
-                additionalContent.push(...customization.content)
-                additionalContent.push(spacing)
-            }
-            if (customization.saveToChatHistory) {
-                const retention = typeof customization.saveToChatHistory === "number" ? customization.saveToChatHistory : null;
-                persistantMessageRetentionPolicy.push(...customization.content.map(() => retention));
-                persistentAdditionalContent.push(...customization.content);
-                persistentAdditionalContent.push(spacing)
-                persistantMessageRetentionPolicy.push(retention); //This one is for spacing
-            }
-        }
-    }
-    displayMessage.content.unshift(...additionalContent);
-    persistentMessage.content.unshift(...persistentAdditionalContent);
-    //Add nulls to the retention policy for the user content
-    persistantMessageRetentionPolicy.push(...userContent.map(() => null));
-
-    return {
-        displayMessage,
-        persistentMessage: {
-            message: persistentMessage,
-            retentionPolicy: persistantMessageRetentionPolicy
-        }
-    }
 }
 
