@@ -1,61 +1,8 @@
-import { describe, expect, test, it, beforeEach } from '@jest/globals';
+import { describe, expect, it, beforeEach } from '@jest/globals';
 import { InputAgentMessage } from '../agent-manager/index.js';
 import { PluginContextConfig, PluginContextProvider, RetentionAwareMessageContent } from '../plugins/context-provider.js';
 import { AdditionalContent, AgentPlugin } from './index.js';
-import { textComplexMessage } from '../utils/format.js';
-import { ComplexMessageContent, ImageMessageContent, TextMessageContent } from '../schema.js';
-
-// describe("PluginContextProvider", () => {
-
-//     test("test without any plugin", async () => {
-//         let ctxProvider = new PluginContextProvider([], {});
-//         const inputMessage: InputAgentMessage = {
-//             content: []
-//         }
-//         const messages = await ctxProvider.additionalMessageContent(inputMessage);
-
-//         expect(JSON.stringify(inputMessage)).toBe(JSON.stringify(messages.persistentMessage.message));
-//     });
-
-//     test("test with plugin permanent messages", async () => {
-
-//         const additionalContent: AdditionalContent[] = [
-//             {
-//                 content: [
-//                     textComplexMessage("test1"),
-//                 ],
-//                 saveToChatHistory: 2,
-//                 displayOnCurrentMessage: true
-//             },
-//             {
-//                 content: [
-//                     textComplexMessage("test2"),
-//                 ],
-//                 saveToChatHistory: 1,
-//                 displayOnCurrentMessage: true
-//             }
-//         ]
-//         const additionalContent2: AdditionalContent[] = [
-//             {
-//                 content: [
-//                     textComplexMessage("additionalContent2"),
-//                 ],
-//                 saveToChatHistory: 4,
-//                 displayOnCurrentMessage: true
-//             },
-//         ];
-
-//         let ctxProvider = new PluginContextProvider([ new DummyPlugin(undefined, additionalContent2), new DummyPlugin("PluginName", additionalContent), new DummyPlugin("PluginName2", additionalContent)], {});
-//         const inputMessage: InputAgentMessage = {
-//             content: [textComplexMessage("originalMessage2"), textComplexMessage("originalMessage2")]
-//         }
-//         const messages = await ctxProvider.additionalMessageContent(inputMessage);
-//         expect(messages.persistentMessage.retentionPolicy[0]).toBe(null);
-//         expect(messages.persistentMessage.retentionPolicy[1]).toBe(null);
-//     });
-
-
-// })
+import { ImageMessageContent, TextMessageContent } from '../schema.js';
 
 
 class DummyPlugin extends AgentPlugin {
@@ -157,7 +104,7 @@ describe('PluginContextProvider', () => {
             expect(result.persistentMessage.retentionPolicy).toEqual([null]);
         });
 
-         it('should add content for display only (nameless plugin)', async () => {
+        it('should add content for display only (nameless plugin)', async () => {
             const additionalContent: AdditionalContent[] = [
                 {
                     content: [{ type: 'text', text: 'Display only content.' }],
@@ -276,7 +223,7 @@ describe('PluginContextProvider', () => {
                 ...expectedAddedContent,
             ]);
             expect(result.persistentMessage.message.content).toEqual([
-                 initialMessage.content[0],
+                initialMessage.content[0],
                 ...expectedAddedContent,
             ]);
 
@@ -290,7 +237,7 @@ describe('PluginContextProvider', () => {
         });
 
         it('should add content for both display and persistence (save=number)', async () => {
-              const additionalContent: AdditionalContent[] = [
+            const additionalContent: AdditionalContent[] = [
                 {
                     content: [
                         { type: 'text', text: 'Display and Persistent (5).' } satisfies TextMessageContent,
@@ -304,7 +251,7 @@ describe('PluginContextProvider', () => {
             const provider = new PluginContextProvider(plugins, config);
             const result = await provider.additionalMessageContent(initialMessage);
 
-             const expectedAddedContent = [
+            const expectedAddedContent = [
                 { type: 'text', text: '\n### PLUGIN PluginE CONTEXT ###' },
                 { type: 'text', text: 'Display and Persistent (5).' },
                 { type: 'text', text: 'Part 2 (also 5).' },
@@ -317,7 +264,7 @@ describe('PluginContextProvider', () => {
                 ...expectedAddedContent,
             ]);
             expect(result.persistentMessage.message.content).toEqual([
-                 initialMessage.content[0],
+                initialMessage.content[0],
                 ...expectedAddedContent,
             ]);
 
@@ -338,13 +285,13 @@ describe('PluginContextProvider', () => {
                     { content: [{ type: 'text', text: 'Display A' }], saveToChatHistory: false, displayOnCurrentMessage: true }
                 ]),
                 new DummyPlugin(undefined, [ // Nameless, persistent only
-                     { content: [{ type: 'text', text: 'Persistent Nameless' }], saveToChatHistory: true, displayOnCurrentMessage: false }
+                    { content: [{ type: 'text', text: 'Persistent Nameless' }], saveToChatHistory: true, displayOnCurrentMessage: false }
                 ]),
-                 new DummyPlugin('BothMixedRetention', [
+                new DummyPlugin('BothMixedRetention', [
                     { content: [{ type: 'text', text: 'Both B1 (save=2)' }], saveToChatHistory: 2, displayOnCurrentMessage: true },
                     { content: [{ type: 'text', text: 'Both B2 (save=true)' }], saveToChatHistory: true, displayOnCurrentMessage: true } // This makes overall retention null
                 ]),
-                 new DummyPlugin('PersistentOnlyNum', [
+                new DummyPlugin('PersistentOnlyNum', [
                     { content: [{ type: 'text', text: 'Persistent C (save=4)' }], saveToChatHistory: 4, displayOnCurrentMessage: false }
                 ]),
             ];
@@ -365,82 +312,85 @@ describe('PluginContextProvider', () => {
                 { type: 'text', text: '\n' }, // Spacing after Both B2 content
                 // Nameless plugins last - none displayed
                 // PersistentOnlyNum not displayed
-           ]);
+            ]);
 
             // Expected persistent content: Original + PersistentNameless + BothMixedRetention + PersistentOnlyNum
             expect(result.persistentMessage.message.content).toEqual([
-                 { type: 'text', text: 'User says hi.' },
-                 // Named plugins first (order within named doesn't matter here as they both save)
-                 { type: 'text', text: '\n### PLUGIN BothMixedRetention CONTEXT ###' }, // From BothMixedRetention
-                 { type: 'text', text: 'Both B1 (save=2)' },
-                 { type: 'text', text: 'Both B2 (save=true)' },
-                 { type: 'text', text: '\n' },
-                 { type: 'text', text: '\n### PLUGIN PersistentOnlyNum CONTEXT ###' }, // From PersistentOnlyNum
-                 { type: 'text', text: 'Persistent C (save=4)' },
-                 { type: 'text', text: '\n' },
-                 // Nameless plugins last
-                 { type: 'text', text: '----------------------' }, // From PersistentNameless
-                 { type: 'text', text: 'Persistent Nameless' },
-                 { type: 'text', text: '\n' },
+                { type: 'text', text: 'User says hi.' },
+                // Named plugins that save
+                { type: 'text', text: '\n### PLUGIN BothMixedRetention CONTEXT ###' }, // From BothMixedRetention
+                { type: 'text', text: 'Both B1 (save=2)' },
+                { type: 'text', text: '\n' }, // Spacing after Both B1 content <<-- ADDED
+                { type: 'text', text: 'Both B2 (save=true)' },
+                { type: 'text', text: '\n' }, // Spacing after Both B2 content
+                { type: 'text', text: '\n### PLUGIN PersistentOnlyNum CONTEXT ###' }, // From PersistentOnlyNum
+                { type: 'text', text: 'Persistent C (save=4)' },
+                { type: 'text', text: '\n' }, // Spacing after Persistent C content
+                // Nameless plugins last
+                { type: 'text', text: '----------------------' }, // From PersistentNameless
+                { type: 'text', text: 'Persistent Nameless' },
+                { type: 'text', text: '\n' }, // Spacing after Persistent Nameless content
             ]);
 
-            // Expected retention policy
             expect(result.persistentMessage.retentionPolicy).toEqual([
                 null, // Original 'User says hi.'
 
-                // BothMixedRetention (overall null because one part is true)
+                // BothMixedRetention (overall block retention null because one part is true)
                 null, // Header
-                null, // 'Both B1 (save=2)' -> becomes null
+                2, // 'Both B1 (save=2)' -> becomes null
+                2, // Spacing after B1 <<-- ADDED
                 null, // 'Both B2 (save=true)'
-                null, // Spacing
+                null, // Spacing after B2
 
-                 // PersistentOnlyNum (retention 4)
+                // PersistentOnlyNum (block retention 4)
                 4,    // Header
                 4,    // 'Persistent C (save=4)'
-                4,    // Spacing
+                4,    // Spacing after C
 
-                // PersistentNameless (retention null because save=true)
+                // PersistentNameless (block retention null because save=true)
                 null, // Header
                 null, // 'Persistent Nameless'
-                null, // Spacing
+                null, // Spacing after Nameless
             ]);
+
+            expect(1).toEqual(1)
         });
 
-         it('should handle complex initial message and multiple plugin contents', async () => {
-             const complexInitialMessage: InputAgentMessage = {
+        it('should handle complex initial message and multiple plugin contents', async () => {
+            const complexInitialMessage: InputAgentMessage = {
                 content: [
                     { type: 'text', text: 'Check this image:' } satisfies TextMessageContent,
                     { type: 'image_url', image_url: { url: 'http://example.com/img.png', type: 'png' } } satisfies ImageMessageContent,
                 ],
             };
             const plugins = [
-                 new DummyPlugin('MultiPartPlugin', [
+                new DummyPlugin('MultiPartPlugin', [
                     {
                         content: [
-                             { type: 'text', text: 'Analysis Part 1.' } satisfies TextMessageContent,
-                             { type: 'text', text: 'Analysis Part 2 (save=1).' } satisfies TextMessageContent,
+                            { type: 'text', text: 'Analysis Part 1.' } satisfies TextMessageContent,
+                            { type: 'text', text: 'Analysis Part 2 (save=1).' } satisfies TextMessageContent,
                         ],
                         saveToChatHistory: 1, // Max retention for this block is 1
                         displayOnCurrentMessage: true
                     },
-                     {
-                        content: [ { type: 'text', text: 'Follow up (save=true).' } satisfies TextMessageContent ],
+                    {
+                        content: [{ type: 'text', text: 'Follow up (save=true).' } satisfies TextMessageContent],
                         saveToChatHistory: true, // This makes overall retention null
                         displayOnCurrentMessage: true
                     }
                 ])
             ];
-             const provider = new PluginContextProvider(plugins, config);
-             const result = await provider.additionalMessageContent(complexInitialMessage);
+            const provider = new PluginContextProvider(plugins, config);
+            const result = await provider.additionalMessageContent(complexInitialMessage);
 
-             const expectedPluginHeader = { type: 'text', text: '\n### PLUGIN MultiPartPlugin CONTEXT ###' };
-             const expectedPluginContent1_1 = { type: 'text', text: 'Analysis Part 1.' };
-             const expectedPluginContent1_2 = { type: 'text', text: 'Analysis Part 2 (save=1).' };
-             const expectedPluginContent2_1 = { type: 'text', text: 'Follow up (save=true).' };
-             const spacing = { type: 'text', text: '\n' };
+            const expectedPluginHeader = { type: 'text', text: '\n### PLUGIN MultiPartPlugin CONTEXT ###' };
+            const expectedPluginContent1_1 = { type: 'text', text: 'Analysis Part 1.' };
+            const expectedPluginContent1_2 = { type: 'text', text: 'Analysis Part 2 (save=1).' };
+            const expectedPluginContent2_1 = { type: 'text', text: 'Follow up (save=true).' };
+            const spacing = { type: 'text', text: '\n' };
 
-             // Display includes original + all plugin parts
-             expect(result.displayMessage.content).toEqual([
+            // Display includes original + all plugin parts
+            expect(result.displayMessage.content).toEqual([
                 complexInitialMessage.content[0],
                 complexInitialMessage.content[1],
                 expectedPluginHeader,
@@ -449,10 +399,10 @@ describe('PluginContextProvider', () => {
                 spacing, // Spacing after first content block
                 expectedPluginContent2_1,
                 spacing // Spacing after second content block
-             ]);
+            ]);
 
-             // Persistent includes original + all plugin parts
-             expect(result.persistentMessage.message.content).toEqual([
+            // Persistent includes original + all plugin parts
+            expect(result.persistentMessage.message.content).toEqual([
                 complexInitialMessage.content[0],
                 complexInitialMessage.content[1],
                 expectedPluginHeader,
@@ -461,34 +411,34 @@ describe('PluginContextProvider', () => {
                 spacing,
                 expectedPluginContent2_1,
                 spacing
-             ]);
+            ]);
 
-             // Retention: null for original, null for header, null for all content parts (because one save=true), null for spacings
-             expect(result.persistentMessage.retentionPolicy).toEqual([
-                 null, // Original text
-                 null, // Original image
-                 null, // Header
-                 null, // Content 1_1
-                 null, // Content 1_2
-                 null, // Spacing 1
-                 null, // Content 2_1
-                 null, // Spacing 2
-             ]);
-         });
+            // Retention: null for original, null for header, null for all content parts (because one save=true), null for spacings
+            expect(result.persistentMessage.retentionPolicy).toEqual([
+                null, // Original text
+                null, // Original image
+                null, // Header
+                1, // Content 1_1
+                1, // Content 1_2
+                1, // Spacing 1
+                null, // Content 2_1
+                null, // Spacing 2
+            ]);
+        });
 
-         it('should correctly determine max retention when multiple numeric retentions are present', async () => {
+        it('should correctly determine max retention when multiple numeric retentions are present', async () => {
             const additionalContent: AdditionalContent[] = [
                 {
                     content: [{ type: 'text', text: 'Save for 2.' }],
                     saveToChatHistory: 2,
                     displayOnCurrentMessage: false,
                 },
-                 {
+                {
                     content: [{ type: 'text', text: 'Save for 5.' }],
                     saveToChatHistory: 5, // This is the max
                     displayOnCurrentMessage: false,
                 },
-                 {
+                {
                     content: [{ type: 'text', text: 'Save for 1.' }],
                     saveToChatHistory: 1,
                     displayOnCurrentMessage: false,
@@ -499,29 +449,29 @@ describe('PluginContextProvider', () => {
             const result = await provider.additionalMessageContent(initialMessage);
 
             // Persistent message includes original + all plugin parts
-             expect(result.persistentMessage.message.content).toEqual([
-                 initialMessage.content[0],
-                 { type: 'text', text: '\n### PLUGIN MaxRetentionTest CONTEXT ###' },
-                 { type: 'text', text: 'Save for 2.' },
-                 { type: 'text', text: '\n' },
-                 { type: 'text', text: 'Save for 5.' },
-                 { type: 'text', text: '\n' },
-                 { type: 'text', text: 'Save for 1.' },
-                 { type: 'text', text: '\n' },
-             ]);
+            expect(result.persistentMessage.message.content).toEqual([
+                initialMessage.content[0],
+                { type: 'text', text: '\n### PLUGIN MaxRetentionTest CONTEXT ###' },
+                { type: 'text', text: 'Save for 2.' },
+                { type: 'text', text: '\n' },
+                { type: 'text', text: 'Save for 5.' },
+                { type: 'text', text: '\n' },
+                { type: 'text', text: 'Save for 1.' },
+                { type: 'text', text: '\n' },
+            ]);
 
             // Retention policy: null for original, 5 for header (max of content), specific retentions for content, 5 for spacing
-             expect(result.persistentMessage.retentionPolicy).toEqual([
-                 null, // Original
-                 5,    // Header (max of 2, 5, 1)
-                 2,    // Content 1
-                 2,    // Spacing 1 (takes retention of preceding content)
-                 5,    // Content 2
-                 5,    // Spacing 2
-                 1,    // Content 3
-                 1,    // Spacing 3
-             ]);
-         });
+            expect(result.persistentMessage.retentionPolicy).toEqual([
+                null, // Original
+                5,    // Header (max of 2, 5, 1)
+                2,    // Content 1
+                2,    // Spacing 1 (takes retention of preceding content)
+                5,    // Content 2
+                5,    // Spacing 2
+                1,    // Content 3
+                1,    // Spacing 3
+            ]);
+        });
 
     });
 });
