@@ -93,8 +93,19 @@ export class PluginContextProvider {
 
 async function addAdditionalContentToUserMessage(message: InputAgentMessage, plugins: AgentPlugin[]) {
 
+    const namedPlugins: AgentPlugin[] = [];
+    const namelessPlugins: AgentPlugin[] = [];
+    for (const plugin of plugins) {
+        if (plugin.name) {
+            namedPlugins.push(plugin);
+        } else {
+            namelessPlugins.push(plugin);
+        }
+    }
 
-    const sortedPlugins = [...plugins].sort((a, b) => a.name ? -1 : 1);
+    // Combine the groups: named first, then nameless
+    const sortedPlugins = [...namedPlugins, ...namelessPlugins];
+    // const sortedPlugins = [...plugins].sort((a, b) => a.name ? -1 : 1);
 
     const displayMessage = JSON.parse(JSON.stringify(message)) as InputAgentMessage;
     const persistentMessage = JSON.parse(JSON.stringify(message)) as InputAgentMessage;
