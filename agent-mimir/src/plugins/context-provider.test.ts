@@ -1,8 +1,18 @@
 import {describe, expect, test} from '@jest/globals';
+import { InputAgentMessage } from '../agent-manager/index.js';
+import { PluginContextProvider } from '../plugins/context-provider.js';
 
 
-describe('sum module', () => {
-  test('adds 1 + 2 to equal 3', () => {
-    expect(1 + 2).toBe(3);
-  });
-});
+
+describe("test", () => {
+
+    test("test", async () => {
+        let ctsProvider = new PluginContextProvider([], {});
+        const inputMessage: InputAgentMessage = {
+            content: []
+        }
+        const messages = await ctsProvider.additionalMessageContent(inputMessage);
+        
+        expect(JSON.stringify(messages.displayMessage)).toBe(JSON.stringify(messages.persistentMessage.message) );
+    });
+})
