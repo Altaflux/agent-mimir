@@ -83,6 +83,23 @@ export class PluginContextProvider {
         ]
     }
 
+    /**
+     * Processes an incoming user message and potentially enriches it with additional
+     * context provided by registered agent plugins.
+     *
+     * This method iterates through the available plugins, calls their respective
+     * `additionalMessageContent` methods, and constructs two versions of the message:
+     * 1.  `displayMessage`: Intended for immediate display, includes original user
+     * content plus any plugin content marked for display.
+     * 2.  `persistentMessage`: Intended for saving to chat history, includes
+     * original user content plus any plugin content marked for saving, along
+     * with a detailed retention policy array.
+     *
+     * @param message The original incoming user message (`InputAgentMessage`).
+     * @returns A Promise resolving to a `RetentionAwareMessageContent` object containing
+     * the `displayMessage` and the `persistentMessage` (with its associated
+     * `retentionPolicy`).
+     */
     async additionalMessageContent(message: InputAgentMessage): Promise<RetentionAwareMessageContent> {
 
         return await addAdditionalContentToUserMessage(message, this.plugins);
@@ -91,6 +108,95 @@ export class PluginContextProvider {
 }
 
 
+
+
+// --- Documentation for the core logic (within addAdditionalContentToUserMessage) ---
+
+/**
+ * Core logic for adding plugin content to a user message.
+ *
+ * **Processing Steps:**
+ *
+ * 1.  **Plugin Sorting:** Plugins are sorted to process named plugins first,
+ * followed by nameless plugins. The original relative order *within* the
+ * named group and *within* the nameless group is preserved (stable sort).
+ * 2.  **Iteration:** The method iterates through the sorted plugins.
+ * 3.  **Plugin Call:** For each plugin, it calls `await plugin.additionalMessageContent(message)`.
+ * 4.  **Customization Processing:** It processes the array of `AdditionalContent` objects
+ * (`customizations`) returned by the plugin.
+ * 5.  **Header Generation:** If any customization from a plugin contributes content to
+ * either the display or persistent message, a context header is added for that plugin:
+ * -   `\n### PLUGIN PluginName CONTEXT ###` for named plugins.
+ * -   `----------------------` for nameless plugins.
+ * This header is added *before* the content from that plugin's customizations.
+ * 6.  **Content Aggregation:**
+ * -   If `customization.displayOnCurrentMessage` is true, the `customization.content`
+ * is appended to the `displayMessage.content`.
+ * -   If `customization.saveToChatHistory` is set (true or a number > 0), the
+ * `customization.content` is appended to the `persistentMessage.message.content`.
+ * 7.  **Spacing:** A newline spacing object (`{ type: 'text', text: '\n' }`) is appended
+ * after the content parts of *each individual customization* that added content
+ * to either the display or persistent message streams.
+ * 8.  **Retention Policy Construction:** A `retentionPolicy` array is built alongside
+ * the `persistentMessage.message.content`. This array has the same length, and
+ * each element corresponds to a content part in the persistent message.
+ *
+ * **Output Structure (`RetentionAwareMessageContent`):**
+ *
+ * -   `displayMessage: InputAgentMessage`:
+ * -   Contains the original user message content parts.
+ * -   Followed by headers, content, and spacing from plugins where
+ * `displayOnCurrentMessage` was true for any customization.
+ * -   `persistentMessage: { message: InputAgentMessage; retentionPolicy: (number | null)[] }`:
+ * -   `message`:
+ * -   Contains the original user message content parts.
+ * -   Followed by headers, content, and spacing from plugins where
+ * `saveToChatHistory` was set for any customization.
+ * -   `retentionPolicy`:
+ * -   An array parallel to `persistentMessage.message.content`.
+ * -   Specifies the retention duration (in turns) or permanence for each content part.
+ *
+ * **Retention Policy Logic Details (`persistentMessage.retentionPolicy`):**
+ *
+ * -   **Original User Content:** All content parts from the original `message` always
+ * receive `null` retention (meaning they follow the default chat history retention).
+ * -   **Plugin Header Content:** The retention for a plugin's header (`### PLUGIN...` or `---...`)
+ * in the persistent message is determined by the "highest" retention among all
+ * customizations *from that specific plugin* being saved in the current turn:
+ * -   It is `null` (permanent relative to chat history limits) if *any* customization
+ * from that plugin has `saveToChatHistory: true`.
+ * -   Otherwise, it is the *maximum numeric value* among all `saveToChatHistory: <number>`
+ * values from that plugin's customizations saved in this turn.
+ * -   If no customizations from the plugin are saved, the header isn't added to the
+ * persistent message or retention policy.
+ * -   **Plugin Content Parts & Spacing:** The retention for the actual content parts
+ * (text, images) and their subsequent spacing (`\n`) added by a plugin customization
+ * is determined *solely by that specific customization's `saveToChatHistory` value*:
+ * -   `null` if `saveToChatHistory` was `true`.
+ * -   `<number>` if `saveToChatHistory` was that specific `<number>`.
+ * -   This value is *not* affected by other customizations returned by the same plugin.
+ *
+ * **Example Scenario:**
+ *
+ * If `PluginA` returns:
+ * ```
+ * [
+ * { content: [txt1], saveToChatHistory: 3, displayOnCurrentMessage: true },
+ * { content: [txt2], saveToChatHistory: true, displayOnCurrentMessage: false }
+ * ]
+ * ```
+ * The `persistentMessage` might look like:
+ * -   `content`: `[originalUserContent, headerPluginA, txt1, spacing1, txt2, spacing2]`
+ * -   `retentionPolicy`: `[null, null, 3, 3, null, null]`
+ * -   `null` for original user content.
+ * -   `null` for `headerPluginA` (because `saveToChatHistory: true` was present).
+ * -   `3` for `txt1` (from its own setting).
+ * -   `3` for `spacing1` (inherits from `txt1`).
+ * -   `null` for `txt2` (from its own setting).
+ * -   `null` for `spacing2` (inherits from `txt2`).
+ *
+ * The `displayMessage` would contain: `[originalUserContent, headerPluginA, txt1, spacing1]`
+ */
 async function addAdditionalContentToUserMessage(message: InputAgentMessage, plugins: AgentPlugin[]) {
 
     const namedPlugins: AgentPlugin[] = [];
@@ -105,15 +211,11 @@ async function addAdditionalContentToUserMessage(message: InputAgentMessage, plu
 
     // Combine the groups: named first, then nameless
     const sortedPlugins = [...namedPlugins, ...namelessPlugins];
-    // const sortedPlugins = [...plugins].sort((a, b) => a.name ? -1 : 1);
 
     const displayMessage = JSON.parse(JSON.stringify(message)) as InputAgentMessage;
     const persistentMessage = JSON.parse(JSON.stringify(message)) as InputAgentMessage;
     const persistantMessageRetentionPolicy: (number | null)[] = [];
-    // const spacing: ComplexMessageContent = {
-    //     type: "text",
-    //     text: "\n-----------------------------------------------\n\n"
-    // }
+
     const spacing: ComplexMessageContent = {
         type: "text",
         text: "\n"
@@ -158,14 +260,10 @@ async function addAdditionalContentToUserMessage(message: InputAgentMessage, plu
             }
         }
     }
-    // displayMessage.content.unshift(...additionalContent);
-    // persistentMessage.content.unshift(...persistentAdditionalContent);
-    // //Add nulls to the retention policy for the user content
-    // persistantMessageRetentionPolicy.push(...userContent.map(() => null));
 
     displayMessage.content.push(...additionalContent);
     persistentMessage.content.push(...persistentAdditionalContent);
-    //Add nulls to the retention policy for the user content
+
     persistantMessageRetentionPolicy.unshift(...userContent.map(() => null));
 
     return {
