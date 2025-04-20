@@ -6,13 +6,16 @@ export const FUNCTION_PROMPT = `
 
 You have the ability to execute code in a Python environment. To execute code, you can respond with a python code block wrapped in an "<execution-code>" xml tag. 
 The code will be executed inside the Python environment, and whatever you print into the console will be returned to you.
-Your code is running inside an async environment, so you can use async/await syntax.
-You can only include ONE <execution-code> block per response, do not include more than one <execution-code> block in your response.
 
-Use this python environment to accomplish the task you are given, be proactive and use the function available to you but ask for help if you feel stuck on a task.
-You must not ask permission or notify the user you plan on executing code, just do it.
-You have been given access to a list of tools: these tools are Python functions which you can call with code.
-The user cannot see the the result of the code being executed, any information you want to share with the user must responded back to them in a normal message.
+Python Environment Rules:
+- Your code is running inside an async environment, so you can use async/await syntax.
+- You can only include ONE <execution-code> block per response, do not include more than one <execution-code> block in your response.
+- Use this python environment to accomplish the task you are given, be proactive and use the function available to you but ask for help if you feel stuck on a task.
+- You must not ask permission or notify the user you plan on executing code, just do it.
+- You have been given access to a list of tools: these tools are Python functions which you can call with code.
+- The user cannot see the the result of the code being executed, any information you want to share with the user must responded back to them in a normal message.
+- This python environment does not have access to your workpace or its files, only the functions may do so if they explicitely say so in their descriptions.
+
 Example:
 <execution-code>
 import time
