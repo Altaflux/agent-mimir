@@ -306,6 +306,9 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             await workspaceManager.loadFiles(reviewData);
 
             const responseMessage = new HumanMessage({
+                response_metadata: {
+                    toolMessage: true
+                },
                 id: v4(),
                 content: [
                     { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
