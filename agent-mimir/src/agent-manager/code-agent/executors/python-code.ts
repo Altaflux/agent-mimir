@@ -120,9 +120,30 @@ if __name__ == "__main__":
 }
 
 
-function indentText(text: string, indent = '    '): string {
+function indentText(text: string, prefix: string) {
+    let inLiteral = false;
+  
     return text
-        .split('\n')
-        .map(line => indent + line)
-        .join('\n');
-}
+      .split('\n')
+      .map(line => {
+        // count how many times """ appears on this line
+        const matches = line.match(/"""/g) || [];
+        const tripleCount = matches.length;
+  
+        // if there's at least one """ on this line, we must prefix it
+        // (so the quotes stay indented under your async def)
+        if (tripleCount > 0) {
+          // prefix the line…
+          const out = prefix + line;
+          // …and toggle our “inLiteral” state once for each odd occurrence
+          if (tripleCount % 2 === 1) inLiteral = !inLiteral;
+          return out;
+        }
+  
+        // no quotes here:
+        //  - if we’re inside a literal, emit the line _as is_
+        //  - otherwise, prefix it
+        return inLiteral ? line : prefix + line;
+      })
+      .join('\n');
+  }

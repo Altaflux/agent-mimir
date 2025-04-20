@@ -1,4 +1,4 @@
-import { AgentPlugin, PluginContext, PluginFactory, AgentCommand } from "agent-mimir/plugins";
+import { AgentPlugin, PluginContext, PluginFactory, AgentCommand, AgentSystemMessage } from "agent-mimir/plugins";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
 import { spawn } from 'child_process';
@@ -27,6 +27,19 @@ class CodeInterpreterPlugin extends AgentPlugin {
     constructor(private args: CodeInterpreterArgs) {
         super();
         this.workSpace = args.workSpace;
+    }
+
+    name?: string | undefined = "Workspace Code Interepreter";
+
+    async getSystemMessages(): Promise<AgentSystemMessage> {
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: "You have a access to a special Python Code Interpreter that runs directly on the user's computer. This code interpreter has access to Workpace files as well as other resources inside the user's computer. You can install dependencies as needed to achieve tha tasks requested."
+                }
+            ]
+        }
     }
 
     async tools() {
@@ -86,7 +99,7 @@ class PythonCodeInterpreter extends AgentTool {
         this.workDirectory = workDirectory;
         this.description = `Code Interpreter to run a Python 3 script in the human's ${process.platform} computer. 
 The input must be the content of the script to execute. The code interpreter is not a read–eval–print loop (REPL), external dependencies are only valid for the current call. The result of this function is the output of the console so you can use print statements to return information to yourself about the results. 
-The interpreter has access to all the files in your workspace which can be accessed thru \"os.getenv('WORKSPACE')\". If you are given the task to create a file or they ask you to save it, then save the files inside the directory who's path is stored in the OS environment variable named "WORKSPACE" accessible like \"os.getenv('WORKSPACE')\". ` ;
+This interpreter DOES have access to all the files in your workspace which can be accessed thru \"os.getenv('WORKSPACE')\". If you are given the task to create a file or they ask you to save it, then save the files inside the directory who's path is stored in the OS environment variable named "WORKSPACE" accessible like \"os.getenv('WORKSPACE')\". ` ;
     }
 
     name = "pythonCodeInterpreter";
@@ -161,7 +174,7 @@ The interpreter has access to all the files in your workspace which can be acces
                 }
             ]
         } finally {
-            await fs.rm(tempDir, { recursive: true, force: true });
+            //await fs.rm(tempDir, { recursive: true, force: true });
         }
     }
 
