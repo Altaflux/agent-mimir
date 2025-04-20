@@ -174,7 +174,7 @@ This interpreter DOES have access to all the files in your workspace which can b
                 }
             ]
         } finally {
-            //await fs.rm(tempDir, { recursive: true, force: true });
+            await fs.rm(tempDir, { recursive: true, force: true });
         }
     }
 
