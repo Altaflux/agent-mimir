@@ -5,10 +5,9 @@ import { MimirToolToLangchainTool } from "./wrapper.js";
 import { isToolMessage, ToolMessage } from "@langchain/core/messages/tool";
 import { complexResponseToLangchainMessageContent, trimAndSanitizeMessageContent } from "../../utils/format.js";
 import { AIMessage, BaseMessage, HumanMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage } from "@langchain/core/messages";
-import { Annotation, Command, END, interrupt, Messages, MessagesAnnotation, messagesStateReducer, START, StateDefinition, StateGraph } from "@langchain/langgraph";
+import { Annotation, BaseCheckpointSaver, Command, END, interrupt, MemorySaver, Messages, MessagesAnnotation, messagesStateReducer, START, StateDefinition, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
-import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { commandContentToBaseMessage, dividerSystemMessage, lCmessageContentToContent, mergeSystemMessages } from "../message-utils.js";
 import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, InputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "../index.js";
 import { AttributeDescriptor, PluginFactory, AiResponseMessage } from "../../plugins/index.js";
@@ -52,6 +51,8 @@ export type CreateAgentArgs = {
     visionSupport?: 'openai',
     /** Factory function to create the agent's workspace */
     workspaceFactory: WorkspaceFactory,
+
+    checkpointer?: BaseCheckpointSaver
 }
 
 
@@ -370,7 +371,8 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
     const commandList = agentCommands.map(ac => ac.commands).flat();
 
-    const memory = SqliteSaver.fromConnString(workspace.rootDirectory + "/agent-chat.db");
+    //const memory = SqliteSaver.fromConnString(workspace.rootDirectory + "/agent-chat.db");
+    const memory = config.checkpointer ?? new MemorySaver()
 
     let stateConfig = {
         configurable: { thread_id: "1" },

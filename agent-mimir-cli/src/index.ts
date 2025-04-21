@@ -13,6 +13,7 @@ import { Embeddings } from "@langchain/core/embeddings";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { LangchainToolWrapperPluginFactory } from "agent-mimir/tools/langchain";
 import { CodeAgentFactory, LocalPythonExecutor } from "agent-mimir/agent/code-agent";
+import { BaseCheckpointSaver } from "@langchain/langgraph";
 export type AgentDefinition = {
     mainAgent?: boolean;
     description: string;
@@ -21,6 +22,7 @@ export type AgentDefinition = {
         chatModel: BaseChatModel;
         taskModel?: BaseLanguageModel;
         constitution?: string;
+        checkpointer?: BaseCheckpointSaver,
         plugins?: PluginFactory[];
         visionSupport?: 'openai';
         chatHistory?: {
@@ -82,6 +84,7 @@ export const run = async () => {
                     model: agentDefinition.definition.chatModel,
                     visionSupport: agentDefinition.definition.visionSupport,
                     constitution: agentDefinition.definition.constitution,
+                    checkpointer: agentDefinition.definition.checkpointer,
                     plugins: [...agentDefinition.definition.plugins ?? [],  ...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))],
                     workspaceFactory: workspaceFactory,
                     codeExecutor: new LocalPythonExecutor({}),

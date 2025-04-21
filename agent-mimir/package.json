@@ -75,8 +75,6 @@
     "@jest/globals":"29.7.0"
   },
   "dependencies": {
-    "@langchain/langgraph": "0.2.34",
-    "@langchain/langgraph-checkpoint-sqlite": "0.1.4",
     "jsonrepair": "^3.0.2",
     "ring-buffer-ts": "^1.2.0",
     "gpt-3-encoder": "v1.1.4",

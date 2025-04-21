@@ -22,6 +22,7 @@ import { LangchainToolWrapperPluginFactory } from "agent-mimir/tools/langchain";
 import { file } from 'tmp-promise';
 import { CodeAgentFactory, LocalPythonExecutor } from "agent-mimir/agent/code-agent";
 import { FunctionAgentFactory } from "agent-mimir/agent/tool-agent";
+import { BaseCheckpointSaver } from "@langchain/langgraph";
 function splitStringInChunks(str: string) {
     const chunkSize = 1900;
     let chunks = [];
@@ -43,6 +44,7 @@ export type AgentDefinition = {
         constitution?: string;
         visionSupport?: 'openai';
         plugins?: PluginFactory[];
+        checkpointer?: BaseCheckpointSaver,
         chatHistory: {
             summaryModel: BaseChatModel;
             tokenLimit?: number;
@@ -106,15 +108,16 @@ export const run = async () => {
             const newAgent = {
                 mainAgent: agentDefinition.mainAgent,
                 name: agentName,
-                agent: await orchestratorBuilder.initializeAgent(new CodeAgentFactory({
+                agent: await orchestratorBuilder.initializeAgent(new FunctionAgentFactory({
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,
                     model: agentDefinition.definition.chatModel,
+                    checkpointer: agentDefinition.definition.checkpointer,
                     visionSupport: agentDefinition.definition.visionSupport,
                     constitution: agentDefinition.definition.constitution,
                     plugins: [...agentDefinition.definition.plugins ?? [], ...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))],
                     workspaceFactory: workspaceFactory,
-                    codeExecutor: new LocalPythonExecutor({additionalPackages: ["pandas", "numpy"]}),
+                    //codeExecutor: new LocalPythonExecutor({additionalPackages: ["pandas", "numpy"]}),
                 }), agentName, agentDefinition.definition.communicationWhitelist)
             }
             console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.definition.profession}" and description "${agentDefinition.description}"`));
