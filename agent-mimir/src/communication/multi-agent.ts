@@ -4,9 +4,14 @@ import { PluginFactory } from "../plugins/index.js";
 
 type PendingMessage = {
     content: InputAgentMessage;
+    threadId: string,
     replyFromAgent: string | undefined;
 }
-export type AgentInvoke = (agent: Agent,) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>;
+export type AgentInvoke = (agent: Agent,) => AsyncGenerator<ToolResponseInfo, {
+    message: AgentResponse;
+    checkpointId: string;
+    threadId: string;
+}, unknown>;
 
 export type IntermediateAgentResponse = ({
     type: "agentToAgentMessage",
@@ -22,7 +27,6 @@ export type AgentToAgentMessage = {
 
 export type HandleMessageResult = ({
     type: "agentResponse",
-
 } & AgentUserMessage) | {
     type: "toolRequest",
 } & AgentToolRequestTwo;
@@ -85,20 +89,19 @@ export class MultiAgentCommunicationOrchestrator {
         this.currentAgent = currentAgent;
     }
 
-
     getCurrentAgent() {
         return this.currentAgent;
     }
 
-    async reset() {
+    async reset(args: {threadId:string, checkpointId?: string}) {
         for (const agent of this.agentManager.values()) {
-            await agent.reset();
+            await agent.reset({threadId: args.threadId, checkpointId: args.checkpointId});
         }
     }
 
     async* handleMessage(msg: AgentInvoke): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
 
-        const handleMessage = async (graphResponse: AgentUserMessageResponse, agentStack: Agent[]): Promise<{
+        const handleMessage = async (graphResponse: AgentUserMessageResponse, agentStack: Agent[], threadId: string): Promise<{
             conversationComplete: boolean,
             currentAgent: Agent,
             pendingMessage: PendingMessage | undefined
@@ -111,6 +114,7 @@ export class MultiAgentCommunicationOrchestrator {
                         currentAgent: this.currentAgent,
                         pendingMessage: {
                             replyFromAgent: undefined,
+                            threadId: threadId,
                             content: {
                                 content: [
                                     { type: "text", text: `Agent ${graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE]} does not exist.` }
@@ -125,6 +129,7 @@ export class MultiAgentCommunicationOrchestrator {
                     conversationComplete: false,
                     currentAgent: newAgent,
                     pendingMessage: {
+                        threadId: threadId,
                         replyFromAgent: undefined,
                         content: graphResponse.output
                     }
@@ -135,8 +140,9 @@ export class MultiAgentCommunicationOrchestrator {
                     conversationComplete: isFinalUser,
                     currentAgent: isFinalUser ? this.currentAgent : agentStack.pop()!,
                     pendingMessage: {
+                        threadId: threadId,
                         replyFromAgent: this.currentAgent.name,
-                        content: graphResponse.output
+                        content: graphResponse.output,
                     }
                 }
             }
@@ -146,6 +152,7 @@ export class MultiAgentCommunicationOrchestrator {
 
             let generator = pendingMessage
                 ? this.currentAgent.call({
+                    threadId: pendingMessage.threadId,
                     message: {
                         ...pendingMessage.content,
                         content: [
@@ -161,7 +168,11 @@ export class MultiAgentCommunicationOrchestrator {
                 : msg(this.currentAgent);
 
 
-            let result: IteratorResult<ToolResponseInfo, AgentResponse>;
+            let result: IteratorResult<ToolResponseInfo,{
+                message: AgentResponse;
+                checkpointId: string;
+                threadId: string;
+            }>;
             while (!(result = await generator.next()).done) {
                 yield {
                     type: "toolResponse",
@@ -169,11 +180,11 @@ export class MultiAgentCommunicationOrchestrator {
                     ...result.value
                 };
             }
-            let graphResponse = result.value;
+            let graphResponse = result.value.message;
 
             if (graphResponse.type == "agentResponse") {
                 const sourceAgent = this.currentAgent.name;
-                const routedMessage = await handleMessage(graphResponse, this.agentStack);
+                const routedMessage = await handleMessage(graphResponse, this.agentStack, result.value.threadId);
                 this.currentAgent = routedMessage.currentAgent;
                 if (routedMessage.conversationComplete) {
                     return {

@@ -188,7 +188,7 @@ export const run = async () => {
     });
 
     client.on(Events.InteractionCreate, async interaction => {
-
+        
         if (interaction.isButton()) {
             if (interaction.customId === 'continue') {
                 await interaction.deferReply();
@@ -197,11 +197,12 @@ export const run = async () => {
                 });
 
                 const agentInvoke: AgentInvoke = (agent) => agent.call({
+                    threadId: interaction.channelId,
                     message: null
                 });
                 messageHandler(agentInvoke, async (message) => {
                     await sendDiscordResponseFromCommand(interaction, message.message, message.attachments, message.images, message.components);
-                })
+                }, interaction.channelId)
             }
             return;
         };
@@ -216,7 +217,7 @@ export const run = async () => {
 
         if (interaction.commandName === 'reset') {
             try {
-                await chatAgentHandle.reset();
+                await chatAgentHandle.reset({ threadId: interaction.channelId});
             } catch (e) {
                 console.error(e);
                 await interaction.editReply('There was an error resetting the agent.');
@@ -234,6 +235,7 @@ export const run = async () => {
 
 
             const agentInvoke: AgentInvoke = (agent) => agent.handleCommand({
+                threadId: interaction.channelId,
                 command: {
                     name: interaction.commandName,
                     arguments: commandArguments
@@ -242,12 +244,12 @@ export const run = async () => {
 
             messageHandler(agentInvoke, async (message) => {
                 await sendDiscordResponseFromCommand(interaction, message.message, message.attachments, message.images, message.components);
-            })
+            }, interaction.channelId)
         }
 
 
     });
-    const messageHandler = async (msg: AgentInvoke, sendResponse: SendResponse) => {
+    const messageHandler = async (msg: AgentInvoke, sendResponse: SendResponse, threadId: string) => {
 
         let toolCallback: FunctionResponseCallBack = async (call) => {
             const formattedResponse = extractAllTextFromComplexResponse(call.response).substring(0, 3000);
@@ -321,6 +323,7 @@ export const run = async () => {
                         message: toolResponse
                     });
                     const generator = chatAgentHandle.handleMessage((agent) => agent.call({
+                        threadId: threadId,
                         message: null
                     }));
                     while (!(result = await generator.next()).done) {
@@ -360,6 +363,7 @@ export const run = async () => {
                 }));
                 //const messageToSend = { message: messageToAi, sharedFiles: loadedFiles };
                 const generator = agent.call({
+                    threadId: msg.channelId,
                     message: {
                         content: [
                             {
@@ -371,11 +375,15 @@ export const run = async () => {
                     }
                 })
 
-                let result: IteratorResult<ToolResponseInfo, AgentResponse>;
+                let result: IteratorResult<ToolResponseInfo, {message: AgentResponse, checkpointId: string, threadId: string}>;
                 while (!(result = await generator.next()).done) {
                     yield result.value;
                 }
-                return result.value
+                return {
+                    message: result.value.message,
+                    threadId: result.value.threadId,
+                    checkpointId: result.value.checkpointId
+                }
             }
 
             if (msg.author.bot) return;
@@ -385,7 +393,7 @@ export const run = async () => {
             }
             messageHandler(agentInvoke, async (args) => {
                 await sendDiscordResponse(msg, args.message, args.attachments, args.images, args.components);
-            });
+            }, msg.channelId);
         } catch (e) {
             console.error("An error occured while processing a message.", e)
             await msg.reply({

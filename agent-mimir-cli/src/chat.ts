@@ -60,6 +60,7 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
     }
     let result: IteratorResult<IntermediateAgentResponse, HandleMessageResult>;
     let generator = agentManager.handleMessage((agent) => agent.call({
+      threadId: "1",
       message: parsedMessage.message,
     }));
     while (!(result = await generator.next()).done) {
@@ -76,6 +77,7 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
 
         if (continousMode) {
           generator = agentManager.handleMessage((agent) => agent.call({
+            threadId: "1",
             message: null,
           }));
         } else {
@@ -87,6 +89,7 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
 
           if (answers.message.toLowerCase() === "y" || answers.message === "") {
             generator = agentManager.handleMessage((agent) => agent.call({
+              threadId: "1",
               message: null,
             }));
           } else {
@@ -96,6 +99,7 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
               continue topLoop;
             }
             generator = agentManager.handleMessage((agent) => agent.call({
+              threadId: "1",
               message: parsedMessage.message
             }));
           }
@@ -115,7 +119,7 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
 
 async function handleCommands(command: string, agentManager: MultiAgentCommunicationOrchestrator) {
   if (command.trim() === "reset") {
-    await agentManager.reset();
+    await agentManager.reset({threadId: "1"});
     console.log(chalk.red(`Agents have been reset.`));
   } else {
     console.log(chalk.red(`Unknown command: ${command}`));
