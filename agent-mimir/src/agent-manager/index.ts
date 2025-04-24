@@ -66,8 +66,7 @@ export interface Agent {
         noMessagesInTool?: boolean
     }) => AsyncGenerator<ToolResponseInfo, {
         message: AgentResponse,
-        checkpointId: string,
-        threadId: string,
+       
     }, unknown>,
     /**
      * Processes specific commands sent to the agent.

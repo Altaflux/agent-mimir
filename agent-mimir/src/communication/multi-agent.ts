@@ -1,16 +1,16 @@
-import { Agent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, ToolResponseInfo, InputAgentMessage, AgentFactory } from "../agent-manager/index.js";
+import { Agent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, ToolResponseInfo, InputAgentMessage, AgentFactory, CommandRequest } from "../agent-manager/index.js";
 import { HelpersPluginFactory } from "./helpers.js";
 import { PluginFactory } from "../plugins/index.js";
+import { threadId } from "worker_threads";
 
 type PendingMessage = {
     content: InputAgentMessage;
     threadId: string,
     replyFromAgent: string | undefined;
 }
-export type AgentInvoke = (agent: Agent,) => AsyncGenerator<ToolResponseInfo, {
+type AgentInvoke = (agent: Agent,) => AsyncGenerator<ToolResponseInfo, {
     message: AgentResponse;
-    checkpointId: string;
-    threadId: string;
+
 }, unknown>;
 
 export type IntermediateAgentResponse = ({
@@ -63,7 +63,7 @@ export class OrchestratorBuilder {
         if (Array.isArray(communicationWhitelist)) {
             whitelist = communicationWhitelist;
         }
-        
+
         const helpersPlugin = new HelpersPluginFactory({
             name: name,
             helperSingleton: this.agentManager,
@@ -71,7 +71,7 @@ export class OrchestratorBuilder {
             destinationAgentFieldName: DESTINATION_AGENT_ATTRIBUTE
         });
 
-        const agent = await factory.create(name,  [helpersPlugin]);
+        const agent = await factory.create(name, [helpersPlugin]);
         this.agentManager.set(name, agent);
         return agent;
     }
@@ -93,13 +93,38 @@ export class MultiAgentCommunicationOrchestrator {
         return this.currentAgent;
     }
 
-    async reset(args: {threadId:string, checkpointId?: string}) {
+    async reset(args: { threadId: string, checkpointId?: string }) {
         for (const agent of this.agentManager.values()) {
-            await agent.reset({threadId: args.threadId, checkpointId: args.checkpointId});
+            await agent.reset({ threadId: args.threadId, checkpointId: args.checkpointId });
         }
     }
 
-    async* handleMessage(msg: AgentInvoke): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
+    async* handleMessage(args: {
+        message: InputAgentMessage | null;
+    }, threadId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
+
+        let generator = this.doInvocation((agent) => agent.call({ message: args.message, threadId: threadId }), threadId);
+        let result: IteratorResult<IntermediateAgentResponse, HandleMessageResult>;
+        while (!(result = await generator.next()).done) {
+            yield result.value;
+        }
+        return result.value
+    }
+
+    async* handleCommand(args: {
+        command: CommandRequest;
+    }, threadId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
+
+        let generator = this.doInvocation((agent) => agent.handleCommand({ command: args.command, threadId: threadId }), threadId);
+        let result: IteratorResult<IntermediateAgentResponse, HandleMessageResult>;
+        while (!(result = await generator.next()).done) {
+            yield result.value;
+        }
+        return result.value
+    }
+
+
+    private async* doInvocation(msg: AgentInvoke, threadId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
 
         const handleMessage = async (graphResponse: AgentUserMessageResponse, agentStack: Agent[], threadId: string): Promise<{
             conversationComplete: boolean,
@@ -158,7 +183,7 @@ export class MultiAgentCommunicationOrchestrator {
                         content: [
                             {
                                 type: "text",
-                                text: pendingMessage.replyFromAgent ? `This message is from ${pendingMessage.replyFromAgent}:\n`: "",
+                                text: pendingMessage.replyFromAgent ? `This message is from ${pendingMessage.replyFromAgent}:\n` : "",
                             },
                             ...pendingMessage.content.content,
                         ]
@@ -168,10 +193,9 @@ export class MultiAgentCommunicationOrchestrator {
                 : msg(this.currentAgent);
 
 
-            let result: IteratorResult<ToolResponseInfo,{
+            let result: IteratorResult<ToolResponseInfo, {
                 message: AgentResponse;
-                checkpointId: string;
-                threadId: string;
+
             }>;
             while (!(result = await generator.next()).done) {
                 yield {
@@ -184,7 +208,7 @@ export class MultiAgentCommunicationOrchestrator {
 
             if (graphResponse.type == "agentResponse") {
                 const sourceAgent = this.currentAgent.name;
-                const routedMessage = await handleMessage(graphResponse, this.agentStack, result.value.threadId);
+                const routedMessage = await handleMessage(graphResponse, this.agentStack, threadId);
                 this.currentAgent = routedMessage.currentAgent;
                 if (routedMessage.conversationComplete) {
                     return {

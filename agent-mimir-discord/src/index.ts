@@ -13,8 +13,7 @@ import { FileSystemAgentWorkspace } from "agent-mimir/nodejs";
 import { Embeddings } from "@langchain/core/embeddings";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { AgentInvoke, AgentToolRequestTwo, HandleMessageResult, IntermediateAgentResponse, OrchestratorBuilder } from "agent-mimir/communication/multi-agent";
-import { Agent, AgentResponse, ToolResponseInfo } from "agent-mimir/agent";
+import { AgentToolRequestTwo, HandleMessageResult, IntermediateAgentResponse, OrchestratorBuilder, MultiAgentCommunicationOrchestrator } from "agent-mimir/communication/multi-agent";
 import { extractAllTextFromComplexResponse } from "agent-mimir/utils/format";
 import { PluginFactory } from "agent-mimir/plugins";
 import { ComplexMessageContent, ImageMessageContent } from "agent-mimir/schema";
@@ -61,7 +60,7 @@ type AgentMimirConfig = {
     continuousMode?: boolean;
     workingDirectory?: string;
 }
-
+export type AgentInvoke = (args: MultiAgentCommunicationOrchestrator,) => AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void>;
 const getConfig = async () => {
     if (process.env.MIMIR_CFG_PATH) {
         let cfgFile = path.join(process.env.MIMIR_CFG_PATH, 'mimir-cfg.js');
@@ -196,10 +195,9 @@ export const run = async () => {
                     content: 'Continuing the conversation...',
                 });
 
-                const agentInvoke: AgentInvoke = (agent) => agent.call({
-                    threadId: interaction.channelId,
+                const agentInvoke: AgentInvoke = (agent) => agent.handleMessage({
                     message: null
-                });
+                },  interaction.channelId);
                 messageHandler(agentInvoke, async (message) => {
                     await sendDiscordResponseFromCommand(interaction, message.message, message.attachments, message.images, message.components);
                 }, interaction.channelId)
@@ -232,15 +230,13 @@ export const run = async () => {
                     [r.name]: r.value
                 }
             }, {})
-
-
             const agentInvoke: AgentInvoke = (agent) => agent.handleCommand({
-                threadId: interaction.channelId,
+                
                 command: {
                     name: interaction.commandName,
                     arguments: commandArguments
                 }
-            });
+            }, interaction.channelId);
 
             messageHandler(agentInvoke, async (message) => {
                 await sendDiscordResponseFromCommand(interaction, message.message, message.attachments, message.images, message.components);
@@ -279,7 +275,7 @@ export const run = async () => {
         };
 
         let result: IteratorResult<IntermediateAgentResponse, HandleMessageResult>;
-        const generator = chatAgentHandle.handleMessage(msg)
+        const generator = msg(chatAgentHandle)
 
         while (!(result = await generator.next()).done) {
             intermediateResponseHandler(result.value);
@@ -322,10 +318,10 @@ export const run = async () => {
                     await sendResponse({
                         message: toolResponse
                     });
-                    const generator = chatAgentHandle.handleMessage((agent) => agent.call({
-                        threadId: threadId,
+            
+                    const generator = chatAgentHandle.handleMessage({
                         message: null
-                    }));
+                    }, threadId);
                     while (!(result = await generator.next()).done) {
                         intermediateResponseHandler(result.value);
                     }
@@ -352,7 +348,40 @@ export const run = async () => {
         const typing = setInterval(() => msg.channel.sendTyping(), 5000);
         try {
 
-            const agentInvoke: AgentInvoke = async function* (agent: Agent) {
+            // const agentInvoke: AgentInvoke = async function* (agent: Agent) {
+            //     const messageToAi = msg.cleanContent.replaceAll(`@${client.user!.username}`, "").trim();
+            //     const loadedFiles = await Promise.all(msg.attachments.map(async (attachment) => {
+            //         const response = await downloadFile(attachment.name, attachment.url);
+            //         return {
+            //             fileName: attachment.name,
+            //             url: response
+            //         }
+            //     }));
+            //     //const messageToSend = { message: messageToAi, sharedFiles: loadedFiles };
+            //     const generator = agent.call({
+            //         threadId: msg.channelId,
+            //         message: {
+            //             content: [
+            //                 {
+            //                     type: "text",
+            //                     text: messageToAi
+            //                 }
+            //             ],
+            //             sharedFiles: loadedFiles
+            //         }
+            //     })
+
+            //     let result: IteratorResult<ToolResponseInfo, {message: AgentResponse, checkpointId: string, threadId: string}>;
+            //     while (!(result = await generator.next()).done) {
+            //         yield result.value;
+            //     }
+            //     return {
+            //         message: result.value.message,
+            //         threadId: result.value.threadId,
+            //         checkpointId: result.value.checkpointId
+            //     }
+            // }
+            const agentInvoke: AgentInvoke = async function* (agent: MultiAgentCommunicationOrchestrator) {
                 const messageToAi = msg.cleanContent.replaceAll(`@${client.user!.username}`, "").trim();
                 const loadedFiles = await Promise.all(msg.attachments.map(async (attachment) => {
                     const response = await downloadFile(attachment.name, attachment.url);
@@ -362,8 +391,8 @@ export const run = async () => {
                     }
                 }));
                 //const messageToSend = { message: messageToAi, sharedFiles: loadedFiles };
-                const generator = agent.call({
-                    threadId: msg.channelId,
+                const generator = agent.handleMessage({
+                    
                     message: {
                         content: [
                             {
@@ -373,17 +402,15 @@ export const run = async () => {
                         ],
                         sharedFiles: loadedFiles
                     }
-                })
+                }, msg.channelId)
 
-                let result: IteratorResult<ToolResponseInfo, {message: AgentResponse, checkpointId: string, threadId: string}>;
+                let result: IteratorResult<IntermediateAgentResponse, HandleMessageResult>;
                 while (!(result = await generator.next()).done) {
                     yield result.value;
                 }
                 return {
-                    message: result.value.message,
-                    threadId: result.value.threadId,
-                    checkpointId: result.value.checkpointId
-                }
+                    ...result.value,
+                } satisfies HandleMessageResult
             }
 
             if (msg.author.bot) return;

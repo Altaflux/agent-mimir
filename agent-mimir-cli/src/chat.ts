@@ -59,10 +59,9 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
       continue topLoop;
     }
     let result: IteratorResult<IntermediateAgentResponse, HandleMessageResult>;
-    let generator = agentManager.handleMessage((agent) => agent.call({
-      threadId: "1",
+    let generator = agentManager.handleMessage({
       message: parsedMessage.message,
-    }));
+    }, "1");
     while (!(result = await generator.next()).done) {
       intermediateResponseHandler(result.value);
     }
@@ -76,10 +75,10 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
         sendResponse(result.value.callingAgent, toolCalls);
 
         if (continousMode) {
-          generator = agentManager.handleMessage((agent) => agent.call({
-            threadId: "1",
+          generator = agentManager.handleMessage({
             message: null,
-          }));
+          }, "1");
+
         } else {
           let answers = await Promise.race([new Promise<{ message: string }>((resolve, reject) => {
             rl.question((chalk.blue("Should AI Continue? Type Y or click Enter to continue, otherwise type a message to the AI: ")), (answer) => {
@@ -88,20 +87,18 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
           })]);
 
           if (answers.message.toLowerCase() === "y" || answers.message === "") {
-            generator = agentManager.handleMessage((agent) => agent.call({
-              threadId: "1",
+            generator = agentManager.handleMessage({
               message: null,
-            }));
+            }, "1");
           } else {
             const parsedMessage = extractContentAndText(answers.message);
             if (parsedMessage.type === "command") {
               await handleCommands(parsedMessage.command!, agentManager);
               continue topLoop;
             }
-            generator = agentManager.handleMessage((agent) => agent.call({
-              threadId: "1",
-              message: parsedMessage.message
-            }));
+            generator = agentManager.handleMessage({
+              message: parsedMessage.message,
+            }, "1");
           }
         }
 
