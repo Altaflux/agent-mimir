@@ -62,22 +62,33 @@ export interface Agent {
      */
     call: (args: {
         message: InputAgentMessage | null,
+        threadId: string,
         noMessagesInTool?: boolean
-    }) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>,
+    }) => AsyncGenerator<ToolResponseInfo, {
+        message: AgentResponse,
+        checkpointId: string,
+    }, unknown>,
     /**
      * Processes specific commands sent to the agent.
      * @param args.command - The command request to handle
      * @returns AsyncGenerator yielding tool responses and final agent response
      */
     handleCommand: (args: {
-        command: CommandRequest
-    }) => AsyncGenerator<ToolResponseInfo, AgentResponse, unknown>,
+        command: CommandRequest,
+        threadId: string
+    }) => AsyncGenerator<ToolResponseInfo, {
+        message: AgentResponse,
+        checkpointId: string
+    }, unknown>,
     /** The agent's workspace for file operations */
     workspace: AgentWorkspace,
     /** Array of commands available to this agent */
     commands: AgentCommand[],
     /** Resets the agent's state */
-    reset: () => Promise<void>,
+    reset: (args: {
+        threadId: string,
+        checkpointId?: string
+    }) => Promise<void>,
 };
 
 

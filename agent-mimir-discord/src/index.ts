@@ -5,7 +5,7 @@ import { promises as fs } from 'fs';
 import normalFs from 'fs';
 import os from 'os';
 import path from "path";
-import { ChannelType, Client, GatewayIntentBits, Partials, REST, Routes, Events, Message, CacheType, ChatInputCommandInteraction, ButtonInteraction, BaseMessageOptions, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
+import { ChannelType, Client, GatewayIntentBits, Partials, REST, Routes, Events, Message, CacheType, ChatInputCommandInteraction, ButtonInteraction, BaseMessageOptions, ButtonBuilder, ButtonStyle, ActionRowBuilder, EmbedBuilder } from 'discord.js';
 import { Readable } from "stream";
 import { finished } from "stream/promises";
 import { SlashCommandBuilder } from "discord.js";
@@ -13,8 +13,7 @@ import { FileSystemAgentWorkspace } from "agent-mimir/nodejs";
 import { Embeddings } from "@langchain/core/embeddings";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { AgentInvoke, AgentToolRequestTwo, HandleMessageResult, IntermediateAgentResponse, OrchestratorBuilder } from "agent-mimir/communication/multi-agent";
-import { Agent, AgentResponse, ToolResponseInfo } from "agent-mimir/agent";
+import { AgentToolRequestTwo, HandleMessageResult, IntermediateAgentResponse, OrchestratorBuilder, MultiAgentCommunicationOrchestrator } from "agent-mimir/communication/multi-agent";
 import { extractAllTextFromComplexResponse } from "agent-mimir/utils/format";
 import { PluginFactory } from "agent-mimir/plugins";
 import { ComplexMessageContent, ImageMessageContent } from "agent-mimir/schema";
@@ -61,7 +60,7 @@ type AgentMimirConfig = {
     continuousMode?: boolean;
     workingDirectory?: string;
 }
-
+export type AgentInvoke = (args: MultiAgentCommunicationOrchestrator,) => AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void>;
 const getConfig = async () => {
     if (process.env.MIMIR_CFG_PATH) {
         let cfgFile = path.join(process.env.MIMIR_CFG_PATH, 'mimir-cfg.js');
@@ -196,12 +195,12 @@ export const run = async () => {
                     content: 'Continuing the conversation...',
                 });
 
-                const agentInvoke: AgentInvoke = (agent) => agent.call({
+                const agentInvoke: AgentInvoke = (agent) => agent.handleMessage({
                     message: null
-                });
+                }, interaction.channelId);
                 messageHandler(agentInvoke, async (message) => {
-                    await sendDiscordResponseFromCommand(interaction, message.message, message.attachments, message.images, message.components);
-                })
+                    await sendDiscordResponseFromCommand(interaction, message.message, message.attachments, message.images, message.embeds, message.components);
+                }, interaction.channelId)
             }
             return;
         };
@@ -216,7 +215,7 @@ export const run = async () => {
 
         if (interaction.commandName === 'reset') {
             try {
-                await chatAgentHandle.reset();
+                await chatAgentHandle.reset({ threadId: interaction.channelId });
             } catch (e) {
                 console.error(e);
                 await interaction.editReply('There was an error resetting the agent.');
@@ -231,30 +230,33 @@ export const run = async () => {
                     [r.name]: r.value
                 }
             }, {})
-
-
             const agentInvoke: AgentInvoke = (agent) => agent.handleCommand({
                 command: {
                     name: interaction.commandName,
                     arguments: commandArguments
                 }
-            });
+            }, interaction.channelId);
 
             messageHandler(agentInvoke, async (message) => {
-                await sendDiscordResponseFromCommand(interaction, message.message, message.attachments, message.images, message.components);
-            })
+                await sendDiscordResponseFromCommand(interaction, message.message, message.attachments, message.images, message.embeds, message.components);
+            }, interaction.channelId)
         }
 
 
     });
-    const messageHandler = async (msg: AgentInvoke, sendResponse: SendResponse) => {
+    const messageHandler = async (msg: AgentInvoke, sendResponse: SendResponse, threadId: string) => {
 
         let toolCallback: FunctionResponseCallBack = async (call) => {
             const formattedResponse = extractAllTextFromComplexResponse(call.response).substring(0, 3000);
-            const toolResponse = `Agent: \`${call.agentName}\`  \n---\nCalled function: \`${call.name}\` \nResponded with: \n\`\`\`${formattedResponse}\`\`\``;
+            const toolResponse = `Agent: \`${call.agentName}\``;
             const images = await imagesToFiles(call.response);
+
+            const headerEmbed = new EmbedBuilder()
+                .setDescription(`Called function: \`${call.name}\` \nResponded with: \n\`\`\`${formattedResponse}\n${images.map(i=>"(image)")}\`\`\``)
+                .setColor(0xff0000);
             await sendResponse({
                 message: toolResponse,
+                embeds: [headerEmbed],
                 images: images
             });
         };
@@ -277,7 +279,7 @@ export const run = async () => {
         };
 
         let result: IteratorResult<IntermediateAgentResponse, HandleMessageResult>;
-        const generator = chatAgentHandle.handleMessage(msg)
+        const generator = msg(chatAgentHandle)
 
         while (!(result = await generator.next()).done) {
             intermediateResponseHandler(result.value);
@@ -285,18 +287,23 @@ export const run = async () => {
 
         const sendToolInvocationPermissionRequest = async (toolRequest: AgentToolRequestTwo) => {
             const toolCalls = (toolRequest.toolCalls ?? []).map(tr => {
-                return `Tool request: \`${tr.toolName}\`\nWith Payload: \n\`\`\`${tr.input}\`\`\``;
-            }).join("\n");
+                const headerEmbed = new EmbedBuilder()
+                    .setDescription(`Tool request: \`${tr.toolName}\`\nWith Payload: \n\`\`\`${tr.input}\`\`\``)
+                    .setColor(0xff0000);
+                return headerEmbed;
+            });
             const stringResponse = extractAllTextFromComplexResponse(toolRequest.content);
-            const toolResponse = `Agent: \`${toolRequest.callingAgent}\` \n ${stringResponse} \n---\nCalling functions:\n${toolCalls} `;
+            const toolResponse = `Agent: \`${toolRequest.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: `;
             const button = new ButtonBuilder()
                 .setCustomId('continue')    // Unique ID for the button
                 .setLabel('Continue?')       // Text that appears on the button
                 .setStyle(ButtonStyle.Primary);
             const row = new ActionRowBuilder<ButtonBuilder>()
                 .addComponents(button);
+
             await sendResponse({
                 message: `${toolResponse}`,
+                embeds: [...toolCalls],
                 components: [row]
             });
         }
@@ -313,16 +320,23 @@ export const run = async () => {
             if (agentConfig.continuousMode) {
                 while (result.value.type === "toolRequest" && agentConfig.continuousMode) {
                     const toolCalls = (result.value.toolCalls ?? []).map(tr => {
-                        return `Tool request: \`${tr.toolName}\`\n With Payload: \n\`\`\`${tr.input}\`\`\``;
-                    }).join("\n");
-                    const stringResponse = extractAllTextFromComplexResponse(result.value.content);
-                    const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: ${toolCalls} `;
-                    await sendResponse({
-                        message: toolResponse
+                        const headerEmbed = new EmbedBuilder()
+                            .setDescription(`Tool request: \`${tr.toolName}\`\nWith Payload: \n\`\`\`${tr.input}\`\`\``)
+                            .setColor(0xff0000);
+                        return headerEmbed;
                     });
-                    const generator = chatAgentHandle.handleMessage((agent) => agent.call({
+                    const stringResponse = extractAllTextFromComplexResponse(result.value.content);
+                    const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: `;
+
+
+                    await sendResponse({
+                        message: toolResponse,
+                        embeds: [...toolCalls]
+                    });
+
+                    const generator = chatAgentHandle.handleMessage({
                         message: null
-                    }));
+                    }, threadId);
                     while (!(result = await generator.next()).done) {
                         intermediateResponseHandler(result.value);
                     }
@@ -349,7 +363,7 @@ export const run = async () => {
         const typing = setInterval(() => msg.channel.sendTyping(), 5000);
         try {
 
-            const agentInvoke: AgentInvoke = async function* (agent: Agent) {
+            const agentInvoke: AgentInvoke = async function* (agent: MultiAgentCommunicationOrchestrator) {
                 const messageToAi = msg.cleanContent.replaceAll(`@${client.user!.username}`, "").trim();
                 const loadedFiles = await Promise.all(msg.attachments.map(async (attachment) => {
                     const response = await downloadFile(attachment.name, attachment.url);
@@ -358,8 +372,7 @@ export const run = async () => {
                         url: response
                     }
                 }));
-                //const messageToSend = { message: messageToAi, sharedFiles: loadedFiles };
-                const generator = agent.call({
+                return yield* agent.handleMessage({
                     message: {
                         content: [
                             {
@@ -369,13 +382,7 @@ export const run = async () => {
                         ],
                         sharedFiles: loadedFiles
                     }
-                })
-
-                let result: IteratorResult<ToolResponseInfo, AgentResponse>;
-                while (!(result = await generator.next()).done) {
-                    yield result.value;
-                }
-                return result.value
+                }, msg.channelId)
             }
 
             if (msg.author.bot) return;
@@ -384,8 +391,8 @@ export const run = async () => {
                 return;
             }
             messageHandler(agentInvoke, async (args) => {
-                await sendDiscordResponse(msg, args.message, args.attachments, args.images, args.components);
-            });
+                await sendDiscordResponse(msg, args.message, args.attachments, args.images, args.embeds, args.components);
+            }, msg.channelId);
         } catch (e) {
             console.error("An error occured while processing a message.", e)
             await msg.reply({
@@ -412,15 +419,18 @@ export type FunctionResponseCallBack = (toolCalls: {
 
 type SendResponse = (args: {
     message: string, attachments?: string[], images?: string[],
+    embeds?: BaseMessageOptions["embeds"],
     components?: BaseMessageOptions["components"]
 }) => Promise<void>
 
-async function sendDiscordResponse(msg: Message<boolean>, message: string, attachments?: string[], images?: string[], components?: BaseMessageOptions["components"]) {
+async function sendDiscordResponse(msg: Message<boolean>, message: string, attachments?: string[], images?: string[], embeds?: BaseMessageOptions["embeds"], components?: BaseMessageOptions["components"]) {
     const chunks = splitStringInChunks(message);
     for (let i = 0; i < chunks.length; i++) {
         const files = (i === chunks.length - 1) ? (attachments ?? []) : [];
         const imageFiles = (i === chunks.length - 1) ? (images ?? []) : [];
+
         await msg.reply({
+            embeds: embeds,
             content: chunks[i],
             files: [...files, ...imageFiles],
             components: components
@@ -433,6 +443,7 @@ async function sendDiscordResponseFromCommand(msg: ChatInputCommandInteraction<C
     message: string,
     attachments?: string[],
     images?: string[],
+    embeds?: BaseMessageOptions["embeds"],
     components?: BaseMessageOptions["components"]
 ) {
     const chunks = splitStringInChunks(message);
@@ -441,6 +452,7 @@ async function sendDiscordResponseFromCommand(msg: ChatInputCommandInteraction<C
         const imageFiles = (i === chunks.length - 1) ? (images ?? []) : [];
 
         await msg.followUp({
+            embeds: embeds,
             content: chunks[i],
             files: [...files, ...imageFiles],
             components: components

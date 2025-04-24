@@ -375,7 +375,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     const memory = config.checkpointer ?? new MemorySaver()
 
     let stateConfig = {
-        configurable: { thread_id: "1" },
+    
         streamMode: "values" as const,
     };
     const graph = workflow.compile({
@@ -383,23 +383,24 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     });
 
 
-    const reset = async () => {
+    const reset = async (args: {threadId: string, checkpointId?: string}) => {
+       
         await Promise.all(allCreatedPlugins.map(async plugin => await plugin.reset()));
         await workspace.reset();
-        const state = await graph.getState(stateConfig);
+        const state = await graph.getState({...stateConfig, configurable: { thread_id: args.threadId }});
         const messages: BaseMessage[] = state.values["messages"] ?? [];
         const messagesToRemove = messages.map((m) => new RemoveMessage({ id: m.id! }));
 
         const agentMessage: BaseMessage[] = state.values["agentMessage"] ?? [];
         const agentMessagesToRemove = agentMessage.map((m) => new RemoveMessage({ id: m.id! }));
-        await graph.updateState(stateConfig, { messages: messagesToRemove, agentMessage: agentMessagesToRemove }, "output_convert")
+        await graph.updateState({...stateConfig, configurable: { thread_id: args.threadId }}, { messages: messagesToRemove, agentMessage: agentMessagesToRemove }, "output_convert")
     };
 
-    const executeGraph = async function* (graphInput: any): AsyncGenerator<ToolResponseInfo, AgentResponse, unknown> {
+    const executeGraph = async function* (graphInput: any, threadId: string): AsyncGenerator<ToolResponseInfo, AgentResponse, unknown> {
 
         let lastKnownMessage: ToolMessage | undefined = undefined;
         while (true) {
-            let stream = await graph.stream(graphInput, stateConfig);
+            let stream = await graph.stream(graphInput, {...stateConfig, configurable: { thread_id: threadId }});
             for await (const state of stream) {
                 if (state.messages.length > 0) {
                     const lastMessage = state.messages[state.messages.length - 1];
@@ -410,8 +411,13 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 }
             }
 
-            const state = await graph.getState(stateConfig);
+            const allCheckpoints = [];
+            for await (const state of graph.getStateHistory({...stateConfig, configurable: { thread_id: threadId }})) {
+                allCheckpoints.push(state);
+            }
 
+            const state = await graph.getState({...stateConfig, configurable: { thread_id: threadId }});
+            
             const responseAttributes: Record<string, any> = state.values["responseAttributes"];
             if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
                 const interruptState = state.tasks[0].interrupts[0];
@@ -457,18 +463,24 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 responseAttributes: {}
             };
 
-            let generator = executeGraph(graphInput);
+            let generator = executeGraph(graphInput, args.threadId);
             let result;
             while (!(result = await generator.next()).done) {
                 yield result.value;
             }
-            return result.value
+
+            const state = await graph.getState({...stateConfig, configurable: { thread_id: args.threadId }});
+            return {
+                message: result.value,
+                checkpointId: state.config.configurable?.checkpoint_id ?? "N/A",
+                threadId: args.threadId
+            }
 
         },
         call: async function* (args) {
 
             let graphInput: any = null;
-            const state = await graph.getState(stateConfig);
+            const state = await graph.getState({...stateConfig, configurable: { thread_id: args.threadId }});
             if (state.next.length > 0 && state.next[0] === "human_review_node") {
                 if (args.message) {
                     graphInput = new Command({ resume: { action: "feedback", data: args.message } })
@@ -487,12 +499,18 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 } : null;
             }
 
-            let generator = executeGraph(graphInput);
+            let generator = executeGraph(graphInput, args.threadId);
             let result;
             while (!(result = await generator.next()).done) {
                 yield result.value;
             }
-            return result.value
+
+            const newState = await graph.getState({...stateConfig, configurable: { thread_id: args.threadId }});
+            return {
+                message: result.value,
+                checkpointId: newState.config.configurable?.checkpoint_id ?? "N/A",
+                threadId: args.threadId
+            }
         }
     }
 }
