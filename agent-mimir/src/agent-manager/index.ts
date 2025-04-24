@@ -66,7 +66,7 @@ export interface Agent {
         noMessagesInTool?: boolean
     }) => AsyncGenerator<ToolResponseInfo, {
         message: AgentResponse,
-       
+        checkpointId: string,
     }, unknown>,
     /**
      * Processes specific commands sent to the agent.
@@ -78,8 +78,7 @@ export interface Agent {
         threadId: string
     }) => AsyncGenerator<ToolResponseInfo, {
         message: AgentResponse,
-        checkpointId: string,
-        threadId: string
+        checkpointId: string
     }, unknown>,
     /** The agent's workspace for file operations */
     workspace: AgentWorkspace,
