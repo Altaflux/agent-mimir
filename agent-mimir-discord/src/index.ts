@@ -348,39 +348,6 @@ export const run = async () => {
         const typing = setInterval(() => msg.channel.sendTyping(), 5000);
         try {
 
-            // const agentInvoke: AgentInvoke = async function* (agent: Agent) {
-            //     const messageToAi = msg.cleanContent.replaceAll(`@${client.user!.username}`, "").trim();
-            //     const loadedFiles = await Promise.all(msg.attachments.map(async (attachment) => {
-            //         const response = await downloadFile(attachment.name, attachment.url);
-            //         return {
-            //             fileName: attachment.name,
-            //             url: response
-            //         }
-            //     }));
-            //     //const messageToSend = { message: messageToAi, sharedFiles: loadedFiles };
-            //     const generator = agent.call({
-            //         threadId: msg.channelId,
-            //         message: {
-            //             content: [
-            //                 {
-            //                     type: "text",
-            //                     text: messageToAi
-            //                 }
-            //             ],
-            //             sharedFiles: loadedFiles
-            //         }
-            //     })
-
-            //     let result: IteratorResult<ToolResponseInfo, {message: AgentResponse, checkpointId: string, threadId: string}>;
-            //     while (!(result = await generator.next()).done) {
-            //         yield result.value;
-            //     }
-            //     return {
-            //         message: result.value.message,
-            //         threadId: result.value.threadId,
-            //         checkpointId: result.value.checkpointId
-            //     }
-            // }
             const agentInvoke: AgentInvoke = async function* (agent: MultiAgentCommunicationOrchestrator) {
                 const messageToAi = msg.cleanContent.replaceAll(`@${client.user!.username}`, "").trim();
                 const loadedFiles = await Promise.all(msg.attachments.map(async (attachment) => {
@@ -390,9 +357,7 @@ export const run = async () => {
                         url: response
                     }
                 }));
-                //const messageToSend = { message: messageToAi, sharedFiles: loadedFiles };
-                const generator = agent.handleMessage({
-                    
+                return yield* agent.handleMessage({
                     message: {
                         content: [
                             {
@@ -403,14 +368,6 @@ export const run = async () => {
                         sharedFiles: loadedFiles
                     }
                 }, msg.channelId)
-
-                let result: IteratorResult<IntermediateAgentResponse, HandleMessageResult>;
-                while (!(result = await generator.next()).done) {
-                    yield result.value;
-                }
-                return {
-                    ...result.value,
-                } satisfies HandleMessageResult
             }
 
             if (msg.author.bot) return;

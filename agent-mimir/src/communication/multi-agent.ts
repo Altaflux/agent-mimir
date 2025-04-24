@@ -10,7 +10,6 @@ type PendingMessage = {
 }
 type AgentInvoke = (agent: Agent,) => AsyncGenerator<ToolResponseInfo, {
     message: AgentResponse;
-
 }, unknown>;
 
 export type IntermediateAgentResponse = ({
@@ -102,25 +101,13 @@ export class MultiAgentCommunicationOrchestrator {
     async* handleMessage(args: {
         message: InputAgentMessage | null;
     }, threadId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
-
-        let generator = this.doInvocation((agent) => agent.call({ message: args.message, threadId: threadId }), threadId);
-        let result: IteratorResult<IntermediateAgentResponse, HandleMessageResult>;
-        while (!(result = await generator.next()).done) {
-            yield result.value;
-        }
-        return result.value
+        return yield* this.doInvocation((agent) => agent.call({ message: args.message, threadId: threadId }), threadId);
     }
 
     async* handleCommand(args: {
         command: CommandRequest;
     }, threadId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
-
-        let generator = this.doInvocation((agent) => agent.handleCommand({ command: args.command, threadId: threadId }), threadId);
-        let result: IteratorResult<IntermediateAgentResponse, HandleMessageResult>;
-        while (!(result = await generator.next()).done) {
-            yield result.value;
-        }
-        return result.value
+        return yield* this.doInvocation((agent) => agent.handleCommand({ command: args.command, threadId: threadId }), threadId);
     }
 
 
