@@ -389,7 +389,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
         let lastKnownMessage: ToolMessage | undefined = undefined;
         while (true) {
-            let stream = await graph.stream(graphInput, stateConfig);
+            let stream = await graph.stream(graphInput, {...stateConfig, configurable: { thread_id: threadId }});
             for await (const state of stream) {
                 if (state.messages.length > 0) {
                     const lastMessage = state.messages[state.messages.length - 1];
