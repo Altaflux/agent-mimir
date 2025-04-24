@@ -293,7 +293,7 @@ export const run = async () => {
                 return headerEmbed;
             });
             const stringResponse = extractAllTextFromComplexResponse(toolRequest.content);
-            const toolResponse = `Agent: \`${toolRequest.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: `;
+            const toolResponse = `Agent: \`${toolRequest.callingAgent}\` \n ${stringResponse}`;
             const button = new ButtonBuilder()
                 .setCustomId('continue')    // Unique ID for the button
                 .setLabel('Continue?')       // Text that appears on the button
@@ -326,7 +326,7 @@ export const run = async () => {
                         return headerEmbed;
                     });
                     const stringResponse = extractAllTextFromComplexResponse(result.value.content);
-                    const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse} \n---\nCalling functions: `;
+                    const toolResponse = `Agent: \`${result.value.callingAgent}\` \n ${stringResponse}`;
 
 
                     await sendResponse({
@@ -428,9 +428,9 @@ async function sendDiscordResponse(msg: Message<boolean>, message: string, attac
     for (let i = 0; i < chunks.length; i++) {
         const files = (i === chunks.length - 1) ? (attachments ?? []) : [];
         const imageFiles = (i === chunks.length - 1) ? (images ?? []) : [];
-
+        const toolEmbeds = (i === chunks.length - 1) ? (embeds ?? []) : [];
         await msg.reply({
-            embeds: embeds,
+            embeds: toolEmbeds,
             content: chunks[i],
             files: [...files, ...imageFiles],
             components: components
@@ -450,9 +450,9 @@ async function sendDiscordResponseFromCommand(msg: ChatInputCommandInteraction<C
     for (let i = 0; i < chunks.length; i++) {
         const files = (i === chunks.length - 1) ? (attachments ?? []) : [];
         const imageFiles = (i === chunks.length - 1) ? (images ?? []) : [];
-
+        const toolEmbeds = (i === chunks.length - 1) ? (embeds ?? []) : [];
         await msg.followUp({
-            embeds: embeds,
+            embeds: toolEmbeds,
             content: chunks[i],
             files: [...files, ...imageFiles],
             components: components
