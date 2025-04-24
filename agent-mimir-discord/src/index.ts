@@ -252,7 +252,7 @@ export const run = async () => {
             const images = await imagesToFiles(call.response);
 
             const headerEmbed = new EmbedBuilder()
-                .setDescription(`Called function: \`${call.name}\` \nResponded with: \n\`\`\`${formattedResponse}\`\`\``)
+                .setDescription(`Called function: \`${call.name}\` \nResponded with: \n\`\`\`${formattedResponse}\n${images.map(i=>"(image)")}\`\`\``)
                 .setColor(0xff0000);
             await sendResponse({
                 message: toolResponse,
