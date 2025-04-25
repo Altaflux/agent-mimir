@@ -49,9 +49,9 @@ function getFunctions(tool: AgentTool) {
 
 const workspaceFunction = `
 - FunctionName: open_workspace_file
-- Description: Open a file in the workspace directory, this function is similar to open(). Use this function to read and write files into the workspace.
+- Description: Open a file in the workspace directory, this function is similar to the open() function. Use this function to read and write files into the workspace.
 - Input Parameter: ${JSON.stringify(zodToJsonSchema(z.object({name: z.string().describe("The name of the workspace file"), mode: z.string().describe("Mode in which the file is opened.")})))}
-- Function Output: void
+- Function Output: IO
 
 `
 export const getFunctionsPrompt = (dependencies: string[], tool: AgentTool[]) => {

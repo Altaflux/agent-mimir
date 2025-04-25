@@ -31,7 +31,8 @@ export class LocalPythonExecutor implements CodeToolExecutor {
     async execute(tools: AgentTool[], code: string, toolInitCallback: (url: string, tools: AgentTool[]) => void): Promise<string> {
 
         if (!this.tempDir) {
-            this.tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-python-code'));
+            this.tempDir = "C:\\AI\\tmpws";
+            //this.tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-python-code'));
         }
 
         const remoteWorkspacePath = (await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-python-code-ws'))).replace(/\\/g, '\\\\');
@@ -43,7 +44,7 @@ export class LocalPythonExecutor implements CodeToolExecutor {
         }
 
         const wsPort = await getPortFree();
-        const wsUrlBaseUrl = `ws://localhost:${wsPort}/`;
+        const wsUrlBaseUrl = `ws://localhost:${wsPort}`;
         const wsUrl = `${wsUrlBaseUrl}/ws`;
         const wsWorkSpaceUrl = `${wsUrlBaseUrl}/ws2`;
         const uniqueSuffix = crypto.randomBytes(16).toString('hex');
@@ -58,7 +59,8 @@ export class LocalPythonExecutor implements CodeToolExecutor {
 
         try {
 
-            if (!this.initialized) {
+            //TODO REVERT
+            if (!false) {
 
                 console.debug(`Creating python virtual environment in ${this.tempDir} ...`);
 
@@ -92,6 +94,7 @@ export class LocalPythonExecutor implements CodeToolExecutor {
             let toolInitExecuted = false;
             const result = await executeShellCommandAndTrigger(`cd ${path.join(this.tempDir, scriptsDir)} && ${activeScriptCall} && python ${scriptPath}`, (data: string) => {
                 if (data.includes("INITIALIZED SERVER") && !toolInitExecuted) {
+                    console.log("STARTING TOOLS")
                     toolInitCallback(wsUrl, tools);
                     workspaceWs(wsWorkSpaceUrl, localWorkSpaceUrl, remoteWorkspacePath)
                     toolInitExecuted = true;
@@ -107,7 +110,7 @@ export class LocalPythonExecutor implements CodeToolExecutor {
             return `Error: ${error}`;
         } finally {
             try {
-                await fs.rm(scriptPath, { force: true });
+              //  await fs.rm(scriptPath, { force: true });
             } catch (error) {
                 console.warn('Error removing script:', error);
             }
@@ -131,25 +134,30 @@ async function executeShellCommandAndTrigger(command: string, callback: (data: s
         const ls = spawn(command, [], { shell: true, env: process.env });
         ls.stdout.on("data", data => {
             totalOutput += data;
+            console.log(data.toString())
             if (!commenceRecording) {
                 commenceRecording = callback(data.toString())
                 return;
             }
+   
             output += data;
 
         });
 
         ls.stderr.on("data", data => {
             totalOutput += data;
+            console.log(data.toString())
             if (!commenceRecording) {
                 commenceRecording = callback(data.toString())
                 return;
             }
+           
             output += data;
 
         });
 
         ls.on('error', (error) => {
+            console.log(error.message)
             output += error.message;
         });
 
