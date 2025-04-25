@@ -8,7 +8,6 @@ You have the ability to execute code in a Python environment. To execute code, y
 The code will be executed inside the Python environment, and whatever you print into the console will be returned to you.
 
 Python Environment Rules:
-- Your code is running inside an async environment, so you can use async/await syntax.
 - You can only include ONE <execution-code> block per response, do not include more than one <execution-code> block in your response.
 - Use this python environment to accomplish the task you are given, be proactive and use the function available to you but ask for help if you feel stuck on a task.
 - You must not ask permission or notify the user you plan on executing code, just do it.
@@ -25,7 +24,7 @@ print("Hello, world!")
 time.sleep(2)
 print("Random number:", random.randint(1, 100))
 
-result = await some_async_function({"field": "value"});
+result = some_function({"field": "value"});
 print(result)
 </execution-code>
 
@@ -39,7 +38,6 @@ function getFunctions(tool: AgentTool) {
     let outParameter = tool.outSchema ? JSON.stringify(zodToJsonSchema(tool.outSchema)) : "ToolResponse";
     const toolDefinition = `
 - FunctionName: ${toPythonFunctionName(tool.name)}
-- Async Function: true (must be awaited)
 - Description: ${tool.description}
 - Input Parameter: ${JSON.stringify(zodToJsonSchema(tool.schema))}
 - Function Output: ${outParameter}
@@ -56,8 +54,7 @@ export const getFunctionsPrompt = (dependencies: string[], tool: AgentTool[]) =>
     return `\nThe python environment has the following functions available to it, use them to accomplish the requested goal from the user.
 The result of functions with an output parameter of "ToolResponse" can be printed with the "print" function, and the result will be returned to you.
 If the function has a different defined output type then its output can be used in other functions as an normal Python type.
-The parameters of this functions is a single Dictionary parameter, not a list of parameters. Example: await functionName({"param1": "value1", "param2": "value2"}).
-All functions are async and must be awaited.
+The parameters of this functions is a single Dictionary parameter, not a list of parameters. Example: functionName({"param1": "value1", "param2": "value2"}).
 FUNCTION LIST:\n${functions}\n\n---------------------------------\n
 ${dependencies.length > 0 ? `The following libraries are available in the Python environment: ${dependencies.join(", ")}` : ""}
 \n---------------------------------\n

@@ -52,7 +52,7 @@ export class LocalPythonExecutor implements CodeToolExecutor {
                     throw new Error(`Failed to create python virtual environment: ${pyenv.output}`);
                 }
 
-                const externalDependencies = ["asyncio", "uvicorn", "fastapi_websocket_rpc", ...this.config.additionalPackages ?? []];
+                const externalDependencies = ["nest_asyncio", "asyncio", "uvicorn", "fastapi_websocket_rpc", ...this.config.additionalPackages ?? []];
 
                 let libraryInstallationResult = {
                     exitCode: 0,

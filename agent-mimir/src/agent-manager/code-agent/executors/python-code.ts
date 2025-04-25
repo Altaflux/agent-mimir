@@ -3,8 +3,8 @@ import { toPythonFunctionName } from "../utils.js";
 
 function getPythonFunction(functionName: string): string {
     return `
-async def ${toPythonFunctionName(functionName)}(args:dict):
-    result = await asyncio.create_task(ws_channel.call("${functionName}", args=args))
+def ${toPythonFunctionName(functionName)}(args:dict):
+    result = asyncio.run(ws_channel.call("${functionName}", args=args))
     call_value = result.result["value"]
     if result.result["error"]:
         raise Exception(f"Error in function call ${toPythonFunctionName(functionName)}: {call_value}")
@@ -20,6 +20,10 @@ from fastapi import FastAPI
 from fastapi_websocket_rpc import RpcMethodsBase, WebsocketRPCEndpoint, RpcChannel
 import asyncio
 import logging
+import nest_asyncio
+
+nest_asyncio.apply()
+
 logger = logging.getLogger(__name__)
 
 logging.basicConfig(level=logging.ERROR)
