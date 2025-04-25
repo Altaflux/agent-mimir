@@ -15,7 +15,7 @@ def ${toPythonFunctionName(functionName)}(args:dict):
 
 export function getPythonScript(port: number, tools: string[], code: string, wsPath: string, wsFile: string[]): string {
     return `
-from typing import IO, Iterator
+from typing import IO, Iterator, Dict
 import uvicorn
 from fastapi import FastAPI
 from fastapi_websocket_rpc import RpcMethodsBase, WebsocketRPCEndpoint, RpcChannel
