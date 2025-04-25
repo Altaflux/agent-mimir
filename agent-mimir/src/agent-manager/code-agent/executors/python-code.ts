@@ -13,16 +13,19 @@ def ${toPythonFunctionName(functionName)}(args:dict):
 }
 
 
-export function getPythonScript(port: number, tools: string[], code: string): string {
+export function getPythonScript(port: number, tools: string[], code: string, wsPath: string, wsFile: string[]): string {
     return `
+from typing import IO, Iterator
 import uvicorn
 from fastapi import FastAPI
 from fastapi_websocket_rpc import RpcMethodsBase, WebsocketRPCEndpoint, RpcChannel
 import asyncio
 import logging
 import nest_asyncio
-
+from pathlib import Path
 nest_asyncio.apply()
+
+from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
@@ -32,14 +35,40 @@ server: uvicorn.Server | None = None
 # An event to signal that the work is done and shutdown can commence
 shutdown_event = asyncio.Event()
 
-ws_channel: RpcChannel | None = None
+# WebSocket connection channels
+ws_channel: RpcChannel | None = None  # For /ws endpoint
+fs_channel: RpcChannel | None = None  # For /ws2 endpoint
 
+workspace_files = ${JSON.stringify(wsFile)}  # Example file names
+
+
+@contextmanager
+def open_workspace_file(args: Dict) -> Iterator[IO]:
+    file_name = args.get("name")
+    mode = args.get("mode", 'r')
+    if file_name in workspace_files:
+        asyncio.run(fs_channel.call("load_file", args={"name": file_name}))
+    file = open(Path('${wsPath}') / file_name, mode)
+    try:
+        yield file
+    finally:
+        file.close()
+        asyncio.run(fs_channel.call("save_file", args={"name": file_name}))
 
 ${tools.map(tool => getPythonFunction(tool)).join('\n')}
+
+async def check_and_start_work():
+    """Check if both websocket connections are established and start work if they are."""
+    global ws_channel, fs_channel
+    if ws_channel is not None and fs_channel is not None:
+        print("Both websocket connections established. Starting work...")
+        # Start the main task without blocking the connection handler
+        asyncio.create_task(do_work())
 
 
 async def do_work():
     """Performs the main task and signals for shutdown."""
+    global ws_channel, fs_channel
     try:
         print("Executing code...")
 ${indentText(code, '        ')}
@@ -48,23 +77,39 @@ ${indentText(code, '        ')}
     except Exception as e:
         print(f"Error in executing code: {e}")
     finally:
-        if ws_channel:
-            try:
-                await ws_channel.close()
-            except Exception as e:
-                print(f"Error closing WebSocket channel: {e}")
+        # Close both WebSocket channels
+        for i, channel in enumerate([ws_channel, fs_channel], 1):
+            if channel:
+                try:
+                    await channel.close()
+                except Exception as e:
+                    print(f"Error closing WebSocket channel {i}: {e}")
+        
         # Signal that the work is complete and server should shut down
         shutdown_event.set()
 
 # --- WebSocket Connection Handling ---
 async def on_connect(channel: RpcChannel):
-    """Handles new WebSocket connections."""
+    """Handles new WebSocket connections on /ws endpoint."""
     global ws_channel
-    # Ensure only the first connection triggers the work
+    # Store the connection if it's the first one
     if ws_channel is None:
         ws_channel = channel
-        # Start the main task without blocking the connection handler
-        asyncio.create_task(do_work())
+        print("Client connected to /ws endpoint!")
+        # Check if both connections are ready
+        await check_and_start_work()
+    else:
+        print("Rejecting duplicate connection to /ws")
+        await channel.close()
+
+async def another_on_connect(channel: RpcChannel):
+    """Handles new WebSocket connections on /ws2 endpoint."""
+    global fs_channel
+    # Store the connection if it's the first one
+    if fs_channel is None:
+        fs_channel = channel
+        # Check if both connections are ready
+        await check_and_start_work()
     else:
         await channel.close()
 
@@ -74,8 +119,13 @@ app = FastAPI()
 class EmptyMethods(RpcMethodsBase):
     pass
 
-endpoint = WebsocketRPCEndpoint(EmptyMethods(), on_connect=[on_connect])
-endpoint.register_route(app, "/ws")
+# First endpoint for /ws
+endpoint1 = WebsocketRPCEndpoint(EmptyMethods(), on_connect=[on_connect])
+endpoint1.register_route(app, "/ws")
+
+# Second endpoint for /ws2
+endpoint2 = WebsocketRPCEndpoint(EmptyMethods(), on_connect=[another_on_connect])
+endpoint2.register_route(app, "/ws2")
 
 async def main():
     logging.getLogger("fastapi_ws_rpc").setLevel(logging.WARNING)
