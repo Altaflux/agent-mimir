@@ -85,6 +85,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     const allTools = (await Promise.all(allCreatedPlugins.map(async plugin => await plugin.tools()))).flat();
 
     const modelWithTools = model;
+    config.codeExecutor.setWorkSpace(workspace);
     const workspaceManager = new WorkspanceManager(workspace)
 
     const pluginContextProvider = new PluginContextProvider(allCreatedPlugins, {

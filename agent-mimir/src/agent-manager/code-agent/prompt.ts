@@ -15,7 +15,6 @@ Python Environment Rules:
 - You must not ask permission or notify the user you plan on executing code, just do it.
 - You have been given access to a list of tools: these tools are Python functions which you can call with code.
 - The user cannot see the the result of the code being executed, any information you want to share with the user must responded back to them in a normal message.
-- This python environment can only access files in your workspace using the open_workspace_file function.
 
 Example:
 <execution-code>
@@ -47,18 +46,12 @@ function getFunctions(tool: AgentTool) {
     return toolDefinition;
 }
 
-const workspaceFunction = `
-- FunctionName: open_workspace_file
-- Description: Open a file in the workspace directory, this function is similar to the open() function. Use this function to read and write files into the workspace.
-- Input Parameter: ${JSON.stringify(zodToJsonSchema(z.object({name: z.string().describe("The name of the workspace file"), mode: z.string().describe("Mode in which the file is opened.")})))}
-- Function Output: IO
 
-`
 export const getFunctionsPrompt = (dependencies: string[], tool: AgentTool[]) => {
     if (tool.length === 0) {
         return "";
     }
-    let functionList = [...tool.map((tool) => getFunctions(tool)), workspaceFunction]
+    let functionList = [...tool.map((tool) => getFunctions(tool))]
     let functions = functionList.join("\n------\n");
     return `\nThe python environment has the following functions available to it, use them to accomplish the requested goal from the user.
 The result of functions with an output parameter of "ToolResponse" can be printed with the "print" function, and the result will be returned to you.
