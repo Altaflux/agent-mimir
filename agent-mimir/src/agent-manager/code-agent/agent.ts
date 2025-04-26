@@ -8,7 +8,7 @@ import { Annotation, BaseCheckpointSaver, Command, END, interrupt, MemorySaver, 
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { commandContentToBaseMessage, dividerSystemMessage, lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
-import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, InputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "./../index.js";
+import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, InputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "./../index.js";
 import { PluginFactory } from "../../plugins/index.js";
 import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex, isToolMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo, toPythonFunctionName } from "./utils.js";
 import { pythonToolNodeFunction } from "./tool-node.js";
@@ -18,9 +18,6 @@ import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { CodeToolExecutor } from "./index.js";
 import { DEFAULT_CONSTITUTION } from "../constants.js";
 import { PluginContextProvider } from "../../plugins/context-provider.js";
-import { RunnableConfig } from "@langchain/core/runnables";
-import { PregelOptions } from "@langchain/langgraph/pregel";
-
 
 /**
  * Configuration options for creating a new agent.
@@ -44,7 +41,7 @@ export type CreateAgentArgs = {
     /** Factory function to create the agent's workspace */
     workspaceFactory: WorkspaceFactory,
 
-    codeExecutor: CodeToolExecutor,
+    codeExecutor: (workspace: AgentWorkspace) => CodeToolExecutor,
 
     checkpointer?: BaseCheckpointSaver
 }
@@ -85,7 +82,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     const allTools = (await Promise.all(allCreatedPlugins.map(async plugin => await plugin.tools()))).flat();
 
     const modelWithTools = model;
-    config.codeExecutor.setWorkSpace(workspace);
+    const codeExecutor = config.codeExecutor(workspace);
     const workspaceManager = new WorkspanceManager(workspace)
 
     const pluginContextProvider = new PluginContextProvider(allCreatedPlugins, {
@@ -122,7 +119,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 } satisfies ComplexMessageContent,
                 {
                     type: "text" as const,
-                    text: FUNCTION_PROMPT + "\n" + getFunctionsPrompt(config.codeExecutor.availableDependencies, allTools)
+                    text: FUNCTION_PROMPT + "\n" + getFunctionsPrompt(codeExecutor.availableDependencies, allTools)
                 } satisfies ComplexMessageContent,
                 {
                     text: fieldMapper.createFieldInstructions(PYTHON_SCRIPT_SCHEMA),
@@ -331,7 +328,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
     const workflow = new StateGraph(StateAnnotation)
         .addNode("call_llm", callLLm())
-        .addNode("run_tool", pythonToolNodeFunction(allTools, config.codeExecutor, { handleToolErrors: true }))
+        .addNode("run_tool", pythonToolNodeFunction(allTools, codeExecutor, { handleToolErrors: true }))
         .addNode("message_prep", messageRetentionNode)
         .addNode("human_review_node", humanReviewNode, {
             ends: ["run_tool", "message_prep"]
@@ -366,7 +363,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     const memory = config.checkpointer ?? new MemorySaver()
 
     let stateConfig = {
-       
+
         streamMode: "values" as const,
     };
     const graph = workflow.compile({
@@ -374,23 +371,23 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     });
 
 
-    const reset = async (args: {threadId: string, checkpointId?: string}) => {
+    const reset = async (args: { threadId: string, checkpointId?: string }) => {
         await Promise.all(allCreatedPlugins.map(async plugin => await plugin.reset()));
         await workspace.reset();
-        const state = await graph.getState({...stateConfig, configurable: { thread_id: args.threadId }});
+        const state = await graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
         const messages: BaseMessage[] = state.values["messages"] ?? [];
         const messagesToRemove = messages.map((m) => new RemoveMessage({ id: m.id! }));
 
         const agentMessage: BaseMessage[] = state.values["agentMessage"] ?? [];
         const agentMessagesToRemove = agentMessage.map((m) => new RemoveMessage({ id: m.id! }));
-        await graph.updateState({...stateConfig, configurable: { thread_id: args.threadId }}, { messages: messagesToRemove, agentMessage: agentMessagesToRemove }, "output_convert")
+        await graph.updateState({ ...stateConfig, configurable: { thread_id: args.threadId } }, { messages: messagesToRemove, agentMessage: agentMessagesToRemove }, "output_convert")
     };
 
     const executeGraph = async function* (graphInput: any, threadId: string): AsyncGenerator<ToolResponseInfo, AgentResponse, unknown> {
 
         let lastKnownMessage: ToolMessage | undefined = undefined;
         while (true) {
-            let stream = await graph.stream(graphInput, {...stateConfig, configurable: { thread_id: threadId }});
+            let stream = await graph.stream(graphInput, { ...stateConfig, configurable: { thread_id: threadId } });
             for await (const state of stream) {
                 if (state.messages.length > 0) {
                     const lastMessage = state.messages[state.messages.length - 1];
@@ -401,10 +398,10 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 }
             }
 
-            const state = await graph.getState({...stateConfig, configurable: { thread_id: threadId }});
+            const state = await graph.getState({ ...stateConfig, configurable: { thread_id: threadId } });
 
             const allCheckpoints = [];
-            for await (const state of graph.getStateHistory({...stateConfig, configurable: { thread_id: threadId }})) {
+            for await (const state of graph.getStateHistory({ ...stateConfig, configurable: { thread_id: threadId } })) {
                 allCheckpoints.push(state);
             }
 
@@ -460,7 +457,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 yield result.value;
             }
 
-            const state = await graph.getState({...stateConfig, configurable: { thread_id: args.threadId }});
+            const state = await graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
             return {
                 message: result.value,
                 checkpointId: state.config.configurable?.checkpoint_id ?? "N/A",
@@ -470,7 +467,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         call: async function* (args) {
 
             let graphInput: any = null;
-            const state = await graph.getState({...stateConfig, configurable: { thread_id: args.threadId }});
+            const state = await graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
             if (state.next.length > 0 && state.next[0] === "human_review_node") {
                 if (args.message) {
                     graphInput = new Command({ resume: { action: "feedback", data: args.message } })
@@ -495,9 +492,9 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 yield result.value;
             }
 
-            const newState = await graph.getState({...stateConfig, configurable: { thread_id: args.threadId }});
+            const newState = await graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
             return {
-                message : result.value,
+                message: result.value,
                 checkpointId: newState.config.configurable?.checkpoint_id ?? "N/A",
                 threadId: args.threadId
             }

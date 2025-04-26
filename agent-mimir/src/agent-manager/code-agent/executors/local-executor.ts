@@ -12,21 +12,18 @@ import { AgentWorkspace } from "../../index.js";
 import WebSocket from 'ws';
 export interface PythonExecutorOptions {
     additionalPackages?: string[];
+    workspace?: AgentWorkspace
 }
 export class LocalPythonExecutor implements CodeToolExecutor {
 
     private tempDir: string | undefined;
     private initialized: boolean = false;
-    availableDependencies: string[] = this.config.additionalPackages ?? [];
-    private workspace: AgentWorkspace | undefined = undefined;
 
+    availableDependencies: string[] = this.config.additionalPackages ?? [];
 
     constructor(private config: PythonExecutorOptions) {
     }
 
-    setWorkSpace(workspace: AgentWorkspace) {
-        this.workspace = workspace;
-    }
 
     async execute(tools: AgentTool[], code: string, toolInitCallback: (url: string, tools: AgentTool[]) => void): Promise<string> {
 
@@ -35,9 +32,9 @@ export class LocalPythonExecutor implements CodeToolExecutor {
         }
 
         const temporaryWorkspacePath = (await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-python-code-ws'))).replace(/\\/g, '\\\\');
-        let localWorkSpaceUrl = temporaryWorkspacePath;
-        if (this.workspace) {
-            localWorkSpaceUrl = this.workspace.workingDirectory;;
+        let localWorkspaceUrl = temporaryWorkspacePath;
+        if (this.config.workspace) {
+            localWorkspaceUrl = this.config.workspace.workingDirectory;;
         }
 
         const wsPort = await getPortFree();
@@ -87,7 +84,7 @@ export class LocalPythonExecutor implements CodeToolExecutor {
             }
 
             let toolInitExecuted = false;
-            const result = await executeShellCommandAndTrigger(`cd ${path.join(this.tempDir, scriptsDir)} && ${activeScriptCall} && cd ${localWorkSpaceUrl} && python ${scriptPath}`, (data: string) => {
+            const result = await executeShellCommandAndTrigger(`cd ${path.join(this.tempDir, scriptsDir)} && ${activeScriptCall} && cd ${localWorkspaceUrl} && python ${scriptPath}`, (data: string) => {
                 if (data.includes("INITIALIZED SERVER") && !toolInitExecuted) {
                     toolInitCallback(wsUrl, tools);
                     toolInitExecuted = true;
