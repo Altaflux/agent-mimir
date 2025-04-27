@@ -371,12 +371,10 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
     const commandList = agentCommands.map(ac => ac.commands).flat();
 
-    //const memory = SqliteSaver.fromConnString(workspace.rootDirectory + "/agent-chat.db");
     const memory = config.checkpointer ?? new MemorySaver()
 
     let stateConfig = {
-    
-        streamMode: "values" as const,
+        streamMode: ["messages" as const, "values" as const],
     };
     const graph = workflow.compile({
         checkpointer: memory,
@@ -402,18 +400,17 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         while (true) {
             let stream = await graph.stream(graphInput, {...stateConfig, configurable: { thread_id: threadId }});
             for await (const state of stream) {
-                if (state.messages.length > 0) {
-                    const lastMessage = state.messages[state.messages.length - 1];
-                    if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id)) {
-                        lastKnownMessage = lastMessage;
-                        yield toolMessageToToolResponseInfo(lastMessage);
+                console.log(state)
+                if (state[0] === "values") {
+                    let messageState = state[1];
+                    if (messageState.messages.length > 0) {
+                        const lastMessage = messageState.messages[messageState.messages.length - 1];
+                        if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id)) {
+                            lastKnownMessage = lastMessage;
+                            yield toolMessageToToolResponseInfo(lastMessage);
+                        }
                     }
                 }
-            }
-
-            const allCheckpoints = [];
-            for await (const state of graph.getStateHistory({...stateConfig, configurable: { thread_id: threadId }})) {
-                allCheckpoints.push(state);
             }
 
             const state = await graph.getState({...stateConfig, configurable: { thread_id: threadId }});
