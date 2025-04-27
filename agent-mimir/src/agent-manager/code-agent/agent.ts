@@ -8,7 +8,7 @@ import { Annotation, BaseCheckpointSaver, Command, END, interrupt, MemorySaver, 
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { commandContentToBaseMessage, dividerSystemMessage, lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
-import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, InputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "./../index.js";
+import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, InputAgentMessage, OutputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "./../index.js";
 import { PluginFactory } from "../../plugins/index.js";
 import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex, isToolMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo, toPythonFunctionName } from "./utils.js";
 import { pythonToolNodeFunction } from "./tool-node.js";
@@ -400,11 +400,6 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
             const state = await graph.getState({ ...stateConfig, configurable: { thread_id: threadId } });
 
-            const allCheckpoints = [];
-            for await (const state of graph.getStateHistory({ ...stateConfig, configurable: { thread_id: threadId } })) {
-                allCheckpoints.push(state);
-            }
-
             const responseAttributes: Record<string, any> = state.values["responseAttributes"];
             if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
                 const interruptState = state.tasks[0].interrupts[0];
@@ -416,12 +411,12 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             }
 
 
-            let userResponse = (state.values["output"] as InputAgentMessage);
+            let userResponse = (state.values["output"] as OutputAgentMessage);
             return {
                 type: "agentResponse",
                 output: userResponse,
                 responseAttributes: responseAttributes
-            } as AgentUserMessageResponse
+            } satisfies AgentUserMessageResponse
         }
     }
 

@@ -17,8 +17,9 @@ export type MessageContentToolUse = {
  * Represents a message from an agent that includes tool use requests.
  * Extends InputAgentMessage to include an array of tool calls.
  */
-export type AgentMessageToolRequest = { toolCalls: MessageContentToolUse[] } & InputAgentMessage;
+export type AgentMessageToolRequest = { toolCalls: MessageContentToolUse[] } & OutputAgentMessage;
 
+export type OutputAgentMessage = {id: string} & InputAgentMessage
 /**
  * Represents an input message to an agent.
  * Contains the message content and optional shared files.
@@ -109,10 +110,11 @@ export type AgentToolRequestResponse = {
  * Represents a response from an agent directed to a user.
  */
 export type AgentUserMessageResponse = {
+   // id: string,
     /** Identifies this as an agent response */
     type: "agentResponse",
     /** The message content */
-    output: InputAgentMessage,
+    output: OutputAgentMessage, //TODO THIS IS MISSING AND ID
     /** Additional attributes for the response */
     responseAttributes: Record<string, string>
 }
