@@ -1,23 +1,24 @@
-import { Agent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, ToolResponseInfo, InputAgentMessage, AgentFactory, CommandRequest } from "../agent-manager/index.js";
+import { Agent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, InputAgentMessage, AgentFactory, CommandRequest, IntermediateAgentMessage } from "../agent-manager/index.js";
 import { HelpersPluginFactory } from "./helpers.js";
-import { PluginFactory } from "../plugins/index.js";
-import { threadId } from "worker_threads";
 
 type PendingMessage = {
     content: InputAgentMessage;
     threadId: string,
     replyFromAgent: string | undefined;
 }
-type AgentInvoke = (agent: Agent,) => AsyncGenerator<ToolResponseInfo, {
+type AgentInvoke = (agent: Agent,) => AsyncGenerator<IntermediateAgentMessage, {
     message: AgentResponse;
 }, unknown>;
 
 export type IntermediateAgentResponse = ({
     type: "agentToAgentMessage",
-} & AgentToAgentMessage) | {
-    type: "toolResponse",
+    value: AgentToAgentMessage
+} ) | {
+    type: "intermediateOutput",
     agentName: string,
-} & ToolResponseInfo;
+    value: IntermediateAgentMessage
+};
+
 export type AgentToAgentMessage = {
     sourceAgent: string,
     destinationAgent: string,
@@ -180,15 +181,14 @@ export class MultiAgentCommunicationOrchestrator {
                 : msg(this.currentAgent);
 
 
-            let result: IteratorResult<ToolResponseInfo, {
+            let result: IteratorResult<IntermediateAgentMessage, {
                 message: AgentResponse;
-
             }>;
             while (!(result = await generator.next()).done) {
                 yield {
-                    type: "toolResponse",
+                    type: "intermediateOutput",
                     agentName: this.currentAgent.name,
-                    ...result.value
+                    value: result.value
                 };
             }
             let graphResponse = result.value.message;
@@ -206,9 +206,11 @@ export class MultiAgentCommunicationOrchestrator {
                     pendingMessage = routedMessage.pendingMessage;
                     yield {
                         type: "agentToAgentMessage",
-                        sourceAgent: sourceAgent!,
-                        destinationAgent: this.currentAgent.name,
-                        content: graphResponse.output,
+                        value: {
+                            content: graphResponse.output,
+                            destinationAgent: this.currentAgent.name,
+                            sourceAgent: sourceAgent!,
+                        }
                     }
                 }
             } else {

@@ -8,7 +8,7 @@ import { Annotation, BaseCheckpointSaver, Command, END, interrupt, MemorySaver, 
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { commandContentToBaseMessage, dividerSystemMessage, lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
-import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, InputAgentMessage, OutputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "./../index.js";
+import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, InputAgentMessage, IntermediateAgentMessage, OutputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "./../index.js";
 import { PluginFactory } from "../../plugins/index.js";
 import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex, isToolMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo, toPythonFunctionName } from "./utils.js";
 import { pythonToolNodeFunction } from "./tool-node.js";
@@ -382,20 +382,22 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         await graph.updateState({ ...stateConfig, configurable: { thread_id: args.threadId } }, { messages: messagesToRemove, agentMessage: agentMessagesToRemove }, "output_convert")
     };
 
-    const executeGraph = async function* (graphInput: any, threadId: string): AsyncGenerator<ToolResponseInfo, AgentResponse, unknown> {
+    const executeGraph = async function* (graphInput: any, threadId: string): AsyncGenerator<IntermediateAgentMessage, AgentResponse, unknown> {
 
         let lastKnownMessage: ToolMessage | undefined = undefined;
         while (true) {
             let stream = await graph.stream(graphInput, { ...stateConfig, configurable: { thread_id: threadId } });
             for await (const state of stream) {
-                console.log(state)
                 if (state[0] === "values") {
                     let messageState = state[1];
                     if (messageState.messages.length > 0) {
                         const lastMessage = messageState.messages[messageState.messages.length - 1];
                         if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id)) {
                             lastKnownMessage = lastMessage;
-                            yield toolMessageToToolResponseInfo(lastMessage);
+                            yield {
+                                type:"toolResponse",
+                                toolResponse: toolMessageToToolResponseInfo(lastMessage)
+                            };
                         }
                     }
                 }

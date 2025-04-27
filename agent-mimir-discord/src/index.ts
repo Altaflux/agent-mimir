@@ -261,19 +261,20 @@ export const run = async () => {
             });
         };
         let intermediateResponseHandler = async (chainResponse: IntermediateAgentResponse) => {
-            if (chainResponse.type === "toolResponse") {
+        
+            if (chainResponse.type === "intermediateOutput" && chainResponse.value.type === "toolResponse") {
                 toolCallback({
                     agentName: chainResponse.agentName,
-                    name: chainResponse.name,
-                    response: chainResponse.response
+                    name: chainResponse.value.toolResponse.name,
+                    response: chainResponse.value.toolResponse.response
                 });
-            } else {
-                const stringResponse = extractAllTextFromComplexResponse(chainResponse.content.content);
-                const discordMessage = `\`${chainResponse.sourceAgent}\` is sending a message to \`${chainResponse.destinationAgent}\`:\n\`\`\`${stringResponse}\`\`\`` +
-                    `\nFiles provided: ${chainResponse.content.sharedFiles?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
+            } else if (chainResponse.type === "agentToAgentMessage"){
+                const stringResponse = extractAllTextFromComplexResponse(chainResponse.value.content.content);
+                const discordMessage = `\`${chainResponse.value.sourceAgent}\` is sending a message to \`${chainResponse.value.destinationAgent}\`:\n\`\`\`${stringResponse}\`\`\`` +
+                    `\nFiles provided: ${chainResponse.value.content.sharedFiles?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
                 await sendResponse({
                     message: discordMessage,
-                    attachments: chainResponse.content.sharedFiles?.map((f: any) => f.url)
+                    attachments: chainResponse.value.content.sharedFiles?.map((f: any) => f.url)
                 });
             }
         };

@@ -65,7 +65,7 @@ export interface Agent {
         message: InputAgentMessage | null,
         threadId: string,
         noMessagesInTool?: boolean
-    }) => AsyncGenerator<ToolResponseInfo, {
+    }) => AsyncGenerator<IntermediateAgentMessage, {
         message: AgentResponse,
         checkpointId: string,
     }, unknown>,
@@ -77,7 +77,7 @@ export interface Agent {
     handleCommand: (args: {
         command: CommandRequest,
         threadId: string
-    }) => AsyncGenerator<ToolResponseInfo, {
+    }) => AsyncGenerator<IntermediateAgentMessage, {
         message: AgentResponse,
         checkpointId: string
     }, unknown>,
@@ -132,6 +132,17 @@ export type CommandRequest = {
     name: string,
     /** Optional arguments for the command */
     arguments?: Record<string, any>
+}
+
+export type IntermediateAgentMessage = {
+    type: "toolResponse",
+    toolResponse: ToolResponseInfo
+} | {
+    type: "messageChunk",
+    chunk: {
+        id: string,
+        content: ComplexMessageContent[]
+    }
 }
 
 /**

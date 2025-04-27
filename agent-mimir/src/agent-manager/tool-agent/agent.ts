@@ -9,7 +9,7 @@ import { Annotation, BaseCheckpointSaver, Command, END, interrupt, MemorySaver, 
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { commandContentToBaseMessage, dividerSystemMessage, lCmessageContentToContent, mergeSystemMessages } from "../message-utils.js";
-import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, InputAgentMessage, OutputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "../index.js";
+import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, InputAgentMessage, IntermediateAgentMessage, OutputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "../index.js";
 import { AttributeDescriptor, PluginFactory, AiResponseMessage } from "../../plugins/index.js";
 import { toolNodeFunction } from "./tool-node.js"
 import { aiMessageToMimirAiMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo } from "./utils.js";
@@ -381,40 +381,42 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
     });
 
 
-    const reset = async (args: {threadId: string, checkpointId?: string}) => {
-       
+    const reset = async (args: { threadId: string, checkpointId?: string }) => {
+
         await Promise.all(allCreatedPlugins.map(async plugin => await plugin.reset()));
         await workspace.reset();
-        const state = await graph.getState({...stateConfig, configurable: { thread_id: args.threadId }});
+        const state = await graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
         const messages: BaseMessage[] = state.values["messages"] ?? [];
         const messagesToRemove = messages.map((m) => new RemoveMessage({ id: m.id! }));
 
         const agentMessage: BaseMessage[] = state.values["agentMessage"] ?? [];
         const agentMessagesToRemove = agentMessage.map((m) => new RemoveMessage({ id: m.id! }));
-        await graph.updateState({...stateConfig, configurable: { thread_id: args.threadId }}, { messages: messagesToRemove, agentMessage: agentMessagesToRemove }, "output_convert")
+        await graph.updateState({ ...stateConfig, configurable: { thread_id: args.threadId } }, { messages: messagesToRemove, agentMessage: agentMessagesToRemove }, "output_convert")
     };
 
-    const executeGraph = async function* (graphInput: any, threadId: string): AsyncGenerator<ToolResponseInfo, AgentResponse, unknown> {
+    const executeGraph = async function* (graphInput: any, threadId: string): AsyncGenerator<IntermediateAgentMessage, AgentResponse, unknown> {
 
         let lastKnownMessage: ToolMessage | undefined = undefined;
         while (true) {
-            let stream = await graph.stream(graphInput, {...stateConfig, configurable: { thread_id: threadId }});
+            let stream = await graph.stream(graphInput, { ...stateConfig, configurable: { thread_id: threadId } });
             for await (const state of stream) {
-                console.log(state)
                 if (state[0] === "values") {
                     let messageState = state[1];
                     if (messageState.messages.length > 0) {
                         const lastMessage = messageState.messages[messageState.messages.length - 1];
                         if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id)) {
                             lastKnownMessage = lastMessage;
-                            yield toolMessageToToolResponseInfo(lastMessage);
+                            yield {
+                                type: "toolResponse",
+                                toolResponse: toolMessageToToolResponseInfo(lastMessage)
+                            };
                         }
                     }
                 }
             }
 
-            const state = await graph.getState({...stateConfig, configurable: { thread_id: threadId }});
-            
+            const state = await graph.getState({ ...stateConfig, configurable: { thread_id: threadId } });
+
             const responseAttributes: Record<string, any> = state.values["responseAttributes"];
             if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
                 const interruptState = state.tasks[0].interrupts[0];
@@ -466,7 +468,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 yield result.value;
             }
 
-            const state = await graph.getState({...stateConfig, configurable: { thread_id: args.threadId }});
+            const state = await graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
             return {
                 message: result.value,
                 checkpointId: state.config.configurable?.checkpoint_id ?? "N/A",
@@ -477,7 +479,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         call: async function* (args) {
 
             let graphInput: any = null;
-            const state = await graph.getState({...stateConfig, configurable: { thread_id: args.threadId }});
+            const state = await graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
             if (state.next.length > 0 && state.next[0] === "human_review_node") {
                 if (args.message) {
                     graphInput = new Command({ resume: { action: "feedback", data: args.message } })
@@ -502,7 +504,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 yield result.value;
             }
 
-            const newState = await graph.getState({...stateConfig, configurable: { thread_id: args.threadId }});
+            const newState = await graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
             return {
                 message: result.value,
                 checkpointId: newState.config.configurable?.checkpoint_id ?? "N/A",
