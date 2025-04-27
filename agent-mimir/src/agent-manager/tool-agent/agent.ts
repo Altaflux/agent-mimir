@@ -9,7 +9,7 @@ import { Annotation, BaseCheckpointSaver, Command, END, interrupt, MemorySaver, 
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { commandContentToBaseMessage, dividerSystemMessage, lCmessageContentToContent, mergeSystemMessages } from "../message-utils.js";
-import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, InputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "../index.js";
+import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, InputAgentMessage, OutputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "../index.js";
 import { AttributeDescriptor, PluginFactory, AiResponseMessage } from "../../plugins/index.js";
 import { toolNodeFunction } from "./tool-node.js"
 import { aiMessageToMimirAiMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo } from "./utils.js";
@@ -428,12 +428,12 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 }
             }
 
-            let userResponse = (state.values["output"] as AgentMessageToolRequest);
+            let userResponse = (state.values["output"] as OutputAgentMessage);
             return {
                 type: "agentResponse",
                 output: userResponse,
                 responseAttributes: responseAttributes
-            } as AgentUserMessageResponse
+            } satisfies AgentUserMessageResponse
         }
     }
 

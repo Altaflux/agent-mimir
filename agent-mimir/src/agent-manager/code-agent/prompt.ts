@@ -2,6 +2,8 @@
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { AgentTool } from "../../tools/index.js";
 import { toPythonFunctionName } from "./utils.js";
+import { z } from "zod";
+
 export const FUNCTION_PROMPT = `
 
 You have the ability to execute code in a Python environment. To execute code, you can respond with a python code block wrapped in an "<execution-code>" xml tag. 
@@ -13,7 +15,6 @@ Python Environment Rules:
 - You must not ask permission or notify the user you plan on executing code, just do it.
 - You have been given access to a list of tools: these tools are Python functions which you can call with code.
 - The user cannot see the the result of the code being executed, any information you want to share with the user must responded back to them in a normal message.
-- This python environment does not have access to your workpace or its files, only the functions may do so if they explicitely say so in their descriptions.
 
 Example:
 <execution-code>
@@ -45,12 +46,13 @@ function getFunctions(tool: AgentTool) {
     return toolDefinition;
 }
 
+
 export const getFunctionsPrompt = (dependencies: string[], tool: AgentTool[]) => {
     if (tool.length === 0) {
         return "";
     }
-
-    let functions = tool.map((tool) => getFunctions(tool)).join("\n------\n");
+    let functionList = [...tool.map((tool) => getFunctions(tool))]
+    let functions = functionList.join("\n------\n");
     return `\nThe python environment has the following functions available to it, use them to accomplish the requested goal from the user.
 The result of functions with an output parameter of "ToolResponse" can be printed with the "print" function, and the result will be returned to you.
 If the function has a different defined output type then its output can be used in other functions as an normal Python type.

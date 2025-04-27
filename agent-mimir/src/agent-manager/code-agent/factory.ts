@@ -1,4 +1,4 @@
-import { Agent } from "../index.js";
+import { Agent, AgentWorkspace } from "../index.js";
 import { AgentFactory, AgentConfig } from "../factory.js";
 import { createAgent as createCodeAgent } from "./agent.js";
 import { PluginFactory } from "../../plugins/index.js";
@@ -6,7 +6,7 @@ import { CodeToolExecutor } from "./index.js";
 
 
 export type CodeAgentConfig = {
-    codeExecutor: CodeToolExecutor;
+    codeExecutor: (workspace: AgentWorkspace) => CodeToolExecutor;
 } & AgentConfig;
 /**
  * Factory for creating code agents.

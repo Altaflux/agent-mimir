@@ -4,6 +4,7 @@ import { lCmessageContentToContent } from "../message-utils.js";
 import { AiResponseMessage, NextMessageToolResponse } from "../../plugins/index.js";
 import { extractTextContent } from "../../utils/format.js";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
+import { v4 } from "uuid";
 
 
 //TODO: remove this when we have a better way to handle this
@@ -119,6 +120,7 @@ export function aiMessageToMimirAiMessage(aiMessage: AIMessage, files: AiRespons
   const userContent = mapper.getUserMessage(lCmessageContentToContent(aiMessage.content));
   
   const mimirMessage: AiResponseMessage = {
+    id: aiMessage.id ?? v4(),
     content: userContent.tagFound ? userContent.result : scriptCode ? [] : [{ type: "text", text: textContent }],
     toolCalls: [],
     sharedFiles: files

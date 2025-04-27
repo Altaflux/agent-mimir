@@ -215,8 +215,7 @@ export class MultiAgentCommunicationOrchestrator {
                 return {
                     type: "toolRequest",
                     callingAgent: this.currentAgent.name,
-                    content: graphResponse.output.content,
-                    toolCalls: graphResponse.output.toolCalls,
+                    ...graphResponse.output,
                 }
             }
         }

@@ -7,20 +7,22 @@ import { getPythonScript } from './python-code.js';
 import { spawn } from 'child_process';
 import net, { AddressInfo } from "net";
 import crypto from "crypto";
+import { AgentWorkspace } from "../../index.js";
 
+import WebSocket from 'ws';
 export interface PythonExecutorOptions {
     additionalPackages?: string[];
+    workspace?: AgentWorkspace
 }
 export class LocalPythonExecutor implements CodeToolExecutor {
 
     private tempDir: string | undefined;
     private initialized: boolean = false;
-    availableDependencies: string[] = this.config.additionalPackages ?? [];
 
+    availableDependencies: string[] = this.config.additionalPackages ?? [];
 
     constructor(private config: PythonExecutorOptions) {
     }
-
 
 
     async execute(tools: AgentTool[], code: string, toolInitCallback: (url: string, tools: AgentTool[]) => void): Promise<string> {
@@ -29,12 +31,19 @@ export class LocalPythonExecutor implements CodeToolExecutor {
             this.tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-python-code'));
         }
 
+        const temporaryWorkspacePath = (await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-python-code-ws'))).replace(/\\/g, '\\\\');
+        let localWorkspaceUrl = temporaryWorkspacePath;
+        if (this.config.workspace) {
+            localWorkspaceUrl = this.config.workspace.workingDirectory;;
+        }
+
         const wsPort = await getPortFree();
-        const wsUrl = `ws://localhost:${wsPort}/ws`;
+        const wsUrlBaseUrl = `ws://localhost:${wsPort}`;
+        const wsUrl = `${wsUrlBaseUrl}/ws`;
         const uniqueSuffix = crypto.randomBytes(16).toString('hex');
         const tempFileName = `script-${uniqueSuffix}.py`;
         const scriptPath = path.join(this.tempDir, tempFileName);
-        const pythonScript = getPythonScript(wsPort, tools.map((t) => t.name), code);
+        const pythonScript = getPythonScript(wsPort, tools.map((t) => t.name), code,);
         await fs.writeFile(scriptPath, pythonScript);
 
         const scriptsDir = process.platform === "win32" ? 'Scripts' : 'bin';
@@ -75,7 +84,7 @@ export class LocalPythonExecutor implements CodeToolExecutor {
             }
 
             let toolInitExecuted = false;
-            const result = await executeShellCommandAndTrigger(`cd ${path.join(this.tempDir, scriptsDir)} && ${activeScriptCall} && python ${scriptPath}`, (data: string) => {
+            const result = await executeShellCommandAndTrigger(`cd ${path.join(this.tempDir, scriptsDir)} && ${activeScriptCall} && cd ${localWorkspaceUrl} && python ${scriptPath}`, (data: string) => {
                 if (data.includes("INITIALIZED SERVER") && !toolInitExecuted) {
                     toolInitCallback(wsUrl, tools);
                     toolInitExecuted = true;
@@ -115,25 +124,30 @@ async function executeShellCommandAndTrigger(command: string, callback: (data: s
         const ls = spawn(command, [], { shell: true, env: process.env });
         ls.stdout.on("data", data => {
             totalOutput += data;
+            console.log(data.toString())
             if (!commenceRecording) {
                 commenceRecording = callback(data.toString())
                 return;
             }
+
             output += data;
 
         });
 
         ls.stderr.on("data", data => {
             totalOutput += data;
+            console.log(data.toString())
             if (!commenceRecording) {
                 commenceRecording = callback(data.toString())
                 return;
             }
+
             output += data;
 
         });
 
         ls.on('error', (error) => {
+            console.log(error.message)
             output += error.message;
         });
 
@@ -184,5 +198,4 @@ async function getPortFree(): Promise<number> {
         });
     })
 }
-
 
