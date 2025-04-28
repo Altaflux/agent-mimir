@@ -23,11 +23,7 @@ export const StateAnnotation = Annotation.Root({
     responseAttributes: Annotation<Record<string, any>>,
     output: Annotation<AiResponseMessage>,
     input: Annotation<InputAgentMessage | null>,
-    noMessagesInTool: Annotation<Boolean>,
-    agentMessage: Annotation<BaseMessage[]>({
-        reducer: messagesStateReducer,
-        default: () => [],
-    }),
+    noMessagesInTool: Annotation<Boolean>
 });
 
 /**
@@ -388,15 +384,12 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         const state = await graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
         const messages: BaseMessage[] = state.values["messages"] ?? [];
         const messagesToRemove = messages.map((m) => new RemoveMessage({ id: m.id! }));
-
-        const agentMessage: BaseMessage[] = state.values["agentMessage"] ?? [];
-        const agentMessagesToRemove = agentMessage.map((m) => new RemoveMessage({ id: m.id! }));
-        await graph.updateState({ ...stateConfig, configurable: { thread_id: args.threadId } }, { messages: messagesToRemove, agentMessage: agentMessagesToRemove }, "output_convert")
+        await graph.updateState({ ...stateConfig, configurable: { thread_id: args.threadId } }, { messages: messagesToRemove }, "output_convert")
     };
 
     const executeGraph = async function* (graphInput: any, threadId: string): AsyncGenerator<IntermediateAgentMessage, AgentResponse, unknown> {
 
-        let lastKnownMessage: ToolMessage | undefined = undefined;
+        let lastKnownMessage: BaseMessage | undefined = undefined;
         while (true) {
             let stream = await graph.stream(graphInput, { ...stateConfig, configurable: { thread_id: threadId } });
             for await (const state of stream) {
