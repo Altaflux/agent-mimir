@@ -6,8 +6,8 @@ import { AIMessage, BaseMessage, HumanMessage, MessageContentComplex, MessageCon
 import { Annotation, BaseCheckpointSaver, Command, END, interrupt, MemorySaver, Messages, MessagesAnnotation, START, StateDefinition, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
-import { commandContentToBaseMessage, dividerSystemMessage, humanMessageToInputAgentMessage, lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
-import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, InputAgentMessage, IntermediateAgentMessage, OutputAgentMessage, WorkspaceFactory } from "./../index.js";
+import { dividerSystemMessage, humanMessageToInputAgentMessage, lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
+import { Agent, AgentMessageToolRequest, AgentWorkspace, InputAgentMessage, WorkspaceFactory } from "./../index.js";
 import { PluginFactory } from "../../plugins/index.js";
 import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex, isToolMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo, toPythonFunctionName } from "./utils.js";
 import { pythonToolNodeFunction } from "./tool-node.js";
@@ -18,6 +18,7 @@ import { CodeToolExecutor } from "./index.js";
 import { DEFAULT_CONSTITUTION } from "../constants.js";
 import { PluginContextProvider } from "../../plugins/context-provider.js";
 import { langChainHumanMessageToMimirHumanMessage } from "../tool-agent/utils.js";
+import { LanggraphAgent } from "../langgraph-agent.js";
 
 /**
  * Configuration options for creating a new agent.
@@ -351,140 +352,23 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
     const memory = config.checkpointer ?? new MemorySaver()
 
-    let stateConfig = {
-        streamMode: ["messages" as const, "values" as const],
-    };
     const graph = workflow.compile({
         checkpointer: memory,
     });
 
-
-    const reset = async (args: { threadId: string, checkpointId?: string }) => {
-        await Promise.all(allCreatedPlugins.map(async plugin => await plugin.reset()));
-        await workspace.reset();
-        const state = await graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
-        const messages: BaseMessage[] = state.values["messages"] ?? [];
-        const messagesToRemove = messages.map((m) => new RemoveMessage({ id: m.id! }));
-
-        await graph.updateState({ ...stateConfig, configurable: { thread_id: args.threadId } }, { messages: messagesToRemove }, "output_convert")
-    };
-
-    const executeGraph = async function* (graphInput: any, threadId: string): AsyncGenerator<IntermediateAgentMessage, AgentResponse, unknown> {
-
-        let lastKnownMessage: BaseMessage | undefined = undefined;
-        while (true) {
-            let stream = await graph.stream(graphInput, { ...stateConfig, configurable: { thread_id: threadId } });
-            for await (const state of stream) {
-                if (state[0] === "values") {
-                    let messageState = state[1];
-                    if (messageState.messages.length > 0) {
-                        const lastMessage = messageState.messages[messageState.messages.length - 1];
-                        if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id)) {
-                            lastKnownMessage = lastMessage;
-                            yield {
-                                type: "toolResponse",
-                                toolResponse: toolMessageToToolResponseInfo(lastMessage)
-                            };
-                        }
-                    }
-                }
-            }
-
-            const state = await graph.getState({ ...stateConfig, configurable: { thread_id: threadId } });
-
-            const responseAttributes: Record<string, any> = state.values["responseAttributes"];
-            if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
-                const interruptState = state.tasks[0].interrupts[0];
-                return {
-                    type: "toolRequest",
-                    output: interruptState.value as AgentMessageToolRequest,
-                    responseAttributes: responseAttributes
-                }
-            }
-
-
-            let userResponse = (state.values["output"] as OutputAgentMessage);
-            return {
-                type: "agentResponse",
-                output: userResponse,
-                responseAttributes: responseAttributes
-            } satisfies AgentUserMessageResponse
-        }
-    }
-
-    return {
+    return new LanggraphAgent({
         name: shortName,
         description: config.description,
-        commands: commandList,
         workspace: workspace,
-        reset: reset,
-        handleCommand: async function* (args) {
-
-            let commandHandler = commandList.find(ac => ac.name == args.command.name)!
-            let newMessages = await commandHandler.commandHandler(args.command.arguments ?? {});      
-            let msgs = newMessages.map(mc => commandContentToBaseMessage(mc));
-            let graphInput: any = null;
-            graphInput = {
-                messages: msgs,
-                requestAttributes: {},
-                responseAttributes: {}
-            };
-
-            let generator = executeGraph(graphInput, args.threadId);
-            let result;
-            while (!(result = await generator.next()).done) {
-                yield result.value;
-            }
-
-            const state = await graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
-            return {
-                message: result.value,
-                checkpointId: state.config.configurable?.checkpoint_id ?? "N/A",
-                threadId: args.threadId
-            }
-        },
-        call: async function* (args) {
-
-            let graphInput: any = null;
-            const state = await graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
-            if (state.next.length > 0 && state.next[0] === "human_review_node") {
-                if (args.message) {
-                    graphInput = new Command({ resume: { action: "feedback", data: args.message } })
-                } else {
-                    graphInput = new Command({ resume: { action: "continue" } })
-                }
-
-            }
-            else {
-
-                graphInput = args.message != null ? {
-                    messages: [new HumanMessage({
-                        id: v4(),
-                        content: complexResponseToLangchainMessageContent(args.message.content),
-                        response_metadata: {
-                            sharedFiles: args.message.sharedFiles
-                        }
-                    })],
-                    requestAttributes: {},
-                    responseAttributes: {},
-                    noMessagesInTool: args.noMessagesInTool ?? false,
-                } : null;
-            }
-
-            let generator = executeGraph(graphInput, args.threadId);
-            let result;
-            while (!(result = await generator.next()).done) {
-                yield result.value;
-            }
-
-            const newState = await graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
-            return {
-                message: result.value,
-                checkpointId: newState.config.configurable?.checkpoint_id ?? "N/A",
-                threadId: args.threadId
-            }
+        commands: commandList,
+        graph: graph,
+        plugins: allCreatedPlugins,
+        toolMessageHandler: {
+            isToolMessage: isToolMessage,
+            messageToToolMessage: toolMessageToToolResponseInfo,
         }
-    }
+    })
+  
 }
 
 function buildSystemMessage(agentSystemMessages: ComplexMessageContent[]) {

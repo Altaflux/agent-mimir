@@ -93,8 +93,6 @@ export interface Agent {
     }) => Promise<void>,
 };
 
-
-
 /**
  * Represents a response from an agent requesting to use a tool.
  */
