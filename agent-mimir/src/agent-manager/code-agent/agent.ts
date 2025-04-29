@@ -59,7 +59,7 @@ export const StateAnnotation = Annotation.Root({
 
 
 
-export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
+export async function createLgAgent(config: CreateAgentArgs) {
 
     const shortName = config.name;
     const model = config.model;
@@ -356,19 +356,31 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         checkpointer: memory,
     });
 
-    return new LanggraphAgent({
-        name: shortName,
-        description: config.description,
-        workspace: workspace,
-        commands: commandList,
+    return {
         graph: graph,
-        plugins: allCreatedPlugins,
+        workspace: workspace,
+        commandList: commandList,
+        plugins: allCreatedPlugins
+    };
+
+}
+
+export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
+
+    const agent = await createLgAgent(config);
+
+    return new LanggraphAgent({
+        name: config.name,
+        description: config.description,
+        workspace: agent.workspace,
+        commands: agent.commandList,
+        graph: agent.graph,
+        plugins: agent.plugins,
         toolMessageHandler: {
             isToolMessage: isToolMessage,
             messageToToolMessage: toolMessageToToolResponseInfo,
         }
     })
-  
 }
 
 function buildSystemMessage(agentSystemMessages: ComplexMessageContent[]) {
