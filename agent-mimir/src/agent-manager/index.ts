@@ -28,14 +28,15 @@ export type InputAgentMessage = {
     /** Array of complex message content (can include text, images, etc.) */
     content: ComplexMessageContent[],
     /** Optional array of shared files with their URLs and names */
-    sharedFiles?: {
+    sharedFiles?: SharedFile[]
+};
+
+export type SharedFile = {
         /** URL where the file can be accessed */
         url: string,
         /** Name of the file */
         fileName: string,
-    }[]
-};
-
+}
 
 /**
  * Factory function type for creating agent workspaces.

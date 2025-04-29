@@ -1,7 +1,7 @@
 
 import { promises as fs } from 'fs';
 import { AgentSystemMessage, AttributeDescriptor, AgentPlugin, PluginFactory, PluginContext } from "./index.js";
-import { AgentWorkspace, InputAgentMessage } from "../agent-manager/index.js";
+import { AgentWorkspace, InputAgentMessage, SharedFile } from "../agent-manager/index.js";
 import { ComplexMessageContent } from '../schema.js';
 
 export class WorkspacePluginFactory implements PluginFactory {
@@ -20,8 +20,8 @@ export class WorkspanceManager {
         this.workspace = workspace;
     }
 
-    async loadFiles(nextMessage: InputAgentMessage): Promise<void> {
-        for (const file of nextMessage.sharedFiles ?? []) {
+    async loadFiles(sharedFiles: SharedFile[]): Promise<void> {
+        for (const file of sharedFiles ?? []) {
             await this.workspace.loadFileToWorkspace(file.fileName, file.url);
         }
 

@@ -3,6 +3,7 @@ import { AIMessage, BaseMessage, HumanMessage, MessageContent, MessageContentCom
 import { ComplexMessageContent, ImageMessageContent, TextMessageContent, SupportedImageTypes, } from "../schema.js";
 import { CONSTANTS, ERROR_MESSAGES } from "./constants.js";
 import { complexResponseToLangchainMessageContent } from "../utils/format.js";
+import { InputAgentMessage } from "./index.js";
 
 
 export function commandContentToBaseMessage(commandContent: { type: string, content: ComplexMessageContent[] }): BaseMessage {
@@ -72,3 +73,13 @@ export const dividerSystemMessage = {
     type: "text",
     text: CONSTANTS.MESSAGE_DIVIDER
 } satisfies ComplexMessageContent;
+
+
+export function humanMessageToInputAgentMessage(message: HumanMessage) : InputAgentMessage {
+    return {
+      content: lCmessageContentToContent(message.content),
+      sharedFiles: [
+        ...(message.response_metadata?.["sharedFiles"] ?? [])
+      ]
+    }
+  }

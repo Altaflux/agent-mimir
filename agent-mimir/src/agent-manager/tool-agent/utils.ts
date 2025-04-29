@@ -1,11 +1,11 @@
-import { AIMessage, ToolMessage } from "@langchain/core/messages";
-import { AiResponseMessage, NextMessageToolResponse } from "../../plugins/index.js";
+import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
+import { AiResponseMessage, NextMessageToolResponse, NextMessageUser } from "../../plugins/index.js";
 import { lCmessageContentToContent } from "../message-utils.js";
 import {  MessageContentToolUse, ToolResponseInfo } from "../index.js";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { v4 } from "uuid";
 
-export function langChainToolMessageToMimirHumanMessage(message: ToolMessage): NextMessageToolResponse {
+export function langChainToolMessageToMimirToolMessage(message: ToolMessage): NextMessageToolResponse {
   return {
     type: "TOOL_RESPONSE",
     toolName: message.name ?? "Unknown",
@@ -13,7 +13,15 @@ export function langChainToolMessageToMimirHumanMessage(message: ToolMessage): N
     content: lCmessageContentToContent(message.content)
   };
 }
-
+export function langChainHumanMessageToMimirHumanMessage(message: HumanMessage): NextMessageUser {
+  return {
+    type: "USER_MESSAGE",
+    sharedFiles: [
+      ...(message.response_metadata?.["sharedFiles"] ?? [])
+    ],
+    content: lCmessageContentToContent(message.content)
+  };
+}
 export function toolMessageToToolResponseInfo(message: ToolMessage): ToolResponseInfo {
   const toolResponse = lCmessageContentToContent(message.content);
   return {

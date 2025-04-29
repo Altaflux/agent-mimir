@@ -1,14 +1,13 @@
 import { ComplexMessageContent, } from "../../schema.js";
 import { WorkspacePluginFactory, WorkspanceManager } from "../../plugins/workspace.js";
 import { ViewPluginFactory } from "../../tools/image_view.js";
-import { ToolMessage } from "@langchain/core/messages/tool";
 import { complexResponseToLangchainMessageContent, extractTextContent, trimAndSanitizeMessageContent } from "../../utils/format.js";
 import { AIMessage, BaseMessage, HumanMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage } from "@langchain/core/messages";
-import { Annotation, BaseCheckpointSaver, Command, END, interrupt, MemorySaver, Messages, MessagesAnnotation, messagesStateReducer, START, StateDefinition, StateGraph } from "@langchain/langgraph";
+import { Annotation, BaseCheckpointSaver, Command, END, interrupt, MemorySaver, Messages, MessagesAnnotation, START, StateDefinition, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
-import { commandContentToBaseMessage, dividerSystemMessage, lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
-import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, InputAgentMessage, IntermediateAgentMessage, OutputAgentMessage, ToolResponseInfo, WorkspaceFactory } from "./../index.js";
+import { commandContentToBaseMessage, dividerSystemMessage, humanMessageToInputAgentMessage, lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
+import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, InputAgentMessage, IntermediateAgentMessage, OutputAgentMessage, WorkspaceFactory } from "./../index.js";
 import { PluginFactory } from "../../plugins/index.js";
 import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex, isToolMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo, toPythonFunctionName } from "./utils.js";
 import { pythonToolNodeFunction } from "./tool-node.js";
@@ -18,6 +17,7 @@ import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { CodeToolExecutor } from "./index.js";
 import { DEFAULT_CONSTITUTION } from "../constants.js";
 import { PluginContextProvider } from "../../plugins/context-provider.js";
+import { langChainHumanMessageToMimirHumanMessage } from "../tool-agent/utils.js";
 
 /**
  * Configuration options for creating a new agent.
@@ -53,7 +53,6 @@ export const StateAnnotation = Annotation.Root({
     requestAttributes: Annotation<Record<string, any>>,
     responseAttributes: Annotation<Record<string, any>>,
     output: Annotation<AgentMessageToolRequest>,
-    input: Annotation<InputAgentMessage | null>,
     noMessagesInTool: Annotation<Boolean>,
 });
 
@@ -89,16 +88,11 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         return async (state: typeof StateAnnotation.State) => {
 
             const lastMessage: BaseMessage = state.messages[state.messages.length - 1];
-            const inputMessage = state.input;
 
+            let nextMessage = isToolMessage(lastMessage)
+                ? langChainToolMessageToMimirHumanMessage(lastMessage)
+                : langChainHumanMessageToMimirHumanMessage(lastMessage);
 
-            let nextMessage = inputMessage !== null ?
-                {
-                    type: "USER_MESSAGE" as const,
-                    ...inputMessage
-
-                } : isToolMessage(lastMessage) ?
-                    langChainToolMessageToMimirHumanMessage(lastMessage) : undefined;
             if (nextMessage === undefined) {
                 throw new Error("No next message found");
             }
@@ -124,22 +118,24 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             ]
             let response: AIMessage;
             let messageToStore: BaseMessage[] = [];
-            if (inputMessage) {
-                await workspaceManager.loadFiles(inputMessage);
+            const messageId = lastMessage.id ?? v4();
+            if (nextMessage.type === "USER_MESSAGE") {
+                const inputMessage = humanMessageToInputAgentMessage(lastMessage);
+                await workspaceManager.loadFiles(inputMessage.sharedFiles ?? []);
                 const { displayMessage, persistentMessage } = await pluginContextProvider.additionalMessageContent(inputMessage);
                 displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
                 persistentMessage.message.content = trimAndSanitizeMessageContent(persistentMessage.message.content);
 
                 const messageListToSend = [...state.messages];
                 messageListToSend.push(new HumanMessage({
-                    id: v4(),
+                    id: messageId,
                     content: complexResponseToLangchainMessageContent(displayMessage.content)
                 }));
                 messageToStore = [new HumanMessage({
                     response_metadata: {
                         persistentMessageRetentionPolicy: persistentMessage.retentionPolicy
                     },
-                    id: v4(),
+                    id: messageId,
                     content: complexResponseToLangchainMessageContent(persistentMessage.message.content)
                 })];
 
@@ -156,7 +152,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                     persistentMessage.message.content = trimAndSanitizeMessageContent(persistentMessage.message.content);
                     if (displayMessage.content.length > 0) {
                         messageListToSend.push(new HumanMessage({
-                            id: v4(),
+                            id: messageId,
                             content: [
                                 ...complexResponseToLangchainMessageContent(displayMessage.content)
                             ]
@@ -164,7 +160,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                     }
                     if (persistentMessage.message.content.length > 0) {
                         messageToStore = [new HumanMessage({
-                            id: v4(),
+                            id: messageId,
                             response_metadata: {
                                 persistentMessageRetentionPolicy: persistentMessage.retentionPolicy
                             },
@@ -190,7 +186,6 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 })
             }
             //Agents calling agents cannot see the messages from the tool, so we remove them so the AI doesn't think it has already responded.
-
             if (getExecutionCodeContentRegex(extractTextContent(response.content)) !== null && state.noMessagesInTool) {
                 const codeScript = getExecutionCodeContentRegex(extractTextContent(response.content));
                 response = new AIMessage({
@@ -214,8 +209,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                 messages: [...messageToStore, response],
                 requestAttributes: {},
                 output: mimirAiMessage,
-                responseAttributes: rawResponseAttributes,
-                input: null
+                responseAttributes: rawResponseAttributes
             };
         };
     }
@@ -300,8 +294,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         if (reviewAction === "continue") {
             return new Command({ goto: "run_tool" });
         } else if (reviewAction === "feedback") {
-            await workspaceManager.loadFiles(reviewData);
-
+            await workspaceManager.loadFiles(reviewData.sharedFiles ?? []);
             const responseMessage = new HumanMessage({
                 response_metadata: {
                     toolMessage: true
@@ -389,7 +382,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
                         if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id)) {
                             lastKnownMessage = lastMessage;
                             yield {
-                                type:"toolResponse",
+                                type: "toolResponse",
                                 toolResponse: toolMessageToToolResponseInfo(lastMessage)
                             };
                         }
@@ -428,19 +421,11 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         handleCommand: async function* (args) {
 
             let commandHandler = commandList.find(ac => ac.name == args.command.name)!
-            let newMessages = await commandHandler.commandHandler(args.command.arguments ?? {});
-
-            let lastMessage = newMessages[newMessages.length - 1];
-            newMessages = newMessages.slice(0, newMessages.length - 1);
-            const lastMessageAsInputMessage: InputAgentMessage = {
-                content: lastMessage.content
-            };
-
+            let newMessages = await commandHandler.commandHandler(args.command.arguments ?? {});      
             let msgs = newMessages.map(mc => commandContentToBaseMessage(mc));
             let graphInput: any = null;
             graphInput = {
                 messages: msgs,
-                input: lastMessageAsInputMessage,
                 requestAttributes: {},
                 responseAttributes: {}
             };
@@ -473,7 +458,13 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
             else {
 
                 graphInput = args.message != null ? {
-                    input: args.message,
+                    messages: [new HumanMessage({
+                        id: v4(),
+                        content: complexResponseToLangchainMessageContent(args.message.content),
+                        response_metadata: {
+                            sharedFiles: args.message.sharedFiles
+                        }
+                    })],
                     requestAttributes: {},
                     responseAttributes: {},
                     noMessagesInTool: args.noMessagesInTool ?? false,
