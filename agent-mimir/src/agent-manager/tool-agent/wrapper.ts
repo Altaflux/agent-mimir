@@ -6,13 +6,16 @@ import { complexResponseToLangchainMessageContent } from "../../utils/format.js"
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 
 export class MimirToolToLangchainTool extends StructuredTool {
-
-    schema = this.tool.schema;
-    name: string = this.tool.name;
-    description: string = this.tool.description;
+    schema;
+    name;
+    description;
 
     constructor(private tool: AgentTool) {
         super();
+        this.schema = tool.schema
+        this.name = tool.name;
+        this.description = tool.description;
+        
     }
 
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun, parentConfig?: ToolRunnableConfig): Promise<any> {

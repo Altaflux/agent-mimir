@@ -4,11 +4,10 @@
     "scripts": {
         "build": "turbo run build",
         "start-cli": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStart",
-        "start-discord": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStartDiscord",
-        "start-discord2": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStartDiscordNoBuild",
+        "start-discord": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStartDiscordNoBuild",
         "internalStartDiscord": "npm run build && dotenv -- npm run start -w agent-mimir-discord",
         "internalStartDiscordNoBuild": "dotenv -- npm run start -w agent-mimir-discord",
-        "internalStart": "npm run build && dotenv -- npm run start -w agent-mimir-cli",
+        "internalStart": "dotenv -- npm run start -w agent-mimir-cli",
         "test": "npm run test -w agent-mimir",
         "dev": "turbo run dev",
         "lint": "turbo run lint",
@@ -29,6 +28,7 @@
         "prettier": "^2.5.1",
         "release-it": "^15.10.0",
         "turbo": "latest",
+        "tsx": "^4.7.0",
         "typescript-transpile-only": "0.0.4"
     },
     "packageManager": "npm@9.5.0",
