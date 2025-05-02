@@ -56,28 +56,28 @@ export const pythonToolNodeFunction = (
                 if (toolResponseId) {
                     const toolResponse = toolResponses.get(toolResponseId)!;
                     if (toolResponse) {
-                        const resp: MessageContent = complexResponseToLangchainMessageContent(toolResponse.response as ComplexMessageContent[]);
-                        if (typeof resp === "string") {
-                            return [
-                                {
-                                    type: "text",
-                                    text: resp
-                                }
-                            ] satisfies MessageContentComplex[]
-                        }
-                        return resp;
+                        // const resp: MessageContent = complexResponseToLangchainMessageContent(toolResponse.response as ComplexMessageContent[]);
+                        // if (typeof resp === "string") {
+                        //     return [
+                        //         {
+                        //             type: "text",
+                        //             text: resp
+                        //         }
+                        //     ] satisfies MessageContentComplex[]
+                        // }
+                        return toolResponse.response as ComplexMessageContent[];
                     } else {
                         return [{
                             type: "text",
                             text: `((Tool response with ID ${toolResponseId} not found.))`,
-                        }]
+                        } satisfies ComplexMessageContent]
                     }
                 } else {
                     return [
                         {
                             type: "text",
                             text: part,
-                        }
+                        } satisfies ComplexMessageContent
                     ];
                 }
             }).flatMap((e) => e);
@@ -86,13 +86,13 @@ export const pythonToolNodeFunction = (
                 toolMessage: true,
             },
             id: v4(),
-            content: [
+            content: complexResponseToLangchainMessageContent([
                 {
                     type: "text",
                     text: "Result from script execution:\n\n",
                 },
                 ...messageContent
-            ],
+            ])
         })
 
         // Handle mixed Command and non-Command outputs
