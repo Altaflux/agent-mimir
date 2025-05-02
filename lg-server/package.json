@@ -1,5 +1,5 @@
 {
-  "name": "react-agent-graph",
+  "name": "lg-server",
   "version": "0.0.1",
   "packageManager": "yarn@1.22.22",
   "description": "A template containing a LangGraph.js ReAct agent.",
@@ -9,8 +9,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "",
     "clean": "rm -rf dist",
+    "start": "npx @langchain/langgraph-cli dev",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPattern=\\.test\\.ts$ --testPathIgnorePatterns=\\.int\\.test\\.ts$",
     "test:int": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPattern=\\.int\\.test\\.ts$",
     "lint": "eslint src",
@@ -21,7 +22,9 @@
     "@langchain/community": "^0.3.27",
     "@langchain/core": "^0.3.37",
     "@langchain/langgraph": "^0.2.43",
-    "langchain": "^0.3.14"
+    "langchain": "^0.3.14",
+    "agent-mimir": "*",
+    "@agent-mimir/mcp-client": "*"
   },
   "workspaces": [
     "sub-project"

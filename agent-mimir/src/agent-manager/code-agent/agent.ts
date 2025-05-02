@@ -154,9 +154,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     if (displayMessage.content.length > 0) {
                         messageListToSend.push(new HumanMessage({
                             id: messageId,
-                            content: [
-                                ...complexResponseToLangchainMessageContent(displayMessage.content)
-                            ]
+                            content: complexResponseToLangchainMessageContent(displayMessage.content)
                         }));
                     }
                     if (persistentMessage.message.content.length > 0) {
@@ -301,10 +299,9 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     toolMessage: true
                 },
                 id: v4(),
-                content: [
+                content: complexResponseToLangchainMessageContent([
                     { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
-                    ...complexResponseToLangchainMessageContent(reviewData.content)
-                ],
+                    ...reviewData.content]),
             });
             return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
         }

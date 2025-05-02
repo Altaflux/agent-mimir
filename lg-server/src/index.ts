@@ -8,6 +8,9 @@ import path from "path";
 import {ChatOpenAI} from '@langchain/openai';
 
 async function createAgent() {
+    const McpClientPluginFactory = (await import('@agent-mimir/mcp-client')).McpClientPluginFactory;
+    const StdioClientTransport = (await import('@agent-mimir/mcp-client')).StdioClientTransport;
+
     const workingDirectory =  await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-cli-'));
     const workspaceFactory = async (agentName: string) => {
         const tempDir = path.join(workingDirectory, agentName);
@@ -28,7 +31,30 @@ async function createAgent() {
         model: chatModel,
         profession: "a helpful assistant",
         workspaceFactory: workspaceFactory,
-        visionSupport: "openai"
+        visionSupport: "openai",
+        plugins:[
+            new McpClientPluginFactory({
+                servers: {
+                    // "sqlite": {
+                    //     description: "Query a Northwind SQLite database.",
+                    //     transport: new StdioClientTransport({
+                    //         "command": "docker",
+                    //         "args": ["run", "-i", "--rm", "-v", "C:/AI:/mcp", "mcp/sqlite", "--db-path", "/mcp/northwind.db"]
+                    //     })
+                    // },
+                    "brave-search": {
+                        description: "Brave Search",
+                        transport: new StdioClientTransport({
+                            "command": "docker",
+                            "args": ["run", "-i", "--rm", "-e", "BRAVE_API_KEY", "mcp/brave-search"],
+                            "env": {
+                                "BRAVE_API_KEY": "BSA1WwT5CipS_49vRMeVdJaUtPv3y0D"
+                            }
+                        })
+                    }
+                }
+            }),
+        ]
     })
 }
 

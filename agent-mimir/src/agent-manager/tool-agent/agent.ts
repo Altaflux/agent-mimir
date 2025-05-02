@@ -17,7 +17,7 @@ import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { DEFAULT_CONSTITUTION } from "../constants.js";
 import { PluginContextProvider } from "../../plugins/context-provider.js";
 import { LanggraphAgent } from "../langgraph-agent.js";
-
+import { ActionRequest, HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
 export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
     requestAttributes: Annotation<Record<string, any>>,
@@ -121,7 +121,17 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
                 persistentMessage.message.content = trimAndSanitizeMessageContent(persistentMessage.message.content);
 
-                const messageListToSend = [...state.messages];
+
+                const messageListToSend = [...state.messages].map(m => {
+                    if (m.getType() === "ai" && m.response_metadata["original_content"]) {
+                        return new AIMessage({
+                            ...m,
+                            content: m.response_metadata["original_content"]
+                        })
+                    }
+                    return m;
+                })
+
 
                 messageListToSend.push(new HumanMessage({
                     id: messageId,
@@ -140,7 +150,15 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
 
             } else {
-                const messageListToSend = [...state.messages];
+                const messageListToSend = [...state.messages].map(m => {
+                    if (m.getType() === "ai" && m.response_metadata["original_content"]) {
+                        return new AIMessage({
+                            ...m,
+                            content: m.response_metadata["original_content"]
+                        })
+                    }
+                    return m;
+                })
                 if (isToolMessage(lastMessage) && ((lastMessage)).status !== "error") {
                     const { displayMessage, persistentMessage } = await pluginContextProvider.additionalMessageContent({ content: [] });
                     displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
@@ -149,13 +167,13 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     if (displayMessage.content.length > 0) {
                         messageListToSend.push(new HumanMessage({
                             id: messageId,
-                            content: [
+                            content: complexResponseToLangchainMessageContent([
                                 {
                                     type: "text",
                                     text: "Tools invoked succesfully (unless a tool call told you it failed or was cancelled), continue please but be sure the results from the tools are correct and what you expected."
                                 },
-                                ...complexResponseToLangchainMessageContent(displayMessage.content)
-                            ]
+                                ...displayMessage.content
+                            ])
                         }));
                     }
                     if (persistentMessage.message.content.length > 0) {
@@ -210,8 +228,15 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 await plugin.readResponse(mimirAiMessage, rawResponseAttributes);
             }
 
+            const reformattedAiMessage = new AIMessage({
+                ...response,
+                content: complexResponseToLangchainMessageContent(fieldMapper.getUserMessage(messageContent).result),
+                response_metadata: {
+                    original_content: response.content
+                }
+            })
             return {
-                messages: [...messageToStore, response],
+                messages: [...messageToStore, reformattedAiMessage],
                 requestAttributes: {},
                 output: mimirAiMessage,
                 responseAttributes: rawResponseAttributes,
@@ -281,47 +306,57 @@ export async function createLgAgent(config: CreateAgentArgs) {
     async function humanReviewNode(state: typeof StateAnnotation.State) {
         //const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
         const toolRequest: AgentMessageToolRequest = state.output;
-        toolRequest.content
-        const humanReview = interrupt<
-            AgentMessageToolRequest,
-            {
-                action: string;
-                data: InputAgentMessage;
-            }>(toolRequest);
 
+        for (const tool_call of toolRequest.toolCalls ?? []) {
+            let toolArguments = { args: tool_call.input };
+            try {
+                toolArguments = JSON.parse(tool_call.input);
+            } catch (e) {
 
-        const reviewAction = humanReview.action;
-        const reviewData = humanReview.data;
-        const name = modelWithTools.getName();
-        // Approve the tool call and continue
-        if (reviewAction === "continue") {
-            return new Command({ goto: "run_tool" });
-        } else if (reviewAction === "feedback") {
-            await workspaceManager.loadFiles(reviewData.sharedFiles ?? []);
+            }
+            const humanInterrupt: HumanInterrupt = {
+                description: "The agent is requesting permission to execute the following tool.",
+                action_request: {
+                    action: tool_call.toolName,
+                    args: toolArguments
+                },
+                config: {
+                    allow_accept: true,
+                    allow_ignore: false,
+                    allow_respond: true,
+                    allow_edit: true
+                }
+            }
+            const humanReviewResponse = interrupt<HumanInterrupt, HumanResponse | HumanResponse[]>(humanInterrupt);
+            const humanReview: HumanResponse = Array.isArray(humanReviewResponse) ? humanReviewResponse[0] : humanReviewResponse
+            console.log(humanReview)
 
-            //Claude forcefully needs a tool message after a tool call, so we need to send it a tool message with the feedback. Every other model can just receive a human message.
-            if (name === "ChatAnthropic" || name === "ChatOpenAI") {
-                const responseMessage = new ToolMessage({
-                    id: v4(),
-                    tool_call_id: toolRequest.toolCalls![0].id!,
-                    content: [
-                        { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
-                        ...complexResponseToLangchainMessageContent(reviewData.content)
-                    ],
-                })
-                return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
-            } else {
-                const responseMessage = new HumanMessage({
-                    id: v4(),
-                    content: [
-                        { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
-                        ...complexResponseToLangchainMessageContent(reviewData.content)
-                    ],
-                })
-                return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
+            const name = modelWithTools.getName();
+            if (humanReview.type === "response") {
+                // await workspaceManager.loadFiles(reviewData.sharedFiles ?? []);
+
+                //Claude forcefully needs a tool message after a tool call, so we need to send it a tool message with the feedback. Every other model can just receive a human message.
+                if (name === "ChatAnthropic" || name === "ChatOpenAI") {
+                    const responseMessage = new ToolMessage({
+                        id: v4(),
+                        tool_call_id: toolRequest.toolCalls![0].id!,
+                        content: complexResponseToLangchainMessageContent([
+                            { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
+                            { type: 'text', text: humanReview.args as string }]),
+                    })
+                    return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
+                } else {
+                    const responseMessage = new HumanMessage({
+                        id: v4(),
+                        content: complexResponseToLangchainMessageContent([
+                            { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
+                            { type: 'text', text: humanReview.args as string }]),
+                    })
+                    return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
+                }
             }
         }
-        throw new Error("Unreachable");
+        return new Command({ goto: "run_tool" });
     }
 
     function outputConvert(state: typeof StateAnnotation.State) {

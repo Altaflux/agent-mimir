@@ -12,7 +12,7 @@ export function extractTextContent(messageContent: MessageContent): string {
 }
 
 
-export function complexResponseToLangchainMessageContent(toolResponse: ComplexMessageContent[]): MessageContentComplex[] {
+export function complexResponseToLangchainMessageContent(toolResponse: ComplexMessageContent[]): MessageContent {
   return toolResponse.map((en) => {
     if (en.type === "text") {
       return {
