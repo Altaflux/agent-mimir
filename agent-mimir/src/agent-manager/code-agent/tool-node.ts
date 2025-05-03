@@ -3,6 +3,8 @@ import {
     HumanMessage,
     MessageContent,
     ToolMessage,
+    BaseMessage,
+    isAIMessage,
 } from "@langchain/core/messages";
 import { RunnableConfig } from "@langchain/core/runnables";
 
@@ -33,17 +35,16 @@ export const pythonToolNodeFunction = (
 
 
     return async (input: typeof MessagesAnnotation.State, config: RunnableConfig) => {
-        const message = Array.isArray(input)
+        const message: BaseMessage = Array.isArray(input)
             ? input[input.length - 1]
             : input.messages[input.messages.length - 1];
 
-        if (message?._getType() !== "ai") {
-            throw new Error("ToolNode only accepts AIMessages as input.");
+        if (!message || !isAIMessage(message) || !(message.tool_calls ?? []).find(t => t.name === "CODE_EXECUTION")) {
+            throw new Error("ToolNode only accepts AIMessages as input with CODE_EXECUTION tool call.");
         }
 
-
-        const textConent = extractTextContentFromComplexMessageContent(message.response_metadata["original_content"]);
-        const pythonScript = getExecutionCodeContentRegex(textConent)!;
+        const toolCall = (message.tool_calls ?? []).find(t => t.name === "CODE_EXECUTION")!;
+        const pythonScript: string = toolCall.args["script"]!;
 
         const toolResponses = new Map<string, ToolOutput>();
 
@@ -73,26 +74,13 @@ export const pythonToolNodeFunction = (
                     ];
                 }
             }).flatMap((e) => e);
-        // const userMesage = new HumanMessage({
-        //     response_metadata: {
-        //         toolMessage: true,
-        //     },
-        //     id: v4(),
-        //     content: complexResponseToLangchainMessageContent([
-        //         {
-        //             type: "text",
-        //             text: "Result from script execution:\n\n",
-        //         },
-        //         ...messageContent
-        //     ])
-        // })
 
         const userMesage = new ToolMessage({
             response_metadata: {
                 toolMessage: true,
             },
             id: v4(),
-            tool_call_id: v4(),
+            tool_call_id: toolCall.id ?? v4(),
             content: complexResponseToLangchainMessageContent([
                 {
                     type: "text",
