@@ -260,17 +260,14 @@ export async function createLgAgent(config: CreateAgentArgs) {
         };
     }
 
-
     function routeAfterLLM(
         state: typeof MessagesAnnotation.State,
     ): "output_convert" | "human_review_node" {
         const lastMessage: AIMessage = state.messages[state.messages.length - 1];
-        let messageText = "";
-        if (lastMessage.response_metadata["original_content"]) {
-            messageText = extractTextContentFromComplexMessageContent(lastMessage.response_metadata["original_content"]);
-        } 
 
-        if (getExecutionCodeContentRegex(messageText) === null) {
+        if (
+            (lastMessage as AIMessage).tool_calls?.length === 0
+        ) {
             return "output_convert";
         } else {
             return "human_review_node";
