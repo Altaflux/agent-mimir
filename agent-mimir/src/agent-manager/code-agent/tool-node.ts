@@ -73,26 +73,11 @@ export const pythonToolNodeFunction = (
                     ];
                 }
             }).flatMap((e) => e);
-        const userMesage = new HumanMessage({
-            response_metadata: {
-                toolMessage: true,
-            },
-            id: v4(),
-            content: complexResponseToLangchainMessageContent([
-                {
-                    type: "text",
-                    text: "Result from script execution:\n\n",
-                },
-                ...messageContent
-            ])
-        })
-
-        // const userMesage = new ToolMessage({
+        // const userMesage = new HumanMessage({
         //     response_metadata: {
         //         toolMessage: true,
         //     },
         //     id: v4(),
-        //     tool_call_id: v4(),
         //     content: complexResponseToLangchainMessageContent([
         //         {
         //             type: "text",
@@ -101,6 +86,21 @@ export const pythonToolNodeFunction = (
         //         ...messageContent
         //     ])
         // })
+
+        const userMesage = new ToolMessage({
+            response_metadata: {
+                toolMessage: true,
+            },
+            id: v4(),
+            tool_call_id: v4(),
+            content: complexResponseToLangchainMessageContent([
+                {
+                    type: "text",
+                    text: "Result from script execution:\n\n",
+                },
+                ...messageContent
+            ])
+        })
 
         // Handle mixed Command and non-Command outputs
 

@@ -2,14 +2,14 @@ import { ComplexMessageContent, } from "../../schema.js";
 import { WorkspacePluginFactory, WorkspanceManager } from "../../plugins/workspace.js";
 import { ViewPluginFactory } from "../../tools/image_view.js";
 import { complexResponseToLangchainMessageContent, extractTextContent, extractTextContentFromComplexMessageContent, trimAndSanitizeMessageContent } from "../../utils/format.js";
-import { AIMessage, BaseMessage, HumanMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage } from "@langchain/core/messages";
+import { AIMessage, BaseMessage, HumanMessage, isToolMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { Annotation, BaseCheckpointSaver, Command, END, interrupt, MemorySaver, Messages, MessagesAnnotation, START, StateDefinition, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { dividerSystemMessage, humanMessageToInputAgentMessage, lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
 import { Agent, AgentMessageToolRequest, AgentWorkspace, InputAgentMessage, WorkspaceFactory } from "./../index.js";
 import { PluginFactory } from "../../plugins/index.js";
-import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex, isToolMessage, langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo, toPythonFunctionName } from "./utils.js";
+import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex,  langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo, toPythonFunctionName } from "./utils.js";
 import { pythonToolNodeFunction } from "./tool-node.js";
 import { FUNCTION_PROMPT, getFunctionsPrompt, PYTHON_SCRIPT_SCHEMA } from "./prompt.js";
 import { DefaultPluginFactory } from "../../plugins/default-plugins.js";
@@ -130,6 +130,13 @@ export async function createLgAgent(config: CreateAgentArgs) {
                         content: complexResponseToLangchainMessageContent(m.response_metadata["original_content"])
                     })
                 }
+                if (m.getType() === "tool") {
+                    return new HumanMessage({
+                        id: m.id,
+                        content: m.content,
+                        response_metadata: m.response_metadata
+                    })
+                }
                 return m;
             })
 
@@ -175,8 +182,9 @@ export async function createLgAgent(config: CreateAgentArgs) {
                         }));
                     }
                     if (persistentMessage.message.content.length > 0) {
-                        messageToStore = [new HumanMessage({
+                        messageToStore = [new ToolMessage({
                             id: messageId,
+                            tool_call_id: lastMessage.tool_call_id,
                             response_metadata: {
                                 persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
                                 original_content: persistentMessage.message.content
