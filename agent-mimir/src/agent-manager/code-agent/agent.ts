@@ -2,7 +2,7 @@ import { ComplexMessageContent, } from "../../schema.js";
 import { WorkspacePluginFactory, WorkspanceManager } from "../../plugins/workspace.js";
 import { ViewPluginFactory } from "../../tools/image_view.js";
 import { complexResponseToLangchainMessageContent, extractTextContent, extractTextContentFromComplexMessageContent, trimAndSanitizeMessageContent } from "../../utils/format.js";
-import { AIMessage, BaseMessage, HumanMessage, isToolMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
+import { AIMessage, BaseMessage, FunctionMessage, HumanMessage, isToolMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { Annotation, BaseCheckpointSaver, Command, END, interrupt, MemorySaver, Messages, MessagesAnnotation, START, StateDefinition, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
@@ -127,7 +127,8 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 if (m.getType() === "ai" && m.response_metadata["original_content"]) {
                     return new AIMessage({
                         ...m,
-                        content: complexResponseToLangchainMessageContent(m.response_metadata["original_content"])
+                        content: complexResponseToLangchainMessageContent(m.response_metadata["original_content"]),
+                        tool_calls: []
                     })
                 }
                 if (m.getType() === "tool") {
@@ -173,7 +174,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     const inputMessage = humanMessageToInputAgentMessage(lastMessage);
                     const { displayMessage, persistentMessage } = await pluginContextProvider.additionalMessageContent(inputMessage);
                     displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
-                    //TODO THIS WILL BREAK RETENTION POLICY
+                    //TODO THIS WILL BREAK RETENTION POLICY, hmmm probably not
                     persistentMessage.message.content = trimAndSanitizeMessageContent(persistentMessage.message.content);
                     if (displayMessage.content.length > 0) {
                         messageListToSend.push(new HumanMessage({
@@ -210,8 +211,10 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     }]
                 })
             }
+
+            const pythonCode =  getExecutionCodeContentRegex(extractTextContent(response.content))
             //Agents calling agents cannot see the messages from the tool, so we remove them so the AI doesn't think it has already responded.
-            if (getExecutionCodeContentRegex(extractTextContent(response.content)) !== null && state.noMessagesInTool) {
+            if (pythonCode !== null && state.noMessagesInTool) {
                 const codeScript = getExecutionCodeContentRegex(extractTextContent(response.content));
                 response = new AIMessage({
                     id: response.id,
@@ -235,7 +238,16 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 content: complexResponseToLangchainMessageContent(fieldMapper.getUserMessage(messageContent).result),
                 response_metadata: {
                     original_content: messageContent
-                }
+                },
+                tool_calls: pythonCode ?  [
+                    {
+                        id: v4(),
+                        name: "CODE_EXECUTION",
+                        args: {
+                            script:  pythonCode
+                        }
+                    }
+                ] : []
             });
 
             return {
