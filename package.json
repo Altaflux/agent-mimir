@@ -5,7 +5,7 @@
         "build": "turbo run build",
         "start-cli": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStart",
         "start-discord": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStartDiscordNoBuild",
-        "start-lg":  "dotenv -- npm run start -w lg-server",
+        "start-lg":  "npm run build && dotenv -- npm run start -w lg-server",
         "internalStartDiscord": "npm run build && dotenv -- npm run start -w agent-mimir-discord",
         "internalStartDiscordNoBuild": "dotenv -- npm run start -w agent-mimir-discord",
         "internalStart": "dotenv -- npm run start -w agent-mimir-cli",

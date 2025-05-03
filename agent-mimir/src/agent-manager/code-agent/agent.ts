@@ -123,7 +123,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
             const messageId = lastMessage.id ?? v4();
 
 
-            const messageListToSend = [...state.messages].map(m => {
+            const messageListToSend = [...state.messages].slice(0, -1).map(m => {
                 if (m.getType() === "ai" && m.response_metadata["original_content"]) {
                     return new AIMessage({
                         ...m,
@@ -163,8 +163,10 @@ export async function createLgAgent(config: CreateAgentArgs) {
             } else {
        
                 if (isToolMessage(lastMessage)) {
-                    const { displayMessage, persistentMessage } = await pluginContextProvider.additionalMessageContent({ content: [] });
+                    const inputMessage = humanMessageToInputAgentMessage(lastMessage);
+                    const { displayMessage, persistentMessage } = await pluginContextProvider.additionalMessageContent(inputMessage);
                     displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
+                    //TODO THIS WILL BREAK RETENTION POLICY
                     persistentMessage.message.content = trimAndSanitizeMessageContent(persistentMessage.message.content);
                     if (displayMessage.content.length > 0) {
                         messageListToSend.push(new HumanMessage({

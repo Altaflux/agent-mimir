@@ -116,7 +116,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
             const messageId = lastMessage.id ?? v4();
 
 
-            const messageListToSend = [...state.messages].map(m => {
+            const messageListToSend = [...state.messages].slice(0, -1).map(m => {
                 if (m.getType() === "ai" && m.response_metadata["original_content"]) {
                     return new AIMessage({
                         ...m,
