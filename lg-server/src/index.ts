@@ -1,5 +1,5 @@
 
-import { CodeAgentFactory, LocalPythonExecutor } from "agent-mimir/agent/code-agent";
+import { CodeAgentFactory, LocalPythonExecutor,  createLgAgent as codeCreateLgAgent } from "agent-mimir/agent/code-agent";
 import { FunctionAgentFactory, createLgAgent} from "agent-mimir/agent/tool-agent";
 import { promises as fs } from 'fs';
 import { FileSystemAgentWorkspace } from "agent-mimir/nodejs";
@@ -25,13 +25,14 @@ async function createAgent() {
         modelName: 'gpt-4.1-2025-04-14',
     });
 
-    return await createLgAgent({
+    return await codeCreateLgAgent({
         name: "agent",
         description: "a helpful assistant",
         model: chatModel,
         profession: "a helpful assistant",
         workspaceFactory: workspaceFactory,
         visionSupport: "openai",
+        codeExecutor: (workspace) => new LocalPythonExecutor({additionalPackages: ["pandas", "numpy", "pillow", "sqlite3"], workspace: workspace}),
         plugins:[
             new McpClientPluginFactory({
                 servers: {

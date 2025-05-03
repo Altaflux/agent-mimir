@@ -1,7 +1,7 @@
 import { ComplexMessageContent, } from "../../schema.js";
 import { WorkspacePluginFactory, WorkspanceManager } from "../../plugins/workspace.js";
 import { ViewPluginFactory } from "../../tools/image_view.js";
-import { complexResponseToLangchainMessageContent, extractTextContent, trimAndSanitizeMessageContent } from "../../utils/format.js";
+import { complexResponseToLangchainMessageContent, extractTextContent, extractTextContentFromComplexMessageContent, trimAndSanitizeMessageContent } from "../../utils/format.js";
 import { AIMessage, BaseMessage, HumanMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage } from "@langchain/core/messages";
 import { Annotation, BaseCheckpointSaver, Command, END, interrupt, MemorySaver, Messages, MessagesAnnotation, START, StateDefinition, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
@@ -19,6 +19,7 @@ import { DEFAULT_CONSTITUTION } from "../constants.js";
 import { PluginContextProvider } from "../../plugins/context-provider.js";
 import { langChainHumanMessageToMimirHumanMessage } from "../tool-agent/utils.js";
 import { LanggraphAgent } from "../langgraph-agent.js";
+import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
 
 /**
  * Configuration options for creating a new agent.
@@ -120,6 +121,19 @@ export async function createLgAgent(config: CreateAgentArgs) {
             let response: AIMessage;
             let messageToStore: BaseMessage[] = [];
             const messageId = lastMessage.id ?? v4();
+
+
+            const messageListToSend = [...state.messages].map(m => {
+                if (m.getType() === "ai" && m.response_metadata["original_content"]) {
+                    return new AIMessage({
+                        ...m,
+                        content: complexResponseToLangchainMessageContent(m.response_metadata["original_content"])
+                    })
+                }
+                return m;
+            })
+
+
             if (nextMessage.type === "USER_MESSAGE") {
                 const inputMessage = humanMessageToInputAgentMessage(lastMessage);
                 await workspaceManager.loadFiles(inputMessage.sharedFiles ?? []);
@@ -127,14 +141,15 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
                 persistentMessage.message.content = trimAndSanitizeMessageContent(persistentMessage.message.content);
 
-                const messageListToSend = [...state.messages];
+          
                 messageListToSend.push(new HumanMessage({
                     id: messageId,
                     content: complexResponseToLangchainMessageContent(displayMessage.content)
                 }));
                 messageToStore = [new HumanMessage({
                     response_metadata: {
-                        persistentMessageRetentionPolicy: persistentMessage.retentionPolicy
+                        persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
+                        original_content: persistentMessage.message.content
                     },
                     id: messageId,
                     content: complexResponseToLangchainMessageContent(persistentMessage.message.content)
@@ -146,7 +161,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
 
             } else {
-                const messageListToSend = [...state.messages];
+       
                 if (isToolMessage(lastMessage)) {
                     const { displayMessage, persistentMessage } = await pluginContextProvider.additionalMessageContent({ content: [] });
                     displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
@@ -161,7 +176,8 @@ export async function createLgAgent(config: CreateAgentArgs) {
                         messageToStore = [new HumanMessage({
                             id: messageId,
                             response_metadata: {
-                                persistentMessageRetentionPolicy: persistentMessage.retentionPolicy
+                                persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
+                                original_content: persistentMessage.message.content
                             },
                             content: complexResponseToLangchainMessageContent(persistentMessage.message.content)
                         })];
@@ -204,8 +220,16 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 await plugin.readResponse(mimirAiMessage, rawResponseAttributes);
             }
 
+            const reformattedAiMessage = new AIMessage({
+                ...response,
+                content: complexResponseToLangchainMessageContent(fieldMapper.getUserMessage(messageContent).result),
+                response_metadata: {
+                    original_content: messageContent
+                }
+            });
+
             return {
-                messages: [...messageToStore, response],
+                messages: [...messageToStore, reformattedAiMessage],
                 requestAttributes: {},
                 output: mimirAiMessage,
                 responseAttributes: rawResponseAttributes
@@ -219,11 +243,9 @@ export async function createLgAgent(config: CreateAgentArgs) {
     ): "output_convert" | "human_review_node" {
         const lastMessage: AIMessage = state.messages[state.messages.length - 1];
         let messageText = "";
-        if (typeof lastMessage.content === "string") {
-            messageText = lastMessage.content;
-        } else {
-            messageText = extractTextContent(lastMessage.content);
-        }
+        if (lastMessage.response_metadata["original_content"]) {
+            messageText = extractTextContentFromComplexMessageContent(lastMessage.response_metadata["original_content"]);
+        } 
 
         if (getExecutionCodeContentRegex(messageText) === null) {
             return "output_convert";
@@ -243,7 +265,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
         // Iterate over messages with retention policies
         for (const [idx, message] of messagesWithRetention.entries()) {
             const retentionPolicy = message.response_metadata!.persistentMessageRetentionPolicy;
-            const messageContent = message.content as MessageContentComplex[];
+            const messageContent = message.response_metadata["original_content"] as ComplexMessageContent[];
 
             // Map content with its corresponding retention value and filter those
             // whose retention is either null or greater than the current idx.
@@ -260,10 +282,11 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 if (updatedContent.length > 0) {
                     modifiedMessages.push(new HumanMessage({
                         id: message.id!,
-                        content: updatedContent,
+                        content: complexResponseToLangchainMessageContent(updatedContent),
                         response_metadata: {
                             ...message.response_metadata,
-                            persistentMessageRetentionPolicy: updatedRetention
+                            persistentMessageRetentionPolicy: updatedRetention,
+                            original_content: updatedContent
                         }
                     }));
                 } else {
@@ -276,36 +299,47 @@ export async function createLgAgent(config: CreateAgentArgs) {
         }
         return { messages: modifiedMessages };
     }
+
     async function humanReviewNode(state: typeof StateAnnotation.State) {
+        //const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
         const toolRequest: AgentMessageToolRequest = state.output;
-        const humanReview = interrupt<
-            AgentMessageToolRequest,
-            {
-                action: string;
-                data: InputAgentMessage;
-            }>(toolRequest);
 
+        for (const tool_call of toolRequest.toolCalls ?? []) {
+            let toolArguments = { args: tool_call.input };
+            try {
+                toolArguments = JSON.parse(tool_call.input);
+            } catch (e) {
 
-        const reviewAction = humanReview.action;
-        const reviewData = humanReview.data;
-        const name = modelWithTools.getName();
-        // Approve the tool call and continue
-        if (reviewAction === "continue") {
-            return new Command({ goto: "run_tool" });
-        } else if (reviewAction === "feedback") {
-            await workspaceManager.loadFiles(reviewData.sharedFiles ?? []);
-            const responseMessage = new HumanMessage({
-                response_metadata: {
-                    toolMessage: true
+            }
+            const humanInterrupt: HumanInterrupt = {
+                description: "The agent is requesting permission to execute the following tool.",
+                action_request: {
+                    action: tool_call.toolName,
+                    args: toolArguments
                 },
-                id: v4(),
-                content: complexResponseToLangchainMessageContent([
-                    { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
-                    ...reviewData.content]),
-            });
-            return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
+                config: {
+                    allow_accept: true,
+                    allow_ignore: false,
+                    allow_respond: true,
+                    allow_edit: true
+                }
+            }
+            const humanReviewResponse = interrupt<HumanInterrupt, HumanResponse | HumanResponse[]>(humanInterrupt);
+            const humanReview: HumanResponse = Array.isArray(humanReviewResponse) ? humanReviewResponse[0] : humanReviewResponse
+            if (humanReview.type === "response") {
+                const responseMessage = new HumanMessage({
+                    response_metadata: {
+                        toolMessage: true
+                    },
+                    id: v4(),
+                    content: complexResponseToLangchainMessageContent([
+                        { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
+                        { type: 'text', text: humanReview.args as string }]),
+                });
+                return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
+            }
         }
-        throw new Error("Unreachable");
+        return new Command({ goto: "run_tool" });
     }
 
     function outputConvert(state: typeof StateAnnotation.State) {

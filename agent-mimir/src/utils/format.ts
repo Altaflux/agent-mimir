@@ -11,6 +11,16 @@ export function extractTextContent(messageContent: MessageContent): string {
   }
 }
 
+export function extractTextContentFromComplexMessageContent(messageContent: ComplexMessageContent[]): string {
+  if (typeof messageContent === "string") {
+    return messageContent;
+  } else if (Array.isArray(messageContent)) {
+    return (messageContent as any).find((e: any) => e.type === "text")?.text ?? "";
+  } else {
+    throw new Error(`Got unsupported text type: ${JSON.stringify(messageContent)}`);
+  }
+}
+
 
 export function complexResponseToLangchainMessageContent(toolResponse: ComplexMessageContent[]): MessageContent {
   const content = toolResponse.map((en) => {

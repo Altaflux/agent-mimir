@@ -114,23 +114,24 @@ export async function createLgAgent(config: CreateAgentArgs) {
             let response: AIMessage;
             let messageToStore: BaseMessage[] = [];
             const messageId = lastMessage.id ?? v4();
+
+
+            const messageListToSend = [...state.messages].map(m => {
+                if (m.getType() === "ai" && m.response_metadata["original_content"]) {
+                    return new AIMessage({
+                        ...m,
+                        content: complexResponseToLangchainMessageContent(m.response_metadata["original_content"])
+                    })
+                }
+                return m;
+            })
+
             if (nextMessage.type === "USER_MESSAGE") {
                 const inputMessage = humanMessageToInputAgentMessage(lastMessage);
                 await workspaceManager.loadFiles(inputMessage.sharedFiles ?? []);
                 const { displayMessage, persistentMessage } = await pluginContextProvider.additionalMessageContent(inputMessage);
                 displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
                 persistentMessage.message.content = trimAndSanitizeMessageContent(persistentMessage.message.content);
-
-
-                const messageListToSend = [...state.messages].map(m => {
-                    if (m.getType() === "ai" && m.response_metadata["original_content"]) {
-                        return new AIMessage({
-                            ...m,
-                            content: complexResponseToLangchainMessageContent(m.response_metadata["original_content"])
-                        })
-                    }
-                    return m;
-                })
 
 
                 messageListToSend.push(new HumanMessage({
@@ -151,15 +152,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
 
             } else {
-                const messageListToSend = [...state.messages].map(m => {
-                    if (m.getType() === "ai" && m.response_metadata["original_content"]) {
-                        return new AIMessage({
-                            ...m,
-                            content: complexResponseToLangchainMessageContent(m.response_metadata["original_content"])
-                        })
-                    }
-                    return m;
-                })
+
                 if (isToolMessage(lastMessage) && ((lastMessage)).status !== "error") {
                     const { displayMessage, persistentMessage } = await pluginContextProvider.additionalMessageContent({ content: [] });
                     displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
@@ -236,7 +229,8 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 response_metadata: {
                     original_content: messageContent
                 }
-            })
+            });
+            
             return {
                 messages: [...messageToStore, reformattedAiMessage],
                 requestAttributes: {},
