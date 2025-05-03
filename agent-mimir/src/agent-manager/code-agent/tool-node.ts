@@ -2,11 +2,12 @@ import {
     MessageContentComplex,
     HumanMessage,
     MessageContent,
+    ToolMessage,
 } from "@langchain/core/messages";
 import { RunnableConfig } from "@langchain/core/runnables";
 
 import { MessagesAnnotation } from "@langchain/langgraph";
-import { complexResponseToLangchainMessageContent, extractAllTextFromComplexResponse, extractTextContent } from "../../utils/format.js";
+import { complexResponseToLangchainMessageContent, extractAllTextFromComplexResponse, extractTextContent, extractTextContentFromComplexMessageContent } from "../../utils/format.js";
 import { getExecutionCodeContentRegex } from "./utils.js";
 export type ToolNodeOptions = {
     name?: string;
@@ -41,7 +42,7 @@ export const pythonToolNodeFunction = (
         }
 
 
-        const textConent = extractTextContent(message.content);
+        const textConent = extractTextContentFromComplexMessageContent(message.response_metadata["original_content"]);
         const pythonScript = getExecutionCodeContentRegex(textConent)!;
 
         const toolResponses = new Map<string, ToolOutput>();
@@ -85,6 +86,21 @@ export const pythonToolNodeFunction = (
                 ...messageContent
             ])
         })
+
+        // const userMesage = new ToolMessage({
+        //     response_metadata: {
+        //         toolMessage: true,
+        //     },
+        //     id: v4(),
+        //     tool_call_id: v4(),
+        //     content: complexResponseToLangchainMessageContent([
+        //         {
+        //             type: "text",
+        //             text: "Result from script execution:\n\n",
+        //         },
+        //         ...messageContent
+        //     ])
+        // })
 
         // Handle mixed Command and non-Command outputs
 

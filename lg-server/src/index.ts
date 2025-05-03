@@ -32,7 +32,7 @@ async function createAgent() {
         profession: "a helpful assistant",
         workspaceFactory: workspaceFactory,
         visionSupport: "openai",
-        codeExecutor: (workspace) => new LocalPythonExecutor({additionalPackages: ["pandas", "numpy", "pillow", "sqlite3"], workspace: workspace}),
+        codeExecutor: (workspace) => new LocalPythonExecutor({additionalPackages: [], workspace: workspace}),
         plugins:[
             new McpClientPluginFactory({
                 servers: {
