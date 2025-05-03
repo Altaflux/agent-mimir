@@ -56,16 +56,7 @@ export const pythonToolNodeFunction = (
                 if (toolResponseId) {
                     const toolResponse = toolResponses.get(toolResponseId)!;
                     if (toolResponse) {
-                        // const resp: MessageContent = complexResponseToLangchainMessageContent(toolResponse.response as ComplexMessageContent[]);
-                        // if (typeof resp === "string") {
-                        //     return [
-                        //         {
-                        //             type: "text",
-                        //             text: resp
-                        //         }
-                        //     ] satisfies MessageContentComplex[]
-                        // }
-                        return toolResponse.response as ComplexMessageContent[];
+                        return toolResponse.response;
                     } else {
                         return [{
                             type: "text",

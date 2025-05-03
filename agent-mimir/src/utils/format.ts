@@ -13,7 +13,7 @@ export function extractTextContent(messageContent: MessageContent): string {
 
 
 export function complexResponseToLangchainMessageContent(toolResponse: ComplexMessageContent[]): MessageContent {
-  return toolResponse.map((en) => {
+  const content = toolResponse.map((en) => {
     if (en.type === "text") {
       return {
         type: "text",
@@ -24,7 +24,25 @@ export function complexResponseToLangchainMessageContent(toolResponse: ComplexMe
     }
     throw new Error(`Unsupported type: ${JSON.stringify(en)}`)
   })
+
+  return mergeContent(content);
 }
+
+function mergeContent(agentSystemMessages: MessageContentComplex[]): MessageContent {
+
+    const content = agentSystemMessages;
+    const containsOnlyText = content.find((f) => f.type !== "text") === undefined;
+    if (containsOnlyText) {
+        const systemMessageText = content.reduce((prev, next) => {
+            return prev + (next as MessageContentText).text
+        }, "");
+
+        return systemMessageText;
+    }
+    return content;
+}
+
+
 
 
 export function extractAllTextFromComplexResponse(toolResponse: ComplexMessageContent[]): string {

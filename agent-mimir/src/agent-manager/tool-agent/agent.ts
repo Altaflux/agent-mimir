@@ -126,7 +126,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     if (m.getType() === "ai" && m.response_metadata["original_content"]) {
                         return new AIMessage({
                             ...m,
-                            content: m.response_metadata["original_content"]
+                            content: complexResponseToLangchainMessageContent(m.response_metadata["original_content"])
                         })
                     }
                     return m;
@@ -139,7 +139,8 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 }));
                 messageToStore = [new HumanMessage({
                     response_metadata: {
-                        persistentMessageRetentionPolicy: persistentMessage.retentionPolicy
+                        persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
+                        original_content: persistentMessage.message.content
                     },
                     id: messageId,
                     content: complexResponseToLangchainMessageContent(persistentMessage.message.content)
@@ -154,7 +155,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     if (m.getType() === "ai" && m.response_metadata["original_content"]) {
                         return new AIMessage({
                             ...m,
-                            content: m.response_metadata["original_content"]
+                            content: complexResponseToLangchainMessageContent(m.response_metadata["original_content"])
                         })
                     }
                     return m;
@@ -180,7 +181,8 @@ export async function createLgAgent(config: CreateAgentArgs) {
                         messageToStore = [new HumanMessage({
                             id: messageId,
                             response_metadata: {
-                                persistentMessageRetentionPolicy: persistentMessage.retentionPolicy
+                                persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
+                                original_content: persistentMessage.message.content
                             },
                             content: complexResponseToLangchainMessageContent(persistentMessage.message.content)
                         })];
@@ -232,7 +234,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 ...response,
                 content: complexResponseToLangchainMessageContent(fieldMapper.getUserMessage(messageContent).result),
                 response_metadata: {
-                    original_content: response.content
+                    original_content: messageContent
                 }
             })
             return {
@@ -258,7 +260,6 @@ export async function createLgAgent(config: CreateAgentArgs) {
             return "human_review_node";
         }
     }
-
     async function messageRetentionNode(state: typeof MessagesAnnotation.State) {
         const modifiedMessages: BaseMessage[] = [];
 
@@ -270,7 +271,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
         // Iterate over messages with retention policies
         for (const [idx, message] of messagesWithRetention.entries()) {
             const retentionPolicy = message.response_metadata!.persistentMessageRetentionPolicy;
-            const messageContent = message.content as MessageContentComplex[];
+            const messageContent = message.response_metadata["original_content"] as ComplexMessageContent[];
 
             // Map content with its corresponding retention value and filter those
             // whose retention is either null or greater than the current idx.
@@ -287,10 +288,11 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 if (updatedContent.length > 0) {
                     modifiedMessages.push(new HumanMessage({
                         id: message.id!,
-                        content: updatedContent,
+                        content: complexResponseToLangchainMessageContent(updatedContent),
                         response_metadata: {
                             ...message.response_metadata,
-                            persistentMessageRetentionPolicy: updatedRetention
+                            persistentMessageRetentionPolicy: updatedRetention,
+                            original_content: updatedContent
                         }
                     }));
                 } else {
@@ -303,6 +305,8 @@ export async function createLgAgent(config: CreateAgentArgs) {
         }
         return { messages: modifiedMessages };
     }
+
+
     async function humanReviewNode(state: typeof StateAnnotation.State) {
         //const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
         const toolRequest: AgentMessageToolRequest = state.output;
