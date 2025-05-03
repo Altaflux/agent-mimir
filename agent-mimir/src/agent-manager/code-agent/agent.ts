@@ -233,9 +233,10 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 await plugin.readResponse(mimirAiMessage, rawResponseAttributes);
             }
 
+            const userMessage = fieldMapper.getUserMessage(messageContent);
             const reformattedAiMessage = new AIMessage({
                 ...response,
-                content: complexResponseToLangchainMessageContent(fieldMapper.getUserMessage(messageContent).result),
+                content: complexResponseToLangchainMessageContent(userMessage.tagFound ? userMessage.result : []),
                 response_metadata: {
                     original_content: messageContent
                 },
