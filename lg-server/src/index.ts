@@ -25,14 +25,14 @@ async function createAgent() {
         modelName: 'gpt-4.1-2025-04-14',
     });
 
-    return await codeCreateLgAgent({
+    return await createLgAgent({
         name: "agent",
         description: "a helpful assistant",
         model: chatModel,
         profession: "a helpful assistant",
         workspaceFactory: workspaceFactory,
         visionSupport: "openai",
-        codeExecutor: (workspace) => new LocalPythonExecutor({additionalPackages: [], workspace: workspace}),
+       // codeExecutor: (workspace) => new LocalPythonExecutor({additionalPackages: [], workspace: workspace}),
         plugins:[
             new McpClientPluginFactory({
                 servers: {

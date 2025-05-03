@@ -151,16 +151,17 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 const systemMessage = buildSystemMessage([...responseFormatSystemMessage, dividerSystemMessage, ...pluginInputs]);
                 response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
 
-            } else {
-
-                if (isToolMessage(lastMessage) && ((lastMessage)).status !== "error") {
+            } else  {
+                messageListToSend.push(lastMessage);
+                if (((lastMessage) as ToolMessage).status !== "error") {
                     const { displayMessage, persistentMessage } = await pluginContextProvider.additionalMessageContent({ content: [] });
                     displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
                     persistentMessage.message.content = trimAndSanitizeMessageContent(persistentMessage.message.content);
 
+
                     if (displayMessage.content.length > 0) {
                         messageListToSend.push(new HumanMessage({
-                            id: messageId,
+                            id: v4(),
                             content: complexResponseToLangchainMessageContent([
                                 {
                                     type: "text",
@@ -172,7 +173,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     }
                     if (persistentMessage.message.content.length > 0) {
                         messageToStore = [new HumanMessage({
-                            id: messageId,
+                            id: v4(),
                             response_metadata: {
                                 persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
                                 original_content: persistentMessage.message.content
@@ -230,7 +231,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     original_content: messageContent
                 }
             });
-            
+
             return {
                 messages: [...messageToStore, reformattedAiMessage],
                 requestAttributes: {},
