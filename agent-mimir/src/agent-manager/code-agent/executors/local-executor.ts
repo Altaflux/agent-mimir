@@ -19,9 +19,10 @@ export class LocalPythonExecutor implements CodeToolExecutor {
     private tempDir: string | undefined;
     private initialized: boolean = false;
 
-    availableDependencies: string[] = this.config.additionalPackages ?? [];
+    availableDependencies: string[];
 
     constructor(private config: PythonExecutorOptions) {
+        this.availableDependencies = config.additionalPackages ?? []
     }
 
 

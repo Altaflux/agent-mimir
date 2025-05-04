@@ -9,7 +9,7 @@ import { Annotation, BaseCheckpointSaver, Command, END, interrupt, MemorySaver, 
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { dividerSystemMessage, humanMessageToInputAgentMessage, lCmessageContentToContent, mergeSystemMessages } from "../message-utils.js";
-import { Agent, AgentMessageToolRequest, InputAgentMessage, WorkspaceFactory } from "../index.js";
+import { Agent, AgentMessageToolRequest, WorkspaceFactory } from "../index.js";
 import { AttributeDescriptor, PluginFactory, AiResponseMessage } from "../../plugins/index.js";
 import { toolNodeFunction } from "./tool-node.js"
 import { aiMessageToMimirAiMessage, langChainHumanMessageToMimirHumanMessage, langChainToolMessageToMimirToolMessage, toolMessageToToolResponseInfo } from "./utils.js";
@@ -17,7 +17,7 @@ import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { DEFAULT_CONSTITUTION } from "../constants.js";
 import { PluginContextProvider } from "../../plugins/context-provider.js";
 import { LanggraphAgent } from "../langgraph-agent.js";
-import { ActionRequest, HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
+import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
 export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
     requestAttributes: Annotation<Record<string, any>>,
@@ -141,7 +141,8 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 messageToStore = [new HumanMessage({
                     response_metadata: {
                         persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
-                        original_content: persistentMessage.message.content
+                        original_content: persistentMessage.message.content,
+                        shared_files: inputMessage.sharedFiles,
                     },
                     id: messageId,
                     content: complexResponseToLangchainMessageContent(inputMessage.content)

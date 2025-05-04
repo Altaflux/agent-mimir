@@ -157,7 +157,8 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 messageToStore = [new HumanMessage({
                     response_metadata: {
                         persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
-                        original_content: persistentMessage.message.content
+                        original_content: persistentMessage.message.content,
+                        shared_files: inputMessage.sharedFiles,
                     },
                     id: messageId,
                     content: complexResponseToLangchainMessageContent(inputMessage.content)

@@ -150,13 +150,11 @@ export class LanggraphAgent implements Agent {
             }
 
             const state = await this.graph.getState({ ...stateConfig, configurable: { thread_id: threadId } });
-
+            const lastMessage = state.values.messages[state.values.messages.length - 1] as BaseMessage;
             const responseAttributes: Record<string, any> = state.values["responseAttributes"];
             if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
                 const interruptState = state.tasks[0].interrupts[0];
                 const interruptVal =  interruptState.value as HumanInterrupt
-                //const state = await this.graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
-                const lastMessage = state.values.messages[state.values.messages.length - 1] as BaseMessage;
                 return {
                     type: "toolRequest",
                     output: {content: lCmessageContentToContent(lastMessage.content), id: lastMessage.id ?? "", toolCalls: [
@@ -169,10 +167,13 @@ export class LanggraphAgent implements Agent {
                 }
             }
 
-            let userResponse = (state.values["output"] as OutputAgentMessage);
             return {
                 type: "agentResponse",
-                output: userResponse,
+                output: {
+                    content: lCmessageContentToContent(lastMessage.content),
+                    id: lastMessage.id ?? v4(),
+                    sharedFiles: lastMessage.response_metadata["shared_files"] ?? []
+                },
                 responseAttributes: responseAttributes
             } satisfies AgentUserMessageResponse
         }
