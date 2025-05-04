@@ -15,7 +15,6 @@ export type LanggraphAgentArgs = {
     commands: AgentCommand[],
     plugins: AgentPlugin[],
     graph: CompiledStateGraph<StateType<{
-        output: typeof Annotation<AiResponseMessage>,
         messages: BinaryOperatorAggregate<BaseMessage[], Messages>
     }>, any, any>,
     toolMessageHandler: {
@@ -31,7 +30,6 @@ export class LanggraphAgent implements Agent {
     workspace: AgentWorkspace;
     commands: AgentCommand[];
     graph: CompiledStateGraph<StateType<{
-        output: typeof Annotation<AiResponseMessage>,
         messages: BinaryOperatorAggregate<BaseMessage[], Messages>
     }>, any, any>
 

@@ -22,7 +22,6 @@ export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
     requestAttributes: Annotation<Record<string, any>>,
     responseAttributes: Annotation<Record<string, any>>,
-    output: Annotation<AiResponseMessage>,
     noMessagesInTool: Annotation<Boolean>
 });
 
@@ -236,7 +235,6 @@ export async function createLgAgent(config: CreateAgentArgs) {
             return {
                 messages: [...messageToStore, reformattedAiMessage],
                 requestAttributes: {},
-                output: mimirAiMessage,
                 responseAttributes: rawResponseAttributes,
             };
         };
@@ -304,21 +302,15 @@ export async function createLgAgent(config: CreateAgentArgs) {
 
 
     async function humanReviewNode(state: typeof StateAnnotation.State) {
-        //const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
-        const toolRequest: AgentMessageToolRequest = state.output;
+        const toolRequest = state.messages[state.messages.length - 1] as AIMessage;
 
-        for (const tool_call of toolRequest.toolCalls ?? []) {
-            let toolArguments = { args: tool_call.input };
-            try {
-                toolArguments = JSON.parse(tool_call.input);
-            } catch (e) {
-
-            }
+        for (const tool_call of toolRequest.tool_calls ?? []) {
+   
             const humanInterrupt: HumanInterrupt = {
                 description: "The agent is requesting permission to execute the following tool.",
                 action_request: {
-                    action: tool_call.toolName,
-                    args: toolArguments
+                    action: tool_call.name,
+                    args: tool_call.args
                 },
                 config: {
                     allow_accept: true,
@@ -339,7 +331,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 if (name === "ChatAnthropic" || name === "ChatOpenAI") {
                     const responseMessage = new ToolMessage({
                         id: v4(),
-                        tool_call_id: toolRequest.toolCalls![0].id!,
+                        tool_call_id: toolRequest.tool_calls![0].id!,
                         content: complexResponseToLangchainMessageContent([
                             { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
                             { type: 'text', text: humanReview.args as string }]),
