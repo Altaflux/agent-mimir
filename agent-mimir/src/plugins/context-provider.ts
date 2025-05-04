@@ -101,9 +101,16 @@ export class PluginContextProvider {
      * `retentionPolicy`).
      */
     async additionalMessageContent(message: InputAgentMessage): Promise<RetentionAwareMessageContent> {
-
-        return await addAdditionalContentToUserMessage(message, this.plugins);
-
+        return await addAdditionalContentToUserMessage({
+            ...message,
+            content: [
+                ...message.content,
+                // {
+                //     type: "text",
+                //     text: "\n\n"
+                // }
+            ]
+        }, this.plugins);
     }
 }
 
@@ -228,7 +235,7 @@ async function addAdditionalContentToUserMessage(message: InputAgentMessage, plu
         if (!customizations) continue;
         const pluginContextName = {
             type: "text",
-            text: plugin.name ? `\n### PLUGIN ${plugin.name} CONTEXT ###` : '----------------------'
+            text: plugin.name ? `\n### PLUGIN ${plugin.name} CONTEXT ###\n` : '\n----------------------\n'
         } satisfies ComplexMessageContent;
 
         if (customizations.some((customization) => customization.displayOnCurrentMessage)) {
