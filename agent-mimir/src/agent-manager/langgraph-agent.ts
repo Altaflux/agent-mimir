@@ -3,8 +3,9 @@ import { AgentCommand, AgentPlugin, AiResponseMessage } from "../plugins/index.j
 import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, CommandRequest, InputAgentMessage, IntermediateAgentMessage, OutputAgentMessage, ToolResponseInfo } from "./index.js";
 import { BaseMessage, HumanMessage, RemoveMessage } from "@langchain/core/messages";
 import { v4 } from "uuid";
-import { complexResponseToLangchainMessageContent } from "../utils/format.js";
-import { commandContentToBaseMessage } from "./message-utils.js";
+import { complexResponseToLangchainMessageContent, extractAllTextFromComplexResponse } from "../utils/format.js";
+import { commandContentToBaseMessage, lCmessageContentToContent } from "./message-utils.js";
+import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
 
 
 export type LanggraphAgentArgs = {
@@ -50,9 +51,9 @@ export class LanggraphAgent implements Agent {
         const state = await this.graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
         if (state.next.length > 0 && state.next[0] === "human_review_node") {
             if (args.message) {
-                graphInput = new Command({ resume: { action: "feedback", data: args.message } })
+                graphInput = new Command({ resume: { type: "response", args: extractAllTextFromComplexResponse(args.message.content) } satisfies HumanResponse })
             } else {
-                graphInput = new Command({ resume: { action: "continue" } })
+                graphInput = new Command({ resume: { type: "accept", args: null } satisfies HumanResponse })
             }
 
         }
@@ -153,9 +154,17 @@ export class LanggraphAgent implements Agent {
             const responseAttributes: Record<string, any> = state.values["responseAttributes"];
             if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
                 const interruptState = state.tasks[0].interrupts[0];
+                const interruptVal =  interruptState.value as HumanInterrupt
+                //const state = await this.graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
+                const lastMessage = state.values.messages[state.values.messages.length - 1] as BaseMessage;
                 return {
                     type: "toolRequest",
-                    output: interruptState.value as AgentMessageToolRequest,
+                    output: {content: lCmessageContentToContent(lastMessage.content), id: lastMessage.id ?? "", toolCalls: [
+                        {
+                            toolName: interruptVal.action_request.action,
+                            input: JSON.stringify(interruptVal.action_request.args)
+                        }
+                    ]} satisfies AgentMessageToolRequest,
                     responseAttributes: responseAttributes
                 }
             }

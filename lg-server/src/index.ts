@@ -11,7 +11,7 @@ import { InputAgentMessage } from "agent-mimir/agent";
 
 
 class DummyPluginFactory implements PluginFactory {
-    name: string;
+    name: string = "dummyPlugin";
     async create(context: PluginContext): Promise<AgentPlugin> {
         return new (class extends AgentPlugin {
             async additionalMessageContent(message: InputAgentMessage): Promise<AdditionalContent[]> {
@@ -51,14 +51,14 @@ async function createAgent() {
         modelName: 'gpt-4.1-2025-04-14',
     });
 
-    return await createLgAgent({
+    return await codeCreateLgAgent({
         name: "agent",
         description: "a helpful assistant",
         model: chatModel,
         profession: "a helpful assistant",
         workspaceFactory: workspaceFactory,
         visionSupport: "openai",
-       // codeExecutor: (workspace) => new LocalPythonExecutor({additionalPackages: [], workspace: workspace}),
+        codeExecutor: (workspace) => new LocalPythonExecutor({additionalPackages: [], workspace: workspace}),
         plugins:[
             new DummyPluginFactory(),
             new McpClientPluginFactory({

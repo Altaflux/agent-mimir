@@ -347,10 +347,11 @@ export async function createLgAgent(config: CreateAgentArgs) {
             const humanReviewResponse = interrupt<HumanInterrupt, HumanResponse | HumanResponse[]>(humanInterrupt);
             const humanReview: HumanResponse = Array.isArray(humanReviewResponse) ? humanReviewResponse[0] : humanReviewResponse
             if (humanReview.type === "response") {
-                const responseMessage = new HumanMessage({
+                const responseMessage = new ToolMessage({
                     response_metadata: {
                         toolMessage: true
                     },
+                    tool_call_id: toolRequest.toolCalls![0].id!,
                     id: v4(),
                     content: complexResponseToLangchainMessageContent([
                         { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
