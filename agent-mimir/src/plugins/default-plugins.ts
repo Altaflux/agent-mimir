@@ -15,10 +15,10 @@ class DefaultPlugin extends AgentPlugin {
     async getSystemMessages(): Promise<AgentSystemMessage> {
         return {
             content: [
-                {
-                    type: "text",
-                    text: `The current time is: ${new Date().toISOString()}`
-                }
+                // {
+                //     type: "text",
+                //     text: `The current time is: ${new Date().toISOString()}`
+                // }
             ]
         };
     }

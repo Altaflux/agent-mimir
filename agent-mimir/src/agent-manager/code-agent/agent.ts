@@ -160,7 +160,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                         original_content: persistentMessage.message.content
                     },
                     id: messageId,
-                    content: complexResponseToLangchainMessageContent(persistentMessage.message.content)
+                    content: complexResponseToLangchainMessageContent(inputMessage.content)
                 })];
 
 

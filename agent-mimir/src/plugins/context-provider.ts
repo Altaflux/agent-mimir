@@ -101,16 +101,7 @@ export class PluginContextProvider {
      * `retentionPolicy`).
      */
     async additionalMessageContent(message: InputAgentMessage): Promise<RetentionAwareMessageContent> {
-        return await addAdditionalContentToUserMessage({
-            ...message,
-            content: [
-                ...message.content,
-                // {
-                //     type: "text",
-                //     text: "\n\n"
-                // }
-            ]
-        }, this.plugins);
+        return await addAdditionalContentToUserMessage(message, this.plugins);
     }
 }
 

@@ -144,7 +144,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                         original_content: persistentMessage.message.content
                     },
                     id: messageId,
-                    content: complexResponseToLangchainMessageContent(persistentMessage.message.content)
+                    content: complexResponseToLangchainMessageContent(inputMessage.content)
                 })];
 
                 const pluginInputs = await pluginContextProvider.getSystemPromptContext();
@@ -173,12 +173,12 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     }
                     if (persistentMessage.message.content.length > 0) {
                         messageToStore = [new HumanMessage({
-                            id: v4(),
+                            id: `do-not-render-${v4()}`,
                             response_metadata: {
                                 persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
                                 original_content: persistentMessage.message.content
                             },
-                            content: complexResponseToLangchainMessageContent(persistentMessage.message.content)
+                            content: []
                         })];
                     }
                 }
