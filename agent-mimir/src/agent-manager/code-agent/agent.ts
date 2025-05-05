@@ -1,13 +1,13 @@
 import { ComplexMessageContent, } from "../../schema.js";
 import { WorkspacePluginFactory, WorkspanceManager } from "../../plugins/workspace.js";
 import { ViewPluginFactory } from "../../tools/image_view.js";
-import { complexResponseToLangchainMessageContent, extractTextContent, extractTextContentFromComplexMessageContent, trimAndSanitizeMessageContent } from "../../utils/format.js";
-import { AIMessage, BaseMessage, FunctionMessage, HumanMessage, isToolMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
+import { complexResponseToLangchainMessageContent, extractTextContent, trimAndSanitizeMessageContent } from "../../utils/format.js";
+import { AIMessage, BaseMessage, HumanMessage, isToolMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { Annotation, BaseCheckpointSaver, Command, END, interrupt, MemorySaver, Messages, MessagesAnnotation, START, StateDefinition, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { dividerSystemMessage, humanMessageToInputAgentMessage, lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
-import { Agent, AgentMessageToolRequest, AgentWorkspace, InputAgentMessage, WorkspaceFactory } from "./../index.js";
+import { Agent, AgentWorkspace, WorkspaceFactory } from "./../index.js";
 import { PluginFactory } from "../../plugins/index.js";
 import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex,  langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo, toPythonFunctionName } from "./utils.js";
 import { pythonToolNodeFunction } from "./tool-node.js";
@@ -321,13 +321,12 @@ export async function createLgAgent(config: CreateAgentArgs) {
 
     async function humanReviewNode(state: typeof StateAnnotation.State) {
         const toolRequest = state.messages[state.messages.length - 1] as AIMessage;
-
-        for (const tool_call of toolRequest.tool_calls ?? []) {
+            const toolCall = toolRequest.tool_calls![0]!
             const humanInterrupt: HumanInterrupt = {
                 description: "The agent is requesting permission to execute the following tool.",
                 action_request: {
-                    action: tool_call.name,
-                    args: tool_call.args
+                    action: toolCall.name,
+                    args: toolCall.args
                 },
                 config: {
                     allow_accept: true,
@@ -351,7 +350,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 });
                 return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
             }
-        }
+        
         return new Command({ goto: "run_tool" });
     }
 

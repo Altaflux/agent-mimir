@@ -9,8 +9,8 @@ import { Annotation, BaseCheckpointSaver, Command, END, interrupt, MemorySaver, 
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { dividerSystemMessage, humanMessageToInputAgentMessage, lCmessageContentToContent, mergeSystemMessages } from "../message-utils.js";
-import { Agent, AgentMessageToolRequest, WorkspaceFactory } from "../index.js";
-import { AttributeDescriptor, PluginFactory, AiResponseMessage } from "../../plugins/index.js";
+import { Agent, WorkspaceFactory } from "../index.js";
+import { AttributeDescriptor, PluginFactory } from "../../plugins/index.js";
 import { toolNodeFunction } from "./tool-node.js"
 import { aiMessageToMimirAiMessage, langChainHumanMessageToMimirHumanMessage, langChainToolMessageToMimirToolMessage, toolMessageToToolResponseInfo } from "./utils.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
@@ -299,53 +299,48 @@ export async function createLgAgent(config: CreateAgentArgs) {
         }
         return { messages: modifiedMessages };
     }
-
-
     async function humanReviewNode(state: typeof StateAnnotation.State) {
         const toolRequest = state.messages[state.messages.length - 1] as AIMessage;
 
-        for (const tool_call of toolRequest.tool_calls ?? []) {
-   
-            const humanInterrupt: HumanInterrupt = {
-                description: "The agent is requesting permission to execute the following tool.",
-                action_request: {
-                    action: tool_call.name,
-                    args: tool_call.args
-                },
-                config: {
-                    allow_accept: true,
-                    allow_ignore: false,
-                    allow_respond: true,
-                    allow_edit: true
-                }
+       
+        const humanInterrupt: HumanInterrupt = {
+            description: "The agent is requesting permission to execute the following tool.",
+            action_request: {
+                action: "Execute_Tools",
+                args: (toolRequest.tool_calls ?? [])
+            },
+            config: {
+                allow_accept: true,
+                allow_ignore: false,
+                allow_respond: true,
+                allow_edit: true
             }
-            const humanReviewResponse = interrupt<HumanInterrupt, HumanResponse | HumanResponse[]>(humanInterrupt);
-            const humanReview: HumanResponse = Array.isArray(humanReviewResponse) ? humanReviewResponse[0] : humanReviewResponse
-            console.log(humanReview)
+        }
+        const humanReviewResponse = interrupt<HumanInterrupt, HumanResponse | HumanResponse[]>(humanInterrupt);
+        const humanReview: HumanResponse = Array.isArray(humanReviewResponse) ? humanReviewResponse[0] : humanReviewResponse
+        console.log(humanReview)
 
-            const name = modelWithTools.getName();
-            if (humanReview.type === "response") {
-                // await workspaceManager.loadFiles(reviewData.sharedFiles ?? []);
+        const name = modelWithTools.getName();
+        if (humanReview.type === "response") {
 
-                //Claude forcefully needs a tool message after a tool call, so we need to send it a tool message with the feedback. Every other model can just receive a human message.
-                if (name === "ChatAnthropic" || name === "ChatOpenAI") {
-                    const responseMessage = new ToolMessage({
-                        id: v4(),
-                        tool_call_id: toolRequest.tool_calls![0].id!,
-                        content: complexResponseToLangchainMessageContent([
-                            { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
-                            { type: 'text', text: humanReview.args as string }]),
-                    })
-                    return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
-                } else {
-                    const responseMessage = new HumanMessage({
-                        id: v4(),
-                        content: complexResponseToLangchainMessageContent([
-                            { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
-                            { type: 'text', text: humanReview.args as string }]),
-                    })
-                    return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
-                }
+            //Claude forcefully needs a tool message after a tool call, so we need to send it a tool message with the feedback. Every other model can just receive a human message.
+            if (name === "ChatAnthropic" || name === "ChatOpenAI") {
+                const responseMessage = new ToolMessage({
+                    id: v4(),
+                    tool_call_id: toolRequest.tool_calls![0].id!,
+                    content: complexResponseToLangchainMessageContent([
+                        { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
+                        { type: 'text', text: humanReview.args as string }]),
+                })
+                return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
+            } else {
+                const responseMessage = new HumanMessage({
+                    id: v4(),
+                    content: complexResponseToLangchainMessageContent([
+                        { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
+                        { type: 'text', text: humanReview.args as string }]),
+                })
+                return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
             }
         }
         return new Command({ goto: "run_tool" });

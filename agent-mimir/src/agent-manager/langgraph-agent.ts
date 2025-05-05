@@ -1,6 +1,6 @@
-import { CompiledStateGraph, StateType, Annotation, BinaryOperatorAggregate, Messages, Command } from "@langchain/langgraph";
-import { AgentCommand, AgentPlugin, AiResponseMessage } from "../plugins/index.js";
-import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, CommandRequest, InputAgentMessage, IntermediateAgentMessage, OutputAgentMessage, ToolResponseInfo } from "./index.js";
+import { CompiledStateGraph, StateType, BinaryOperatorAggregate, Messages, Command } from "@langchain/langgraph";
+import { AgentCommand, AgentPlugin } from "../plugins/index.js";
+import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, CommandRequest, InputAgentMessage, IntermediateAgentMessage, ToolResponseInfo } from "./index.js";
 import { BaseMessage, HumanMessage, RemoveMessage } from "@langchain/core/messages";
 import { v4 } from "uuid";
 import { complexResponseToLangchainMessageContent, extractAllTextFromComplexResponse } from "../utils/format.js";
@@ -158,7 +158,7 @@ export class LanggraphAgent implements Agent {
                     output: {content: lCmessageContentToContent(lastMessage.content), id: lastMessage.id ?? "", toolCalls: [
                         {
                             toolName: interruptVal.action_request.action,
-                            input: JSON.stringify(interruptVal.action_request.args)
+                            input: JSON.stringify(interruptVal.action_request.args, null, 2)
                         }
                     ]} satisfies AgentMessageToolRequest,
                     responseAttributes: responseAttributes
