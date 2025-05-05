@@ -20,7 +20,6 @@ import { LanggraphAgent } from "../langgraph-agent.js";
 import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
 export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
-    requestAttributes: Annotation<Record<string, any>>,
     responseAttributes: Annotation<Record<string, any>>,
     noMessagesInTool: Annotation<Boolean>
 });
@@ -234,7 +233,6 @@ export async function createLgAgent(config: CreateAgentArgs) {
 
             return {
                 messages: [...messageToStore, reformattedAiMessage],
-                requestAttributes: {},
                 responseAttributes: rawResponseAttributes,
             };
         };

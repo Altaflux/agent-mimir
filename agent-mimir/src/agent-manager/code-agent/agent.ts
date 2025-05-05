@@ -52,7 +52,6 @@ export type CreateAgentArgs = {
 
 export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
-    requestAttributes: Annotation<Record<string, any>>,
     responseAttributes: Annotation<Record<string, any>>,
     noMessagesInTool: Annotation<Boolean>,
 });
@@ -253,7 +252,6 @@ export async function createLgAgent(config: CreateAgentArgs) {
 
             return {
                 messages: [...messageToStore, reformattedAiMessage],
-                requestAttributes: {},
                 responseAttributes: rawResponseAttributes
             };
         };
