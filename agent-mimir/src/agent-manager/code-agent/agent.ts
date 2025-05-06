@@ -188,7 +188,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                                 persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
                                 original_content: persistentMessage.message.content
                             },
-                            content: complexResponseToLangchainMessageContent(displayMessage.content)
+                            content: complexResponseToLangchainMessageContent(inputMessage.content)
                         })];
                     }
                 }
