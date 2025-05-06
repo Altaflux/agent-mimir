@@ -73,9 +73,6 @@ export const pythonToolNodeFunction = (
             }).flatMap((e) => e);
 
         const userMesage = new ToolMessage({
-            response_metadata: {
-                toolMessage: true,
-            },
             id: v4(),
             tool_call_id: toolCall.id ?? v4(),
             content: complexResponseToLangchainMessageContent([

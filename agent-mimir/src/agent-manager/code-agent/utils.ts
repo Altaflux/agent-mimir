@@ -99,11 +99,6 @@ export function langChainToolMessageToMimirHumanMessage(message: HumanMessage): 
 }
 
 
-export function isToolMessage(message: BaseMessage): boolean {
-  return message.response_metadata?.toolMessage ?? false;
-}
-
-
 export function toolMessageToToolResponseInfo(message: HumanMessage): ToolResponseInfo {
   const toolResponse = lCmessageContentToContent(message.content);
   return {

@@ -337,9 +337,6 @@ export async function createLgAgent(config: CreateAgentArgs) {
             const humanReview: HumanResponse = Array.isArray(humanReviewResponse) ? humanReviewResponse[0] : humanReviewResponse
             if (humanReview.type === "response") {
                 const responseMessage = new ToolMessage({
-                    response_metadata: {
-                        toolMessage: true
-                    },
                     tool_call_id: toolRequest.tool_calls![0].id!,
                     id: v4(),
                     content: complexResponseToLangchainMessageContent([
