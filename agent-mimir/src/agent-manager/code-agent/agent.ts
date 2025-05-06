@@ -173,7 +173,6 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     const inputMessage = humanMessageToInputAgentMessage(lastMessage);
                     const { displayMessage, persistentMessage } = await pluginContextProvider.additionalMessageContent(inputMessage);
                     displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
-                    //TODO THIS WILL BREAK RETENTION POLICY, hmmm probably not
                     persistentMessage.message.content = trimAndSanitizeMessageContent(persistentMessage.message.content);
                     if (displayMessage.content.length > 0) {
                         messageListToSend.push(new HumanMessage({
@@ -189,7 +188,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                                 persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
                                 original_content: persistentMessage.message.content
                             },
-                            content: complexResponseToLangchainMessageContent(persistentMessage.message.content)
+                            content: complexResponseToLangchainMessageContent(displayMessage.content)
                         })];
                     }
                 }
