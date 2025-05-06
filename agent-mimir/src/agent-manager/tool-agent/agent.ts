@@ -12,7 +12,7 @@ import { dividerSystemMessage, humanMessageToInputAgentMessage, lCmessageContent
 import { Agent, WorkspaceFactory } from "../index.js";
 import { AttributeDescriptor, PluginFactory } from "../../plugins/index.js";
 import { toolNodeFunction } from "./tool-node.js"
-import { aiMessageToMimirAiMessage, langChainHumanMessageToMimirHumanMessage, langChainToolMessageToMimirToolMessage, toolMessageToToolResponseInfo } from "./utils.js";
+import { aiMessageToMimirAiMessage, langChainHumanMessageToMimirHumanMessage, langChainToolMessageToMimirToolMessage } from "./utils.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { DEFAULT_CONSTITUTION } from "../constants.js";
 import { PluginContextProvider } from "../../plugins/context-provider.js";
@@ -410,11 +410,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         workspace: agent.workspace,
         commands: agent.commandList,
         graph: agent.graph,
-        plugins: agent.plugins,
-        toolMessageHandler: {
-            isToolMessage: isToolMessage,
-            messageToToolMessage: (msg) => toolMessageToToolResponseInfo(msg as ToolMessage),
-        }
+        plugins: agent.plugins
     })
 }
 

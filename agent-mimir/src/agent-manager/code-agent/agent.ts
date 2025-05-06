@@ -9,7 +9,7 @@ import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { dividerSystemMessage, humanMessageToInputAgentMessage, lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
 import { Agent, AgentWorkspace, WorkspaceFactory } from "./../index.js";
 import { PluginFactory } from "../../plugins/index.js";
-import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex,  langChainToolMessageToMimirHumanMessage, toolMessageToToolResponseInfo, toPythonFunctionName } from "./utils.js";
+import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex,  langChainToolMessageToMimirHumanMessage, toPythonFunctionName } from "./utils.js";
 import { pythonToolNodeFunction } from "./tool-node.js";
 import { FUNCTION_PROMPT, getFunctionsPrompt, PYTHON_SCRIPT_SCHEMA } from "./prompt.js";
 import { DefaultPluginFactory } from "../../plugins/default-plugins.js";
@@ -413,11 +413,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         workspace: agent.workspace,
         commands: agent.commandList,
         graph: agent.graph,
-        plugins: agent.plugins,
-        toolMessageHandler: {
-            isToolMessage: isToolMessage,
-            messageToToolMessage: toolMessageToToolResponseInfo,
-        }
+        plugins: agent.plugins
     })
 }
 

@@ -1,7 +1,7 @@
 import { CompiledStateGraph, StateType, BinaryOperatorAggregate, Messages, Command } from "@langchain/langgraph";
 import { AgentCommand, AgentPlugin } from "../plugins/index.js";
-import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, CommandRequest, InputAgentMessage, IntermediateAgentMessage, ToolResponseInfo } from "./index.js";
-import { BaseMessage, HumanMessage, RemoveMessage } from "@langchain/core/messages";
+import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, CommandRequest, InputAgentMessage, IntermediateAgentMessage } from "./index.js";
+import { BaseMessage, HumanMessage, isToolMessage, RemoveMessage } from "@langchain/core/messages";
 import { v4 } from "uuid";
 import { complexResponseToLangchainMessageContent, extractAllTextFromComplexResponse } from "../utils/format.js";
 import { commandContentToBaseMessage, lCmessageContentToContent } from "./message-utils.js";
@@ -16,16 +16,12 @@ export type LanggraphAgentArgs = {
     plugins: AgentPlugin[],
     graph: CompiledStateGraph<StateType<{
         messages: BinaryOperatorAggregate<BaseMessage[], Messages>
-    }>, any, any>,
-    toolMessageHandler: {
-        isToolMessage: (message: BaseMessage) => boolean,
-        messageToToolMessage: (message: BaseMessage) => ToolResponseInfo
-    }
+    }>, any, any>
 }
 
 
 export class LanggraphAgent implements Agent {
-    name: string ;
+    name: string;
     description: string;
     workspace: AgentWorkspace;
     commands: AgentCommand[];
@@ -136,11 +132,15 @@ export class LanggraphAgent implements Agent {
                     let messageState = state[1];
                     if (messageState.messages.length > 0) {
                         const lastMessage = messageState.messages[messageState.messages.length - 1];
-                        if (this.args.toolMessageHandler.isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id)) {
+                        if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id)) {
                             lastKnownMessage = lastMessage;
                             yield {
                                 type: "toolResponse",
-                                toolResponse: this.args.toolMessageHandler.messageToToolMessage(lastMessage)
+                                toolResponse: {
+                                    id: lastMessage.tool_call_id,
+                                    name: lastMessage.name ?? "Unknown",
+                                    response: lCmessageContentToContent(lastMessage.content)
+                                }
                             };
                         }
                     }
@@ -152,15 +152,17 @@ export class LanggraphAgent implements Agent {
             const responseAttributes: Record<string, any> = state.values["responseAttributes"];
             if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
                 const interruptState = state.tasks[0].interrupts[0];
-                const interruptVal =  interruptState.value as HumanInterrupt
+                const interruptVal = interruptState.value as HumanInterrupt
                 return {
                     type: "toolRequest",
-                    output: {content: lCmessageContentToContent(lastMessage.content), id: lastMessage.id ?? "", toolCalls: [
-                        {
-                            toolName: interruptVal.action_request.action,
-                            input: JSON.stringify(interruptVal.action_request.args, null, 2)
-                        }
-                    ]} satisfies AgentMessageToolRequest,
+                    output: {
+                        content: lCmessageContentToContent(lastMessage.content), id: lastMessage.id ?? "", toolCalls: [
+                            {
+                                toolName: interruptVal.action_request.action,
+                                input: JSON.stringify(interruptVal.action_request.args, null, 2)
+                            }
+                        ]
+                    } satisfies AgentMessageToolRequest,
                     responseAttributes: responseAttributes
                 }
             }

@@ -13,6 +13,7 @@ export function langChainToolMessageToMimirToolMessage(message: ToolMessage): Ne
     content: lCmessageContentToContent(message.content)
   };
 }
+
 export function langChainHumanMessageToMimirHumanMessage(message: HumanMessage): NextMessageUser {
   return {
     type: "USER_MESSAGE",
@@ -22,15 +23,6 @@ export function langChainHumanMessageToMimirHumanMessage(message: HumanMessage):
     content: lCmessageContentToContent(message.content)
   };
 }
-export function toolMessageToToolResponseInfo(message: ToolMessage): ToolResponseInfo {
-  const toolResponse = lCmessageContentToContent(message.content);
-  return {
-    id: message.tool_call_id,
-    name: message.name ?? "Unknown",
-    response: toolResponse
-  };
-}
-
 
 export function aiMessageToMimirAiMessage(aiMessage: AIMessage, files: AiResponseMessage["sharedFiles"], mapper: ResponseFieldMapper): AiResponseMessage {
   const userContent = mapper.getUserMessage(lCmessageContentToContent(aiMessage.content));
