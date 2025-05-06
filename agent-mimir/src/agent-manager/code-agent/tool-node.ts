@@ -1,12 +1,13 @@
 import {
-    MessageContentComplex,
-    HumanMessage,
+    ToolMessage,
+    BaseMessage,
+    isAIMessage,
 } from "@langchain/core/messages";
 import { RunnableConfig } from "@langchain/core/runnables";
 
 import { MessagesAnnotation } from "@langchain/langgraph";
-import { complexResponseToLangchainMessageContent, extractAllTextFromComplexResponse, extractTextContent } from "../../utils/format.js";
-import { getExecutionCodeContentRegex } from "./utils.js";
+import { complexResponseToLangchainMessageContent, extractAllTextFromComplexResponse } from "../../utils/format.js";
+
 export type ToolNodeOptions = {
     name?: string;
     tags?: string[];
@@ -31,17 +32,16 @@ export const pythonToolNodeFunction = (
 
 
     return async (input: typeof MessagesAnnotation.State, config: RunnableConfig) => {
-        const message = Array.isArray(input)
+        const message: BaseMessage = Array.isArray(input)
             ? input[input.length - 1]
             : input.messages[input.messages.length - 1];
 
-        if (message?._getType() !== "ai") {
-            throw new Error("ToolNode only accepts AIMessages as input.");
+        if (!message || !isAIMessage(message) || !(message.tool_calls ?? []).find(t => t.name === "CODE_EXECUTION")) {
+            throw new Error("ToolNode only accepts AIMessages as input with CODE_EXECUTION tool call.");
         }
 
-
-        const textConent = extractTextContent(message.content);
-        const pythonScript = getExecutionCodeContentRegex(textConent)!;
+        const toolCall = (message.tool_calls ?? []).find(t => t.name === "CODE_EXECUTION")!;
+        const pythonScript: string = toolCall.args["script"]!;
 
         const toolResponses = new Map<string, ToolOutput>();
 
@@ -55,35 +55,33 @@ export const pythonToolNodeFunction = (
                 if (toolResponseId) {
                     const toolResponse = toolResponses.get(toolResponseId)!;
                     if (toolResponse) {
-                        const resp: MessageContentComplex[] = complexResponseToLangchainMessageContent(toolResponse.response as ComplexMessageContent[]);
-                        return resp;
+                        return toolResponse.response;
                     } else {
                         return [{
                             type: "text",
                             text: `((Tool response with ID ${toolResponseId} not found.))`,
-                        }]
+                        } satisfies ComplexMessageContent]
                     }
                 } else {
                     return [
                         {
                             type: "text",
                             text: part,
-                        }
+                        } satisfies ComplexMessageContent
                     ];
                 }
             }).flatMap((e) => e);
-        const userMesage = new HumanMessage({
-            response_metadata: {
-                toolMessage: true,
-            },
+
+        const userMesage = new ToolMessage({
             id: v4(),
-            content: [
+            tool_call_id: toolCall.id ?? v4(),
+            content: complexResponseToLangchainMessageContent([
                 {
                     type: "text",
                     text: "Result from script execution:\n\n",
                 },
                 ...messageContent
-            ],
+            ])
         })
 
         // Handle mixed Command and non-Command outputs

@@ -11,9 +11,19 @@ export function extractTextContent(messageContent: MessageContent): string {
   }
 }
 
+export function extractTextContentFromComplexMessageContent(messageContent: ComplexMessageContent[]): string {
+  if (typeof messageContent === "string") {
+    return messageContent;
+  } else if (Array.isArray(messageContent)) {
+    return (messageContent as any).find((e: any) => e.type === "text")?.text ?? "";
+  } else {
+    throw new Error(`Got unsupported text type: ${JSON.stringify(messageContent)}`);
+  }
+}
 
-export function complexResponseToLangchainMessageContent(toolResponse: ComplexMessageContent[]): MessageContentComplex[] {
-  return toolResponse.map((en) => {
+
+export function complexResponseToLangchainMessageContent(toolResponse: ComplexMessageContent[]): MessageContent {
+  const content = toolResponse.map((en) => {
     if (en.type === "text") {
       return {
         type: "text",
@@ -24,7 +34,25 @@ export function complexResponseToLangchainMessageContent(toolResponse: ComplexMe
     }
     throw new Error(`Unsupported type: ${JSON.stringify(en)}`)
   })
+
+  return mergeContent(content);
 }
+
+function mergeContent(agentSystemMessages: MessageContentComplex[]): MessageContent {
+
+    const content = agentSystemMessages;
+    const containsOnlyText = content.find((f) => f.type !== "text") === undefined;
+    if (containsOnlyText) {
+        const systemMessageText = content.reduce((prev, next) => {
+            return prev + (next as MessageContentText).text
+        }, "");
+
+        return systemMessageText;
+    }
+    return content;
+}
+
+
 
 
 export function extractAllTextFromComplexResponse(toolResponse: ComplexMessageContent[]): string {

@@ -39,3 +39,5 @@ yarn-error.log*
 .temp_custom_deps/
 
 mimir-config/
+# LangGraph API
+.langgraph_api

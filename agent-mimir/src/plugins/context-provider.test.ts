@@ -90,7 +90,7 @@ describe('PluginContextProvider', () => {
 
             expect(result.displayMessage.content).toEqual([
                 { type: 'text', text: 'Original user message.' },
-                { type: 'text', text: '\n### PLUGIN PluginA CONTEXT ###' },
+                { type: 'text', text: '\n### PLUGIN PluginA CONTEXT ###\n' },
                 { type: 'text', text: 'Display only content.' },
                 { type: 'text', text: '\n' }, // Spacing
             ]);
@@ -118,7 +118,7 @@ describe('PluginContextProvider', () => {
 
             expect(result.displayMessage.content).toEqual([
                 { type: 'text', text: 'Original user message.' },
-                { type: 'text', text: '----------------------' }, // Nameless header
+                { type: 'text', text: '\n----------------------\n' }, // Nameless header
                 { type: 'text', text: 'Display only content.' },
                 { type: 'text', text: '\n' }, // Spacing
             ]);
@@ -151,7 +151,7 @@ describe('PluginContextProvider', () => {
             // Persistent message should contain original + plugin content
             expect(result.persistentMessage.message.content).toEqual([
                 { type: 'text', text: 'Original user message.' },
-                { type: 'text', text: '\n### PLUGIN PluginB CONTEXT ###' },
+                { type: 'text', text: '\n### PLUGIN PluginB CONTEXT ###\n' },
                 { type: 'text', text: 'Persistent only content.' },
                 { type: 'text', text: '\n' }, // Spacing
             ]);
@@ -185,7 +185,7 @@ describe('PluginContextProvider', () => {
             // Persistent message has added content
             expect(result.persistentMessage.message.content).toEqual([
                 { type: 'text', text: 'Original user message.' },
-                { type: 'text', text: '\n### PLUGIN PluginC CONTEXT ###' },
+                { type: 'text', text: '\n### PLUGIN PluginC CONTEXT ###\n' },
                 { type: 'text', text: 'Persistent only (3 turns).' },
                 { type: 'text', text: '\n' }, // Spacing
             ]);
@@ -212,7 +212,7 @@ describe('PluginContextProvider', () => {
             const result = await provider.additionalMessageContent(initialMessage);
 
             const expectedAddedContent = [
-                { type: 'text', text: '\n### PLUGIN PluginD CONTEXT ###' },
+                { type: 'text', text: '\n### PLUGIN PluginD CONTEXT ###\n' },
                 { type: 'text', text: 'Display and Persistent content.' },
                 { type: 'text', text: '\n' }, // Spacing
             ];
@@ -252,7 +252,7 @@ describe('PluginContextProvider', () => {
             const result = await provider.additionalMessageContent(initialMessage);
 
             const expectedAddedContent = [
-                { type: 'text', text: '\n### PLUGIN PluginE CONTEXT ###' },
+                { type: 'text', text: '\n### PLUGIN PluginE CONTEXT ###\n' },
                 { type: 'text', text: 'Display and Persistent (5).' },
                 { type: 'text', text: 'Part 2 (also 5).' },
                 { type: 'text', text: '\n' }, // Spacing
@@ -302,10 +302,10 @@ describe('PluginContextProvider', () => {
             expect(result.displayMessage.content).toEqual([
                 { type: 'text', text: 'User says hi.' },
                 // Named plugins first
-                { type: 'text', text: '\n### PLUGIN DisplayOnly CONTEXT ###' },
+                { type: 'text', text: '\n### PLUGIN DisplayOnly CONTEXT ###\n' },
                 { type: 'text', text: 'Display A' },
                 { type: 'text', text: '\n' }, // Spacing after DisplayOnly content
-                { type: 'text', text: '\n### PLUGIN BothMixedRetention CONTEXT ###' },
+                { type: 'text', text: '\n### PLUGIN BothMixedRetention CONTEXT ###\n' },
                 { type: 'text', text: 'Both B1 (save=2)' },
                 { type: 'text', text: '\n' }, // Spacing after Both B1 content <<-- ADDED
                 { type: 'text', text: 'Both B2 (save=true)' },
@@ -318,16 +318,16 @@ describe('PluginContextProvider', () => {
             expect(result.persistentMessage.message.content).toEqual([
                 { type: 'text', text: 'User says hi.' },
                 // Named plugins that save
-                { type: 'text', text: '\n### PLUGIN BothMixedRetention CONTEXT ###' }, // From BothMixedRetention
+                { type: 'text', text: '\n### PLUGIN BothMixedRetention CONTEXT ###\n' }, // From BothMixedRetention
                 { type: 'text', text: 'Both B1 (save=2)' },
                 { type: 'text', text: '\n' }, // Spacing after Both B1 content <<-- ADDED
                 { type: 'text', text: 'Both B2 (save=true)' },
                 { type: 'text', text: '\n' }, // Spacing after Both B2 content
-                { type: 'text', text: '\n### PLUGIN PersistentOnlyNum CONTEXT ###' }, // From PersistentOnlyNum
+                { type: 'text', text: '\n### PLUGIN PersistentOnlyNum CONTEXT ###\n' }, // From PersistentOnlyNum
                 { type: 'text', text: 'Persistent C (save=4)' },
                 { type: 'text', text: '\n' }, // Spacing after Persistent C content
                 // Nameless plugins last
-                { type: 'text', text: '----------------------' }, // From PersistentNameless
+                { type: 'text', text: '\n----------------------\n' }, // From PersistentNameless
                 { type: 'text', text: 'Persistent Nameless' },
                 { type: 'text', text: '\n' }, // Spacing after Persistent Nameless content
             ]);
@@ -383,7 +383,7 @@ describe('PluginContextProvider', () => {
             const provider = new PluginContextProvider(plugins, config);
             const result = await provider.additionalMessageContent(complexInitialMessage);
 
-            const expectedPluginHeader = { type: 'text', text: '\n### PLUGIN MultiPartPlugin CONTEXT ###' };
+            const expectedPluginHeader = { type: 'text', text: '\n### PLUGIN MultiPartPlugin CONTEXT ###\n' };
             const expectedPluginContent1_1 = { type: 'text', text: 'Analysis Part 1.' };
             const expectedPluginContent1_2 = { type: 'text', text: 'Analysis Part 2 (save=1).' };
             const expectedPluginContent2_1 = { type: 'text', text: 'Follow up (save=true).' };
@@ -451,7 +451,7 @@ describe('PluginContextProvider', () => {
             // Persistent message includes original + all plugin parts
             expect(result.persistentMessage.message.content).toEqual([
                 initialMessage.content[0],
-                { type: 'text', text: '\n### PLUGIN MaxRetentionTest CONTEXT ###' },
+                { type: 'text', text: '\n### PLUGIN MaxRetentionTest CONTEXT ###\n' },
                 { type: 'text', text: 'Save for 2.' },
                 { type: 'text', text: '\n' },
                 { type: 'text', text: 'Save for 5.' },

@@ -1,4 +1,4 @@
-import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
+import { AIMessage, BaseMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { ToolResponseInfo } from "../index.js";
 import { lCmessageContentToContent } from "../message-utils.js";
 import { AiResponseMessage, NextMessageToolResponse } from "../../plugins/index.js";
@@ -95,21 +95,6 @@ export function langChainToolMessageToMimirHumanMessage(message: HumanMessage): 
     toolName: "PYTHON_EXECUTION",
     toolCallId: "N/A",
     content: lCmessageContentToContent(message.content)
-  };
-}
-
-
-export function isToolMessage(message: BaseMessage): boolean {
-  return message.response_metadata?.toolMessage ?? false;
-}
-
-
-export function toolMessageToToolResponseInfo(message: HumanMessage): ToolResponseInfo {
-  const toolResponse = lCmessageContentToContent(message.content);
-  return {
-    id: "N/A",
-    name: "PYTHON_EXECUTION",
-    response: toolResponse
   };
 }
 

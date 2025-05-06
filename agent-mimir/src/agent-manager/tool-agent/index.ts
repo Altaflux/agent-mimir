@@ -1,2 +1,2 @@
 export { FunctionAgentFactory } from "./factory.js";
-export { createAgent } from "./agent.js";
+export { createAgent, createLgAgent } from "./agent.js";

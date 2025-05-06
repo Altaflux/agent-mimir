@@ -9,53 +9,88 @@
   "exports": {
     "./schema": {
       "types": "./dist/schema.d.ts",
-      "import": "./dist/schema.js"
+      "import": {
+        "development": "./src/agent-manager/schema.ts",
+        "default": "./dist/schema.js"
+      }
     },
     "./agent/tool-agent": {
       "types": "./dist/agent-manager/tool-agent/index.d.ts",
-      "import": "./dist/agent-manager/tool-agent/index.js"
+      "import": {
+        "development": "./src/agent-manager/tool-agent/index.ts",
+        "default": "./dist/agent-manager/tool-agent/index.js"
+      }
     },
     "./agent/code-agent": {
       "types": "./dist/agent-manager/code-agent/index.d.ts",
-      "import": "./dist/agent-manager/code-agent/index.js"
+      "import": {
+        "development": "./src/agent-manager/code-agent/index.ts",
+        "default": "./dist/agent-manager/code-agent/index.js"
+      }
     },
     "./agent": {
       "types": "./dist/agent-manager/index.d.ts",
-      "import": "./dist/agent-manager/index.js"
+      "import": {
+        "development": "./src/agent-manager/index.ts",
+        "default": "./dist/agent-manager/index.js"
+      }
     },
     "./plugins": {
       "types": "./dist/plugins/index.d.ts",
-      "import": "./dist/plugins/index.js"
+      "import": {
+        "development": "./src/plugins/index.ts",
+        "default": "./dist/plugins/index.js"
+      }
     },
     "./plugins/helpers": {
       "types": "./dist/plugins/helpers.d.ts",
-      "import": "./dist/plugins/helpers.js"
+      "import": {
+        
+        "development": "./src/plugins/helpers.ts",
+        "default": "./dist/plugins/helpers.js"
+      }
     },
     "./communication/multi-agent": {
       "types": "./dist/communication/multi-agent.d.ts",
-      "import": "./dist/communication/multi-agent.js"
+      "import": {
+        "development": "./src/communication/multi-agent.ts",
+        "default": "./dist/communication/multi-agent.js"
+      }
     },
     "./utils/format": {
       "types": "./dist/utils/format.d.ts",
-      "import": "./dist/utils/format.js"
+      "import": {
+        "development": "./src/utils/format.ts",
+        "default": "./dist/utils/format.js"
+      }
     },
     "./nodejs": {
       "types": "./dist/nodejs/index.d.ts",
-      "import": "./dist/nodejs/index.js"
+      "import": {
+        "development": "./src/nodejs/index.ts",
+        "default": "./dist/nodejs/index.js"
+      }
     },
     "./tools": {
       "types": "./dist/tools/index.d.ts",
-      "import": "./dist/tools/index.js"
+      "import": {
+        "development": "./src/tools/index.ts",
+        "default": "./dist/tools/index.js"
+      }
     },
     "./tools/langchain": {
       "types": "./dist/tools/langchain.d.ts",
-      "import": "./dist/tools/langchain.js"
+      "import": {
+        "development": "./src/tools/langchain.ts",
+        "default": "./dist/tools/langchain.js"
+      }
     }
   },
   "scripts": {
     "build": "npm run build:esm ",
     "build:esm": "tsc --outDir dist/ ",
     "build:cjs": "tsc --outDir dist-cjs/ -p tsconfig.cjs.json",
+    "dev": "tsx watch src/index.ts",
     "release": "npm run build && release-it --only-version ",
     "test": "jest"
   },
@@ -69,10 +104,9 @@
     "@types/xml2js": "0.4.14",
     "nodemon": "^2.0.22",
     "rimraf": "^4.4.1",
-    "ts-node": "^10.9.1",
     "typescript": "^5.3.3",
-    "ts-jest":"29.3.2",
-    "@jest/globals":"29.7.0"
+    "ts-jest": "29.3.2",
+    "@jest/globals": "29.7.0"
   },
   "dependencies": {
     "jsonrepair": "^3.0.2",

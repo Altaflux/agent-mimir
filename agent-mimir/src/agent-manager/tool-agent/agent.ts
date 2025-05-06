@@ -9,20 +9,18 @@ import { Annotation, BaseCheckpointSaver, Command, END, interrupt, MemorySaver, 
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { dividerSystemMessage, humanMessageToInputAgentMessage, lCmessageContentToContent, mergeSystemMessages } from "../message-utils.js";
-import { Agent, AgentMessageToolRequest, InputAgentMessage, WorkspaceFactory } from "../index.js";
-import { AttributeDescriptor, PluginFactory, AiResponseMessage } from "../../plugins/index.js";
+import { Agent, WorkspaceFactory } from "../index.js";
+import { AttributeDescriptor, PluginFactory } from "../../plugins/index.js";
 import { toolNodeFunction } from "./tool-node.js"
-import { aiMessageToMimirAiMessage, langChainHumanMessageToMimirHumanMessage, langChainToolMessageToMimirToolMessage, toolMessageToToolResponseInfo } from "./utils.js";
+import { aiMessageToMimirAiMessage, langChainHumanMessageToMimirHumanMessage, langChainToolMessageToMimirToolMessage } from "./utils.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { DEFAULT_CONSTITUTION } from "../constants.js";
 import { PluginContextProvider } from "../../plugins/context-provider.js";
 import { LanggraphAgent } from "../langgraph-agent.js";
-
+import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
 export const StateAnnotation = Annotation.Root({
     ...MessagesAnnotation.spec,
-    requestAttributes: Annotation<Record<string, any>>,
     responseAttributes: Annotation<Record<string, any>>,
-    output: Annotation<AiResponseMessage>,
     noMessagesInTool: Annotation<Boolean>
 });
 
@@ -114,6 +112,18 @@ export async function createLgAgent(config: CreateAgentArgs) {
             let response: AIMessage;
             let messageToStore: BaseMessage[] = [];
             const messageId = lastMessage.id ?? v4();
+
+
+            const messageListToSend = [...state.messages].slice(0, -1).map(m => {
+                if (m.getType() === "ai" && m.response_metadata["original_content"]) {
+                    return new AIMessage({
+                        ...m,
+                        content: complexResponseToLangchainMessageContent(m.response_metadata["original_content"])
+                    })
+                }
+                return m;
+            })
+
             if (nextMessage.type === "USER_MESSAGE") {
                 const inputMessage = humanMessageToInputAgentMessage(lastMessage);
                 await workspaceManager.loadFiles(inputMessage.sharedFiles ?? []);
@@ -121,7 +131,6 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
                 persistentMessage.message.content = trimAndSanitizeMessageContent(persistentMessage.message.content);
 
-                const messageListToSend = [...state.messages];
 
                 messageListToSend.push(new HumanMessage({
                     id: messageId,
@@ -129,42 +138,46 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 }));
                 messageToStore = [new HumanMessage({
                     response_metadata: {
-                        persistentMessageRetentionPolicy: persistentMessage.retentionPolicy
+                        persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
+                        original_content: persistentMessage.message.content,
+                        shared_files: inputMessage.sharedFiles,
                     },
                     id: messageId,
-                    content: complexResponseToLangchainMessageContent(persistentMessage.message.content)
+                    content: complexResponseToLangchainMessageContent(inputMessage.content)
                 })];
 
                 const pluginInputs = await pluginContextProvider.getSystemPromptContext();
                 const systemMessage = buildSystemMessage([...responseFormatSystemMessage, dividerSystemMessage, ...pluginInputs]);
                 response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
 
-            } else {
-                const messageListToSend = [...state.messages];
-                if (isToolMessage(lastMessage) && ((lastMessage)).status !== "error") {
+            } else  {
+                messageListToSend.push(lastMessage);
+                if (((lastMessage) as ToolMessage).status !== "error") {
                     const { displayMessage, persistentMessage } = await pluginContextProvider.additionalMessageContent({ content: [] });
                     displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
                     persistentMessage.message.content = trimAndSanitizeMessageContent(persistentMessage.message.content);
 
+
                     if (displayMessage.content.length > 0) {
                         messageListToSend.push(new HumanMessage({
-                            id: messageId,
-                            content: [
+                            id: v4(),
+                            content: complexResponseToLangchainMessageContent([
                                 {
                                     type: "text",
                                     text: "Tools invoked succesfully (unless a tool call told you it failed or was cancelled), continue please but be sure the results from the tools are correct and what you expected."
                                 },
-                                ...complexResponseToLangchainMessageContent(displayMessage.content)
-                            ]
+                                ...displayMessage.content
+                            ])
                         }));
                     }
                     if (persistentMessage.message.content.length > 0) {
                         messageToStore = [new HumanMessage({
-                            id: messageId,
+                            id: `do-not-render-${v4()}`,
                             response_metadata: {
-                                persistentMessageRetentionPolicy: persistentMessage.retentionPolicy
+                                persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
+                                original_content: persistentMessage.message.content
                             },
-                            content: complexResponseToLangchainMessageContent(persistentMessage.message.content)
+                            content: []
                         })];
                     }
                 }
@@ -210,10 +223,16 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 await plugin.readResponse(mimirAiMessage, rawResponseAttributes);
             }
 
+            const reformattedAiMessage = new AIMessage({
+                ...response,
+                content: complexResponseToLangchainMessageContent(fieldMapper.getUserMessage(messageContent).result),
+                response_metadata: {
+                    original_content: messageContent
+                }
+            });
+
             return {
-                messages: [...messageToStore, response],
-                requestAttributes: {},
-                output: mimirAiMessage,
+                messages: [...messageToStore, reformattedAiMessage],
                 responseAttributes: rawResponseAttributes,
             };
         };
@@ -233,7 +252,6 @@ export async function createLgAgent(config: CreateAgentArgs) {
             return "human_review_node";
         }
     }
-
     async function messageRetentionNode(state: typeof MessagesAnnotation.State) {
         const modifiedMessages: BaseMessage[] = [];
 
@@ -245,7 +263,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
         // Iterate over messages with retention policies
         for (const [idx, message] of messagesWithRetention.entries()) {
             const retentionPolicy = message.response_metadata!.persistentMessageRetentionPolicy;
-            const messageContent = message.content as MessageContentComplex[];
+            const messageContent = message.response_metadata["original_content"] as ComplexMessageContent[];
 
             // Map content with its corresponding retention value and filter those
             // whose retention is either null or greater than the current idx.
@@ -262,10 +280,11 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 if (updatedContent.length > 0) {
                     modifiedMessages.push(new HumanMessage({
                         id: message.id!,
-                        content: updatedContent,
+                        content: complexResponseToLangchainMessageContent(updatedContent),
                         response_metadata: {
                             ...message.response_metadata,
-                            persistentMessageRetentionPolicy: updatedRetention
+                            persistentMessageRetentionPolicy: updatedRetention,
+                            original_content: updatedContent
                         }
                     }));
                 } else {
@@ -279,49 +298,50 @@ export async function createLgAgent(config: CreateAgentArgs) {
         return { messages: modifiedMessages };
     }
     async function humanReviewNode(state: typeof StateAnnotation.State) {
-        //const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
-        const toolRequest: AgentMessageToolRequest = state.output;
-        toolRequest.content
-        const humanReview = interrupt<
-            AgentMessageToolRequest,
-            {
-                action: string;
-                data: InputAgentMessage;
-            }>(toolRequest);
+        const toolRequest = state.messages[state.messages.length - 1] as AIMessage;
 
+       
+        const humanInterrupt: HumanInterrupt = {
+            description: "The agent is requesting permission to execute the following tool.",
+            action_request: {
+                action: "Execute_Tools",
+                args: (toolRequest.tool_calls ?? [])
+            },
+            config: {
+                allow_accept: true,
+                allow_ignore: false,
+                allow_respond: true,
+                allow_edit: true
+            }
+        }
+        const humanReviewResponse = interrupt<HumanInterrupt, HumanResponse | HumanResponse[]>(humanInterrupt);
+        const humanReview: HumanResponse = Array.isArray(humanReviewResponse) ? humanReviewResponse[0] : humanReviewResponse
+        console.log(humanReview)
 
-        const reviewAction = humanReview.action;
-        const reviewData = humanReview.data;
         const name = modelWithTools.getName();
-        // Approve the tool call and continue
-        if (reviewAction === "continue") {
-            return new Command({ goto: "run_tool" });
-        } else if (reviewAction === "feedback") {
-            await workspaceManager.loadFiles(reviewData.sharedFiles ?? []);
+        if (humanReview.type === "response") {
 
             //Claude forcefully needs a tool message after a tool call, so we need to send it a tool message with the feedback. Every other model can just receive a human message.
             if (name === "ChatAnthropic" || name === "ChatOpenAI") {
                 const responseMessage = new ToolMessage({
                     id: v4(),
-                    tool_call_id: toolRequest.toolCalls![0].id!,
-                    content: [
+                    tool_call_id: toolRequest.tool_calls![0].id!,
+                    content: complexResponseToLangchainMessageContent([
                         { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
-                        ...complexResponseToLangchainMessageContent(reviewData.content)
-                    ],
+                        { type: 'text', text: humanReview.args as string }]),
                 })
                 return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
             } else {
                 const responseMessage = new HumanMessage({
                     id: v4(),
-                    content: [
+                    content: complexResponseToLangchainMessageContent([
                         { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
-                        ...complexResponseToLangchainMessageContent(reviewData.content)
-                    ],
+                        { type: 'text', text: humanReview.args as string }]),
                 })
                 return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
             }
         }
-        throw new Error("Unreachable");
+        return new Command({ goto: "run_tool" });
     }
 
     function outputConvert(state: typeof StateAnnotation.State) {
@@ -390,11 +410,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         workspace: agent.workspace,
         commands: agent.commandList,
         graph: agent.graph,
-        plugins: agent.plugins,
-        toolMessageHandler: {
-            isToolMessage: isToolMessage,
-            messageToToolMessage: (msg) => toolMessageToToolResponseInfo(msg as ToolMessage),
-        }
+        plugins: agent.plugins
     })
 }
 
