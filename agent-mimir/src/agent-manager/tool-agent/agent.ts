@@ -241,13 +241,13 @@ export async function createLgAgent(config: CreateAgentArgs) {
 
     function routeAfterLLM(
         state: typeof MessagesAnnotation.State,
-    ): "output_convert" | "human_review_node" {
+    ): typeof END | "human_review_node" {
         const lastMessage: AIMessage = state.messages[state.messages.length - 1];
 
         if (
             (lastMessage as AIMessage).tool_calls?.length === 0
         ) {
-            return "output_convert";
+            return END;
         } else {
             return "human_review_node";
         }
@@ -344,11 +344,6 @@ export async function createLgAgent(config: CreateAgentArgs) {
         return new Command({ goto: "run_tool" });
     }
 
-    function outputConvert(state: typeof StateAnnotation.State) {
-
-        return {}
-    }
-
     const workflow = new StateGraph(StateAnnotation)
         .addNode("call_llm", callLLm())
         .addNode("run_tool", toolNodeFunction(langChainTools, { handleToolErrors: true }))
@@ -356,17 +351,14 @@ export async function createLgAgent(config: CreateAgentArgs) {
         .addNode("human_review_node", humanReviewNode, {
             ends: ["run_tool", "message_prep"]
         })
-        .addNode("output_convert", outputConvert)
-
         .addEdge(START, "message_prep")
         .addConditionalEdges(
             "call_llm",
             routeAfterLLM,
-            ["human_review_node", "output_convert"]
+            ["human_review_node", END]
         )
         .addEdge("run_tool", "message_prep")
-        .addEdge("message_prep", "call_llm")
-        .addEdge("output_convert", END);
+        .addEdge("message_prep", "call_llm");
 
     for (const plugin of allCreatedPlugins) {
         await plugin.init();
@@ -396,8 +388,6 @@ export async function createLgAgent(config: CreateAgentArgs) {
         commandList: commandList,
         plugins: allCreatedPlugins
     };
-
-
 }
 
 export async function createAgent(config: CreateAgentArgs): Promise<Agent> {

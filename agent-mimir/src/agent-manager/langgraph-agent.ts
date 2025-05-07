@@ -1,4 +1,4 @@
-import { CompiledStateGraph, StateType, BinaryOperatorAggregate, Messages, Command } from "@langchain/langgraph";
+import { CompiledStateGraph, StateType, BinaryOperatorAggregate, Messages, Command, END } from "@langchain/langgraph";
 import { AgentCommand, AgentPlugin } from "../plugins/index.js";
 import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, CommandRequest, InputAgentMessage, IntermediateAgentMessage } from "./index.js";
 import { BaseMessage, HumanMessage, isToolMessage, RemoveMessage } from "@langchain/core/messages";
@@ -115,7 +115,7 @@ export class LanggraphAgent implements Agent {
         const state = await this.graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
         const messages: BaseMessage[] = state.values["messages"] ?? [];
         const messagesToRemove = messages.map((m) => new RemoveMessage({ id: m.id! }));
-        await this.graph.updateState({ ...stateConfig, configurable: { thread_id: args.threadId } }, { messages: messagesToRemove }, "output_convert")
+       await this.graph.updateState({ ...stateConfig, configurable: { thread_id: args.threadId } }, { messages: messagesToRemove })
     }
 
 
