@@ -11,7 +11,7 @@ import { FileSystemAgentWorkspace } from "agent-mimir/nodejs";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { Embeddings } from "@langchain/core/embeddings";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { LangchainToolWrapperPluginFactory } from "agent-mimir/tools/langchain";
+//import { LangchainToolWrapperPluginFactory } from "agent-mimir/tools/langchain";
 import { CodeAgentFactory, LocalPythonExecutor } from "agent-mimir/agent/code-agent";
 import { BaseCheckpointSaver } from "@langchain/langgraph";
 export type AgentDefinition = {
@@ -85,7 +85,7 @@ export const run = async () => {
                     visionSupport: agentDefinition.definition.visionSupport,
                     constitution: agentDefinition.definition.constitution,
                     checkpointer: agentDefinition.definition.checkpointer,
-                    plugins: [...agentDefinition.definition.plugins ?? [],  ...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))],
+                    plugins: [...agentDefinition.definition.plugins ?? [], ], // ...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))
                     workspaceFactory: workspaceFactory,
                     codeExecutor: (workspace) =>  new LocalPythonExecutor({workspace}),
                 }), agentName, agentDefinition.definition.communicationWhitelist)

@@ -20,13 +20,13 @@
       "@types/debug": "^4.1.7",
       "@types/inquirer": "^9.0.3",
       "@types/node": "^18.15.10",
-      "nodemon": "^2.0.22",
-      "rimraf": "^4.4.1",
+      "nodemon": "3.1.10",
+      "rimraf": "6.0.1",
       "ts-node": "^10.9.1",
       "typescript": "^5.3.3"
     },
     "dependencies": {
-      "@langchain/openai": "0.3.16",
+      "@langchain/openai": "0.6.12",
       "@agent-mimir/code-interpreter": "*",
       "@agent-mimir/selenium-browser": "*",
       "chalk": "^5.2.0",

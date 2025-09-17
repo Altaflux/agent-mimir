@@ -236,7 +236,8 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 ...response,
                 content: complexResponseToLangchainMessageContent(userMessage.tagFound ? userMessage.result : []),
                 response_metadata: {
-                    original_content: messageContent
+                    original_content: messageContent,
+                    shared_files: mimirAiMessage.sharedFiles ?? []
                 },
                 tool_calls: pythonCode ?  [
                     {
@@ -262,7 +263,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
         const lastMessage: AIMessage = state.messages[state.messages.length - 1];
 
         if (
-            (lastMessage as AIMessage).tool_calls?.length === 0
+            (lastMessage as AIMessage)?.tool_calls?.length === 0
         ) {
             return END;
         } else {

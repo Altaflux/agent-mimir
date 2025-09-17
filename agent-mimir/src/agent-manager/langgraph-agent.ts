@@ -129,8 +129,8 @@ export class LanggraphAgent implements Agent {
             let stream = await this.graph.stream(graphInput, { ...stateConfig, configurable: { thread_id: threadId } });
             for await (const state of stream) {
                 if (state[0] === "values") {
-                    let messageState = state[1];
-                    if (messageState.messages.length > 0) {
+                    let messageState = state[1] as this["graph"]["RunInput"];
+                    if ((messageState.messages?.length ?? 0 )> 0) {
                         const lastMessage = messageState.messages[messageState.messages.length - 1];
                         if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id)) {
                             lastKnownMessage = lastMessage;

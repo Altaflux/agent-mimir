@@ -17,7 +17,7 @@ import { AgentToolRequestTwo, HandleMessageResult, IntermediateAgentResponse, Or
 import { extractAllTextFromComplexResponse } from "agent-mimir/utils/format";
 import { PluginFactory } from "agent-mimir/plugins";
 import { ComplexMessageContent, ImageMessageContent } from "agent-mimir/schema";
-import { LangchainToolWrapperPluginFactory } from "agent-mimir/tools/langchain";
+//import { LangchainToolWrapperPluginFactory } from "agent-mimir/tools/langchain";
 import { file } from 'tmp-promise';
 import { CodeAgentFactory, LocalPythonExecutor } from "agent-mimir/agent/code-agent";
 import { FunctionAgentFactory } from "agent-mimir/agent/tool-agent";
@@ -107,16 +107,16 @@ export const run = async () => {
             const newAgent = {
                 mainAgent: agentDefinition.mainAgent,
                 name: agentName,
-                agent: await orchestratorBuilder.initializeAgent(new FunctionAgentFactory({
+                agent: await orchestratorBuilder.initializeAgent(new CodeAgentFactory({
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,
                     model: agentDefinition.definition.chatModel,
                     checkpointer: agentDefinition.definition.checkpointer,
                     visionSupport: agentDefinition.definition.visionSupport,
                     constitution: agentDefinition.definition.constitution,
-                    plugins: [...agentDefinition.definition.plugins ?? [], ...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))],
+                    plugins: [...agentDefinition.definition.plugins ?? [], ], //...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))
                     workspaceFactory: workspaceFactory,
-                    //codeExecutor: (workspace) => new LocalPythonExecutor({additionalPackages: ["pandas", "numpy", "pillow", "sqlite3"], workspace: workspace}),
+                    codeExecutor: (workspace) => new LocalPythonExecutor({additionalPackages: ["pandas", "numpy", "pillow", "sqlite3"], workspace: workspace}),
                 }), agentName, agentDefinition.definition.communicationWhitelist)
             }
             console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.definition.profession}" and description "${agentDefinition.description}"`));

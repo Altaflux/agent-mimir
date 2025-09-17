@@ -21,15 +21,15 @@
         "url": "https://github.com/Altaflux/agent-mimir.git"
     },
     "devDependencies": {
-        "cross-env": "^7.0.3",
-        "dotenv-cli": "latest",
-        "eslint": "^7.32.0",
+        "cross-env": "10.0.0",
+        "dotenv-cli": "10.0.0",
+        "eslint": "9.35.0",
         "eslint-config-custom": "*",
-        "fs-extra": "^11.1.1",
-        "prettier": "^2.5.1",
-        "release-it": "^15.10.0",
-        "turbo": "latest",
-        "tsx": "^4.7.0",
+        "fs-extra": "11.3.2",
+        "prettier": "3.6.2",
+        "release-it": "19.0.4",
+        "turbo": "2.5.6",
+        "tsx": "4.20.5",
         "typescript-transpile-only": "0.0.4"
     },
     "packageManager": "npm@9.5.0",
@@ -42,8 +42,8 @@
         ".temp_custom_deps"
     ],
     "dependencies": {
-        "@langchain/langgraph": "0.2.67",
-        "@langchain/core": "0.3.50",
-        "langchain": "0.3.24"
+        "@langchain/langgraph": "0.4.9",
+        "@langchain/core": "0.3.76",
+        "langchain": "0.3.34"
     }
 }
