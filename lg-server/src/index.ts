@@ -76,7 +76,7 @@ async function createAgent() {
                             "command": "docker",
                             "args": ["run", "-i", "--rm", "-e", "BRAVE_API_KEY", "mcp/brave-search"],
                             "env": {
-                                "BRAVE_API_KEY": ""
+                                "BRAVE_API_KEY": process.env.BRAVE_API_KEY as any
                             }
                         })
                     }

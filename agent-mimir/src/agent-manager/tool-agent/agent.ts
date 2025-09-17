@@ -316,7 +316,6 @@ export async function createLgAgent(config: CreateAgentArgs) {
         }
         const humanReviewResponse = interrupt<HumanInterrupt, HumanResponse | HumanResponse[]>(humanInterrupt);
         const humanReview: HumanResponse = Array.isArray(humanReviewResponse) ? humanReviewResponse[0] : humanReviewResponse
-        console.log(humanReview)
 
         const name = modelWithTools.getName();
         if (humanReview.type === "response") {

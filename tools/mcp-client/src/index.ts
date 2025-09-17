@@ -182,14 +182,14 @@ namespace ContentConverter {
 
     /** Converts a tool response to the standard ToolResponse format */
     export function convertToolToToolResponse(response: CallToolResult): ToolResponse {
-        return response.content.map(content => convertContent(content));
+        return response.content.map(content => convertContent(content as any));
     }
 
     /** Converts a prompt message to the standard CommandContent format */
     export function convertPromptMessagesToCommandContent(messages: PromptMessage[]): CommandContent[] {
         const commandContents = messages.map(message => {
             const role = message.role === "assistant" ? "assistant" : "user";
-            let content: ComplexMessageContent = convertContent(message.content);
+            let content: ComplexMessageContent = convertContent(message.content as any);
 
             return {
                 type: role,
