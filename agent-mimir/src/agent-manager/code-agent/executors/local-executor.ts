@@ -26,7 +26,7 @@ export class LocalPythonExecutor implements CodeToolExecutor {
     }
 
 
-    async execute(tools: AgentTool[], code: string, toolInitCallback: (url: string, tools: AgentTool[]) => void): Promise<string> {
+    async execute(tools: AgentTool[], code: string, libraries:string[], toolInitCallback: (url: string, tools: AgentTool[]) => void): Promise<string> {
 
         if (!this.tempDir) {
             this.tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-python-code'));
@@ -62,7 +62,7 @@ export class LocalPythonExecutor implements CodeToolExecutor {
                     throw new Error(`Failed to create python virtual environment: ${pyenv.output}`);
                 }
 
-                const externalDependencies = ["nest_asyncio", "asyncio", "uvicorn", "fastapi_websocket_rpc", ...this.config.additionalPackages ?? []];
+                const externalDependencies = ["nest_asyncio", "asyncio", "uvicorn", "fastapi_websocket_rpc", ...libraries, ...this.config.additionalPackages ?? []];
 
                 let libraryInstallationResult = {
                     exitCode: 0,

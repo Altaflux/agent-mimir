@@ -9,7 +9,7 @@ import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { dividerSystemMessage, humanMessageToInputAgentMessage, lCmessageContentToContent, mergeSystemMessages } from "./../message-utils.js";
 import { Agent, AgentWorkspace, WorkspaceFactory } from "./../index.js";
 import { PluginFactory } from "../../plugins/index.js";
-import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex,  langChainToolMessageToMimirHumanMessage, toPythonFunctionName } from "./utils.js";
+import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex,  getLibrariesContentRegex,  langChainToolMessageToMimirHumanMessage, toPythonFunctionName } from "./utils.js";
 import { pythonToolNodeFunction } from "./tool-node.js";
 import { FUNCTION_PROMPT, getFunctionsPrompt, PYTHON_SCRIPT_SCHEMA } from "./prompt.js";
 import { DefaultPluginFactory } from "../../plugins/default-plugins.js";
@@ -211,6 +211,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
             }
 
             const pythonCode =  getExecutionCodeContentRegex(extractTextContent(response.content))
+            const pythonLibs =  getLibrariesContentRegex(extractTextContent(response.content))
             //Agents calling agents cannot see the messages from the tool, so we remove them so the AI doesn't think it has already responded.
             if (pythonCode !== null && state.noMessagesInTool) {
                 const codeScript = getExecutionCodeContentRegex(extractTextContent(response.content));
@@ -244,6 +245,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                         id: v4(),
                         name: "CODE_EXECUTION",
                         args: {
+                            libraries: pythonLibs,
                             script:  pythonCode
                         }
                     }

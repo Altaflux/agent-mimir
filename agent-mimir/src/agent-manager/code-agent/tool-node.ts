@@ -42,10 +42,11 @@ export const pythonToolNodeFunction = (
 
         const toolCall = (message.tool_calls ?? []).find(t => t.name === "CODE_EXECUTION")!;
         const pythonScript: string = toolCall.args["script"]!;
+        const libraries: string[] = toolCall.args["libraries"]!;
 
         const toolResponses = new Map<string, ToolOutput>();
 
-        const result = await executor.execute(tools, pythonScript, (wsUrl, tools) => {
+        const result = await executor.execute(tools, pythonScript, libraries, (wsUrl, tools) => {
             toolHandler(wsUrl, tools, toolResponses)
         });
 

@@ -8,6 +8,6 @@ export interface CodeToolExecutor {
 
     availableDependencies: string[];
     
-    execute(tools: AgentTool[], code: string, toolInitCallback: (wsUrl: string, tools: AgentTool[]) => void): Promise<string>;
+    execute(tools: AgentTool[], code: string, libraries:string[], toolInitCallback: (wsUrl: string, tools: AgentTool[]) => void): Promise<string>;
 }
 

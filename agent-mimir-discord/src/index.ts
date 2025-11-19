@@ -289,7 +289,7 @@ export const run = async () => {
         const sendToolInvocationPermissionRequest = async (toolRequest: AgentToolRequestTwo) => {
             const toolCalls = (toolRequest.toolCalls ?? []).map(tr => {
                 const headerEmbed = new EmbedBuilder()
-                    .setDescription(`Tool request: \`${tr.toolName}\`\nWith Payload: \n\`\`\`${tr.input}\`\`\``)
+                    .setDescription(`Tool request: \`${tr.toolName}\`\nWith Payload: \n\`\`\`${tr.input.length > 300 ? tr.input.substring(0,3000) : tr.input}\`\`\``)
                     .setColor(0xff0000);
                 return headerEmbed;
             });
