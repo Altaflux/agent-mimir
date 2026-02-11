@@ -16,7 +16,7 @@ import { aiMessageToMimirAiMessage, langChainHumanMessageToMimirHumanMessage, la
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { DEFAULT_CONSTITUTION } from "../constants.js";
 import { PluginContextProvider, RetentionAwareMessageContent } from "../../plugins/context-provider.js";
-import { AgentState, LanggraphAgent } from "../langgraph-agent.js";
+import { AgentGraphType, AgentState, LanggraphAgent } from "../langgraph-agent.js";
 import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
 import * as z from "zod";
 import { AgentStep } from "@langchain/core/agents";
@@ -386,7 +386,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
     const commandList = agentCommands.map(ac => ac.commands).flat();
 
     const memory = config.checkpointer ?? new MemorySaver()
-    const graph: CompiledStateGraph<typeof AgentState["State"], any, any, typeof AgentState, typeof AgentState, StateDefinition, unknown, unknown, unknown>  = workflow.compile({
+    const graph: AgentGraphType  = workflow.compile({
         checkpointer: memory,
     });
 

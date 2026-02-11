@@ -18,7 +18,7 @@ import { CodeToolExecutor } from "./index.js";
 import { DEFAULT_CONSTITUTION } from "../constants.js";
 import { PluginContextProvider, RetentionAwareMessageContent } from "../../plugins/context-provider.js";
 import { langChainHumanMessageToMimirHumanMessage } from "../tool-agent/utils.js";
-import { AgentState, LanggraphAgent } from "../langgraph-agent.js";
+import { AgentGraphType, AgentState, LanggraphAgent } from "../langgraph-agent.js";
 import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
 
 /**
@@ -378,7 +378,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
 
     const memory = config.checkpointer ?? new MemorySaver()
 
-    const graph: CompiledStateGraph<typeof AgentState["State"], any, any, typeof AgentState, typeof AgentState, StateDefinition, unknown, unknown, unknown> = workflow.compile({
+    const graph: AgentGraphType = workflow.compile({
         checkpointer: memory,
     });
 

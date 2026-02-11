@@ -6,7 +6,14 @@ export function extractTextContent(messageContent: ContentBlock.Standard[]): str
     return messageContent;
   } else if (Array.isArray(messageContent)) {
     //TODO MAP INSTEAD OF FIND
-    return (messageContent as ContentBlock.Standard[]).find((e: ContentBlock.Standard) => e.type === "text")?.text ?? "";
+
+    const text = messageContent
+      .filter(c => c.type === 'text')
+      .reduce((prev, next) => {
+            return prev + (next as ContentBlock.Text).text
+        }, "");
+
+    return text;
   } else {
     throw new Error(`Got unsupported text type: ${JSON.stringify(messageContent)}`);
   }

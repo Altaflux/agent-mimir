@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { ComplexMessageContent } from "../schema.js";
 //import { JSONSchema } from "@langchain/core/utils/json_schema";
-import { type JsonSchema7Type as JSONSchema } from "zod-to-json-schema";
+type JSONSchema = Record<string, unknown>;
 export type ToolResponse = ComplexMessageContent[];
 export type ZodObjectAny = z.ZodObject;
 export type ToolInputSchemaBase = z.ZodType | JSONSchema;

@@ -8,18 +8,22 @@ import { commandContentToBaseMessage, lCmessageContentToContent } from "./messag
 import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
 import z from "zod";
 
+
+
 export const AgentState = new StateSchema({
    responseAttributes: z.record(z.string(), z.any()),
     noMessagesInTool: z.boolean(),
     messages: MessagesValue
 });
+export type AgentGraphType = CompiledStateGraph<typeof AgentState["State"], any, any, typeof AgentState, typeof AgentState, StateDefinition, unknown, unknown, unknown>;
+
 export type LanggraphAgentArgs = {
     name: string,
     description: string,
     workspace: AgentWorkspace,
     commands: AgentCommand[],
     plugins: AgentPlugin[],
-    graph: CompiledStateGraph<typeof AgentState["State"], any, any, typeof AgentState, typeof AgentState, StateDefinition, unknown, unknown, unknown>
+    graph: AgentGraphType
 }
 
 
@@ -28,7 +32,7 @@ export class LanggraphAgent implements Agent {
     description: string;
     workspace: AgentWorkspace;
     commands: AgentCommand[];
-    graph: CompiledStateGraph<typeof AgentState["State"], any, any, typeof AgentState, typeof AgentState, StateDefinition, unknown, unknown, unknown>
+    graph: AgentGraphType
 
     constructor(private args: LanggraphAgentArgs) {
         this.workspace = args.workspace;

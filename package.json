@@ -37,13 +37,13 @@
         "agent-mimir",
         "agent-mimir-cli",
         "agent-mimir-discord",
-        "lg-server",
-        "tools/*",
+       
+        
         ".temp_custom_deps"
     ],
     "dependencies": {
         "@langchain/langgraph": "1.1.4",
-        "@langchain/core": "1.1.19",
-        "langchain": "1.2.18"
+        "@langchain/core": "1.1.22",
+        "langchain": "1.2.21"
     }
 }

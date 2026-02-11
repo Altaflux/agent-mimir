@@ -1,5 +1,4 @@
 
-import { zodToJsonSchema } from "zod-to-json-schema";
 import { AgentTool } from "../../tools/index.js";
 import { toPythonFunctionName } from "./utils.js";
 import { z } from "zod";
@@ -38,8 +37,8 @@ ONLY use the <execution-code> tag to execute code when needed, do not use it for
 
 
 function getFunctions(tool: AgentTool) {
-    let outParameter = tool.outSchema ? JSON.stringify(zodToJsonSchema(tool.outSchema)) : "ToolResponse";
-    const schema = tool.schema instanceof z.ZodSchema ? zodToJsonSchema(tool.schema) : tool.schema;
+    let outParameter = tool.outSchema ? JSON.stringify(z.toJSONSchema(tool.outSchema)) : "ToolResponse";
+    const schema = tool.schema instanceof z.ZodType ? z.toJSONSchema(tool.schema) : tool.schema;
     const toolDefinition = `
 - FunctionName: ${toPythonFunctionName(tool.name)}
 - Description: ${tool.description}
