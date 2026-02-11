@@ -1,4 +1,4 @@
-import { StructuredTool } from "langchain/tools";
+
 import { AgentTool, ToolResponse } from "./index.js";
 import { z } from "zod";
 import { AgentPlugin, PluginFactory, PluginContext } from "../plugins/index.js";

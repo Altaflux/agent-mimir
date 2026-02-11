@@ -39,10 +39,11 @@ ONLY use the <execution-code> tag to execute code when needed, do not use it for
 
 function getFunctions(tool: AgentTool) {
     let outParameter = tool.outSchema ? JSON.stringify(zodToJsonSchema(tool.outSchema)) : "ToolResponse";
+    const schema = tool.schema instanceof z.ZodSchema ? zodToJsonSchema(tool.schema) : tool.schema;
     const toolDefinition = `
 - FunctionName: ${toPythonFunctionName(tool.name)}
 - Description: ${tool.description}
-- Input Parameter: ${JSON.stringify(zodToJsonSchema(tool.schema))}
+- Input Parameter: ${JSON.stringify(schema)}
 - Function Output: ${outParameter}
 `
     return toolDefinition;
@@ -63,7 +64,7 @@ FUNCTION LIST:\n${functions}\n\n---------------------------------\n
 ${dependencies.length > 0 ? `The following libraries are available in the Python environment: ${dependencies.join(", ")}` : ""}
 \n---------------------------------\n
 `
-;
+        ;
 
 }
 

@@ -121,21 +121,21 @@ export function getTextAfterLastExecutionCode(inputString: string) {
 // }
 
 
-export function langChainToolMessageToMimirHumanMessage(message: HumanMessage): NextMessageToolResponse {
+export function langChainToolMessageToMimirHumanMessage(message: ToolMessage): NextMessageToolResponse {
   return {
     type: "TOOL_RESPONSE",
     toolName: "PYTHON_EXECUTION",
     toolCallId: "N/A",
-    content: lCmessageContentToContent(message.content)
+    content: lCmessageContentToContent(message.contentBlocks)
   };
 }
 
 
 export function aiMessageToMimirAiMessage(aiMessage: AIMessage, files: AiResponseMessage["sharedFiles"], mapper: ResponseFieldMapper): AiResponseMessage {
-  const textContent = extractTextContent(aiMessage.content);
+  const textContent = extractTextContent(aiMessage.contentBlocks);
   const scriptCode = getExecutionCodeContentRegex(textContent);
   const libraries = getLibrariesContentRegex(textContent);
-  const userContent = mapper.getUserMessage(lCmessageContentToContent(aiMessage.content));
+  const userContent = mapper.getUserMessage(lCmessageContentToContent(aiMessage.contentBlocks));
 
   const mimirMessage: AiResponseMessage = {
     id: aiMessage.id ?? v4(),

@@ -2,10 +2,10 @@ import { ComplexMessageContent, } from "../../schema.js";
 import { WorkspacePluginFactory, WorkspanceManager } from "../../plugins/workspace.js";
 import { ViewPluginFactory } from "../../tools/image_view.js";
 import { MimirToolToLangchainTool } from "./wrapper.js";
-import { isToolMessage, ToolMessage } from "@langchain/core/messages/tool";
+import { ToolMessage } from "@langchain/core/messages/tool";
 import { complexResponseToLangchainMessageContent, trimAndSanitizeMessageContent } from "../../utils/format.js";
-import { AIMessage, BaseMessage, HumanMessage, isHumanMessage, MessageContentComplex, MessageContentText, RemoveMessage, SystemMessage } from "@langchain/core/messages";
-import { Annotation, BaseCheckpointSaver, Command, END, interrupt, MemorySaver, Messages, MessagesAnnotation, START, StateDefinition, StateGraph } from "@langchain/langgraph";
+import { AIMessage, BaseMessage, ContentBlock, HumanMessage, MessageStructure, MessageToolSet, MessageType, RemoveMessage, SystemMessage } from "@langchain/core/messages";
+import { Annotation, BaseCheckpointSaver, Command, END, interrupt, MemorySaver, Messages, MessagesAnnotation, START, StateDefinition, StateGraph, MessagesValue, StateSchema, GraphNode, ConditionalEdgeRouter, CompiledStateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { dividerSystemMessage, humanMessageToInputAgentMessage, lCmessageContentToContent, mergeSystemMessages } from "../message-utils.js";
@@ -15,14 +15,23 @@ import { toolNodeFunction } from "./tool-node.js"
 import { aiMessageToMimirAiMessage, langChainHumanMessageToMimirHumanMessage, langChainToolMessageToMimirToolMessage } from "./utils.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { DEFAULT_CONSTITUTION } from "../constants.js";
-import { PluginContextProvider } from "../../plugins/context-provider.js";
-import { LanggraphAgent } from "../langgraph-agent.js";
+import { PluginContextProvider, RetentionAwareMessageContent } from "../../plugins/context-provider.js";
+import { AgentState, LanggraphAgent } from "../langgraph-agent.js";
 import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
-export const StateAnnotation = Annotation.Root({
-    ...MessagesAnnotation.spec,
-    responseAttributes: Annotation<Record<string, any>>,
-    noMessagesInTool: Annotation<Boolean>
-});
+import * as z from "zod";
+import { AgentStep } from "@langchain/core/agents";
+
+// const AgentState = new StateSchema({
+//     responseAttributes: z.record(z.string(), z.any()),
+//     noMessagesInTool: z.boolean(),
+//     messages: MessagesValue
+// });
+
+// export const StateAnnotation = Annotation.Root({
+//     ...MessagesAnnotation.spec,
+//     responseAttributes: Annotation<Record<string, any>>,
+//     noMessagesInTool: Annotation<Boolean>
+// });
 
 /**
  * Configuration options for creating a new agent.
@@ -80,12 +89,12 @@ export async function createLgAgent(config: CreateAgentArgs) {
     const pluginContextProvider = new PluginContextProvider(allCreatedPlugins, {});
 
     const callLLm = () => {
-        return async (state: typeof StateAnnotation.State) => {
 
+        const callLLMNode: GraphNode<typeof AgentState> = async (state) => {
             const lastMessage: BaseMessage = state.messages[state.messages.length - 1];
 
-            let nextMessage = isHumanMessage(lastMessage) ?
-                langChainHumanMessageToMimirHumanMessage(lastMessage) : isToolMessage(lastMessage) ?
+            let nextMessage = HumanMessage.isInstance(lastMessage) ?
+                langChainHumanMessageToMimirHumanMessage(lastMessage) : ToolMessage.isInstance(lastMessage) ?
                     langChainToolMessageToMimirToolMessage(lastMessage) : undefined;
             if (nextMessage === undefined) {
                 throw new Error("No next message found");
@@ -115,17 +124,18 @@ export async function createLgAgent(config: CreateAgentArgs) {
 
 
             const messageListToSend = [...state.messages].slice(0, -1).map(m => {
-                if (m.getType() === "ai" && m.response_metadata["original_content"]) {
+
+                if (m.type === "ai" && m.additional_kwargs["original_content"]) {
                     return new AIMessage({
                         ...m,
-                        content: complexResponseToLangchainMessageContent(m.response_metadata["original_content"])
+                        contentBlocks: complexResponseToLangchainMessageContent(m.additional_kwargs["original_content"] as ComplexMessageContent[])
                     })
                 }
                 return m;
             })
 
             if (nextMessage.type === "USER_MESSAGE") {
-                const inputMessage = humanMessageToInputAgentMessage(lastMessage);
+                const inputMessage = humanMessageToInputAgentMessage(lastMessage as HumanMessage);
                 await workspaceManager.loadFiles(inputMessage.sharedFiles ?? []);
                 const { displayMessage, persistentMessage } = await pluginContextProvider.additionalMessageContent(inputMessage);
                 displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
@@ -143,14 +153,14 @@ export async function createLgAgent(config: CreateAgentArgs) {
                         shared_files: inputMessage.sharedFiles,
                     },
                     id: messageId,
-                    content: complexResponseToLangchainMessageContent(inputMessage.content)
+                    contentBlocks: complexResponseToLangchainMessageContent(inputMessage.content)
                 })];
 
                 const pluginInputs = await pluginContextProvider.getSystemPromptContext();
                 const systemMessage = buildSystemMessage([...responseFormatSystemMessage, dividerSystemMessage, ...pluginInputs]);
                 response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
 
-            } else  {
+            } else {
                 messageListToSend.push(lastMessage);
                 if (((lastMessage) as ToolMessage).status !== "error") {
                     const { displayMessage, persistentMessage } = await pluginContextProvider.additionalMessageContent({ content: [] });
@@ -214,7 +224,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     })
                 }
             }
-            const messageContent = lCmessageContentToContent(response.content);
+            const messageContent = lCmessageContentToContent(response.contentBlocks);
             const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(messageContent);
             const sharedFiles = await workspaceManager.readAttributes(rawResponseAttributes);
             let mimirAiMessage = aiMessageToMimirAiMessage(response, sharedFiles, fieldMapper);
@@ -236,13 +246,12 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 responseAttributes: rawResponseAttributes,
             };
         };
+
+        return callLLMNode;
     }
 
-
-    function routeAfterLLM(
-        state: typeof MessagesAnnotation.State,
-    ): typeof END | "human_review_node" {
-        const lastMessage: AIMessage = state.messages[state.messages.length - 1];
+    const routeAfterLLM3: ConditionalEdgeRouter<typeof AgentState> = (state) => {
+        const lastMessage = state.messages[state.messages.length - 1];
 
         if (
             (lastMessage as AIMessage).tool_calls?.length === 0
@@ -252,18 +261,19 @@ export async function createLgAgent(config: CreateAgentArgs) {
             return "human_review_node";
         }
     }
-    async function messageRetentionNode(state: typeof MessagesAnnotation.State) {
+
+    const messageRetentionNode: GraphNode<typeof AgentState> = async (state) => {
         const modifiedMessages: BaseMessage[] = [];
 
         // Get messages with a persistent retention policy and reverse the order
         const messagesWithRetention = state.messages
-            .filter(m => m.response_metadata?.persistentMessageRetentionPolicy)
+            .filter(m => m.additional_kwargs?.persistentMessageRetentionPolicy)
             .reverse();
 
         // Iterate over messages with retention policies
         for (const [idx, message] of messagesWithRetention.entries()) {
-            const retentionPolicy = message.response_metadata!.persistentMessageRetentionPolicy;
-            const messageContent = message.response_metadata["original_content"] as ComplexMessageContent[];
+            const retentionPolicy: RetentionAwareMessageContent["persistentMessage"]["retentionPolicy"] = message.additional_kwargs!.persistentMessageRetentionPolicy as any;
+            const messageContent = message.additional_kwargs["original_content"] as ComplexMessageContent[];
 
             // Map content with its corresponding retention value and filter those
             // whose retention is either null or greater than the current idx.
@@ -297,10 +307,10 @@ export async function createLgAgent(config: CreateAgentArgs) {
         }
         return { messages: modifiedMessages };
     }
-    async function humanReviewNode(state: typeof StateAnnotation.State) {
+    const humanReviewNode: GraphNode<typeof AgentState> = async (state) => {
         const toolRequest = state.messages[state.messages.length - 1] as AIMessage;
 
-       
+
         const humanInterrupt: HumanInterrupt = {
             description: "The agent is requesting permission to execute the following tool.",
             action_request: {
@@ -343,7 +353,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
         return new Command({ goto: "run_tool" });
     }
 
-    const workflow = new StateGraph(StateAnnotation)
+    const workflow = new StateGraph(AgentState)
         .addNode("call_llm", callLLm())
         .addNode("run_tool", toolNodeFunction(langChainTools, { handleToolErrors: true }))
         .addNode("message_prep", messageRetentionNode)
@@ -353,7 +363,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
         .addEdge(START, "message_prep")
         .addConditionalEdges(
             "call_llm",
-            routeAfterLLM,
+            routeAfterLLM3,
             ["human_review_node", END]
         )
         .addEdge("run_tool", "message_prep")
@@ -376,8 +386,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
     const commandList = agentCommands.map(ac => ac.commands).flat();
 
     const memory = config.checkpointer ?? new MemorySaver()
-
-    const graph = workflow.compile({
+    const graph: CompiledStateGraph<typeof AgentState["State"], any, any, typeof AgentState, typeof AgentState, StateDefinition, unknown, unknown, unknown>  = workflow.compile({
         checkpointer: memory,
     });
 
@@ -406,15 +415,15 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
 function buildSystemMessage(agentSystemMessages: ComplexMessageContent[]) {
     const messages = agentSystemMessages.map((m) => {
-        return mergeSystemMessages([new SystemMessage({ content: complexResponseToLangchainMessageContent([m]) })])
+        return mergeSystemMessages([new SystemMessage({ contentBlocks: complexResponseToLangchainMessageContent([m]) })])
     });
 
     const finalMessage = mergeSystemMessages(messages);
-    const content = finalMessage.content as MessageContentComplex[];
+    const content = finalMessage.contentBlocks as ContentBlock.Standard[];
     const containsOnlyText = content.find((f) => f.type !== "text") === undefined;
     if (containsOnlyText) {
         const systemMessageText = content.reduce((prev, next) => {
-            return prev + (next as MessageContentText).text
+            return prev + (next as ContentBlock.Text).text
         }, "");
 
         return new SystemMessage(systemMessageText);

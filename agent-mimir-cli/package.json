@@ -26,7 +26,7 @@
       "typescript": "^5.3.3"
     },
     "dependencies": {
-      "@langchain/openai": "0.6.12",
+      "@langchain/openai": "1.2.5",
       "@agent-mimir/code-interpreter": "*",
       "@agent-mimir/selenium-browser": "*",
       "chalk": "^5.2.0",
