@@ -1,5 +1,5 @@
 
-import { z } from "zod";
+import { z } from "zod/v4";
 import { ComplexMessageContent } from "../schema.js";
 //import { JSONSchema } from "@langchain/core/utils/json_schema";
 type JSONSchema = Record<string, unknown>;

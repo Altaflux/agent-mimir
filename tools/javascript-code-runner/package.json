@@ -11,13 +11,13 @@
   ],
   "devDependencies": {
     "@types/node": "^18.16.3",
-    "rimraf": "^5.0.0",
+    "rimraf": "^6.1.2",
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "vm2": "^3.9.19"
+    "vm2": "^3.10.4"
   },
   "peerDependencies": {
-    "@langchain/core": "*"
+   
   }
 }

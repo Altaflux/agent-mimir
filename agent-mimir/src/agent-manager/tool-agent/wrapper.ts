@@ -1,5 +1,5 @@
 import { AgentTool } from "../../tools/index.js";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { ComplexMessageContent } from "../../schema.js";
 import { StructuredTool, ToolRunnableConfig } from "@langchain/core/tools";
 import { complexResponseToLangchainMessageContent } from "../../utils/format.js";

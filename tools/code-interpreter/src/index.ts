@@ -1,6 +1,6 @@
 import { AgentPlugin, PluginContext, PluginFactory, AgentCommand, AgentSystemMessage } from "agent-mimir/plugins";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { spawn } from 'child_process';
 import os from 'os';
 import { promises as fs } from 'fs';

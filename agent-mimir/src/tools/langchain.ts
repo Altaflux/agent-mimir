@@ -1,6 +1,6 @@
 
 import { AgentTool, ToolResponse } from "./index.js";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { AgentPlugin, PluginFactory, PluginContext } from "../plugins/index.js";
 import { lCmessageContentToContent } from "../agent-manager/message-utils.js";
 import { MessageContent } from "@langchain/core/messages";

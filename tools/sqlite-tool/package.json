@@ -11,14 +11,14 @@
     "langchain"
   ],
   "devDependencies": {
-    "@types/node": "^18.16.3",
+    "@types/node": "^22.15.35",
     "@types/better-sqlite3": "^7.6.9",
-    "rimraf": "^5.0.0",
+    "rimraf": "^6.1.2",
     "typescript": "^5.3.3",
     "agent-mimir": "*"
   },
   "dependencies": {
-   "better-sqlite3": "^9.5.0"
+   "better-sqlite3": "^12.6.2"
   },
   "peerDependencies": {
     "agent-mimir": "*"

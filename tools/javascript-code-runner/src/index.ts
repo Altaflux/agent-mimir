@@ -1,7 +1,7 @@
 import { NodeVM } from "vm2";
 import { StructuredTool } from "@langchain/core/tools";
 
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export class JavascriptCodeRunner extends StructuredTool {
     schema = z.object({

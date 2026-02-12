@@ -1,7 +1,7 @@
 
 import { AgentTool } from "../../tools/index.js";
 import { toPythonFunctionName } from "./utils.js";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export const FUNCTION_PROMPT = `
 

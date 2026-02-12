@@ -27,7 +27,7 @@
         "eslint-config-custom": "*",
         "fs-extra": "11.3.2",
         "prettier": "3.6.2",
-        "release-it": "19.0.4",
+        "release-it": "19.2.4",
         "turbo": "2.5.6",
         "tsx": "4.20.5",
         "typescript-transpile-only": "0.0.4"
@@ -37,13 +37,14 @@
         "agent-mimir",
         "agent-mimir-cli",
         "agent-mimir-discord",
-       
+        "tools/*",
         
         ".temp_custom_deps"
     ],
     "dependencies": {
         "@langchain/langgraph": "1.1.4",
-        "@langchain/core": "1.1.22",
-        "langchain": "1.2.21"
+        "@langchain/core": "1.1.24",
+        "langchain": "1.2.23",
+        "zod": "^4.3.6"
     }
 }
