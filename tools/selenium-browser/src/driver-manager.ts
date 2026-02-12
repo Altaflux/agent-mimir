@@ -9,7 +9,7 @@ import { LLMChain } from "@langchain/classic/chains";
 import { InteractableElement, extractHtml } from "./html-processor.js";
 import { htmlToMarkdown } from "./to-markdown.js";
 import { RecursiveCharacterTextSplitter } from "@langchain/classic/text_splitter";
-import { MemoryVectorStore, } from "@langchain/classic/vectorstores";
+import { MemoryVectorStore, } from "@langchain/classic/vectorstores/memory";
 import { COMBINE_PROMPT } from "./prompt/combiner-prompt.js";
 import { Options, update, } from 'webdriver-manager';
 import { Options as ChromeOptions } from 'selenium-webdriver/chrome.js';

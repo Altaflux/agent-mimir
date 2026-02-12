@@ -5,7 +5,7 @@ import { LLMChain } from "@langchain/classic/chains";
 import { InteractableElement, extractHtml } from "./html-processor.js";
 import { htmlToMarkdown } from "./to-markdown.js";
 import { RecursiveCharacterTextSplitter } from "@langchain/classic/text_splitter";
-import { MemoryVectorStore, } from "@langchain/classic/vectorstores";
+import { MemoryVectorStore, } from "@langchain/classic/vectorstores/memory";
 import { COMBINE_PROMPT } from "./prompt/combiner-prompt.js";
 import exitHook from 'async-exit-hook';
 import { IS_RELEVANT_PROMPT } from "./prompt/relevance-prompt.js";
