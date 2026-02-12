@@ -171,7 +171,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     if (displayMessage.content.length > 0) {
                         messageListToSend.push(new HumanMessage({
                             id: v4(),
-                            content: complexResponseToLangchainMessageContent([
+                            contentBlocks: complexResponseToLangchainMessageContent([
                                 {
                                     type: "text",
                                     text: "Tools invoked succesfully (unless a tool call told you it failed or was cancelled), continue please but be sure the results from the tools are correct and what you expected."
@@ -254,7 +254,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
         const lastMessage = state.messages[state.messages.length - 1];
 
         if (
-            (lastMessage as AIMessage).tool_calls?.length === 0
+            ((lastMessage as AIMessage)?.tool_calls?.length ?? 0) === 0
         ) {
             return END;
         } else {
@@ -290,7 +290,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 if (updatedContent.length > 0) {
                     modifiedMessages.push(new HumanMessage({
                         id: message.id!,
-                        content: complexResponseToLangchainMessageContent(updatedContent),
+                        contentBlocks: complexResponseToLangchainMessageContent(updatedContent),
                         additional_kwargs: {
                             ...message.additional_kwargs,
                             persistentMessageRetentionPolicy: updatedRetention,
@@ -335,7 +335,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 const responseMessage = new ToolMessage({
                     id: v4(),
                     tool_call_id: toolRequest.tool_calls![0].id!,
-                    content: complexResponseToLangchainMessageContent([
+                    contentBlocks: complexResponseToLangchainMessageContent([
                         { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
                         { type: 'text', text: humanReview.args as string }]),
                 })
@@ -343,7 +343,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
             } else {
                 const responseMessage = new HumanMessage({
                     id: v4(),
-                    content: complexResponseToLangchainMessageContent([
+                    contentBlocks: complexResponseToLangchainMessageContent([
                         { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
                         { type: 'text', text: humanReview.args as string }]),
                 })

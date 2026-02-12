@@ -53,12 +53,12 @@ export function getLibrariesContentRegex(xmlString: string): string[] {
   // )          : End capturing group 1.
   // <\/execution-code> : Matches the literal closing tag (the '/' needs escaping).
   // s          : Flag to make '.' match newline characters as well (dotall).
-  const regex = /<libraries-to-install>(.*?)<\/libraries-to-install>/s;
+  const regex = /<pip-dependencies-to-install>(.*?)<\/pip-dependencies-to-install>/s;
 
   const match = xmlString.match(regex);
 
   // If a match is found, match will be an array.
-  // match[0] is the full matched string (e.g., "<libraries-to-install>content</libraries-to-install>")
+  // match[0] is the full matched string (e.g., "<pip-dependencies-to-install>content</pip-dependencies-to-install>")
   // match[1] is the content of the first capturing group (e.g., "content")
   if (match && match[1] !== undefined) {
     let scriptCode: string | null = match[1];

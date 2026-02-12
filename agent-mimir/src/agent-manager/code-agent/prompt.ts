@@ -7,7 +7,7 @@ export const FUNCTION_PROMPT = `
 
 You have the ability to execute code in a Python environment. To execute code, you can respond with a python code block wrapped in an "<execution-code>" xml tag. 
 The code will be executed inside the Python environment, and whatever you print into the console will be returned to you.
-You can install pip libraries by defining them comma separated in an <libraries-to-install> xml block.
+You can install pip libraries by defining them comma separated in an <pip-dependencies-to-install> xml block.
 
 Python Environment Rules:
 - You can only include ONE <execution-code> block per response, do not include more than one <execution-code> block in your response.
@@ -17,7 +17,7 @@ Python Environment Rules:
 - The user cannot see the the result of the code being executed, any information you want to share with the user must responded back to them in a normal message.
 
 Example:
-<libraries-to-install>requests,pymysql,openpyxl</libraries-to-install>
+<pip-dependencies-to-install>requests,pymysql,openpyxl</pip-dependencies-to-install>
 <execution-code>
 import time
 import random
@@ -68,13 +68,13 @@ ${dependencies.length > 0 ? `The following libraries are available in the Python
 }
 
 export const PYTHON_SCRIPT_SCHEMA = `
-<xs:element name="libraries-to-install" type="xs:string" minOccurs="0" maxOccurs="1">
+<xs:element name="pip-dependencies-to-install" type="xs:string" minOccurs="0" maxOccurs="1">
     <xsd:annotation>
         <xsd:documentation xml:lang="en">
             A list of comma separated PIP libraries to be installed into the Python environment. By default the python environment only comes with the standard libraries of Python.
             Any other dependency you may need to execute your script must be declared here so it becomes available for usage.
             Python code to be executed in the Python environment. The code must be wrapped in this tag.
-            You can only include ONE <libraries-to-install> block per response, do not include more than one <libraries-to-install> block in your response.
+            You can only include ONE <pip-dependencies-to-install> block per response, do not include more than one <pip-dependencies-to-install> block in your response.
         </xsd:documentation>
     </xsd:annotation>
 </xs:element>

@@ -201,7 +201,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
             if (response.content.length === 0) {
                 response = new AIMessage({
                     id: response.id,
-                    contentBlocks: [{
+                    content: [{
                         type: "text",
                         text: "I have completed my task.",
                     }]
@@ -267,7 +267,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
         const lastMessage = state.messages[state.messages.length - 1];
 
         if (
-            (lastMessage as AIMessage)?.tool_calls?.length === 0
+            ((lastMessage as AIMessage)?.tool_calls?.length ?? 0) === 0
         ) {
             return END;
         } else {
