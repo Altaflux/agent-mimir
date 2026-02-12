@@ -8,7 +8,7 @@ import { jsonSchemaToZod, JsonSchema } from "./json-schema-to-zod/index.js";
 import { AgentCommand, AgentSystemMessage, CommandContent, AgentPlugin, PluginFactory, PluginContext } from "agent-mimir/plugins";
 import { AgentTool, ToolResponse } from "agent-mimir/tools";
 import { ComplexMessageContent } from "agent-mimir/schema";
-import { z } from "zod";
+import { z } from 'zod';
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 
 
@@ -59,8 +59,8 @@ export class McpClientPluginFactory implements PluginFactory {
             version: "1.0.0",
         }, {
             capabilities: {
-                tools: {},
-                prompts: {}
+                
+               
             }
         });
 
@@ -342,7 +342,7 @@ class McpTool extends AgentTool {
         private readonly mcpTool: Awaited<ReturnType<InstanceType<typeof Client>["listTools"]>>["tools"][0]
     ) {
         super();
-        this.schema = jsonSchemaToZod(this.mcpTool.inputSchema as JsonSchema) as z.ZodObject<any>;
+        this.schema = JSON.parse(jsonSchemaToZod(this.mcpTool.inputSchema, { zodVersion: 4 } )) as z.ZodObject<any>;
         this.name = `${this.clientName}_${this.mcpTool.name}`;
         this.description = this.mcpTool.description ?? "";
     }

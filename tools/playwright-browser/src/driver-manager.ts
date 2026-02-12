@@ -1,11 +1,11 @@
 
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
-import { Document as VectorDocument } from 'langchain/document'
-import { LLMChain } from "langchain/chains";
+import { Document as VectorDocument } from '@langchain/classic/document'
+import { LLMChain } from "@langchain/classic/chains";
 import { InteractableElement, extractHtml } from "./html-processor.js";
 import { htmlToMarkdown } from "./to-markdown.js";
-import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { MemoryVectorStore, } from "langchain/vectorstores/memory";
+import { RecursiveCharacterTextSplitter } from "@langchain/classic/text_splitter";
+import { MemoryVectorStore, } from "@langchain/classic/vectorstores";
 import { COMBINE_PROMPT } from "./prompt/combiner-prompt.js";
 import exitHook from 'async-exit-hook';
 import { IS_RELEVANT_PROMPT } from "./prompt/relevance-prompt.js";
