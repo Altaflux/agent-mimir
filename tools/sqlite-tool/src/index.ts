@@ -1,7 +1,7 @@
 import { AgentPlugin, PluginFactory, PluginContext, AgentSystemMessage } from "agent-mimir/plugins";
 import { AgentTool, ToolResponse } from "agent-mimir/tools";
 
-import { z } from "zod";
+import { z } from "zod/v4";
 import Sqlite from 'better-sqlite3';
 
 type SqliteConfig = {
@@ -143,5 +143,5 @@ class ExecuteQueryCommand extends AgentTool {
     name: string = "sqlite_read_query";
     description: string = "Execute a read query on the SQLite database";
 
-    outSchema = z.array(z.record(z.any())).describe("The results of the query.");
+    outSchema = z.array(z.record(z.any(),z.any())).describe("The results of the query.");
 }
