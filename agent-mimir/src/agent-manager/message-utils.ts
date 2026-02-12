@@ -37,9 +37,9 @@ export function lCmessageContentToContent(content: ContentBlock[]): ComplexMessa
         if (c.type === "image") {
             //TODO FIX FOR HANDLING BETTER url tyoes
             const imgContent = c as ContentBlock.Multimodal.Image;
-            const imageUrl = typeof imgContent.image_url === 'string' ?
-                imgContent.image_url :
-                imgContent.image_url as string;
+            const imageUrl = typeof imgContent.data === 'string' ?
+                imgContent.data :
+                undefined!;
 
             return {
                 type: "image_url" as const,

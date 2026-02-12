@@ -116,7 +116,7 @@ export const run = async () => {
                     constitution: agentDefinition.definition.constitution,
                     plugins: [...agentDefinition.definition.plugins ?? [], ], //...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))
                     workspaceFactory: workspaceFactory,
-                    codeExecutor: (workspace) => new LocalPythonExecutor({additionalPackages: ["pandas", "numpy", "pillow", "sqlite3"], workspace: workspace}),
+                    codeExecutor: (workspace) => new LocalPythonExecutor({additionalPackages: [], workspace: workspace}),
                 }), agentName, agentDefinition.definition.communicationWhitelist)
             }
             console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.definition.profession}" and description "${agentDefinition.description}"`));
@@ -465,19 +465,19 @@ async function imagesToFiles(images: ComplexMessageContent[]): Promise<string[]>
 
 
     const imageUlrs = images.filter(i => i.type === "image_url").map(i => (i as ImageMessageContent).image_url);
-    const imagesPath = await Promise.all(imageUlrs.map(async (image) => { return await saveImageFromDataUrl(image.url); }));
+    const imagesPath = await Promise.all(imageUlrs.map(async (image) => { return await saveImageFromDataUrl(image.type, image.url); }));
     return imagesPath;
 }
 
-async function saveImageFromDataUrl(dataUrl: string): Promise<string> {
-    const regex = /^data:image\/(png|jpeg);base64,(.+)$/;
-    const matches = dataUrl.match(regex);
+async function saveImageFromDataUrl(imageType:string, base64Data: string): Promise<string> {
+  //  const regex = /^data:image\/(png|jpeg);base64,(.+)$/;
+  //  const matches = dataUrl;
 
-    if (!matches) {
-        throw new Error('Invalid image data URL.');
-    }
+    // if (!matches) {
+    //     throw new Error('Invalid image data URL.');
+    // }
 
-    const [, imageType, base64Data] = matches;
+    //const [, imageType, base64Data] = matches;
 
     const imageBuffer = Buffer.from(base64Data, 'base64');
 

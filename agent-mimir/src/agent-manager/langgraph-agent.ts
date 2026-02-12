@@ -61,7 +61,7 @@ export class LanggraphAgent implements Agent {
                 messages: [new HumanMessage({
                     id: v4(),
                     content: complexResponseToLangchainMessageContent(args.message.content),
-                    response_metadata: {
+                    additional_kwargs: {
                         sharedFiles: args.message.sharedFiles
                     }
                 })],

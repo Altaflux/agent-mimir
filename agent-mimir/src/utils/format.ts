@@ -77,12 +77,8 @@ export const openAIImageHandler = (image: { url: string, type: SupportedImageTyp
   }
   const res = {
     type: "image" as const,
-    mimeType: `${type}`,
+    mimeType: `image/${type}`,
     data : `${image.url}`
-    // image_url: {
-    //   url: image.type === "url" ? image.url : `data:image/${type};base64,${image.url}`,
-    //   detail: detail
-    // } 
   } satisfies ContentBlock.Multimodal.Image 
   return res;
 }

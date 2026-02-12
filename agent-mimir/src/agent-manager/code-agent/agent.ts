@@ -119,6 +119,10 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 if (m.type === "ai" && m.additional_kwargs["original_content"]) {
                     return new AIMessage({
                         ...m,
+                        id: m.id,
+                        name: m.name,
+                        response_metadata: m.response_metadata,
+                        //TODO verify, this should actually be contentBlocks but it doesn't work.
                         content: complexResponseToLangchainMessageContent(m.additional_kwargs["original_content"] as ComplexMessageContent[]),
                         tool_calls: []
                     })
@@ -126,8 +130,8 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 if (m.type === "tool") {
                     return new HumanMessage({
                         id: m.id,
-                        content: m.content,
-                        response_metadata: m.response_metadata
+                        contentBlocks: m.contentBlocks,
+                        additional_kwargs: m.additional_kwargs
                     })
                 }
                 return m;
@@ -144,16 +148,16 @@ export async function createLgAgent(config: CreateAgentArgs) {
           
                 messageListToSend.push(new HumanMessage({
                     id: messageId,
-                    content: complexResponseToLangchainMessageContent(displayMessage.content)
+                    contentBlocks: complexResponseToLangchainMessageContent(displayMessage.content)
                 }));
                 messageToStore = [new HumanMessage({
-                    response_metadata: {
+                    additional_kwargs: {
                         persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
                         original_content: persistentMessage.message.content,
                         shared_files: inputMessage.sharedFiles,
                     },
                     id: messageId,
-                    content: complexResponseToLangchainMessageContent(inputMessage.content)
+                    contentBlocks: complexResponseToLangchainMessageContent(inputMessage.content)
                 })];
 
 
@@ -171,18 +175,18 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     if (displayMessage.content.length > 0) {
                         messageListToSend.push(new HumanMessage({
                             id: messageId,
-                            content: complexResponseToLangchainMessageContent(displayMessage.content)
+                            contentBlocks: complexResponseToLangchainMessageContent(displayMessage.content)
                         }));
                     }
                     if (persistentMessage.message.content.length > 0) {
                         messageToStore = [new ToolMessage({
                             id: messageId,
                             tool_call_id: lastMessage.tool_call_id,
-                            response_metadata: {
+                            additional_kwargs: {
                                 persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
                                 original_content: persistentMessage.message.content
                             },
-                            content: complexResponseToLangchainMessageContent(inputMessage.content)
+                            contentBlocks: complexResponseToLangchainMessageContent(inputMessage.content)
                         })];
                     }
                 }
@@ -197,7 +201,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
             if (response.content.length === 0) {
                 response = new AIMessage({
                     id: response.id,
-                    content: [{
+                    contentBlocks: [{
                         type: "text",
                         text: "I have completed my task.",
                     }]
@@ -211,7 +215,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 const codeScript = getExecutionCodeContentRegex(extractTextContent(response.contentBlocks));
                 response = new AIMessage({
                     id: response.id,
-                    content: [{
+                    contentBlocks: [{
                         type: "text",
                         text: `<execution-code>\n${codeScript}\n</execution-code>`
                     }]
@@ -228,9 +232,14 @@ export async function createLgAgent(config: CreateAgentArgs) {
 
             const userMessage = fieldMapper.getUserMessage(messageContent);
             const reformattedAiMessage = new AIMessage({
-                ...response,
+                id: response.id,
+                name: response.name,
+                invalid_tool_calls: response.invalid_tool_calls,
+                response_metadata: response.response_metadata,
+                usage_metadata: response.usage_metadata,
+                //TODO verify, this should actually be contentBlocks but it doesn't work.
                 content: complexResponseToLangchainMessageContent(userMessage.tagFound ? userMessage.result : []),
-                response_metadata: {
+                additional_kwargs: {
                     original_content: messageContent,
                     shared_files: mimirAiMessage.sharedFiles ?? []
                 },
@@ -294,9 +303,9 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 if (updatedContent.length > 0) {
                     modifiedMessages.push(new HumanMessage({
                         id: message.id!,
-                        content: complexResponseToLangchainMessageContent(updatedContent),
-                        response_metadata: {
-                            ...message.response_metadata,
+                        contentBlocks: complexResponseToLangchainMessageContent(updatedContent),
+                        additional_kwargs: {
+                            ...message.additional_kwargs,
                             persistentMessageRetentionPolicy: updatedRetention,
                             original_content: updatedContent
                         }
@@ -334,7 +343,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 const responseMessage = new ToolMessage({
                     tool_call_id: toolRequest.tool_calls![0].id!,
                     id: v4(),
-                    content: complexResponseToLangchainMessageContent([
+                    contentBlocks: complexResponseToLangchainMessageContent([
                         { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
                         { type: 'text', text: humanReview.args as string }]),
                 });

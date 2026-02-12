@@ -147,7 +147,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     content: complexResponseToLangchainMessageContent(displayMessage.content)
                 }));
                 messageToStore = [new HumanMessage({
-                    response_metadata: {
+                    additional_kwargs: {
                         persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
                         original_content: persistentMessage.message.content,
                         shared_files: inputMessage.sharedFiles,
@@ -183,7 +183,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     if (persistentMessage.message.content.length > 0) {
                         messageToStore = [new HumanMessage({
                             id: `do-not-render-${v4()}`,
-                            response_metadata: {
+                            additional_kwargs: {
                                 persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
                                 original_content: persistentMessage.message.content
                             },
@@ -236,7 +236,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
             const reformattedAiMessage = new AIMessage({
                 ...response,
                 content: complexResponseToLangchainMessageContent(fieldMapper.getUserMessage(messageContent).result),
-                response_metadata: {
+                additional_kwargs: {
                     original_content: messageContent
                 }
             });
@@ -291,8 +291,8 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     modifiedMessages.push(new HumanMessage({
                         id: message.id!,
                         content: complexResponseToLangchainMessageContent(updatedContent),
-                        response_metadata: {
-                            ...message.response_metadata,
+                        additional_kwargs: {
+                            ...message.additional_kwargs,
                             persistentMessageRetentionPolicy: updatedRetention,
                             original_content: updatedContent
                         }
