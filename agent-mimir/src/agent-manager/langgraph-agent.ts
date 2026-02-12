@@ -1,7 +1,7 @@
-import { CompiledStateGraph, StateType, BinaryOperatorAggregate, Messages, Command, END, StateDefinition, StateSchema, MessagesValue } from "@langchain/langgraph";
+import { CompiledStateGraph, Command,  StateDefinition, StateSchema, MessagesValue } from "@langchain/langgraph";
 import { AgentCommand, AgentPlugin } from "../plugins/index.js";
 import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, CommandRequest, InputAgentMessage, IntermediateAgentMessage, SharedFile } from "./index.js";
-import { BaseMessage, HumanMessage,  MessageStructure,  MessageToolSet,  MessageType,  RemoveMessage, ToolMessage } from "@langchain/core/messages";
+import { BaseMessage, HumanMessage,  RemoveMessage, ToolMessage } from "@langchain/core/messages";
 import { v4 } from "uuid";
 import { complexResponseToLangchainMessageContent, extractAllTextFromComplexResponse } from "../utils/format.js";
 import { commandContentToBaseMessage, lCmessageContentToContent } from "./message-utils.js";
@@ -11,7 +11,7 @@ import z from "zod";
 
 
 export const AgentState = new StateSchema({
-   responseAttributes: z.record(z.string(), z.any()),
+    responseAttributes: z.record(z.string(), z.any()),
     noMessagesInTool: z.boolean(),
     messages: MessagesValue
 });
