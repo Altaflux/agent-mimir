@@ -1,8 +1,9 @@
 
+import { isZodSchemaV3, isZodSchemaV4 } from "@langchain/core/utils/types";
 import { AgentTool } from "../../tools/index.js";
 import { toPythonFunctionName } from "./utils.js";
 import { z } from "zod/v4";
-
+import { zodToJsonSchema } from "zod-to-json-schema";
 export const FUNCTION_PROMPT = `
 
 You have the ability to execute code in a Python environment. To execute code, you can respond with a python code block wrapped in an "<execution-code>" xml tag. 
@@ -11,7 +12,7 @@ You can install pip libraries by defining them comma separated in an <pip-depend
 
 Python Environment Rules:
 - You can only include ONE <execution-code> block per response, do not include more than one <execution-code> block in your response.
-- Use this python environment to accomplish the task you are given, be proactive and use the function available to you but ask for help if you feel stuck on a task.
+- Use this python environment to accomplish the task you are given, be proactive and use the functions available to you but ask for help if you feel stuck on a task.
 - You must not ask permission or notify the user you plan on executing code, just do it.
 - You have been given access to a list of tools: these tools are Python functions which you can call with code.
 - The user cannot see the the result of the code being executed, any information you want to share with the user must responded back to them in a normal message.
@@ -37,8 +38,11 @@ ONLY use the <execution-code> tag to execute code when needed, do not use it for
 
 
 function getFunctions(tool: AgentTool) {
-    let outParameter = tool.outSchema ? JSON.stringify(z.toJSONSchema(tool.outSchema)) : "ToolResponse";
-    const schema = tool.schema instanceof z.ZodType ? z.toJSONSchema(tool.schema) : tool.schema;
+    const outParameter = tool.outSchema === undefined ? "ToolResponse" 
+    : isZodSchemaV4(tool.outSchema) ? JSON.stringify(z.toJSONSchema(tool.outSchema)) 
+    : isZodSchemaV3(tool.outSchema) ? JSON.stringify(zodToJsonSchema(tool.outSchema)) 
+    : JSON.stringify(tool.outSchema);
+    const schema = isZodSchemaV4(tool.schema) ? z.toJSONSchema(tool.schema) : isZodSchemaV3(tool.schema) ? zodToJsonSchema(tool.schema) : tool.schema;
     const toolDefinition = `
 - FunctionName: ${toPythonFunctionName(tool.name)}
 - Description: ${tool.description}
@@ -59,7 +63,7 @@ export const getFunctionsPrompt = (dependencies: string[], tool: AgentTool[]) =>
 The result of functions with an output parameter of "ToolResponse" can be printed with the "print" function, and the result will be returned to you.
 If the function has a different defined output type then its output can be used in other functions as an normal Python type.
 The parameters of this functions is a single Dictionary parameter, not a list of parameters. Example: functionName({"param1": "value1", "param2": "value2"}).
-FUNCTION LIST:\n${functions}\n\n---------------------------------\n
+FUNCTIONS LIST:\n${functions}\n\n---------------------------------\n
 ${dependencies.length > 0 ? `The following libraries are available in the Python environment: ${dependencies.join(", ")}` : ""}
 \n---------------------------------\n
 `
@@ -73,7 +77,6 @@ export const PYTHON_SCRIPT_SCHEMA = `
         <xsd:documentation xml:lang="en">
             A list of comma separated PIP libraries to be installed into the Python environment. By default the python environment only comes with the standard libraries of Python.
             Any other dependency you may need to execute your script must be declared here so it becomes available for usage.
-            Python code to be executed in the Python environment. The code must be wrapped in this tag.
             You can only include ONE <pip-dependencies-to-install> block per response, do not include more than one <pip-dependencies-to-install> block in your response.
         </xsd:documentation>
     </xsd:annotation>

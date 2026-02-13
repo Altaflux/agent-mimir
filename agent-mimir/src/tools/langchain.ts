@@ -1,31 +1,37 @@
 
-import { AgentTool, ToolResponse } from "./index.js";
-import { z } from "zod/v4";
+import { AgentTool, ToolInputSchemaBase, ToolResponse } from "./index.js";
+import { z } from "zod/v3";
 import { AgentPlugin, PluginFactory, PluginContext } from "../plugins/index.js";
 import { lCmessageContentToContent } from "../agent-manager/message-utils.js";
 import { MessageContent } from "@langchain/core/messages";
+import { StructuredTool } from "@langchain/core/tools";
 
 
-// class LangchainToolToMimirTool extends AgentTool {
+class LangchainToolToMimirTool extends AgentTool {
 
-//     schema = this.tool.schema;
-//     name: string = this.tool.name;
-//     description: string = this.tool.description;
-//     returnDirect: boolean = this.tool.returnDirect;
+    schema = z.any()
 
-//     constructor(private tool: StructuredTool) {
-//         super();
-//     }
+    name: string = this.tool.name;
+    description: string = this.tool.description;
+    returnDirect: boolean = this.tool.returnDirect;
 
-//     protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
-//         const response = await this.tool.invoke(arg);
-//         if (this.tool.responseFormat === "content_and_artifact") {
-//             return lCmessageContentToContent(response[0] as MessageContent)
-//         }
-//         return lCmessageContentToContent(response as MessageContent)
+    constructor(private tool: StructuredTool) {
+       
+        super();
+    }
+    async foo(){
+         const dsjk = await this.tool.invoke(null);
 
-//     }
-// }
+    }
+    protected async _call(arg: any): Promise<ToolResponse> {
+        const response = await this.tool.invoke(arg);
+        if (this.tool.responseFormat === "content_and_artifact") {
+            return lCmessageContentToContent(response[0] as MessageContent)
+        }
+        return lCmessageContentToContent(response as MessageContent)
+
+    }
+}
 
 // /**
 //  * Factory class for creating LangChain tool wrapper plugins

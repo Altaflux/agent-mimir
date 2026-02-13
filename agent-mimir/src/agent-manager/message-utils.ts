@@ -18,7 +18,7 @@ export function commandContentToBaseMessage(commandContent: { type: string, cont
     throw new Error(ERROR_MESSAGES.UNREACHABLE);
 }
 
-export function lCmessageContentToContent(content: ContentBlock[]): ComplexMessageContent[] {
+export function lCmessageContentToContent(content: ContentBlock[] | string): ComplexMessageContent[] {
     if (typeof content === 'string') {
         return [{
             type: "text",
