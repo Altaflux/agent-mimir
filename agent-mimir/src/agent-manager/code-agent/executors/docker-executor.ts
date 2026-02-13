@@ -19,7 +19,7 @@ export interface DockerPythonExecutorOptions {
     streamContainerOutput?: boolean;
 }
 
-const DEFAULT_DOCKER_IMAGE = "python:3.12-slim";
+const DEFAULT_DOCKER_IMAGE = "python:3.12";
 const DEFAULT_DOCKER_BINARY = "docker";
 const DEFAULT_CONTAINER_WORKSPACE_PATH = "/workspace";
 const DEFAULT_CONTAINER_RUNTIME_PATH = "/opt/mimir/runtime";

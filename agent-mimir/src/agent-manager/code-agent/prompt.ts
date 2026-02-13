@@ -11,6 +11,7 @@ export function functionPrompt(workspaceDirectory: string): string {
 You have the ability to execute code in a Python environment. To execute code, you can respond with a python code block wrapped in an "<execution-code>" xml tag. 
 The code will be executed inside the Python environment, and whatever you print into the console will be returned to you.
 You can install pip libraries by defining them comma separated in an <pip-dependencies-to-install> xml block.
+Do not assume the success of the execution of the script until you have verified its output.
 
 Python Environment Rules:
 - You can only include ONE <execution-code> block per response, do not include more than one <execution-code> block in your response.
