@@ -161,6 +161,8 @@ export const run = async () => {
                 option.setRequired(arg.required);
                 if (arg.description) {
                     option.setDescription((arg.description.length > 90) ? arg.description.slice(0, 90 - 1) + '&hellip;' : arg.description);
+                } else  {
+                    option.setDescription("N/A");
                 }
                 return option
             })

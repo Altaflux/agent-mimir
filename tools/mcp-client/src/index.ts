@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 export { StdioClientTransport, StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js";
 export { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+export { StreamableHTTPClientTransport, StreamableHTTPClientTransportOptions } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 export { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/websocket.js";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js"
 import { CallToolResult, EmbeddedResource, ImageContent, PromptMessage, TextContent } from "@modelcontextprotocol/sdk/types.js";

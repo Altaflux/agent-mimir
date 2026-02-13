@@ -16,17 +16,22 @@ export class LangchainToolToMimirTool<SchemaT = ToolInputSchemaBase> extends Age
     constructor(private tool: StructuredTool, readonly namePrefix?: string) {
         super();
         this.schema = tool.schema as SchemaT;
-        this.name = `${namePrefix ? namePrefix + "_": ""}${tool.name}`;
+        this.name = `${namePrefix ? namePrefix + "_" : ""}${tool.name}`;
         this.description = tool.description;
         this.returnDirect = tool.returnDirect;
     }
     protected async _call(arg: any): Promise<ToolResponse> {
         const response = await this.tool.invoke(arg);
-        if (this.tool.responseFormat === "content_and_artifact" && Array.isArray(response)) {
-            return lCmessageContentToContent(response[0] as MessageContent)
-        }
-        return lCmessageContentToContent(response as MessageContent)
+        return this.toMessageContent(response);
 
+    }
+
+    toMessageContent(response: any) {
+        if (this.tool.responseFormat === "content_and_artifact" && Array.isArray(response)) {
+            const responseContent = response[0];
+            return lCmessageContentToContent(Array.isArray(responseContent) ? responseContent as MessageContent : [responseContent])
+        }
+        return lCmessageContentToContent(Array.isArray(response) ? response as MessageContent : [response])
     }
 }
 
