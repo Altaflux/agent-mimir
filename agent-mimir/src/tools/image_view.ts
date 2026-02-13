@@ -21,7 +21,7 @@ export class ViewPlugin extends AgentPlugin {
 }
 export class ViewTool extends AgentTool {
 
-    name: string = "seeImageFromWorkspace";
+    name: string = "showImageFromWorkspace";
 
     constructor(private context: PluginContext) {
         super();

@@ -4,7 +4,9 @@ import { AgentTool } from "../../tools/index.js";
 import { toPythonFunctionName } from "./utils.js";
 import { z } from "zod/v4";
 import { zodToJsonSchema } from "zod-to-json-schema";
-export const FUNCTION_PROMPT = `
+
+export function functionPrompt(workspaceDirectory: string): string {
+    return `
 
 You have the ability to execute code in a Python environment. To execute code, you can respond with a python code block wrapped in an "<execution-code>" xml tag. 
 The code will be executed inside the Python environment, and whatever you print into the console will be returned to you.
@@ -16,6 +18,7 @@ Python Environment Rules:
 - You must not ask permission or notify the user you plan on executing code, just do it.
 - You have been given access to a list of tools: these tools are Python functions which you can call with code.
 - The user cannot see the the result of the code being executed, any information you want to share with the user must responded back to them in a normal message.
+- The workspace directory is mounted at "${workspaceDirectory}" and is the current working directory of the script.
 
 Example:
 <pip-dependencies-to-install>requests,pymysql,openpyxl</pip-dependencies-to-install>
@@ -35,13 +38,14 @@ You are not allowed to execute any code that is not wrapped in the <execution-co
 ONLY use the <execution-code> tag to execute code when needed, do not use it for any other purpose.
 
 `
+}
 
 
 function getFunctions(tool: AgentTool) {
-    const outParameter = tool.outSchema === undefined ? "ToolResponse" 
-    : isZodSchemaV4(tool.outSchema) ? JSON.stringify(z.toJSONSchema(tool.outSchema)) 
-    : isZodSchemaV3(tool.outSchema) ? JSON.stringify(zodToJsonSchema(tool.outSchema)) 
-    : JSON.stringify(tool.outSchema);
+    const outParameter = tool.outSchema === undefined ? "ToolResponse"
+        : isZodSchemaV4(tool.outSchema) ? JSON.stringify(z.toJSONSchema(tool.outSchema))
+            : isZodSchemaV3(tool.outSchema) ? JSON.stringify(zodToJsonSchema(tool.outSchema))
+                : JSON.stringify(tool.outSchema);
     const schema = isZodSchemaV4(tool.schema) ? z.toJSONSchema(tool.schema) : isZodSchemaV3(tool.schema) ? zodToJsonSchema(tool.schema) : tool.schema;
     const toolDefinition = `
 - FunctionName: ${toPythonFunctionName(tool.name)}

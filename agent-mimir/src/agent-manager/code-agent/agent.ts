@@ -11,7 +11,7 @@ import { Agent, AgentWorkspace, WorkspaceFactory } from "./../index.js";
 import { PluginFactory } from "../../plugins/index.js";
 import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex,  getLibrariesContentRegex,  langChainToolMessageToMimirHumanMessage, toPythonFunctionName } from "./utils.js";
 import { pythonToolNodeFunction } from "./tool-node.js";
-import { FUNCTION_PROMPT, getFunctionsPrompt, PYTHON_SCRIPT_SCHEMA } from "./prompt.js";
+import { functionPrompt, getFunctionsPrompt, PYTHON_SCRIPT_SCHEMA } from "./prompt.js";
 import { DefaultPluginFactory } from "../../plugins/default-plugins.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { CodeToolExecutor } from "./index.js";
@@ -103,7 +103,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 } satisfies ComplexMessageContent,
                 {
                     type: "text" as const,
-                    text: FUNCTION_PROMPT + "\n" + getFunctionsPrompt(codeExecutor.availableDependencies, allTools)
+                    text: functionPrompt(codeExecutor.workspaceFullPath()) + "\n" + getFunctionsPrompt(codeExecutor.availableDependencies, allTools)
                 } satisfies ComplexMessageContent,
                 {
                     text: fieldMapper.createFieldInstructions(PYTHON_SCRIPT_SCHEMA),

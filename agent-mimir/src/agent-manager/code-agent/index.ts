@@ -8,6 +8,8 @@ export { createAgent, createLgAgent } from "./agent.js";
 export interface CodeToolExecutor {
 
     availableDependencies: string[];
+
+    workspaceFullPath(): string;
     
     execute(tools: AgentTool[], code: string, libraries:string[], toolInitCallback: (wsUrl: string, tools: AgentTool[]) => void): Promise<string>;
 }

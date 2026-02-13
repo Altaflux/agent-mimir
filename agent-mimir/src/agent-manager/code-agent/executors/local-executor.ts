@@ -26,6 +26,9 @@ export class LocalPythonExecutor implements CodeToolExecutor {
         this.availableDependencies = config.additionalPackages ?? []
     }
 
+    workspaceFullPath(): string {
+        return this.config.workspace?.workingDirectory ?? "";
+    }
 
     async execute(tools: AgentTool[], code: string, libraries: string[], toolInitCallback: (url: string, tools: AgentTool[]) => void): Promise<string> {
 
@@ -36,7 +39,7 @@ export class LocalPythonExecutor implements CodeToolExecutor {
         const temporaryWorkspacePath = (await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-python-code-ws'))).replace(/\\/g, '\\\\');
         let localWorkspaceUrl = temporaryWorkspacePath;
         if (this.config.workspace) {
-            localWorkspaceUrl = this.config.workspace.workingDirectory;;
+            localWorkspaceUrl = this.config.workspace.workingDirectory;
         }
 
         const wsPort = await getPortFree();

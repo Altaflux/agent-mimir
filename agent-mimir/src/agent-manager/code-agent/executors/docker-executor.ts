@@ -35,6 +35,10 @@ export class DockerPythonExecutor implements CodeToolExecutor {
         this.availableDependencies = config.additionalPackages ?? [];
     }
 
+    workspaceFullPath(): string {
+        return this.config.containerWorkspacePath ?? DEFAULT_CONTAINER_WORKSPACE_PATH;
+    }
+
     async execute(
         tools: AgentTool[],
         code: string,
