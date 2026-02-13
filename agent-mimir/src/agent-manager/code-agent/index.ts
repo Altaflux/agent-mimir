@@ -1,6 +1,7 @@
 
 import { AgentTool } from "../../tools/index.js";
 export { LocalPythonExecutor } from "./executors/local-executor.js";
+export { DockerPythonExecutor } from "./executors/docker-executor.js";
 export { CodeAgentFactory } from "./factory.js";
 export { createAgent, createLgAgent } from "./agent.js";
 

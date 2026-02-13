@@ -19,7 +19,7 @@ import { PluginFactory } from "agent-mimir/plugins";
 import { ComplexMessageContent, ImageMessageContent } from "agent-mimir/schema";
 //import { LangchainToolWrapperPluginFactory } from "agent-mimir/tools/langchain";
 import { file } from 'tmp-promise';
-import { CodeAgentFactory, LocalPythonExecutor } from "agent-mimir/agent/code-agent";
+import { CodeAgentFactory, DockerPythonExecutor, LocalPythonExecutor } from "agent-mimir/agent/code-agent";
 import { FunctionAgentFactory } from "agent-mimir/agent/tool-agent";
 import { BaseCheckpointSaver } from "@langchain/langgraph";
 function splitStringInChunks(str: string) {
@@ -116,7 +116,7 @@ export const run = async () => {
                     constitution: agentDefinition.definition.constitution,
                     plugins: [...agentDefinition.definition.plugins ?? [], ], //...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))
                     workspaceFactory: workspaceFactory,
-                    codeExecutor: (workspace) => new LocalPythonExecutor({additionalPackages: [], workspace: workspace}),
+                    codeExecutor: (workspace) => new DockerPythonExecutor({additionalPackages: [], workspace: workspace}),
                 }), agentName, agentDefinition.definition.communicationWhitelist)
             }
             console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.definition.profession}" and description "${agentDefinition.description}"`));
