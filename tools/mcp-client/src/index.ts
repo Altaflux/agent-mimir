@@ -4,13 +4,14 @@ export { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 export { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/websocket.js";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js"
 import { CallToolResult, EmbeddedResource, ImageContent, PromptMessage, TextContent } from "@modelcontextprotocol/sdk/types.js";
-import { jsonSchemaToZod, JsonSchema } from "./json-schema-to-zod/index.js";
+
 import { AgentCommand, AgentSystemMessage, CommandContent, AgentPlugin, PluginFactory, PluginContext } from "agent-mimir/plugins";
 import { AgentTool, ToolResponse } from "agent-mimir/tools";
 import { ComplexMessageContent } from "agent-mimir/schema";
 import { z } from 'zod';
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
-
+import { loadMcpTools } from "@langchain/mcp-adapters";
+import { LangchainToolToMimirTool } from "agent-mimir/tools/langchain";
 
 interface PluginResult {
     tools: AgentTool[];
@@ -92,8 +93,9 @@ export class McpClientPluginFactory implements PluginFactory {
 
     private async initializeTools(client: Client, clientName: string): Promise<AgentTool[]> {
         try {
-            const tools = await client.listTools();
-            return tools.tools.map(tool => new McpTool(clientName, client, tool));
+            const tools = await loadMcpTools(clientName, client)
+            const agentTools = tools.map(t => new LangchainToolToMimirTool(t));
+            return agentTools;
         } catch (error) {
             console.error(`Failed to list tools for client ${clientName}:`, error);
             return [];
@@ -331,32 +333,32 @@ MCP Servers:\n${resourcesTemplate}`
 /**
  * Tool implementation for MCP operations
  */
-class McpTool extends AgentTool {
-    public readonly schema: z.ZodObject<any>;
-    public readonly name: string;
-    public readonly description: string;
+// class McpTool extends AgentTool {
+//     public readonly schema: z.ZodObject<any>;
+//     public readonly name: string;
+//     public readonly description: string;
 
-    constructor(
-        private readonly clientName: string,
-        private readonly client: InstanceType<typeof Client>,
-        private readonly mcpTool: Awaited<ReturnType<InstanceType<typeof Client>["listTools"]>>["tools"][0]
-    ) {
-        super();
-        this.schema = JSON.parse(jsonSchemaToZod(this.mcpTool.inputSchema, { zodVersion: 4 } )) as z.ZodObject<any>;
-        this.name = `${this.clientName}_${this.mcpTool.name}`;
-        this.description = this.mcpTool.description ?? "";
-    }
+//     constructor(
+//         private readonly clientName: string,
+//         private readonly client: InstanceType<typeof Client>,
+//         private readonly mcpTool: Awaited<ReturnType<InstanceType<typeof Client>["listTools"]>>["tools"][0]
+//     ) {
+//         super();
+//         this.schema = JSON.parse(jsonSchemaToZod(this.mcpTool.inputSchema, { zodVersion: 4 } )) as z.ZodObject<any>;
+//         this.name = `${this.clientName}_${this.mcpTool.name}`;
+//         this.description = this.mcpTool.description ?? "";
+//     }
 
-    protected async _call(arg: Record<string, unknown>, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
-        try {
-            const result = await this.client.callTool({
-                name: this.mcpTool.name,
-                arguments: arg
-            });
-            return ContentConverter.convertToolToToolResponse(result as CallToolResult);
-        } catch (error) {
-            console.error(`Failed to call tool ${this.name}:`, error);
-            throw error;
-        }
-    }
-}
+//     protected async _call(arg: Record<string, unknown>, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
+//         try {
+//             const result = await this.client.callTool({
+//                 name: this.mcpTool.name,
+//                 arguments: arg
+//             });
+//             return ContentConverter.convertToolToToolResponse(result as CallToolResult);
+//         } catch (error) {
+//             console.error(`Failed to call tool ${this.name}:`, error);
+//             throw error;
+//         }
+//     }
+// }

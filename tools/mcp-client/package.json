@@ -17,8 +17,9 @@
     "agent-mimir": "*"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.26.0",
-    "@n8n/json-schema-to-zod": "1.6.0"
+
+    "@n8n/json-schema-to-zod": "1.6.0",
+    "@langchain/mcp-adapters": "1.1.3"
  
   },
   "peerDependencies": {

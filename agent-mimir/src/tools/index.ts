@@ -4,7 +4,7 @@ import { z as z3 } from "zod/v3";
 import { z as z4 } from "zod/v4";
 import { ComplexMessageContent } from "../schema.js";
 import { JsonSchema7Type } from "@langchain/core/utils/json_schema";
-import { InferInteropZodInput, InferInteropZodOutput, InteropZodType } from "@langchain/core/utils/types";
+import { InferInteropZodInput, InferInteropZodOutput, InteropZodType, isZodSchemaV3, isZodSchemaV4 } from "@langchain/core/utils/types";
 //import {} from "@langchain/core/"
 type JSONSchema = Record<string, unknown>;
 export type ToolResponse = ComplexMessageContent[];
@@ -30,13 +30,13 @@ export type ToolInputSchemaInputType<T> = T extends InteropZodType ? InferIntero
 
 
 //export type StructuredToolCallInput<SchemaT extends ToolInputSchemaBase, SchemaInputT = ToolInputSchemaInputType<SchemaT>> = (ToolInputSchemaOutputType<SchemaT> extends string ? string : never) | SchemaInputT;
-export type StructuredToolCallInput<SchemaT = ToolInputSchemaBase, SchemaInputT = ToolInputSchemaInputType<SchemaT>> = (ToolInputSchemaOutputType<SchemaT> extends string ? string : never) | SchemaInputT ;
+export type StructuredToolCallInput<SchemaT = ToolInputSchemaBase, SchemaInputT = ToolInputSchemaInputType<SchemaT>> = (ToolInputSchemaOutputType<SchemaT> extends string ? string : never) | SchemaInputT;
 
 
 export abstract class AgentTool<
-   SchemaT = ToolInputSchemaBase ,
-  SchemaOutputT = ToolInputSchemaOutputType<SchemaT>, 
-  SchemaInputT = ToolInputSchemaInputType<SchemaT>> {
+    SchemaT = ToolInputSchemaBase,
+    SchemaOutputT = ToolInputSchemaOutputType<SchemaT>,
+    SchemaInputT = ToolInputSchemaInputType<SchemaT>> {
     abstract schema: SchemaT;
 
     outSchema: z3.ZodType | z4.ZodType | undefined = undefined
@@ -65,7 +65,8 @@ export abstract class AgentTool<
     ): Promise<ToolResponse> {
         let parsed;
         try {
-            parsed = await (this.schema as z3.ZodType<SchemaOutputT>).parseAsync(arg);
+            parsed = isZodSchemaV3(this.schema) ? await (this.schema as z3.ZodType<SchemaOutputT>).parseAsync(arg)
+                : arg as SchemaOutputT;
         } catch (e) {
             throw new Error(
                 `Received tool input did not match expected schema ${JSON.stringify(arg)}`,
