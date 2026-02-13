@@ -94,7 +94,7 @@ export class McpClientPluginFactory implements PluginFactory {
     private async initializeTools(client: Client, clientName: string): Promise<AgentTool[]> {
         try {
             const tools = await loadMcpTools(clientName, client)
-            const agentTools = tools.map(t => new LangchainToolToMimirTool(t));
+            const agentTools = tools.map(t => new LangchainToolToMimirTool(t, clientName));
             return agentTools;
         } catch (error) {
             console.error(`Failed to list tools for client ${clientName}:`, error);
@@ -330,35 +330,3 @@ MCP Servers:\n${resourcesTemplate}`
     }
 }
 
-/**
- * Tool implementation for MCP operations
- */
-// class McpTool extends AgentTool {
-//     public readonly schema: z.ZodObject<any>;
-//     public readonly name: string;
-//     public readonly description: string;
-
-//     constructor(
-//         private readonly clientName: string,
-//         private readonly client: InstanceType<typeof Client>,
-//         private readonly mcpTool: Awaited<ReturnType<InstanceType<typeof Client>["listTools"]>>["tools"][0]
-//     ) {
-//         super();
-//         this.schema = JSON.parse(jsonSchemaToZod(this.mcpTool.inputSchema, { zodVersion: 4 } )) as z.ZodObject<any>;
-//         this.name = `${this.clientName}_${this.mcpTool.name}`;
-//         this.description = this.mcpTool.description ?? "";
-//     }
-
-//     protected async _call(arg: Record<string, unknown>, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
-//         try {
-//             const result = await this.client.callTool({
-//                 name: this.mcpTool.name,
-//                 arguments: arg
-//             });
-//             return ContentConverter.convertToolToToolResponse(result as CallToolResult);
-//         } catch (error) {
-//             console.error(`Failed to call tool ${this.name}:`, error);
-//             throw error;
-//         }
-//     }
-// }
