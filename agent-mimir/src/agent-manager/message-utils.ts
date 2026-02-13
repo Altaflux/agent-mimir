@@ -1,9 +1,9 @@
 import { v4 } from "uuid";
-import { AIMessage, BaseMessage, HumanMessage, MessageContent, MessageContentComplex, MessageContentImageUrl, MessageContentText, SystemMessage } from "@langchain/core/messages";
+import { AIMessage, BaseMessage, ContentBlock, HumanMessage,  SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { ComplexMessageContent, ImageMessageContent, TextMessageContent, SupportedImageTypes, } from "../schema.js";
 import { CONSTANTS, ERROR_MESSAGES } from "./constants.js";
 import { complexResponseToLangchainMessageContent } from "../utils/format.js";
-import { InputAgentMessage } from "./index.js";
+import { InputAgentMessage, SharedFile } from "./index.js";
 
 
 export function commandContentToBaseMessage(commandContent: { type: string, content: ComplexMessageContent[] }): BaseMessage {
@@ -18,7 +18,7 @@ export function commandContentToBaseMessage(commandContent: { type: string, cont
     throw new Error(ERROR_MESSAGES.UNREACHABLE);
 }
 
-export function lCmessageContentToContent(content: MessageContent): ComplexMessageContent[] {
+export function lCmessageContentToContent(content: ContentBlock[] | string): ComplexMessageContent[] {
     if (typeof content === 'string') {
         return [{
             type: "text",
@@ -26,19 +26,20 @@ export function lCmessageContentToContent(content: MessageContent): ComplexMessa
         }];
     }
 
-    return (content as MessageContentComplex[]).map(c => {
+    return (content as ContentBlock[]).map(c => {
         if (c.type === "text") {
             return {
                 type: "text" as const,
-                text: (c as MessageContentText).text
+                text: (c as ContentBlock.Text).text
             } satisfies TextMessageContent;
         }
 
-        if (c.type === "image_url") {
-            const imgContent = c as MessageContentImageUrl;
-            const imageUrl = typeof imgContent.image_url === 'string' ?
-                imgContent.image_url :
-                imgContent.image_url.url;
+        if (c.type === "image") {
+            //TODO FIX FOR HANDLING BETTER url tyoes
+            const imgContent = c as ContentBlock.Multimodal.Image;
+            const imageUrl = typeof imgContent.data === 'string' ?
+                imgContent.data :
+                undefined!;
 
             return {
                 type: "image_url" as const,
@@ -58,14 +59,14 @@ export function lCmessageContentToContent(content: MessageContent): ComplexMessa
 export function mergeSystemMessages(messages: SystemMessage[]): SystemMessage {
     return messages.reduce((prev, next) => {
         const prevContent = typeof prev.content === 'string' ?
-            [{ type: "text", text: prev.content }] satisfies MessageContentText[] :
-            prev.content satisfies MessageContentComplex[];
+            [{ type: "text", text: prev.content }] satisfies ContentBlock.Text[] :
+            prev.contentBlocks satisfies ContentBlock.Standard[];
 
         const nextContent = typeof next.content === 'string' ?
-            [{ type: "text", text: next.content }] satisfies MessageContentText[] :
-            next.content satisfies MessageContentComplex[];
+            [{ type: "text", text: next.content }] satisfies ContentBlock.Text[] :
+            next.contentBlocks satisfies ContentBlock.Standard[];
 
-        return new SystemMessage({ content: [...prevContent, ...nextContent] });
+        return new SystemMessage({ contentBlocks: [...prevContent, ...nextContent] });
     }, new SystemMessage({ content: [] }));
 }
 
@@ -77,9 +78,18 @@ export const dividerSystemMessage = {
 
 export function humanMessageToInputAgentMessage(message: HumanMessage) : InputAgentMessage {
     return {
-      content: lCmessageContentToContent(message.content),
+      content: lCmessageContentToContent(message.contentBlocks),
       sharedFiles: [
-        ...(message.response_metadata?.["sharedFiles"] ?? [])
+        ...(message.additional_kwargs?.["sharedFiles"] as SharedFile[] ?? [])
+      ]
+    }
+  }
+
+export function toolMessageToInputAgentMessage(message: ToolMessage) : InputAgentMessage {
+    return {
+      content: lCmessageContentToContent(message.contentBlocks),
+      sharedFiles: [
+        ...(message.additional_kwargs?.["sharedFiles"] as SharedFile[] ?? [])
       ]
     }
   }

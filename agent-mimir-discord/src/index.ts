@@ -17,9 +17,9 @@ import { AgentToolRequestTwo, HandleMessageResult, IntermediateAgentResponse, Or
 import { extractAllTextFromComplexResponse } from "agent-mimir/utils/format";
 import { PluginFactory } from "agent-mimir/plugins";
 import { ComplexMessageContent, ImageMessageContent } from "agent-mimir/schema";
-import { LangchainToolWrapperPluginFactory } from "agent-mimir/tools/langchain";
+//import { LangchainToolWrapperPluginFactory } from "agent-mimir/tools/langchain";
 import { file } from 'tmp-promise';
-import { CodeAgentFactory, LocalPythonExecutor } from "agent-mimir/agent/code-agent";
+import { CodeAgentFactory, DockerPythonExecutor, LocalPythonExecutor } from "agent-mimir/agent/code-agent";
 import { FunctionAgentFactory } from "agent-mimir/agent/tool-agent";
 import { BaseCheckpointSaver } from "@langchain/langgraph";
 function splitStringInChunks(str: string) {
@@ -107,16 +107,16 @@ export const run = async () => {
             const newAgent = {
                 mainAgent: agentDefinition.mainAgent,
                 name: agentName,
-                agent: await orchestratorBuilder.initializeAgent(new FunctionAgentFactory({
+                agent: await orchestratorBuilder.initializeAgent(new CodeAgentFactory({
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,
                     model: agentDefinition.definition.chatModel,
                     checkpointer: agentDefinition.definition.checkpointer,
                     visionSupport: agentDefinition.definition.visionSupport,
                     constitution: agentDefinition.definition.constitution,
-                    plugins: [...agentDefinition.definition.plugins ?? [], ...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))],
+                    plugins: [...agentDefinition.definition.plugins ?? [], ], //...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))
                     workspaceFactory: workspaceFactory,
-                    //codeExecutor: (workspace) => new LocalPythonExecutor({additionalPackages: ["pandas", "numpy", "pillow", "sqlite3"], workspace: workspace}),
+                    codeExecutor: (workspace) => new DockerPythonExecutor({additionalPackages: [], workspace: workspace}),
                 }), agentName, agentDefinition.definition.communicationWhitelist)
             }
             console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.definition.profession}" and description "${agentDefinition.description}"`));
@@ -289,7 +289,7 @@ export const run = async () => {
         const sendToolInvocationPermissionRequest = async (toolRequest: AgentToolRequestTwo) => {
             const toolCalls = (toolRequest.toolCalls ?? []).map(tr => {
                 const headerEmbed = new EmbedBuilder()
-                    .setDescription(`Tool request: \`${tr.toolName}\`\nWith Payload: \n\`\`\`${tr.input}\`\`\``)
+                    .setDescription(`Tool request: \`${tr.toolName}\`\nWith Payload: \n\`\`\`${tr.input.length > 300 ? tr.input.substring(0,3000) : tr.input}\`\`\``)
                     .setColor(0xff0000);
                 return headerEmbed;
             });
@@ -465,19 +465,19 @@ async function imagesToFiles(images: ComplexMessageContent[]): Promise<string[]>
 
 
     const imageUlrs = images.filter(i => i.type === "image_url").map(i => (i as ImageMessageContent).image_url);
-    const imagesPath = await Promise.all(imageUlrs.map(async (image) => { return await saveImageFromDataUrl(image.url); }));
+    const imagesPath = await Promise.all(imageUlrs.map(async (image) => { return await saveImageFromDataUrl(image.type, image.url); }));
     return imagesPath;
 }
 
-async function saveImageFromDataUrl(dataUrl: string): Promise<string> {
-    const regex = /^data:image\/(png|jpeg);base64,(.+)$/;
-    const matches = dataUrl.match(regex);
+async function saveImageFromDataUrl(imageType:string, base64Data: string): Promise<string> {
+  //  const regex = /^data:image\/(png|jpeg);base64,(.+)$/;
+  //  const matches = dataUrl;
 
-    if (!matches) {
-        throw new Error('Invalid image data URL.');
-    }
+    // if (!matches) {
+    //     throw new Error('Invalid image data URL.');
+    // }
 
-    const [, imageType, base64Data] = matches;
+    //const [, imageType, base64Data] = matches;
 
     const imageBuffer = Buffer.from(base64Data, 'base64');
 

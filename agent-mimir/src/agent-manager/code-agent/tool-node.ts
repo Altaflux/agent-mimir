@@ -1,7 +1,7 @@
 import {
     ToolMessage,
     BaseMessage,
-    isAIMessage,
+    AIMessage,
 } from "@langchain/core/messages";
 import { RunnableConfig } from "@langchain/core/runnables";
 
@@ -36,16 +36,17 @@ export const pythonToolNodeFunction = (
             ? input[input.length - 1]
             : input.messages[input.messages.length - 1];
 
-        if (!message || !isAIMessage(message) || !(message.tool_calls ?? []).find(t => t.name === "CODE_EXECUTION")) {
+        if (!message || !AIMessage.isInstance(message) || !(message.tool_calls ?? []).find(t => t.name === "CODE_EXECUTION")) {
             throw new Error("ToolNode only accepts AIMessages as input with CODE_EXECUTION tool call.");
         }
 
         const toolCall = (message.tool_calls ?? []).find(t => t.name === "CODE_EXECUTION")!;
         const pythonScript: string = toolCall.args["script"]!;
+        const libraries: string[] = toolCall.args["libraries"]!;
 
         const toolResponses = new Map<string, ToolOutput>();
 
-        const result = await executor.execute(tools, pythonScript, (wsUrl, tools) => {
+        const result = await executor.execute(tools, pythonScript, libraries, (wsUrl, tools) => {
             toolHandler(wsUrl, tools, toolResponses)
         });
 
@@ -151,7 +152,7 @@ export async function toolHandler(url: string, tools: AgentTool[], toolResponses
 type PythonFunctionRequest = {
     request: {
         method: string;
-        arguments: Object;
+        arguments: Record<string, any>;
         call_id: string;
     }
 }

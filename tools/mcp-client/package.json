@@ -12,13 +12,13 @@
   ],
   "devDependencies": {
     "@types/node": "^18.16.3",
-    "rimraf": "^5.0.0",
+    "rimraf": "^6.1.2",
     "typescript": "^5.3.3",
     "agent-mimir": "*"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.11.2",
-    "@n8n/json-schema-to-zod": "1.1.0"
+    "@modelcontextprotocol/sdk": "1.26.0",
+    "@n8n/json-schema-to-zod": "1.6.0"
  
   },
   "peerDependencies": {

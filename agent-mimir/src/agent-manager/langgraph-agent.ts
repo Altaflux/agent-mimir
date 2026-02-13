@@ -1,12 +1,21 @@
-import { CompiledStateGraph, StateType, BinaryOperatorAggregate, Messages, Command, END } from "@langchain/langgraph";
+import { CompiledStateGraph, Command,  StateDefinition, StateSchema, MessagesValue } from "@langchain/langgraph";
 import { AgentCommand, AgentPlugin } from "../plugins/index.js";
-import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, CommandRequest, InputAgentMessage, IntermediateAgentMessage } from "./index.js";
-import { BaseMessage, HumanMessage, isToolMessage, RemoveMessage } from "@langchain/core/messages";
+import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, CommandRequest, InputAgentMessage, IntermediateAgentMessage, SharedFile } from "./index.js";
+import { BaseMessage, HumanMessage,  RemoveMessage, ToolMessage } from "@langchain/core/messages";
 import { v4 } from "uuid";
 import { complexResponseToLangchainMessageContent, extractAllTextFromComplexResponse } from "../utils/format.js";
 import { commandContentToBaseMessage, lCmessageContentToContent } from "./message-utils.js";
 import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
+import z from "zod";
 
+
+
+export const AgentState = new StateSchema({
+    responseAttributes: z.record(z.string(), z.any()),
+    noMessagesInTool: z.boolean(),
+    messages: MessagesValue
+});
+export type AgentGraphType = CompiledStateGraph<typeof AgentState["State"], any, any, typeof AgentState, typeof AgentState, StateDefinition, unknown, unknown, unknown>;
 
 export type LanggraphAgentArgs = {
     name: string,
@@ -14,9 +23,7 @@ export type LanggraphAgentArgs = {
     workspace: AgentWorkspace,
     commands: AgentCommand[],
     plugins: AgentPlugin[],
-    graph: CompiledStateGraph<StateType<{
-        messages: BinaryOperatorAggregate<BaseMessage[], Messages>
-    }>, any, any>
+    graph: AgentGraphType
 }
 
 
@@ -25,9 +32,7 @@ export class LanggraphAgent implements Agent {
     description: string;
     workspace: AgentWorkspace;
     commands: AgentCommand[];
-    graph: CompiledStateGraph<StateType<{
-        messages: BinaryOperatorAggregate<BaseMessage[], Messages>
-    }>, any, any>
+    graph: AgentGraphType
 
     constructor(private args: LanggraphAgentArgs) {
         this.workspace = args.workspace;
@@ -56,7 +61,7 @@ export class LanggraphAgent implements Agent {
                 messages: [new HumanMessage({
                     id: v4(),
                     content: complexResponseToLangchainMessageContent(args.message.content),
-                    response_metadata: {
+                    additional_kwargs: {
                         sharedFiles: args.message.sharedFiles
                     }
                 })],
@@ -129,17 +134,20 @@ export class LanggraphAgent implements Agent {
             let stream = await this.graph.stream(graphInput, { ...stateConfig, configurable: { thread_id: threadId } });
             for await (const state of stream) {
                 if (state[0] === "values") {
-                    let messageState = state[1];
-                    if (messageState.messages.length > 0) {
+                    const jj = state[1]
+                    
+                    let messageState = state[1] as this["graph"]["~RunInput"];
+                    
+                    if ((messageState.messages?.length ?? 0 )> 0) {
                         const lastMessage = messageState.messages[messageState.messages.length - 1];
-                        if (isToolMessage(lastMessage) && lastMessage.id !== (lastKnownMessage?.id)) {
+                        if (ToolMessage.isInstance(lastMessage) && lastMessage.id !== (lastKnownMessage?.id)) {
                             lastKnownMessage = lastMessage;
                             yield {
                                 type: "toolResponse",
                                 toolResponse: {
                                     id: lastMessage.tool_call_id,
                                     name: lastMessage.name ?? "Unknown",
-                                    response: lCmessageContentToContent(lastMessage.content)
+                                    response: lCmessageContentToContent(lastMessage.contentBlocks)
                                 }
                             };
                         }
@@ -156,7 +164,7 @@ export class LanggraphAgent implements Agent {
                 return {
                     type: "toolRequest",
                     output: {
-                        content: lCmessageContentToContent(lastMessage.content), id: lastMessage.id ?? "", toolCalls: [
+                        content: lCmessageContentToContent(lastMessage.contentBlocks), id: lastMessage.id ?? "", toolCalls: [
                             {
                                 toolName: interruptVal.action_request.action,
                                 input: JSON.stringify(interruptVal.action_request.args, null, 2)
@@ -170,9 +178,9 @@ export class LanggraphAgent implements Agent {
             return {
                 type: "agentResponse",
                 output: {
-                    content: lCmessageContentToContent(lastMessage.content),
+                    content: lCmessageContentToContent(lastMessage.contentBlocks),
                     id: lastMessage.id ?? v4(),
-                    sharedFiles: lastMessage.response_metadata["shared_files"] ?? []
+                    sharedFiles: lastMessage.additional_kwargs["shared_files"]  as SharedFile[] ?? []
                 },
                 responseAttributes: responseAttributes
             } satisfies AgentUserMessageResponse

@@ -1,6 +1,6 @@
 import { ComplexMessageContent, } from "agent-mimir/schema";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { ToolResponse } from "agent-mimir/tools";
 import { AgentTool } from "agent-mimir/tools";

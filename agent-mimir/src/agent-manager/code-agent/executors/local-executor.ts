@@ -18,6 +18,7 @@ export class LocalPythonExecutor implements CodeToolExecutor {
 
     private tempDir: string | undefined;
     private initialized: boolean = false;
+    private _installedLibraries: Set<string> = new Set();
 
     availableDependencies: string[];
 
@@ -25,8 +26,11 @@ export class LocalPythonExecutor implements CodeToolExecutor {
         this.availableDependencies = config.additionalPackages ?? []
     }
 
+    workspaceFullPath(): string {
+        return this.config.workspace?.workingDirectory ?? "";
+    }
 
-    async execute(tools: AgentTool[], code: string, toolInitCallback: (url: string, tools: AgentTool[]) => void): Promise<string> {
+    async execute(tools: AgentTool[], code: string, libraries: string[], toolInitCallback: (url: string, tools: AgentTool[]) => void): Promise<string> {
 
         if (!this.tempDir) {
             this.tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-python-code'));
@@ -35,7 +39,7 @@ export class LocalPythonExecutor implements CodeToolExecutor {
         const temporaryWorkspacePath = (await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-python-code-ws'))).replace(/\\/g, '\\\\');
         let localWorkspaceUrl = temporaryWorkspacePath;
         if (this.config.workspace) {
-            localWorkspaceUrl = this.config.workspace.workingDirectory;;
+            localWorkspaceUrl = this.config.workspace.workingDirectory;
         }
 
         const wsPort = await getPortFree();
@@ -54,21 +58,23 @@ export class LocalPythonExecutor implements CodeToolExecutor {
         try {
 
             if (!this.initialized) {
-
                 console.debug(`Creating python virtual environment in ${this.tempDir} ...`);
-
                 const pyenv = await executeShellCommand(`cd ${this.tempDir} && python -m venv .`);
                 if (pyenv.exitCode !== 0) {
                     throw new Error(`Failed to create python virtual environment: ${pyenv.output}`);
                 }
+                this.initialized = true;
+            }
 
-                const externalDependencies = ["nest_asyncio", "asyncio", "uvicorn", "fastapi_websocket_rpc", ...this.config.additionalPackages ?? []];
+            const externalDependencies = ["nest_asyncio", "asyncio", "uvicorn", "fastapi_websocket_rpc", ...libraries, ...this.config.additionalPackages ?? []];
+            const librariesToInstall = externalDependencies.filter(lib => !this._installedLibraries.has(lib));
 
+            if (librariesToInstall.length > 0) {
                 let libraryInstallationResult = {
                     exitCode: 0,
                     output: "",
                 }
-                for (const libraryName of externalDependencies ?? []) {
+                for (const libraryName of librariesToInstall) {
                     console.debug(`Installing library ${libraryName}...`);
                     const installationResult = await executeShellCommand(`cd ${path.join(this.tempDir, scriptsDir)} && ${activeScriptCall} && python -m pip install ${libraryName}`);
                     if (installationResult.exitCode !== 0) {
@@ -76,12 +82,13 @@ export class LocalPythonExecutor implements CodeToolExecutor {
                             exitCode: installationResult.exitCode,
                             output: installationResult.output + '\n------\n' + libraryInstallationResult.output,
                         }
+                    } else {
+                        this._installedLibraries.add(libraryName);
                     }
                 }
                 if (libraryInstallationResult?.exitCode !== 0) {
                     console.warn(`Failed to install libraries:\n ${libraryInstallationResult?.output}`);
                 }
-                this.initialized = true;
             }
 
             let toolInitExecuted = false;

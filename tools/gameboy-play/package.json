@@ -12,21 +12,21 @@
   ],
   "devDependencies": {
     "@types/node": "^18.16.3",
-    "rimraf": "^5.0.0",
+    "rimraf": "^6.1.2",
     "typescript": "^5.3.3",
     "agent-mimir": "*",
-    "@types/screenshot-desktop": "^1.12.3"
+    "@types/screenshot-desktop": "^1.15.0"
   },
   "dependencies": {
     "pixelmatch": "7.1.0",
-    "screenshot-desktop": "1.15.0",
+    "screenshot-desktop": "1.15.3",
     "node-window-manager":"2.2.4",
     "@nut-tree-fork/nut-js": "4.2.4",
     "sharp": "^0.32.6",
-    "systeminformation": "5.21.18",
-    "tesseract.js": "^5.0.4",
+    "systeminformation": "5.30.7",
+    "tesseract.js": "^7.0.0",
     "async-exit-hook": "^2.0.1",
-    "env-paths": "^3.0.0",
+    "env-paths": "^4.0.0",
     "fuse.js": "7.0.0",
     "@jitsi/robotjs": "0.6.13"
   },

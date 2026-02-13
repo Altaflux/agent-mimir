@@ -38,6 +38,38 @@ export function getExecutionCodeContentRegex(xmlString: string): string | null {
   }
 }
 
+
+export function getLibrariesContentRegex(xmlString: string): string[] {
+  if (typeof xmlString !== 'string') {
+    console.error("Input must be a string.");
+    return [];
+  }
+
+  // Regex explanation:
+  // <execution-code> : Matches the literal opening tag.
+  // (          : Start capturing group 1 (this is what we want to extract).
+  //   .*?      : Matches any character (.), zero or more times (*), non-greedily (?).
+  //              Non-greedy is important to stop at the *first* closing tag.
+  // )          : End capturing group 1.
+  // <\/execution-code> : Matches the literal closing tag (the '/' needs escaping).
+  // s          : Flag to make '.' match newline characters as well (dotall).
+  const regex = /<pip-dependencies-to-install>(.*?)<\/pip-dependencies-to-install>/s;
+
+  const match = xmlString.match(regex);
+
+  // If a match is found, match will be an array.
+  // match[0] is the full matched string (e.g., "<pip-dependencies-to-install>content</pip-dependencies-to-install>")
+  // match[1] is the content of the first capturing group (e.g., "content")
+  if (match && match[1] !== undefined) {
+    let scriptCode: string | null = match[1];
+    scriptCode = scriptCode.trim().length === 0 ? null : scriptCode; // Trim whitespace from the captured content
+    return scriptCode?.split(",").map(e => e.trim()) ?? []; // Return the captured content
+  } else {
+    return []; // Tag not found or content is missing somehow
+  }
+}
+
+
 export function getTextAfterLastExecutionCode(inputString: string) {
   // Ensure the input is a string
   if (typeof inputString !== 'string') {
@@ -65,45 +97,46 @@ export function getTextAfterLastExecutionCode(inputString: string) {
   return inputString.slice(startIndex);
 }
 
-export function getTextBeforeFirstExecutionCode(inputString: string) {
-  // Ensure the input is a string
-  if (typeof inputString !== 'string') {
-    console.error("Input must be a string.");
-    return ""; // Return empty string for non-string input
-  }
+// export function getTextBeforeFirstExecutionCode(inputString: string) {
+//   // Ensure the input is a string
+//   if (typeof inputString !== 'string') {
+//     console.error("Input must be a string.");
+//     return ""; // Return empty string for non-string input
+//   }
 
-  const startTag = "<execution-code>";
+//   const startTag = "<execution-code>";
 
-  // Find the index of the *first* occurrence of the opening tag
-  const firstIndex = inputString.indexOf(startTag);
+//   // Find the index of the *first* occurrence of the opening tag
+//   const firstIndex = inputString.indexOf(startTag);
 
-  // If the tag wasn't found, return the entire string
-  if (firstIndex === -1) {
-    return inputString;
-  }
+//   // If the tag wasn't found, return the entire string
+//   if (firstIndex === -1) {
+//     return inputString;
+//   }
 
-  // If the tag was found, extract the portion of the string
-  // from the beginning (index 0) up to the index where the tag starts.
-  // If firstIndex is 0 (tag is at the beginning), slice(0, 0) correctly returns "".
-  return inputString.slice(0, firstIndex);
-}
+//   // If the tag was found, extract the portion of the string
+//   // from the beginning (index 0) up to the index where the tag starts.
+//   // If firstIndex is 0 (tag is at the beginning), slice(0, 0) correctly returns "".
+//   return inputString.slice(0, firstIndex);
+// }
 
 
-export function langChainToolMessageToMimirHumanMessage(message: HumanMessage): NextMessageToolResponse {
+export function langChainToolMessageToMimirHumanMessage(message: ToolMessage): NextMessageToolResponse {
   return {
     type: "TOOL_RESPONSE",
     toolName: "PYTHON_EXECUTION",
     toolCallId: "N/A",
-    content: lCmessageContentToContent(message.content)
+    content: lCmessageContentToContent(message.contentBlocks)
   };
 }
 
 
 export function aiMessageToMimirAiMessage(aiMessage: AIMessage, files: AiResponseMessage["sharedFiles"], mapper: ResponseFieldMapper): AiResponseMessage {
-  const textContent = extractTextContent(aiMessage.content);
+  const textContent = extractTextContent(aiMessage.contentBlocks);
   const scriptCode = getExecutionCodeContentRegex(textContent);
-  const userContent = mapper.getUserMessage(lCmessageContentToContent(aiMessage.content));
-  
+  const libraries = getLibrariesContentRegex(textContent);
+  const userContent = mapper.getUserMessage(lCmessageContentToContent(aiMessage.contentBlocks));
+
   const mimirMessage: AiResponseMessage = {
     id: aiMessage.id ?? v4(),
     content: userContent.tagFound ? userContent.result : scriptCode ? [] : [{ type: "text", text: textContent }],
@@ -116,7 +149,10 @@ export function aiMessageToMimirAiMessage(aiMessage: AIMessage, files: AiRespons
       {
         id: "N/A",
         toolName: "PYTHON_EXECUTION",
-        input: scriptCode
+        input: JSON.stringify({
+          libraries: libraries,
+          script: scriptCode
+        })
       },
     ]
   }

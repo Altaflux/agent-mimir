@@ -28,7 +28,11 @@ export type TextBlocks = {
 }[]
 
 
-
+const toBlobPart = (buf: Buffer) => {
+  const bytes = new Uint8Array(buf.length); // backed by ArrayBuffer
+  bytes.set(buf);
+  return bytes;
+};
 
 export class PythonServerControl {
 
@@ -99,8 +103,8 @@ export class PythonServerControl {
     async inpaint(screenshotImage: Buffer, mask: Buffer) {
 
         const formData = new FormData();
-        formData.append('image', new Blob([screenshotImage], { type: 'image/jpg' }))
-        formData.append('inpaintMask', new Blob([mask], { type: 'image/jpg' }))
+        formData.append('image', new Blob([toBlobPart(screenshotImage)], { type: 'image/jpg' }))
+        formData.append('inpaintMask', new Blob([toBlobPart(mask)], { type: 'image/jpg' }))
 
         const response = await fetch(`http://localhost:${this.port}/inpaint`, {
             method: 'POST',
@@ -115,7 +119,7 @@ export class PythonServerControl {
 
     async calculateMaskBoxes(screenshotImage: Buffer) {
         const formData = new FormData();
-        formData.append('image', new Blob([screenshotImage], { type: 'image/jpg' }))
+        formData.append('image', new Blob([toBlobPart(screenshotImage)], { type: 'image/jpg' }))
 
         const response = await fetch(`http://localhost:${this.port}/calculate-boxes`, {
             method: 'POST',
@@ -142,7 +146,7 @@ export class PythonServerControl {
     async getTextBlocks(screenshotImage: Buffer) {
 
         const formData = new FormData();
-        formData.append('image', new Blob([screenshotImage], { type: 'image/jpg' }))
+        formData.append('image', new Blob([toBlobPart(screenshotImage)], { type: 'image/jpg' }))
 
         const response = await fetch(`http://localhost:${this.port}/obtainText`, {
             method: 'POST',

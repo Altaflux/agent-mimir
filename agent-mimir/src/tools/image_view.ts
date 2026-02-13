@@ -1,5 +1,5 @@
 import {  SupportedImageTypes } from "../schema.js";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { AgentTool, ToolResponse } from "./index.js";
 import { AgentPlugin, PluginFactory, PluginContext } from "../plugins/index.js";
 
@@ -21,7 +21,7 @@ export class ViewPlugin extends AgentPlugin {
 }
 export class ViewTool extends AgentTool {
 
-    name: string = "seeImageFromWorkspace";
+    name: string = "showImageFromWorkspace";
 
     constructor(private context: PluginContext) {
         super();

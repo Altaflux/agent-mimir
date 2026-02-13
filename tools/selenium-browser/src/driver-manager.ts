@@ -1,15 +1,15 @@
 
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
-import { Document as VectorDocument } from 'langchain/document'
+import { Document as VectorDocument } from '@langchain/classic/document'
 import { VectorStore } from "@langchain/core/vectorstores";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { Embeddings } from "@langchain/core/embeddings";
 import { Builder, ThenableWebDriver, logging } from 'selenium-webdriver';
-import { LLMChain } from "langchain/chains";
+import { LLMChain } from "@langchain/classic/chains";
 import { InteractableElement, extractHtml } from "./html-processor.js";
 import { htmlToMarkdown } from "./to-markdown.js";
-import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { MemoryVectorStore, } from "langchain/vectorstores/memory";
+import { RecursiveCharacterTextSplitter } from "@langchain/classic/text_splitter";
+import { MemoryVectorStore, } from "@langchain/classic/vectorstores/memory";
 import { COMBINE_PROMPT } from "./prompt/combiner-prompt.js";
 import { Options, update, } from 'webdriver-manager';
 import { Options as ChromeOptions } from 'selenium-webdriver/chrome.js';
