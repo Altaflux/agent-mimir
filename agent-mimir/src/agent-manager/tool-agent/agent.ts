@@ -21,18 +21,6 @@ import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
 
 
 
-// const AgentState = new StateSchema({
-//     responseAttributes: z.record(z.string(), z.any()),
-//     noMessagesInTool: z.boolean(),
-//     messages: MessagesValue
-// });
-
-// export const StateAnnotation = Annotation.Root({
-//     ...MessagesAnnotation.spec,
-//     responseAttributes: Annotation<Record<string, any>>,
-//     noMessagesInTool: Annotation<Boolean>
-// });
-
 /**
  * Configuration options for creating a new agent.
  * Contains all necessary parameters to initialize an agent with its capabilities.

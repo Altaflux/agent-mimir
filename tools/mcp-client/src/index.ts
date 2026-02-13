@@ -287,9 +287,13 @@ export class McpPlugin extends AgentPlugin {
 
             const serverInformation = `MCP Server: "${c.clientName}" ${instructions.length > 0 ? ` Description: "${instructions}"` : ""}`;
             try {
-                const resources = await c.client.listResources({});
+                let resources: Awaited<ReturnType<typeof c.client.listResources>> | undefined = undefined as any;
+                try {
+                    resources = await c.client.listResources({});
+                }catch(e){
+                }
 
-                if (!resources.resources.length) {
+                if (!resources?.resources?.length) {
                     return serverInformation;
                 }
                 const resourceTemplate = resources.resources.map(r => {
@@ -317,7 +321,10 @@ MCP Servers:\n${resourcesTemplate}`
             }
         };
         return {
-            content: []
+            content: [{
+                type: "text",
+                text: resourcesTemplate
+            }]
         }
     }
 
