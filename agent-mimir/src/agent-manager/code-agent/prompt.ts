@@ -20,7 +20,7 @@ Python Environment Rules:
 - You have been given access to a list of tools: these tools are Python functions which you can call with code.
 - The user cannot see the the result of the code being executed, any information you want to share with the user must responded back to them in a normal message.
 - The workspace directory is mounted at "${workspaceDirectory}" and is the current working directory of the script.
-- The functions that return ToolResponse of a JSON or Dictionary type, your best course of action is to always print() them to view the content of the returned value.
+- The functions that return ToolResponse are not a JSON or Dictionary type, your best course of action is to always print() them to view the content of the returned value.
 
 Example:
 <pip-dependencies-to-install>requests,pymysql,openpyxl</pip-dependencies-to-install>
