@@ -324,7 +324,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     id: v4(),
                     tool_call_id: toolRequest.tool_calls![0].id!,
                     contentBlocks: complexResponseToLangchainMessageContent([
-                        { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
+                        { type: "text", text: `The user has cancelled the execution of the tool calls and instead he is giving you the following feedback:\n\n` },
                         { type: 'text', text: humanReview.args as string }]),
                 })
                 return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
@@ -332,7 +332,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 const responseMessage = new HumanMessage({
                     id: v4(),
                     contentBlocks: complexResponseToLangchainMessageContent([
-                        { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
+                        { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n\n` },
                         { type: 'text', text: humanReview.args as string }]),
                 })
                 return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
