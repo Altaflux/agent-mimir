@@ -207,7 +207,8 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     }]
                 })
             }
-            const messageContent = fieldMapper.produceCleanMessageContent(lCmessageContentToContent(response.contentBlocks));
+          //  const messageContent = fieldMapper.produceCleanMessageContent(lCmessageContentToContent(response.contentBlocks));
+            const messageContent = (lCmessageContentToContent(response.contentBlocks));
             const responseMetadata = extractResponseOutputXml(extractTextContentFromComplexMessageContent(messageContent)) ?? "";
             const pythonCode =  getExecutionCodeContentRegex(responseMetadata)
             const pythonLibs =  getLibrariesContentRegex(responseMetadata)

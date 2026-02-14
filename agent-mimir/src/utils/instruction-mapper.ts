@@ -73,10 +73,11 @@ function generateResponseHeader(additionalExampleInstructions: string, attribute
 ────────────────────────────────────────────────────────────────────────────
 RESPONSE FORMAT (HARD REQUIREMENT)
 ────────────────────────────────────────────────────────────────────────────
-Your response MUST contain EXACTLY TWO PARTS, in this exact order:
+Your response MUST contain EXACTLY TWO PARTS, in this exact order, and NOTHING ELSE.
 
 PART A — XML ENVELOPE (required)
-1) Output exactly ONE <${RESPONSE_OUTPUT_TAG}>...</${RESPONSE_OUTPUT_TAG}> block.
+- Output exactly ONE <${RESPONSE_OUTPUT_TAG}>...</${RESPONSE_OUTPUT_TAG}> block.
+- Never output more than one <response-metadata>.
 
 PART B — USER MESSAGE (required; plain text, NOT XML)
 Immediately after </${RESPONSE_OUTPUT_TAG}>:
@@ -89,7 +90,12 @@ Immediately after </${RESPONSE_OUTPUT_TAG}>:
    - The user will only see this plain-text section.
 
 IMPORTANT: Do NOT output any text before <response-metadata>.
-IMPORTANT: Do NOT output any additional XML blocks besides <response-metadata>.
+IMPORTANT: Do NOT output any additional XML blocks besides one single <response-metadata>.
+
+NO MULTI-TURN SIMULATION
+- (HARD REQUIREMENT) Do not include multiple envelopes or multiple MESSAGE TO SEND blocks in one response.
+- Do not write “Collecting sources…” as a second/third message inside the same response.
+
 
 The following is the XSD definition of the response <${RESPONSE_OUTPUT_TAG}>:
 
