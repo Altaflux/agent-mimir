@@ -1,9 +1,8 @@
-import { AIMessage, BaseMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
-import { ToolResponseInfo } from "../index.js";
+import { AIMessage, ToolMessage } from "@langchain/core/messages";
 import { lCmessageContentToContent } from "../message-utils.js";
 import { AiResponseMessage, NextMessageToolResponse } from "../../plugins/index.js";
-import { extractTextContent } from "../../utils/format.js";
-import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
+import { extractTextContentFromComplexMessageContent } from "../../utils/format.js";
+import { extractResponseOutputXml, ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { v4 } from "uuid";
 
 
@@ -105,29 +104,6 @@ export function getTextAfterLastExecutionCode(inputString: string) {
   return inputString.slice(startIndex);
 }
 
-// export function getTextBeforeFirstExecutionCode(inputString: string) {
-//   // Ensure the input is a string
-//   if (typeof inputString !== 'string') {
-//     console.error("Input must be a string.");
-//     return ""; // Return empty string for non-string input
-//   }
-
-//   const startTag = "<execution-code>";
-
-//   // Find the index of the *first* occurrence of the opening tag
-//   const firstIndex = inputString.indexOf(startTag);
-
-//   // If the tag wasn't found, return the entire string
-//   if (firstIndex === -1) {
-//     return inputString;
-//   }
-
-//   // If the tag was found, extract the portion of the string
-//   // from the beginning (index 0) up to the index where the tag starts.
-//   // If firstIndex is 0 (tag is at the beginning), slice(0, 0) correctly returns "".
-//   return inputString.slice(0, firstIndex);
-// }
-
 
 export function langChainToolMessageToMimirHumanMessage(message: ToolMessage): NextMessageToolResponse {
   return {
@@ -140,7 +116,9 @@ export function langChainToolMessageToMimirHumanMessage(message: ToolMessage): N
 
 
 export function aiMessageToMimirAiMessage(aiMessage: AIMessage, files: AiResponseMessage["sharedFiles"], mapper: ResponseFieldMapper): AiResponseMessage {
-  const textContent = extractTextContent(aiMessage.contentBlocks);
+  const messageContent = mapper.produceCleanMessageContent(lCmessageContentToContent(aiMessage.contentBlocks));
+
+  const textContent = extractResponseOutputXml(extractTextContentFromComplexMessageContent(messageContent)) ?? "";
   const scriptCode = getExecutionCodeContentRegex(textContent);
   const libraries = getLibrariesContentRegex(textContent);
   const userContent = mapper.getUserMessage(lCmessageContentToContent(aiMessage.contentBlocks));

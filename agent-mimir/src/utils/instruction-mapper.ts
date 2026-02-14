@@ -126,34 +126,43 @@ Here goes the message you want to send to the user or agent. The user will only 
  * @param textContent - The string potentially containing the XML.
  * @returns The extracted XML string, or null if not found.
  */
-function extractResponseOutputXml(textContent: string | null | undefined): string | null {
+export function extractResponseOutputXml(textContent: string | null | undefined): string | null {
     if (!textContent) {
         return null;
     }
-    // More robust extraction, handling potential attributes in the opening tag
+
+    // Find the most recent complete block, handling potential attributes in the opening tag.
     const openTagStart = `<${RESPONSE_OUTPUT_TAG}`;
     const closeTag = `</${RESPONSE_OUTPUT_TAG}>`;
 
-    const startIndex = textContent.indexOf(openTagStart);
-    if (startIndex === -1) {
-        return null; // Opening tag start not found
+    // Walk backwards through closing tags until we find a valid matching opening tag.
+    let searchFrom = textContent.length;
+    while (searchFrom > 0) {
+        const endIndex = textContent.lastIndexOf(closeTag, searchFrom);
+        if (endIndex === -1) {
+            return null; // No closing tag found
+        }
+
+        const startIndex = textContent.lastIndexOf(openTagStart, endIndex);
+        if (startIndex === -1) {
+            // There may be malformed content before this closing tag; keep searching backwards.
+            searchFrom = endIndex - 1;
+            continue;
+        }
+
+        // Ensure the opening tag is syntactically complete and appears before the closing tag.
+        const openTagEndIndex = textContent.indexOf('>', startIndex);
+        if (openTagEndIndex === -1 || openTagEndIndex > endIndex) {
+            searchFrom = endIndex - 1;
+            continue;
+        }
+
+        // Include the closing tag in the result.
+        const finalEndIndex = endIndex + closeTag.length;
+        return textContent.substring(startIndex, finalEndIndex);
     }
 
-    // Find the end of the opening tag '>' to ensure we capture the whole tag
-    const openTagEndIndex = textContent.indexOf('>', startIndex);
-     if (openTagEndIndex === -1) {
-        return null; // Malformed opening tag
-    }
-
-    const endIndex = textContent.indexOf(closeTag, openTagEndIndex);
-    if (endIndex === -1) {
-        return null; // Closing tag not found
-    }
-
-    // Include the closing tag in the result
-    const finalEndIndex = endIndex + closeTag.length;
-
-    return textContent.substring(startIndex, finalEndIndex);
+    return null;
 }
 
 
@@ -175,15 +184,15 @@ function extractContentAfterDelimiter(delimiter: string, messages: ComplexMessag
     let delimiterFoundAtIndex = -1;
     let delimiterPositionInText = -1;
 
-    // Find the index of the first TextMessageContent containing the delimiter
-    for (let i = 0; i < messages.length; i++) {
+    // Find the index of the last TextMessageContent containing the delimiter
+    for (let i = messages.length - 1; i >= 0; i--) {
         const message = messages[i];
         if (message.type === "text") {
-            const index = message.text.indexOf(delimiter);
+            const index = message.text.lastIndexOf(delimiter);
             if (index !== -1) {
                 delimiterFoundAtIndex = i;
                 delimiterPositionInText = index;
-                break; // Stop searching once the first occurrence is found
+                break; // Stop searching once the latest occurrence is found
             }
         }
     }
@@ -334,6 +343,22 @@ Hi, I am a helpful assistant, how can I help you?
         // If the response *must* contain the marker when a user message is present,
         // searching only for it is cleaner.
         return extractContentAfterDelimiter(USER_RESPONSE_MARKER, messages);
+    }
+
+    public produceCleanMessageContent(complexResponse: ComplexMessageContent[]): ComplexMessageContent[] {
+
+        const combinedText = complexResponse
+            .filter((c): c is TextMessageContent => c.type === "text")
+            .map(t => t.text)
+            .join(""); // Join without separators, assuming XML is contiguous
+
+        const xml = extractResponseOutputXml(combinedText) ?? `<${RESPONSE_OUTPUT_TAG}></${RESPONSE_OUTPUT_TAG}>`;
+        const userMessage = this.getUserMessage(complexResponse);
+        const combined = {
+            type: "text",
+            text: `${xml}\n${USER_RESPONSE_MARKER}\n`
+        } satisfies TextMessageContent;
+        return [combined, ...userMessage.result];
     }
 }
 

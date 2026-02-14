@@ -1,11 +1,11 @@
 import { ComplexMessageContent, } from "../../schema.js";
 import { WorkspacePluginFactory, WorkspanceManager } from "../../plugins/workspace.js";
 import { ViewPluginFactory } from "../../tools/image_view.js";
-import { complexResponseToLangchainMessageContent, extractTextContent, trimAndSanitizeMessageContent } from "../../utils/format.js";
+import { complexResponseToLangchainMessageContent, extractTextContent, extractTextContentFromComplexMessageContent, trimAndSanitizeMessageContent } from "../../utils/format.js";
 import { AIMessage, BaseMessage, ContentBlock, HumanMessage, RemoveMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { BaseCheckpointSaver, Command, ConditionalEdgeRouter, END, GraphNode, interrupt, MemorySaver, START, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
-import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
+import { extractResponseOutputXml, ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { dividerSystemMessage, humanMessageToInputAgentMessage, lCmessageContentToContent, mergeSystemMessages, toolMessageToInputAgentMessage } from "./../message-utils.js";
 import { Agent, AgentWorkspace, WorkspaceFactory } from "./../index.js";
 import { PluginFactory } from "../../plugins/index.js";
@@ -207,21 +207,21 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     }]
                 })
             }
-
-            const pythonCode =  getExecutionCodeContentRegex(extractTextContent(response.contentBlocks))
-            const pythonLibs =  getLibrariesContentRegex(extractTextContent(response.contentBlocks))
+            const messageContent = fieldMapper.produceCleanMessageContent(lCmessageContentToContent(response.contentBlocks));
+            const responseMetadata = extractResponseOutputXml(extractTextContentFromComplexMessageContent(messageContent)) ?? "";
+            const pythonCode =  getExecutionCodeContentRegex(responseMetadata)
+            const pythonLibs =  getLibrariesContentRegex(responseMetadata)
             //Agents calling agents cannot see the messages from the tool, so we remove them so the AI doesn't think it has already responded.
             if (pythonCode !== null && state.noMessagesInTool) {
-                const codeScript = getExecutionCodeContentRegex(extractTextContent(response.contentBlocks));
                 response = new AIMessage({
                     id: response.id,
-                    contentBlocks: [{
+                    content: [{
                         type: "text",
-                        text: `<response-metadata><execution-code>\n${codeScript}\n</execution-code></response-metadata>`
+                        text: `<response-metadata><execution-code>\n${pythonCode}\n</execution-code></response-metadata>`
                     }]
                 })
             }
-            const messageContent = lCmessageContentToContent(response.contentBlocks);
+            
             const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(messageContent);
             const sharedFiles = await workspaceManager.readAttributes(rawResponseAttributes);
             let mimirAiMessage = aiMessageToMimirAiMessage(response, sharedFiles, fieldMapper);
