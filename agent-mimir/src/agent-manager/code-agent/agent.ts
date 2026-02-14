@@ -102,12 +102,12 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     text: `${config.constitution ?? DEFAULT_CONSTITUTION}\n`
                 } satisfies ComplexMessageContent,
                 {
-                    type: "text" as const,
-                    text: functionPrompt(codeExecutor.workspaceFullPath()) + "\n" + getFunctionsPrompt(codeExecutor.availableDependencies, allTools)
-                } satisfies ComplexMessageContent,
-                {
                     text: fieldMapper.createFieldInstructions(PYTHON_SCRIPT_SCHEMA),
                     type: "text" as const
+                } satisfies ComplexMessageContent,
+                {
+                    type: "text" as const,
+                    text: functionPrompt(codeExecutor.workspaceFullPath()) + "\n" + getFunctionsPrompt(codeExecutor.availableDependencies, allTools)
                 } satisfies ComplexMessageContent
             ]
             let response: AIMessage;
@@ -217,7 +217,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     id: response.id,
                     contentBlocks: [{
                         type: "text",
-                        text: `<execution-code>\n${codeScript}\n</execution-code>`
+                        text: `<response-metadata><execution-code>\n${codeScript}\n</execution-code></response-metadata>`
                     }]
                 })
             }

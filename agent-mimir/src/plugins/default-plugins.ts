@@ -26,14 +26,14 @@ class DefaultPlugin extends AgentPlugin {
     async attributes(nextMessage: NextMessage): Promise<AttributeDescriptor[]> {
         const attributes: AttributeDescriptor[] = [];
         if (nextMessage.type === "TOOL_RESPONSE") {
-            attributes.push({
-                name: "stepResult",
-                attributeType: "string",
-                required: true,
-                variableName: "taskDesc",
-                description: "Description of results of your previous action as well as a description of the state of the lastest element you interacted with.",
-                example: "Example 1: I can see that the file was modified correctly and now contains the edited text. Example 2: I can see that the file was not modified correctly the text was not added.",
-            });
+            // attributes.push({
+            //     name: "stepResult",
+            //     attributeType: "string",
+            //     required: true,
+            //     variableName: "taskDesc",
+            //     description: "Description of results of your previous action as well as a description of the state of the lastest element you interacted with.",
+            //     example: "Example 1: I can see that the file was modified correctly and now contains the edited text. Example 2: I can see that the file was not modified correctly the text was not added.",
+            // });
         }
         return attributes;
     }

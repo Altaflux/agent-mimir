@@ -68,11 +68,30 @@ function generateResponseHeader(additionalExampleInstructions: string, attribute
         .join('\n');
 
     // Cleaner template literal structure
-    return `RESPONSE FORMAT INSTRUCTIONS
-----------------------------
-When responding ALWAYS respond in the following XML format.
-You can only include ONE ${RESPONSE_OUTPUT_TAG} xml element on your message!
-The following is the XSD definition of the response format:
+    return ` 
+
+────────────────────────────────────────────────────────────────────────────
+RESPONSE FORMAT (HARD REQUIREMENT)
+────────────────────────────────────────────────────────────────────────────
+Your response MUST contain EXACTLY TWO PARTS, in this exact order:
+
+PART A — XML ENVELOPE (required)
+1) Output exactly ONE <${RESPONSE_OUTPUT_TAG}>...</${RESPONSE_OUTPUT_TAG}> block.
+
+PART B — USER MESSAGE (required; plain text, NOT XML)
+Immediately after </${RESPONSE_OUTPUT_TAG}>:
+1) Output a blank line.
+2) Output the literal marker line exactly:
+   MESSAGE TO SEND:
+3) Everything after "MESSAGE TO SEND:" is user-visible plain text.
+   - Do NOT wrap this section in XML.
+   - Do NOT create a <MESSAGE_TO_SEND> XML element.
+   - The user will only see this plain-text section.
+
+IMPORTANT: Do NOT output any text before <response-metadata>.
+IMPORTANT: Do NOT output any additional XML blocks besides <response-metadata>.
+
+The following is the XSD definition of the response <${RESPONSE_OUTPUT_TAG}>:
 
 <xs:schema attributeFormDefault="unqualified" elementFormDefault="qualified" xmlns:xs="${XSD_NAMESPACE}">
     <xs:element name="${RESPONSE_OUTPUT_TAG}">

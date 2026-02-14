@@ -13,8 +13,24 @@ The code will be executed inside the Python environment, and whatever you print 
 You can install pip libraries by defining them comma separated in an <pip-dependencies-to-install> xml block.
 Do not assume the success of the execution of the script until you have verified its output.
 
+You have access to a Python execution environment. You may execute Python ONLY by placing raw Python code inside the <execution-code> element described below. Any code outside <execution-code> will NOT be executed.
+IMPORTANT STRUCTURE RULES
+- If present, <execution-code> MUST be a direct child of <response-metadata>.
+- Do NOT place <execution-code> anywhere else (never outside <response-metadata>).
+- Do NOT output more than one <response-metadata>.
+- Do NOT output more than one <execution-code>.
+- Do NOT output more than one <pip-dependencies-to-install>.
+- You may execute Python ONLY by placing RAW Python source code inside <execution-code>.
+  Any code outside <execution-code> will NOT be executed.
+- Do NOT include Markdown code fences (e.g., \`\`\`python) inside <execution-code>.
+- Do not ask permission or announce that you will execute code; just do it when needed.
+- Do not output <execution-code> until you have clarified with the user any questions you have about his request.
+- Do not assume success—verify by inspecting printed output from your code.
+- The next message in the conversation will contain the printed or logged text produced by the script.
+- The user cannot see execution output; summarize any needed results in Part B.
+- Execute all the code, tool calls, and function calls inside that single <execution-code>. 
+
 Python Environment Rules:
-- You can only include ONE <execution-code> block per message, do not include more than one <execution-code> block in your message.
 - Use this python environment to accomplish the task you are given, be proactive and use the functions available to you but ask for help if you feel stuck on a task.
 - You must not ask permission or notify the user you plan on executing code, just do it.
 - You have been given access to a list of tools: these tools are Python functions which you can call with code.
@@ -36,8 +52,6 @@ result = some_function({"field": "value"});
 print(result)
 </execution-code>
 
-You are not allowed to execute any code that is not wrapped in the <execution-code> tag, it will be ignored.
-ONLY use the <execution-code> tag to execute code when needed, do not use it for any other purpose.
 
 `
 }
@@ -79,22 +93,22 @@ ${dependencies.length > 0 ? `The following libraries are available in the Python
 
 export const PYTHON_SCRIPT_SCHEMA = `
 <xs:element name="pip-dependencies-to-install" type="xs:string" minOccurs="0" maxOccurs="1">
-    <xsd:annotation>
-        <xsd:documentation xml:lang="en">
+    <xs:annotation>
+        <xs:documentation xml:lang="en">
             A list of comma separated PIP libraries to be installed into the Python environment. By default the python environment only comes with the standard libraries of Python.
             Any other dependency you may need to execute your script must be declared here so it becomes available for usage.
             You can only include ONE <pip-dependencies-to-install> block per response, do not include more than one <pip-dependencies-to-install> block in your response.
-        </xsd:documentation>
-    </xsd:annotation>
+        </xs:documentation>
+    </xs:annotation>
 </xs:element>
 <xs:element name="execution-code" type="xs:string" minOccurs="0" maxOccurs="1">
-    <xsd:annotation>
-        <xsd:documentation xml:lang="en">
+    <xs:annotation>
+        <xs:documentation xml:lang="en">
             Python code to be executed in the Python environment. The code must be wrapped in this tag.
             You can only include ONE <execution-code> block per response, do not include more than one <execution-code> block in your response.
             Only use the <execution-code> tag to execute code when needed, do not use it for any other purpose.
-        </xsd:documentation>
-    </xsd:annotation>
+        </xs:documentation>
+    </xs:annotation>
 </xs:element>
 
 `
