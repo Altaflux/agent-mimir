@@ -116,7 +116,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 if (m.type === "ai" && m.additional_kwargs["original_content"]) {
                     return new AIMessage({
                         ...m,
-                        contentBlocks: complexResponseToLangchainMessageContent(m.additional_kwargs["original_content"] as ComplexMessageContent[])
+                        content: complexResponseToLangchainMessageContent(m.additional_kwargs["original_content"] as ComplexMessageContent[])
                     })
                 }
                 return m;
@@ -212,7 +212,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     })
                 }
             }
-            const messageContent = lCmessageContentToContent(response.contentBlocks);
+            const messageContent = fieldMapper.produceCleanMessageContent(lCmessageContentToContent(response.contentBlocks));
             const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(messageContent);
             const sharedFiles = await workspaceManager.readAttributes(rawResponseAttributes);
             let mimirAiMessage = aiMessageToMimirAiMessage(response, sharedFiles, fieldMapper);
