@@ -137,38 +137,29 @@ export function extractResponseOutputXml(textContent: string | null | undefined)
         return null;
     }
 
-    // Find the most recent complete block, handling potential attributes in the opening tag.
+    // Find the first complete block, handling potential attributes in the opening tag.
     const openTagStart = `<${RESPONSE_OUTPUT_TAG}`;
     const closeTag = `</${RESPONSE_OUTPUT_TAG}>`;
 
-    // Walk backwards through closing tags until we find a valid matching opening tag.
-    let searchFrom = textContent.length;
-    while (searchFrom > 0) {
-        const endIndex = textContent.lastIndexOf(closeTag, searchFrom);
-        if (endIndex === -1) {
-            return null; // No closing tag found
-        }
-
-        const startIndex = textContent.lastIndexOf(openTagStart, endIndex);
-        if (startIndex === -1) {
-            // There may be malformed content before this closing tag; keep searching backwards.
-            searchFrom = endIndex - 1;
-            continue;
-        }
-
-        // Ensure the opening tag is syntactically complete and appears before the closing tag.
-        const openTagEndIndex = textContent.indexOf('>', startIndex);
-        if (openTagEndIndex === -1 || openTagEndIndex > endIndex) {
-            searchFrom = endIndex - 1;
-            continue;
-        }
-
-        // Include the closing tag in the result.
-        const finalEndIndex = endIndex + closeTag.length;
-        return textContent.substring(startIndex, finalEndIndex);
+    const startIndex = textContent.indexOf(openTagStart);
+    if (startIndex === -1) {
+        return null; // Opening tag start not found
     }
 
-    return null;
+    // Find the end of the opening tag '>' to ensure we capture the whole tag.
+    const openTagEndIndex = textContent.indexOf('>', startIndex);
+    if (openTagEndIndex === -1) {
+        return null; // Malformed opening tag
+    }
+
+    const endIndex = textContent.indexOf(closeTag, openTagEndIndex);
+    if (endIndex === -1) {
+        return null; // Closing tag not found
+    }
+
+    // Include the closing tag in the result.
+    const finalEndIndex = endIndex + closeTag.length;
+    return textContent.substring(startIndex, finalEndIndex);
 }
 
 
@@ -190,15 +181,15 @@ function extractContentAfterDelimiter(delimiter: string, messages: ComplexMessag
     let delimiterFoundAtIndex = -1;
     let delimiterPositionInText = -1;
 
-    // Find the index of the last TextMessageContent containing the delimiter
-    for (let i = messages.length - 1; i >= 0; i--) {
+    // Find the index of the first TextMessageContent containing the delimiter.
+    for (let i = 0; i < messages.length; i++) {
         const message = messages[i];
         if (message.type === "text") {
-            const index = message.text.lastIndexOf(delimiter);
+            const index = message.text.indexOf(delimiter);
             if (index !== -1) {
                 delimiterFoundAtIndex = i;
                 delimiterPositionInText = index;
-                break; // Stop searching once the latest occurrence is found
+                break; // Stop searching once the first occurrence is found
             }
         }
     }
@@ -216,23 +207,56 @@ function extractContentAfterDelimiter(delimiter: string, messages: ComplexMessag
 
     // Calculate the start index *after* the delimiter within that specific text message
     const startIndexInText = delimiterPositionInText + delimiter.length;
+    const metadataOpenTagStart = `<${RESPONSE_OUTPUT_TAG}`;
 
     // Extract the part of the text after the delimiter
     const extractedText = messageContainingDelimiter.text.slice(startIndexInText).trimStart(); // Trim only leading whitespace
 
     const resultMessages: ComplexMessageContent[] = [];
 
-    // Add the extracted part *if* it's not empty
-    if (extractedText.length > 0) {
-         resultMessages.push({
+    // If another response XML appears in the same text block, stop before it.
+    const metadataIndexInExtractedText = extractedText.indexOf(metadataOpenTagStart);
+    const firstTextChunk = metadataIndexInExtractedText === -1
+        ? extractedText
+        : extractedText.slice(0, metadataIndexInExtractedText);
+
+    // Add the extracted part *if* it's not empty.
+    if (firstTextChunk.length > 0) {
+        resultMessages.push({
             type: "text",
-            text: extractedText
+            text: firstTextChunk
         });
     }
 
-    // Add all subsequent elements from the original array
-    const remainingElements = messages.slice(delimiterFoundAtIndex + 1);
-    resultMessages.push(...remainingElements); // Combine the extracted part with the rest
+    // If the next XML starts in the same text block, we stop immediately.
+    if (metadataIndexInExtractedText !== -1) {
+        return { tagFound: true, result: resultMessages };
+    }
+
+    // Add subsequent elements until another response XML starts.
+    for (let i = delimiterFoundAtIndex + 1; i < messages.length; i++) {
+        const message = messages[i];
+        if (message.type !== "text") {
+            resultMessages.push(message);
+            continue;
+        }
+
+        const metadataIndex = message.text.indexOf(metadataOpenTagStart);
+        if (metadataIndex === -1) {
+            resultMessages.push(message);
+            continue;
+        }
+
+        // Keep text before the next XML block, then stop.
+        const textBeforeMetadata = message.text.slice(0, metadataIndex);
+        if (textBeforeMetadata.length > 0) {
+            resultMessages.push({
+                type: "text",
+                text: textBeforeMetadata
+            });
+        }
+        break;
+    }
 
     return { tagFound: true, result: resultMessages };
 }

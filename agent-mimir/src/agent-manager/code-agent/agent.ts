@@ -203,12 +203,11 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     id: response.id,
                     content: [{
                         type: "text",
-                        text: "I have completed my task.",
+                        text: `I have completed my task.`,
                     }]
                 })
             }
-          //  const messageContent = fieldMapper.produceCleanMessageContent(lCmessageContentToContent(response.contentBlocks));
-            const messageContent = (lCmessageContentToContent(response.contentBlocks));
+            const messageContent = fieldMapper.produceCleanMessageContent(lCmessageContentToContent(response.contentBlocks));
             const responseMetadata = extractResponseOutputXml(extractTextContentFromComplexMessageContent(messageContent)) ?? "";
             const pythonCode =  getExecutionCodeContentRegex(responseMetadata)
             const pythonLibs =  getLibrariesContentRegex(responseMetadata)
