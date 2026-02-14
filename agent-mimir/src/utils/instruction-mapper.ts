@@ -70,7 +70,7 @@ function generateResponseHeader(additionalExampleInstructions: string, attribute
     // Cleaner template literal structure
     return `RESPONSE FORMAT INSTRUCTIONS
 ----------------------------
-When responding to me please, ALWAYS respond in the following XML format.
+When responding ALWAYS respond in the following XML format.
 The following is the XSD definition of the response format:
 
 <xs:schema attributeFormDefault="unqualified" elementFormDefault="qualified" xmlns:xs="${XSD_NAMESPACE}">
@@ -97,7 +97,7 @@ ${xsdAttributeDefinitions}
 </xs:schema>
 
 ${USER_RESPONSE_MARKER}
-Here goes the message you want to send to the user or agent. The user will only see the content following this "${USER_RESPONSE_MARKER}" marker. Ensure the intended message is outside the XML tags.
+Here goes the message you want to send to the user or agent. The user will only see the content following this "${USER_RESPONSE_MARKER}" marker. IMPORTANT: Ensure the intended message is outside the XML document. ${USER_RESPONSE_MARKER} must also be outside the xml.
 --------------------`;
 }
 
@@ -228,14 +228,15 @@ export class ResponseFieldMapper<T = any> { // Consider making T more specific i
         const xsdAttributeExamples = this.attributeSetters.map((attr) => {
             // Provide default example if none is given
             const exampleValue = attr.example ?? `[Example ${attr.name}]`;
-            return `                <${attr.name}>${exampleValue}</${attr.name}>`; // Indentation improved
+            return `<${attr.name}>${exampleValue}</${attr.name}>`; // Indentation improved
         }).join('\n');
 
-        const exampleResponse = `<${RESPONSE_OUTPUT_TAG}>
-            <${ATTRIBUTES_TAG}>
-${xsdAttributeExamples}
-            </${ATTRIBUTES_TAG}>
-        </${RESPONSE_OUTPUT_TAG}>`; // Indentation improved
+        const exampleResponse = 
+`<${RESPONSE_OUTPUT_TAG}>
+    <${ATTRIBUTES_TAG}>
+        ${xsdAttributeExamples}
+    </${ATTRIBUTES_TAG}>
+</${RESPONSE_OUTPUT_TAG}>`; // Indentation improved
 
         const userResponseExampleHeader = `
 ${USER_RESPONSE_MARKER}

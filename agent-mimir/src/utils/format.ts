@@ -5,8 +5,6 @@ export function extractTextContent(messageContent: ContentBlock.Standard[]): str
   if (typeof messageContent === "string") {
     return messageContent;
   } else if (Array.isArray(messageContent)) {
-    //TODO MAP INSTEAD OF FIND
-
     const text = messageContent
       .filter(c => c.type === 'text')
       .reduce((prev, next) => {

@@ -112,6 +112,7 @@
     "jsonrepair": "^3.0.2",
     "ring-buffer-ts": "^1.2.0",
     "gpt-3-encoder": "v1.1.4",
+    "yaml": "2.8.2",
     "xml2js": "0.6.2"
   }
 }

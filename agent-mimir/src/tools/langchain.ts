@@ -4,7 +4,8 @@ import { AgentPlugin, PluginFactory, PluginContext } from "../plugins/index.js";
 import { lCmessageContentToContent } from "../agent-manager/message-utils.js";
 import { MessageContent } from "@langchain/core/messages";
 import { StructuredTool } from "@langchain/core/tools";
-
+import { stringify } from 'yaml'
+import { extractTextContentFromComplexMessageContent } from "../utils/format.js";
 
 export class LangchainToolToMimirTool<SchemaT = ToolInputSchemaBase> extends AgentTool<SchemaT> {
 
@@ -22,7 +23,18 @@ export class LangchainToolToMimirTool<SchemaT = ToolInputSchemaBase> extends Age
     }
     protected async _call(arg: any): Promise<ToolResponse> {
         const response = await this.tool.invoke(arg);
-        return this.toMessageContent(response);
+        const messageContent = this.toMessageContent(response);
+        const textContent = extractTextContentFromComplexMessageContent(messageContent);
+        try {
+            return [
+                {
+                    type: "text",
+                    text: stringify(JSON.parse(textContent))
+                }
+            ]
+        } catch {
+            return messageContent;
+        }
 
     }
 
