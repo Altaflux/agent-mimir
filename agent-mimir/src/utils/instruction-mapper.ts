@@ -71,6 +71,7 @@ function generateResponseHeader(additionalExampleInstructions: string, attribute
     return `RESPONSE FORMAT INSTRUCTIONS
 ----------------------------
 When responding ALWAYS respond in the following XML format.
+You can only include ONE ${RESPONSE_OUTPUT_TAG} xml element on your message!
 The following is the XSD definition of the response format:
 
 <xs:schema attributeFormDefault="unqualified" elementFormDefault="qualified" xmlns:xs="${XSD_NAMESPACE}">

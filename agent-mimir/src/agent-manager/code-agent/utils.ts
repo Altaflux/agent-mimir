@@ -31,6 +31,10 @@ export function getExecutionCodeContentRegex(xmlString: string): string | null {
   // match[1] is the content of the first capturing group (e.g., "content")
   if (match && match[1] !== undefined) {
     let scriptCode: string | null = match[1];
+    const cdataMatch = scriptCode.match(/^\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*$/);
+    if (cdataMatch) {
+      scriptCode = cdataMatch[1];
+    }
     scriptCode = scriptCode.trim().length === 0 ? null : scriptCode; // Trim whitespace from the captured content
     return scriptCode; // Return the captured content
   } else {
@@ -62,6 +66,10 @@ export function getLibrariesContentRegex(xmlString: string): string[] {
   // match[1] is the content of the first capturing group (e.g., "content")
   if (match && match[1] !== undefined) {
     let scriptCode: string | null = match[1];
+    const cdataMatch = scriptCode.match(/^\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*$/);
+    if (cdataMatch) {
+      scriptCode = cdataMatch[1];
+    }
     scriptCode = scriptCode.trim().length === 0 ? null : scriptCode; // Trim whitespace from the captured content
     return scriptCode?.split(",").map(e => e.trim()) ?? []; // Return the captured content
   } else {
