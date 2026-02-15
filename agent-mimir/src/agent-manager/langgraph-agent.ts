@@ -144,7 +144,12 @@ export class LanggraphAgent implements Agent {
                         yield {
                             type: "messageChunk",
                             id: baseMessage.id,
-                            content: lCmessageContentToContent(baseMessage.contentBlocks)
+                            content: [
+                                {
+                                    type: "text",
+                                    text: baseMessage.text
+                                }
+                            ]
                         }
                     }
                 }
