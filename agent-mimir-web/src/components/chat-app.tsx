@@ -14,17 +14,17 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { FilePlus2, RefreshCw, SendHorizontal, Trash2 } from "lucide-react";
+import { FilePlus2, RefreshCw, SendHorizontal, Trash2, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DragEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type EventMap = Record<string, SessionEvent[]>;
 type StateMap = Record<string, SessionState>;
 type ErrorPayload = { error?: { code?: string; message?: string } };
+const CHAT_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/jpg"]);
 
 function formatTime(iso: string) {
     const date = new Date(iso);
@@ -77,22 +77,29 @@ function ScrollableCodeBlock({ text }: { text: string }) {
     return <pre className="max-h-44 overflow-auto whitespace-pre-wrap rounded-md bg-background p-3 text-xs">{text}</pre>;
 }
 
+function isChatImageFile(file: File) {
+    return CHAT_IMAGE_MIME_TYPES.has(file.type.toLowerCase());
+}
+
+function fileFingerprint(file: File) {
+    return `${file.name}|${file.size}|${file.lastModified}|${file.type}`;
+}
+
 export function ChatApp() {
     const [sessions, setSessions] = useState<SessionSummary[]>([]);
     const [sessionStates, setSessionStates] = useState<StateMap>({});
     const [eventsBySession, setEventsBySession] = useState<EventMap>({});
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
     const [message, setMessage] = useState("");
-    const [workspaceFiles, setWorkspaceFiles] = useState<File[]>([]);
-    const [chatImages, setChatImages] = useState<File[]>([]);
+    const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+    const [isComposerDragOver, setIsComposerDragOver] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [disapproveMessage, setDisapproveMessage] = useState("");
     const [showDisapproveBox, setShowDisapproveBox] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-    const workspaceInputRef = useRef<HTMLInputElement | null>(null);
-    const chatImageInputRef = useRef<HTMLInputElement | null>(null);
+    const dragDepthRef = useRef(0);
 
     const activeState = activeSessionId ? sessionStates[activeSessionId] : undefined;
     const activeEvents = activeSessionId ? eventsBySession[activeSessionId] ?? [] : [];
@@ -287,7 +294,7 @@ export function ChatApp() {
             return;
         }
 
-        if (message.trim().length === 0 && workspaceFiles.length === 0 && chatImages.length === 0) {
+        if (message.trim().length === 0 && attachedFiles.length === 0) {
             setErrorMessage("Write a message or attach files before sending.");
             return;
         }
@@ -297,10 +304,10 @@ export function ChatApp() {
         try {
             const formData = new FormData();
             formData.append("message", message);
-            for (const file of workspaceFiles) {
+            for (const file of attachedFiles) {
                 formData.append("workspaceFiles", file);
             }
-            for (const image of chatImages) {
+            for (const image of attachedFiles.filter((file) => isChatImageFile(file))) {
                 formData.append("chatImages", image);
             }
 
@@ -318,20 +325,13 @@ export function ChatApp() {
             }
 
             setMessage("");
-            setWorkspaceFiles([]);
-            setChatImages([]);
-            if (workspaceInputRef.current) {
-                workspaceInputRef.current.value = "";
-            }
-            if (chatImageInputRef.current) {
-                chatImageInputRef.current.value = "";
-            }
+            setAttachedFiles([]);
         } catch (error) {
             setErrorMessage(error instanceof Error ? error.message : "Message failed.");
         } finally {
             setIsSubmitting(false);
         }
-    }, [activeSessionId, chatImages, isSubmitting, message, recoverFromSessionNotFoundResponse, workspaceFiles]);
+    }, [activeSessionId, attachedFiles, isSubmitting, message, recoverFromSessionNotFoundResponse]);
 
     const submitApproval = useCallback(
         async (action: ApprovalRequest["action"]) => {
@@ -504,6 +504,83 @@ export function ChatApp() {
 
     const pendingToolRequest = activeState?.pendingToolRequest;
     const disableComposer = isSubmitting || Boolean(pendingToolRequest);
+
+    const addDroppedFiles = useCallback((incomingFiles: File[]) => {
+        if (incomingFiles.length === 0) {
+            return;
+        }
+
+        setAttachedFiles((current) => {
+            const existingFingerprints = new Set(current.map((file) => fileFingerprint(file)));
+            const uniqueIncoming = incomingFiles.filter((file) => !existingFingerprints.has(fileFingerprint(file)));
+            return [...current, ...uniqueIncoming];
+        });
+    }, []);
+
+    const removeAttachedFile = useCallback((fingerprint: string) => {
+        setAttachedFiles((current) => {
+            let removed = false;
+            return current.filter((file) => {
+                if (!removed && fileFingerprint(file) === fingerprint) {
+                    removed = true;
+                    return false;
+                }
+
+                return true;
+            });
+        });
+    }, []);
+
+    const handleComposerDragEnter = useCallback(
+        (event: DragEvent<HTMLDivElement>) => {
+            event.preventDefault();
+            if (disableComposer || !activeSessionId) {
+                return;
+            }
+
+            if (!event.dataTransfer.types.includes("Files")) {
+                return;
+            }
+
+            dragDepthRef.current += 1;
+            setIsComposerDragOver(true);
+        },
+        [activeSessionId, disableComposer]
+    );
+
+    const handleComposerDragOver = useCallback(
+        (event: DragEvent<HTMLDivElement>) => {
+            event.preventDefault();
+            if (disableComposer || !activeSessionId) {
+                return;
+            }
+            event.dataTransfer.dropEffect = "copy";
+        },
+        [activeSessionId, disableComposer]
+    );
+
+    const handleComposerDragLeave = useCallback((event: DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+        if (dragDepthRef.current === 0) {
+            setIsComposerDragOver(false);
+        }
+    }, []);
+
+    const handleComposerDrop = useCallback(
+        (event: DragEvent<HTMLDivElement>) => {
+            event.preventDefault();
+            dragDepthRef.current = 0;
+            setIsComposerDragOver(false);
+
+            if (disableComposer || !activeSessionId) {
+                return;
+            }
+
+            addDroppedFiles(Array.from(event.dataTransfer.files ?? []));
+        },
+        [activeSessionId, addDroppedFiles, disableComposer]
+    );
 
     const sessionLabel = useMemo(() => {
         if (!activeState) {
@@ -822,43 +899,65 @@ export function ChatApp() {
                         ) : null}
 
                         <div className="space-y-3">
-                            <Textarea
-                                value={message}
-                                onChange={(event) => {
-                                    setMessage(event.target.value);
-                                }}
-                                placeholder="Send a message to your active agent..."
-                                disabled={disableComposer || !activeSessionId}
-                            />
+                            <div
+                                onDragEnter={handleComposerDragEnter}
+                                onDragOver={handleComposerDragOver}
+                                onDragLeave={handleComposerDragLeave}
+                                onDrop={handleComposerDrop}
+                                className={`rounded-md border transition ${isComposerDragOver ? "border-primary bg-secondary/40" : "border-border bg-background"}`}
+                            >
+                                <Textarea
+                                    value={message}
+                                    onChange={(event) => {
+                                        setMessage(event.target.value);
+                                    }}
+                                    onKeyDown={(event) => {
+                                        if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
+                                            return;
+                                        }
 
-                            <div className="grid gap-2 md:grid-cols-2">
-                                <div className="space-y-1">
-                                    <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Workspace files</label>
-                                    <Input
-                                        ref={workspaceInputRef}
-                                        type="file"
-                                        multiple
-                                        disabled={disableComposer || !activeSessionId}
-                                        onChange={(event) => {
-                                            setWorkspaceFiles(Array.from(event.target.files ?? []));
-                                        }}
-                                    />
-                                    <p className="text-xs text-muted-foreground">Any file type. Sent to workspace and available to tools.</p>
-                                </div>
+                                        event.preventDefault();
+                                        if (disableComposer || !activeSessionId) {
+                                            return;
+                                        }
 
-                                <div className="space-y-1">
-                                    <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Chat images</label>
-                                    <Input
-                                        ref={chatImageInputRef}
-                                        type="file"
-                                        accept="image/png,image/jpeg"
-                                        multiple
-                                        disabled={disableComposer || !activeSessionId}
-                                        onChange={(event) => {
-                                            setChatImages(Array.from(event.target.files ?? []));
-                                        }}
-                                    />
-                                    <p className="text-xs text-muted-foreground">PNG/JPEG shown as in-chat image content and also loaded into workspace.</p>
+                                        sendMessage().catch((error) => {
+                                            setErrorMessage(error instanceof Error ? error.message : "Failed to send message.");
+                                        });
+                                    }}
+                                    placeholder="Send a message to your active agent... (drag files into this box to attach)"
+                                    disabled={disableComposer || !activeSessionId}
+                                    className="min-h-24 border-0 bg-transparent shadow-none focus-visible:ring-0"
+                                />
+                                <div className="border-t border-border px-3 py-2">
+                                    <p className="text-xs text-muted-foreground">
+                                        Drag files here to attach. Image files are also sent as chat images.
+                                    </p>
+                                    {attachedFiles.length > 0 ? (
+                                        <div className="mt-2 flex flex-wrap gap-2">
+                                            {attachedFiles.map((file, index) => {
+                                                const fingerprint = fileFingerprint(file);
+                                                return (
+                                                    <div
+                                                        key={`${fingerprint}-${index}`}
+                                                        className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs"
+                                                    >
+                                                        <span className="max-w-[220px] truncate">{file.name}</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                removeAttachedFile(fingerprint);
+                                                            }}
+                                                            className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                                                            aria-label={`Remove ${file.name}`}
+                                                        >
+                                                            <X className="h-3 w-3" />
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : null}
                                 </div>
                             </div>
 
