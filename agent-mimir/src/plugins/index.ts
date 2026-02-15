@@ -109,6 +109,14 @@ export abstract class AgentPlugin {
     }
 
     /**
+     * Destroy the plugin. Use to cleanup resources.
+     * Called when the plugin is first loaded.
+     */
+    destroy(): Promise<void> {
+        return Promise.resolve();
+    }
+
+    /**
      * Called when the agent is ready to proceed to the next message.
      * Allows plugins to prepare for the next interaction.
      * @param nextMessage - The next message in the conversation

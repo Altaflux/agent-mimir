@@ -91,6 +91,8 @@ export interface Agent {
         threadId: string,
         checkpointId?: string
     }) => Promise<void>,
+
+    shutDown: () => Promise<void>,
 };
 
 /**

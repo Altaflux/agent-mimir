@@ -111,6 +111,10 @@ export class LanggraphAgent implements Agent {
         }
     }
 
+    async shutDown(){
+        await Promise.all(this.args.plugins.map(async plugin => await plugin.destroy()));
+    }
+    
     async reset(args: { threadId: string; checkpointId?: string; }): Promise<void> {
         let stateConfig = {
             streamMode: ["messages" as const, "values" as const],

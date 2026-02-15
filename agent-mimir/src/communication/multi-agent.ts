@@ -99,6 +99,12 @@ export class MultiAgentCommunicationOrchestrator {
         }
     }
 
+    async shutDown() {
+        for (const agent of this.agentManager.values()) {
+            await agent.shutDown();
+        }
+    }
+
     async* handleMessage(args: {
         message: InputAgentMessage | null;
     }, threadId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {

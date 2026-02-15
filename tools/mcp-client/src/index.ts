@@ -276,6 +276,10 @@ export class McpPlugin extends AgentPlugin {
         super();
     }
 
+    async destroy(): Promise<void> {
+        await Promise.all(this.clients.map(async client => await client.client.close()));
+    }
+    
     async getSystemMessages(): Promise<AgentSystemMessage> {
 
         const resourcesTemplate: string = (await Promise.all(this.clients.map(async c => {

@@ -701,7 +701,7 @@ class SessionManager {
     private async disposeSession(session: SessionRuntime): Promise<void> {
         this.sessions.delete(session.sessionId);
         session.subscribers.clear();
-
+        await session.orchestrator.shutDown()
         await fs.rm(session.workingRoot, { recursive: true, force: true }).catch(() => {
             return;
         });
