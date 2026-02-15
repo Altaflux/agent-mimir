@@ -1,7 +1,7 @@
 import { CompiledStateGraph, Command,  StateDefinition, StateSchema, MessagesValue } from "@langchain/langgraph";
 import { AgentCommand, AgentPlugin } from "../plugins/index.js";
 import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, CommandRequest, InputAgentMessage, IntermediateAgentMessage, SharedFile } from "./index.js";
-import { BaseMessage, HumanMessage,  RemoveMessage, ToolMessage } from "@langchain/core/messages";
+import { AIMessageChunk, BaseMessage, HumanMessage,  RemoveMessage, ToolMessage } from "@langchain/core/messages";
 import { v4 } from "uuid";
 import { complexResponseToLangchainMessageContent, extractAllTextFromComplexResponse } from "../utils/format.js";
 import { commandContentToBaseMessage, lCmessageContentToContent } from "./message-utils.js";
@@ -114,7 +114,7 @@ export class LanggraphAgent implements Agent {
     async shutDown(){
         await Promise.all(this.args.plugins.map(async plugin => await plugin.destroy()));
     }
-    
+
     async reset(args: { threadId: string; checkpointId?: string; }): Promise<void> {
         let stateConfig = {
             streamMode: ["messages" as const, "values" as const],
@@ -137,7 +137,18 @@ export class LanggraphAgent implements Agent {
         while (true) {
             let stream = await this.graph.stream(graphInput, { ...stateConfig, configurable: { thread_id: threadId } });
             for await (const state of stream) {
-                if (state[0] === "values") {
+                if (state[0] === "messages"){
+                    let messageState = state[1];
+                    const baseMessage = messageState[0];
+                    if (baseMessage.type === "ai") {
+                        yield {
+                            type: "messageChunk",
+                            id: baseMessage.id,
+                            content: lCmessageContentToContent(baseMessage.contentBlocks)
+                        }
+                    }
+                }
+                else if (state[0] === "values") {
                     let messageState = state[1];
                     
                     if ((messageState.messages?.length ?? 0 )> 0) {
@@ -146,8 +157,8 @@ export class LanggraphAgent implements Agent {
                             lastKnownMessage = lastMessage;
                             yield {
                                 type: "toolResponse",
+                                id: lastMessage.tool_call_id,
                                 toolResponse: {
-                                    id: lastMessage.tool_call_id,
                                     name: lastMessage.name ?? "Unknown",
                                     response: lCmessageContentToContent(lastMessage.contentBlocks)
                                 }
@@ -166,7 +177,9 @@ export class LanggraphAgent implements Agent {
                 return {
                     type: "toolRequest",
                     output: {
-                        content: lCmessageContentToContent(lastMessage.contentBlocks), id: lastMessage.id ?? "", toolCalls: [
+                        content: lCmessageContentToContent(lastMessage.contentBlocks), 
+                        id: lastMessage.id ?? "", 
+                        toolCalls: [
                             {
                                 toolName: interruptVal.action_request.action,
                                 input: JSON.stringify(interruptVal.action_request.args, null, 2)
