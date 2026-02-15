@@ -74,7 +74,7 @@ function downloadLinks(files: DownloadableFile[]) {
 }
 
 function ScrollableCodeBlock({ text }: { text: string }) {
-    return <pre className="max-h-44 overflow-auto whitespace-pre-wrap rounded-md bg-background p-3 text-xs">{text}</pre>;
+    return <pre className="max-h-44 overflow-auto whitespace-pre-wrap rounded-md border border-border/70 bg-background/70 p-3 text-xs text-foreground/90">{text}</pre>;
 }
 
 function isChatImageFile(file: File) {
@@ -592,8 +592,8 @@ export function ChatApp() {
 
     if (isLoading) {
         return (
-            <main className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center p-6">
-                <Card className="w-full max-w-md">
+            <main className="app-shell mx-auto flex min-h-screen w-full max-w-[1280px] items-center justify-center p-6">
+                <Card className="w-full max-w-md border-border/60 bg-card/75 shadow-2xl shadow-black/30 backdrop-blur-xl">
                     <CardHeader>
                         <CardTitle>Loading Agent Mimir Web</CardTitle>
                         <CardDescription>Preparing your session runtime.</CardDescription>
@@ -604,10 +604,10 @@ export function ChatApp() {
     }
 
     return (
-        <main className="mx-auto min-h-screen w-full max-w-7xl p-4 md:p-6">
+        <main className="app-shell mx-auto min-h-screen w-full max-w-[1280px] p-4 md:p-6">
             <div className="grid min-h-[calc(100vh-2rem)] grid-cols-1 gap-4 md:grid-cols-[300px_1fr]">
-                <Card className="overflow-hidden">
-                    <CardHeader className="border-b bg-card/80">
+                <Card className="overflow-hidden border-border/60 bg-card/70 shadow-2xl shadow-black/20 backdrop-blur-xl">
+                    <CardHeader className="border-b border-border/60 bg-card/65">
                         <CardTitle>Conversations</CardTitle>
                         <CardDescription>Each conversation has isolated runtime state.</CardDescription>
                     </CardHeader>
@@ -627,7 +627,7 @@ export function ChatApp() {
                             {sessions.map((session) => (
                                 <div
                                     key={session.sessionId}
-                                    className={`rounded-lg border p-2 transition ${activeSessionId === session.sessionId ? "border-primary bg-secondary/70" : "border-border bg-background/50"}`}
+                                    className={`rounded-lg border p-2 transition ${activeSessionId === session.sessionId ? "border-primary/80 bg-primary/10 shadow-lg shadow-primary/10" : "border-border/70 bg-background/35 hover:bg-background/55"}`}
                                 >
                                     <button
                                         className="w-full text-left"
@@ -660,8 +660,8 @@ export function ChatApp() {
                     </CardContent>
                 </Card>
 
-                <Card className="flex min-h-[calc(100vh-2rem)] flex-col overflow-hidden">
-                    <CardHeader className="border-b bg-card/85 backdrop-blur">
+                <Card className="flex min-h-[calc(100vh-2rem)] flex-col overflow-hidden border-border/60 bg-card/70 shadow-2xl shadow-black/20 backdrop-blur-xl">
+                    <CardHeader className="border-b border-border/60 bg-card/65 backdrop-blur-xl">
                         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
                                 <CardTitle>{sessionLabel}</CardTitle>
@@ -683,7 +683,7 @@ export function ChatApp() {
                                 </label>
 
                                 <select
-                                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                                    className="h-10 rounded-md border border-input bg-background/80 px-3 text-sm"
                                     value={activeState?.activeAgentName ?? ""}
                                     onChange={(event) => {
                                         setActiveAgent(event.target.value).catch((error) => {
@@ -716,7 +716,7 @@ export function ChatApp() {
 
                     <CardContent className="flex-1 space-y-3 overflow-y-auto p-4">
                         {activeEvents.length === 0 ? (
-                            <div className="rounded-lg border border-dashed border-border bg-background/50 p-6 text-center text-sm text-muted-foreground">
+                            <div className="rounded-lg border border-dashed border-border/80 bg-background/40 p-6 text-center text-sm text-muted-foreground">
                                 {activeSessionId ? "Send a message to begin." : "Create a conversation to begin."}
                             </div>
                         ) : null}
@@ -728,7 +728,7 @@ export function ChatApp() {
 
                             if (event.type === "user_message") {
                                 return (
-                                    <Card key={event.id} className="bg-secondary/40">
+                                    <Card key={event.id} className="border-border/60 bg-background/45">
                                         <CardHeader className="pb-2">
                                             <CardTitle className="text-base">You</CardTitle>
                                             <CardDescription>{formatTime(event.timestamp)}</CardDescription>
@@ -748,7 +748,7 @@ export function ChatApp() {
 
                             if (event.type === "tool_response") {
                                 return (
-                                    <Card key={event.id} className="border-amber-300/60 bg-amber-50/50">
+                                    <Card key={event.id} className="border-cyan-400/35 bg-cyan-500/10">
                                         <CardHeader className="pb-2">
                                             <CardTitle className="text-base">
                                                 Tool Response <span className="text-muted-foreground">[{event.agentName}]</span>
@@ -766,7 +766,7 @@ export function ChatApp() {
 
                             if (event.type === "agent_to_agent") {
                                 return (
-                                    <Card key={event.id} className="border-sky-200 bg-sky-50/50">
+                                    <Card key={event.id} className="border-emerald-400/35 bg-emerald-500/10">
                                         <CardHeader className="pb-2">
                                             <CardTitle className="text-base">Agent to Agent</CardTitle>
                                             <CardDescription>
@@ -787,7 +787,7 @@ export function ChatApp() {
                                     ? `Agent: ${event.payload.callingAgent}`
                                     : `Agent: ${event.payload.callingAgent} (auto-continued)`;
                                 return (
-                                    <Card key={event.id} className="border-rose-300 bg-rose-50/50">
+                                    <Card key={event.id} className="border-amber-400/35 bg-amber-500/10">
                                         <CardHeader className="pb-2">
                                             <CardTitle className="text-base">{title}</CardTitle>
                                             <CardDescription>{description}</CardDescription>
@@ -809,13 +809,13 @@ export function ChatApp() {
 
                             if (event.type === "agent_response") {
                                 return (
-                                    <Card key={event.id} className="bg-card">
+                                    <Card key={event.id} className="border-border/60 bg-card/70">
                                         <CardHeader className="pb-2">
                                             <CardTitle className="text-base">{event.agentName}</CardTitle>
                                             <CardDescription>{formatTime(event.timestamp)}</CardDescription>
                                         </CardHeader>
                                         <CardContent>
-                                            <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-sm max-w-none whitespace-pre-wrap text-foreground">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap text-foreground">
                                                 {event.markdown}
                                             </ReactMarkdown>
                                             {downloadLinks(event.attachments)}
@@ -826,7 +826,7 @@ export function ChatApp() {
 
                             if (event.type === "reset") {
                                 return (
-                                    <Card key={event.id} className="border-emerald-300 bg-emerald-50/50">
+                                    <Card key={event.id} className="border-lime-400/35 bg-lime-500/10">
                                         <CardHeader className="pb-2">
                                             <CardTitle className="text-base">Reset</CardTitle>
                                         </CardHeader>
@@ -847,9 +847,9 @@ export function ChatApp() {
                         })}
                     </CardContent>
 
-                    <div className="border-t bg-card/90 p-4">
+                    <div className="border-t border-border/60 bg-card/70 p-4">
                         {pendingToolRequest ? (
-                            <div className="mb-4 rounded-md border border-rose-300 bg-rose-50 p-3">
+                            <div className="mb-4 rounded-md border border-amber-400/45 bg-amber-500/12 p-3">
                                 <p className="text-sm font-semibold">Tool request is waiting for your decision.</p>
                                 <div className="mt-3 flex flex-wrap gap-2">
                                     <Button
@@ -904,7 +904,7 @@ export function ChatApp() {
                                 onDragOver={handleComposerDragOver}
                                 onDragLeave={handleComposerDragLeave}
                                 onDrop={handleComposerDrop}
-                                className={`rounded-md border transition ${isComposerDragOver ? "border-primary bg-secondary/40" : "border-border bg-background"}`}
+                                className={`rounded-md border transition ${isComposerDragOver ? "border-primary bg-primary/10 shadow-lg shadow-primary/20" : "border-border/70 bg-background/45"}`}
                             >
                                 <Textarea
                                     value={message}

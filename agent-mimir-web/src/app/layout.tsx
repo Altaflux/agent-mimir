@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, Source_Serif_4 } from "next/font/google";
+import { Manrope, Sora } from "next/font/google";
 import type { ReactNode } from "react";
 import "./globals.css";
 
-const heading = Space_Grotesk({
+const heading = Sora({
     subsets: ["latin"],
     variable: "--font-heading"
 });
 
-const body = Source_Serif_4({
+const body = Manrope({
     subsets: ["latin"],
     variable: "--font-body"
 });

@@ -4,26 +4,26 @@
 
 @layer base {
     :root {
-        --background: 38 67% 97%;
-        --foreground: 210 22% 15%;
-        --card: 0 0% 100%;
-        --card-foreground: 210 22% 15%;
-        --popover: 0 0% 100%;
-        --popover-foreground: 210 22% 15%;
-        --primary: 195 86% 29%;
-        --primary-foreground: 38 67% 98%;
-        --secondary: 170 42% 92%;
-        --secondary-foreground: 202 40% 20%;
-        --muted: 35 44% 92%;
-        --muted-foreground: 210 10% 38%;
-        --accent: 22 91% 64%;
-        --accent-foreground: 15 30% 12%;
-        --destructive: 0 80% 43%;
-        --destructive-foreground: 0 0% 99%;
-        --border: 200 18% 83%;
-        --input: 200 18% 83%;
-        --ring: 195 86% 29%;
-        --radius: 0.8rem;
+        --background: 226 30% 8%;
+        --foreground: 210 18% 93%;
+        --card: 224 24% 12%;
+        --card-foreground: 210 18% 93%;
+        --popover: 224 24% 12%;
+        --popover-foreground: 210 18% 93%;
+        --primary: 187 98% 58%;
+        --primary-foreground: 221 39% 8%;
+        --secondary: 225 19% 17%;
+        --secondary-foreground: 210 20% 90%;
+        --muted: 225 19% 17%;
+        --muted-foreground: 216 14% 69%;
+        --accent: 36 95% 62%;
+        --accent-foreground: 23 36% 12%;
+        --destructive: 0 78% 60%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 222 18% 24%;
+        --input: 222 18% 24%;
+        --ring: 187 98% 58%;
+        --radius: 0.9rem;
     }
 
     * {
@@ -31,10 +31,28 @@
     }
 
     body {
+        color-scheme: dark;
         background:
-            radial-gradient(circle at top right, rgba(255, 167, 81, 0.28), transparent 40%),
-            radial-gradient(circle at 12% 12%, rgba(58, 173, 191, 0.24), transparent 35%),
+            radial-gradient(circle at 15% 8%, rgba(14, 165, 233, 0.28), transparent 34%),
+            radial-gradient(circle at 86% 4%, rgba(45, 212, 191, 0.19), transparent 32%),
+            radial-gradient(circle at 85% 92%, rgba(249, 115, 22, 0.14), transparent 28%),
+            linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
             hsl(var(--background));
+        background-size:
+            auto,
+            auto,
+            auto,
+            30px 30px,
+            30px 30px,
+            auto;
+        background-position:
+            center,
+            center,
+            center,
+            -1px -1px,
+            -1px -1px,
+            center;
     }
 }
 
@@ -45,5 +63,20 @@
 
     .font-heading {
         font-family: var(--font-heading), sans-serif;
+    }
+
+    .app-shell {
+        animation: app-fade 320ms ease-out;
+    }
+}
+
+@keyframes app-fade {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
 }
