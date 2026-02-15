@@ -62,17 +62,17 @@ type AgentMimirConfig = {
 }
 export type AgentInvoke = (args: MultiAgentCommunicationOrchestrator,) => AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void>;
 const getConfig = async () => {
-    if (process.env.MIMIR_CFG_PATH) {
-        let cfgFile = path.join(process.env.MIMIR_CFG_PATH, 'mimir-cfg.js');
-        const configFileExists = await fs.access(cfgFile, fs.constants.F_OK).then(() => true).catch(() => false);
-        if (configFileExists) {
-            console.log(chalk.green(`Loading configuration file`));
-            const configFunction: Promise<AgentMimirConfig> | AgentMimirConfig = (await import(`file://${cfgFile}`)).default()
-            return await Promise.resolve(configFunction);
-        }
+    if (!process.env.MIMIR_CFG_PATH) {
+        throw new Error("MIMIR_CFG_PATH is not set. A staged mimir-cfg.js is required.");
     }
-    console.log(chalk.yellow("No config file found, using default OpenAI config"));
-    return (await import("./default-config.js")).default();
+    let cfgFile = path.join(process.env.MIMIR_CFG_PATH, 'mimir-cfg.js');
+    const configFileExists = await fs.access(cfgFile, fs.constants.F_OK).then(() => true).catch(() => false);
+    if (!configFileExists) {
+        throw new Error(`Configuration file not found at ${cfgFile}.`);
+    }
+    console.log(chalk.green(`Loading configuration file`));
+    const configFunction: Promise<AgentMimirConfig> | AgentMimirConfig = (await import(`file://${cfgFile}`)).default()
+    return await Promise.resolve(configFunction);
 };
 
 async function downloadFile(filename: string, link: string) {

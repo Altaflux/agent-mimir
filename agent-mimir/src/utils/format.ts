@@ -48,16 +48,36 @@ export function extractAllTextFromComplexResponse(toolResponse: ComplexMessageCo
 }
 
 export const openAIImageHandler = (image: { url: string, type: SupportedImageTypes }, detail: "high" | "low" = "high"): ContentBlock.Multimodal.Image => {
-  let type = image.type as string;
-  if (type === "jpg") {
-    type = "jpeg"
+  let normalizedType = image.type as string;
+  if (normalizedType === "jpg") {
+    normalizedType = "jpeg";
   }
-  const res = {
-    type: "image" as const,
-    mimeType: `image/${type}`,
-    data : `${image.url}`
-  } satisfies ContentBlock.Multimodal.Image 
-  return res;
+
+  if (normalizedType === "url") {
+    return {
+      type: "image",
+      // Compatibility for providers that still rely on deprecated data content blocks.
+      source_type: "url",
+      url: image.url
+    } as ContentBlock.Multimodal.Image;
+  }
+
+  let mimeType = `image/${normalizedType}`;
+  let base64Data = image.url;
+  const dataUrlMatch = image.url.match(/^data:([^;]+);base64,(.+)$/);
+  if (dataUrlMatch) {
+    mimeType = dataUrlMatch[1]!;
+    base64Data = dataUrlMatch[2]!;
+  }
+
+  return {
+    type: "image",
+    mimeType,
+    data: base64Data,
+    // Compatibility for providers that still rely on deprecated data content blocks.
+    source_type: "base64",
+    mime_type: mimeType
+  } as ContentBlock.Multimodal.Image;
 }
 
 export function trimAndSanitizeMessageContent(inputArray: ComplexMessageContent[]): ComplexMessageContent[] {

@@ -13,11 +13,17 @@ const main = async () => {
 
     const configLocation = process.env.CONFIG_LOCAION ?? path.join(process.env.INIT_CWD, 'mimir-config');
 
-    const exists = fse.existsSync(configLocation)
-    if (await fileExists(configLocation)) {
-        console.log(`Copying ${configLocation} to ${target}}`)
-        await fse.copy(configLocation, target);
+    if (!(await fileExists(configLocation))) {
+        throw new Error(`Configuration directory not found at "${configLocation}". A mimir-config directory with mimir-cfg.js is required.`);
     }
+
+    const configFile = path.join(configLocation, 'mimir-cfg.js');
+    if (!(await fileExists(configFile))) {
+        throw new Error(`Configuration file not found at "${configFile}". A mimir-cfg.js file is required.`);
+    }
+
+    console.log(`Copying ${configLocation} to ${target}}`)
+    await fse.copy(configLocation, target);
 };
 
 main()
