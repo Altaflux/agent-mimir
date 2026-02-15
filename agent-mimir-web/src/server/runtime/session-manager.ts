@@ -491,9 +491,11 @@ class SessionManager {
             if (result.value.type === "agentResponse") {
                 const text = extractAllTextFromComplexResponse(result.value.content.content);
                 const attachments = await this.registerSharedFiles(session, result.value.content.sharedFiles ?? []);
+                const responseMessageId = (result.value.content as { id?: string }).id ?? crypto.randomUUID();
                 this.emitEvent(session, {
                     type: "agent_response",
                     agentName: session.orchestrator.currentAgent.name,
+                    messageId: responseMessageId,
                     markdown: text,
                     attachments
                 });
@@ -518,6 +520,21 @@ class SessionManager {
     }
 
     private async handleIntermediateResponse(session: SessionRuntime, chainResponse: IntermediateAgentResponse) {
+        if (chainResponse.type === "intermediateOutput" && chainResponse.value.type === "messageChunk") {
+            const chunkText = extractAllTextFromComplexResponse(chainResponse.value.content);
+            if (chunkText.length === 0) {
+                return;
+            }
+
+            this.emitEvent(session, {
+                type: "agent_response_chunk",
+                agentName: chainResponse.agentName,
+                messageId: chainResponse.value.id,
+                markdownChunk: chunkText
+            });
+            return;
+        }
+
         if (chainResponse.type === "intermediateOutput" && chainResponse.value.type === "toolResponse") {
             this.emitEvent(session, {
                 type: "tool_response",
@@ -530,9 +547,11 @@ class SessionManager {
         }
 
         if (chainResponse.type === "agentToAgentMessage") {
+            const messageId = (chainResponse.value.content as { id?: string }).id;
             const attachments = await this.registerSharedFiles(session, chainResponse.value.content.sharedFiles ?? []);
             this.emitEvent(session, {
                 type: "agent_to_agent",
+                messageId,
                 sourceAgent: chainResponse.value.sourceAgent,
                 destinationAgent: chainResponse.value.destinationAgent,
                 message: extractAllTextFromComplexResponse(chainResponse.value.content.content),

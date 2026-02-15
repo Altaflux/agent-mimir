@@ -137,11 +137,11 @@ export type CommandRequest = {
 
 export type IntermediateAgentMessage = {
     type: "toolResponse",
-    id?: string,
+    id: string,
     toolResponse: ToolResponseInfo
 } | {
     type: "messageChunk",
-    id?: string,
+    id: string,
     content: ComplexMessageContent[]
 }
 

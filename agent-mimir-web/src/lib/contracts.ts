@@ -56,6 +56,7 @@ export type SessionEvent =
           sessionId: string;
           timestamp: string;
           type: "agent_to_agent";
+          messageId?: string;
           sourceAgent: string;
           destinationAgent: string;
           message: string;
@@ -73,8 +74,18 @@ export type SessionEvent =
           id: string;
           sessionId: string;
           timestamp: string;
+          type: "agent_response_chunk";
+          agentName: string;
+          messageId: string;
+          markdownChunk: string;
+      }
+    | {
+          id: string;
+          sessionId: string;
+          timestamp: string;
           type: "agent_response";
           agentName: string;
+          messageId: string;
           markdown: string;
           attachments: DownloadableFile[];
       }

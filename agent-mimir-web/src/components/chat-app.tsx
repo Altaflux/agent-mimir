@@ -124,6 +124,68 @@ export function ChatApp() {
         (event: SessionEvent) => {
             setEventsBySession((current) => {
                 const existing = current[event.sessionId] ?? [];
+
+                if (event.type === "agent_response_chunk") {
+                    if (existing.some((entry) => entry.type === "agent_response" && entry.messageId === event.messageId)) {
+                        return current;
+                    }
+
+                    const existingChunkIndex = existing.findIndex(
+                        (entry) => entry.type === "agent_response_chunk" && entry.messageId === event.messageId
+                    );
+
+                    if (existingChunkIndex >= 0) {
+                        const existingChunk = existing[existingChunkIndex] as Extract<SessionEvent, { type: "agent_response_chunk" }>;
+                        const mergedChunk: Extract<SessionEvent, { type: "agent_response_chunk" }> = {
+                            ...existingChunk,
+                            id: event.id,
+                            timestamp: event.timestamp,
+                            markdownChunk: `${existingChunk.markdownChunk}${event.markdownChunk}`
+                        };
+
+                        const mergedEvents = [...existing];
+                        mergedEvents[existingChunkIndex] = mergedChunk;
+                        return {
+                            ...current,
+                            [event.sessionId]: mergedEvents
+                        };
+                    }
+
+                    return {
+                        ...current,
+                        [event.sessionId]: [...existing, event]
+                    };
+                }
+
+                if (event.type === "agent_response") {
+                    const withoutRelatedChunks = existing.filter(
+                        (entry) => !(entry.type === "agent_response_chunk" && entry.messageId === event.messageId)
+                    );
+                    if (withoutRelatedChunks.some((entry) => entry.id === event.id)) {
+                        return current;
+                    }
+
+                    return {
+                        ...current,
+                        [event.sessionId]: [...withoutRelatedChunks, event]
+                    };
+                }
+
+                if (event.type === "agent_to_agent") {
+                    const withoutRelatedChunks = event.messageId
+                        ? existing.filter((entry) => !(entry.type === "agent_response_chunk" && entry.messageId === event.messageId))
+                        : existing;
+
+                    if (withoutRelatedChunks.some((entry) => entry.id === event.id)) {
+                        return current;
+                    }
+
+                    return {
+                        ...current,
+                        [event.sessionId]: [...withoutRelatedChunks, event]
+                    };
+                }
+
                 if (existing.some((entry) => entry.id === event.id)) {
                     return current;
                 }
@@ -819,6 +881,22 @@ export function ChatApp() {
                                                 {event.markdown}
                                             </ReactMarkdown>
                                             {downloadLinks(event.attachments)}
+                                        </CardContent>
+                                    </Card>
+                                );
+                            }
+
+                            if (event.type === "agent_response_chunk") {
+                                return (
+                                    <Card key={event.id} className="border-primary/35 bg-primary/10">
+                                        <CardHeader className="pb-2">
+                                            <CardTitle className="text-base">{event.agentName} (typing)</CardTitle>
+                                            <CardDescription>{formatTime(event.timestamp)}</CardDescription>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap text-foreground">
+                                                {event.markdownChunk}
+                                            </ReactMarkdown>
                                         </CardContent>
                                     </Card>
                                 );
