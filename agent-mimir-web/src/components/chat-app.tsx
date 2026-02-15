@@ -73,6 +73,10 @@ function downloadLinks(files: DownloadableFile[]) {
     );
 }
 
+function ScrollableCodeBlock({ text }: { text: string }) {
+    return <pre className="max-h-44 overflow-auto whitespace-pre-wrap rounded-md bg-background p-3 text-xs">{text}</pre>;
+}
+
 export function ChatApp() {
     const [sessions, setSessions] = useState<SessionSummary[]>([]);
     const [sessionStates, setSessionStates] = useState<StateMap>({});
@@ -677,7 +681,7 @@ export function ChatApp() {
                                             </CardDescription>
                                         </CardHeader>
                                         <CardContent>
-                                            <pre className="overflow-x-auto whitespace-pre-wrap rounded-md bg-background p-3 text-xs">{event.response}</pre>
+                                            <ScrollableCodeBlock text={event.response} />
                                         </CardContent>
                                     </Card>
                                 );
@@ -701,19 +705,23 @@ export function ChatApp() {
                             }
 
                             if (event.type === "tool_request") {
+                                const title = event.requiresApproval ? "Tool Approval Needed" : "Tool Call (Continuous Mode)";
+                                const description = event.requiresApproval
+                                    ? `Agent: ${event.payload.callingAgent}`
+                                    : `Agent: ${event.payload.callingAgent} (auto-continued)`;
                                 return (
                                     <Card key={event.id} className="border-rose-300 bg-rose-50/50">
                                         <CardHeader className="pb-2">
-                                            <CardTitle className="text-base">Tool Approval Needed</CardTitle>
-                                            <CardDescription>Agent: {event.payload.callingAgent}</CardDescription>
+                                            <CardTitle className="text-base">{title}</CardTitle>
+                                            <CardDescription>{description}</CardDescription>
                                         </CardHeader>
                                         <CardContent className="space-y-3">
-                                            <p className="whitespace-pre-wrap text-sm">{event.payload.content}</p>
+                                            <ScrollableCodeBlock text={event.payload.content} />
                                             <div className="space-y-2 rounded-md bg-background p-3">
                                                 {event.payload.toolCalls.map((call, index) => (
                                                     <div key={`${event.id}-${index}`} className="space-y-1 border-b border-border pb-2 last:border-b-0 last:pb-0">
                                                         <p className="text-sm font-semibold">{call.toolName}</p>
-                                                        <pre className="overflow-x-auto whitespace-pre-wrap text-xs">{call.input}</pre>
+                                                        <ScrollableCodeBlock text={call.input} />
                                                     </div>
                                                 ))}
                                             </div>

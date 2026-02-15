@@ -67,6 +67,7 @@ export type SessionEvent =
           timestamp: string;
           type: "tool_request";
           payload: ToolRequestPayload;
+          requiresApproval: boolean;
       }
     | {
           id: string;

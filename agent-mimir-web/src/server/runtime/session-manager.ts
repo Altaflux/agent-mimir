@@ -504,7 +504,8 @@ class SessionManager {
             const pendingPayload = this.toToolRequestPayload(pending);
             this.emitEvent(session, {
                 type: "tool_request",
-                payload: pendingPayload
+                payload: pendingPayload,
+                requiresApproval: !session.continuousMode
             });
 
             if (!session.continuousMode) {

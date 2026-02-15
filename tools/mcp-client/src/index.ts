@@ -21,7 +21,7 @@ interface PluginResult {
 export type McpClientParameters = {
     servers: Record<string, {
         description?: string,
-        transport: Transport
+        transport: () => Transport
     }>,
 }
 export class McpClientPluginFactory implements PluginFactory {
@@ -35,7 +35,7 @@ export class McpClientPluginFactory implements PluginFactory {
         try {
             const clientResults = await Promise.all(
                 Object.entries(this.config.servers).map(async ([clientName, config]) => {
-                    const init = await this.initializeClient(clientName, config.transport);
+                    const init = await this.initializeClient(clientName, config.transport());
                     return {
                         clientName: clientName,
                         description: config.description,
