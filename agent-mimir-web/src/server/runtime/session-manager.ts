@@ -487,7 +487,7 @@ class SessionManager {
             while (!(result = await generator.next()).done) {
                 await this.handleIntermediateResponse(session, result.value);
             }
-
+            
             if (result.value.type === "agentResponse") {
                 const text = extractAllTextFromComplexResponse(result.value.content.content);
                 const attachments = await this.registerSharedFiles(session, result.value.content.sharedFiles ?? []);

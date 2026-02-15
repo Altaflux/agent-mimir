@@ -25,6 +25,10 @@ type EventMap = Record<string, SessionEvent[]>;
 type StateMap = Record<string, SessionState>;
 type ErrorPayload = { error?: { code?: string; message?: string } };
 const CHAT_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/jpg"]);
+const CHAT_MARKDOWN_CLASS =
+    "prose prose-sm prose-invert max-w-none whitespace-pre-wrap text-foreground " +
+    "prose-headings:my-2 prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 " +
+    "prose-pre:my-2 prose-pre:max-h-56 prose-pre:overflow-auto prose-code:before:content-none prose-code:after:content-none";
 
 function formatTime(iso: string) {
     const date = new Date(iso);
@@ -836,7 +840,9 @@ export function ChatApp() {
                                             </CardDescription>
                                         </CardHeader>
                                         <CardContent>
-                                            <p className="whitespace-pre-wrap text-sm">{event.message}</p>
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]} className={CHAT_MARKDOWN_CLASS}>
+                                                {event.message}
+                                            </ReactMarkdown>
                                             {downloadLinks(event.attachments)}
                                         </CardContent>
                                     </Card>
@@ -877,7 +883,7 @@ export function ChatApp() {
                                             <CardDescription>{formatTime(event.timestamp)}</CardDescription>
                                         </CardHeader>
                                         <CardContent>
-                                            <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap text-foreground">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]} className={CHAT_MARKDOWN_CLASS}>
                                                 {event.markdown}
                                             </ReactMarkdown>
                                             {downloadLinks(event.attachments)}
@@ -894,7 +900,7 @@ export function ChatApp() {
                                             <CardDescription>{formatTime(event.timestamp)}</CardDescription>
                                         </CardHeader>
                                         <CardContent>
-                                            <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-sm prose-invert max-w-none whitespace-pre-wrap text-foreground">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]} className={CHAT_MARKDOWN_CLASS}>
                                                 {event.markdownChunk}
                                             </ReactMarkdown>
                                         </CardContent>
