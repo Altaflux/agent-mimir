@@ -342,7 +342,6 @@ export async function createLgAgent(config: CreateAgentArgs) {
     const workflow = new StateGraph(AgentState)
         .addNode("call_llm", callLLm())
         .addNode("run_tool", toolNodeFunction(langChainTools, { handleToolErrors: true }))
-        //.addNode("run_tool", new ToolNode(langChainTools))
         .addNode("message_prep", messageRetentionNode)
         .addNode("human_review_node", humanReviewNode, {
             ends: ["run_tool", "message_prep"]

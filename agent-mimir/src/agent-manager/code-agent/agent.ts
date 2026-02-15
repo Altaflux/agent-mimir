@@ -414,7 +414,7 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
 
 function buildSystemMessage(agentSystemMessages: ComplexMessageContent[]) {
     const messages = agentSystemMessages.map((m) => {
-        return mergeSystemMessages([new SystemMessage({ content: complexResponseToLangchainMessageContent([m]) })])
+        return mergeSystemMessages([new SystemMessage({ contentBlocks: complexResponseToLangchainMessageContent([m]) })])
     });
 
     const finalMessage = mergeSystemMessages(messages);
