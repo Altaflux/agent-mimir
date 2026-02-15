@@ -28,6 +28,7 @@ IMPORTANT STRUCTURE RULES
 - Do not assume success—verify by inspecting printed output from your code.
 - The user cannot see execution output; summarize any needed results in Part B.
 - Execute all the code inside that single <execution-code>. 
+- The script inside <execution-code> must be wrapped in CDATA.
 
 Python Environment Rules:
 - Use this python environment to accomplish the task you are given, be proactive and use the functions available to you but ask for help if you feel stuck on a task.
@@ -40,6 +41,7 @@ Python Environment Rules:
 Example:
 <pip-dependencies-to-install>requests,pymysql,openpyxl</pip-dependencies-to-install>
 <execution-code>
+<![CDATA[
 import time
 import random
 
@@ -49,6 +51,7 @@ print("Random number:", random.randint(1, 100))
 
 result = some_function({"field": "value"});
 print(result)
+]]>
 </execution-code>
 
 

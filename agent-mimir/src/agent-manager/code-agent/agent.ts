@@ -116,14 +116,13 @@ export async function createLgAgent(config: CreateAgentArgs) {
 
 
             const messageListToSend = [...state.messages].slice(0, -1).map(m => {
-                if (m.type === "ai" && m.additional_kwargs["original_content"]) {
+                if (m.type === "ai" && m.additional_kwargs["original_ai_content"]) {
                     return new AIMessage({
                         ...m,
                         id: m.id,
                         name: m.name,
                         response_metadata: m.response_metadata,
-                        //TODO verify, this should actually be contentBlocks but it doesn't work.
-                        content: complexResponseToLangchainMessageContent(m.additional_kwargs["original_content"] as ComplexMessageContent[]),
+                        content: (m.additional_kwargs["original_ai_content"] as ContentBlock.Standard[]),
                         tool_calls: []
                     })
                 }
@@ -184,7 +183,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                             tool_call_id: lastMessage.tool_call_id,
                             additional_kwargs: {
                                 persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
-                                original_content: persistentMessage.message.content
+                                original_content: persistentMessage.message.content ,
                             },
                             contentBlocks: complexResponseToLangchainMessageContent(inputMessage.content)
                         })];
@@ -237,10 +236,9 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 invalid_tool_calls: response.invalid_tool_calls,
                 response_metadata: response.response_metadata,
                 usage_metadata: response.usage_metadata,
-                //TODO verify, this should actually be contentBlocks but it doesn't work.
                 content: complexResponseToLangchainMessageContent(userMessage.tagFound ? userMessage.result : []),
                 additional_kwargs: {
-                    original_content: messageContent,
+                    original_ai_content: complexResponseToLangchainMessageContent(messageContent),
                     shared_files: mimirAiMessage.sharedFiles ?? []
                 },
                 tool_calls: pythonCode ?  [

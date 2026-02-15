@@ -111,10 +111,10 @@ export async function createLgAgent(config: CreateAgentArgs) {
 
             const messageListToSend = [...state.messages].slice(0, -1).map(m => {
 
-                if (m.type === "ai" && m.additional_kwargs["original_content"]) {
+                if (m.type === "ai" && m.additional_kwargs["original_ai_content"]) {
                     return new AIMessage({
                         ...m,
-                        content: (m.additional_kwargs["original_content"] as ContentBlock.Standard[])
+                        content: (m.additional_kwargs["original_ai_content"] as ContentBlock.Standard[])
                     })
                 }
                 return m;
@@ -135,7 +135,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 messageToStore = [new HumanMessage({
                     additional_kwargs: {
                         persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
-                        original_content:  complexResponseToLangchainMessageContent(persistentMessage.message.content) ,
+                        original_content:  persistentMessage.message.content,
                         shared_files: inputMessage.sharedFiles,
                     },
                     id: messageId,
@@ -171,7 +171,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                             id: `do-not-render-${v4()}`,
                             additional_kwargs: {
                                 persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
-                                original_content: complexResponseToLangchainMessageContent(persistentMessage.message.content) ,
+                                original_content: persistentMessage.message.content,
                             },
                             content: []
                         })];
@@ -211,7 +211,6 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 }
             }
             const messageContent = fieldMapper.produceCleanMessageContent(lCmessageContentToContent(response.contentBlocks));
-            const cleanedLContent = fieldMapper.produceCleanMessageLcContent(response.contentBlocks)
             const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(messageContent);
             const sharedFiles = await workspaceManager.readAttributes(rawResponseAttributes);
             let mimirAiMessage = aiMessageToMimirAiMessage(response, sharedFiles, fieldMapper);
@@ -224,7 +223,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 ...response,
                 content: complexResponseToLangchainMessageContent(fieldMapper.getUserMessage(messageContent).result),
                 additional_kwargs: {
-                    original_content: response.content
+                    original_ai_content: response.content
                 }
             });
 
@@ -260,7 +259,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
         // Iterate over messages with retention policies
         for (const [idx, message] of messagesWithRetention.entries()) {
             const retentionPolicy: RetentionAwareMessageContent["persistentMessage"]["retentionPolicy"] = message.additional_kwargs!.persistentMessageRetentionPolicy as any;
-            const messageContent = message.additional_kwargs["original_content"] as ContentBlock.Standard[];
+            const messageContent = message.additional_kwargs["original_content"] as ComplexMessageContent[];
 
             // Map content with its corresponding retention value and filter those
             // whose retention is either null or greater than the current idx.
@@ -277,7 +276,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 if (updatedContent.length > 0) {
                     modifiedMessages.push(new HumanMessage({
                         id: message.id!,
-                        contentBlocks: updatedContent,
+                        contentBlocks: complexResponseToLangchainMessageContent(updatedContent),
                         additional_kwargs: {
                             ...message.additional_kwargs,
                             persistentMessageRetentionPolicy: updatedRetention,

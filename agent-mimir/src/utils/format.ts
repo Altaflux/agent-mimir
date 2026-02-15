@@ -39,30 +39,9 @@ export function complexResponseToLangchainMessageContent(toolResponse: ComplexMe
       return openAIImageHandler(en.image_url, "high")
     }
     throw new Error(`Unsupported type: ${JSON.stringify(en)}`)
-  }).filter( c => !(c.type === "text" && c.text === ''))
-
-  return mergeContent(content);
+  })
+  return content
 }
-
-function mergeContent(agentSystemMessages: ContentBlock.Standard[]): Array<ContentBlock.Standard> {
-
-    const content = agentSystemMessages;
-    const containsOnlyText = content.find((f) => f.type !== "text") === undefined;
-    if (containsOnlyText) {
-        const systemMessageText = content.reduce((prev, next) => {
-            return prev + (next as ContentBlock.Text).text
-        }, "");
-
-        return [{
-          type: 'text',
-          text: systemMessageText
-        }] satisfies ContentBlock.Standard[];
-    }
-    return content;
-}
-
-
-
 
 export function extractAllTextFromComplexResponse(toolResponse: ComplexMessageContent[]): string {
   return toolResponse.filter((r) => r.type === "text").map((r) => (r as TextMessageContent).text).join("\n");
