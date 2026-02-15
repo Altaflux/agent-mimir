@@ -7,7 +7,7 @@ import { complexResponseToLangchainMessageContent } from "./format.js";
 // --- Constants ---
 const RESPONSE_OUTPUT_TAG = "response-metadata";
 const ATTRIBUTES_TAG = "attributes";
-const USER_RESPONSE_MARKER = `MESSAGE TO SEND:`; // Renamed from USER_RESPONSE for clarity
+export const USER_RESPONSE_MARKER = `MESSAGE TO SEND:`; // Renamed from USER_RESPONSE for clarity
 const XSD_NAMESPACE = "http://www.w3.org/2001/XMLSchema";
 
 // --- Type Definitions ---

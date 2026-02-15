@@ -6,6 +6,7 @@ import { v4 } from "uuid";
 import { complexResponseToLangchainMessageContent, extractAllTextFromComplexResponse } from "../utils/format.js";
 import { commandContentToBaseMessage, lCmessageContentToContent } from "./message-utils.js";
 import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
+import { USER_RESPONSE_MARKER } from "../utils/instruction-mapper.js";
 import z from "zod";
 
 
@@ -134,6 +135,45 @@ export class LanggraphAgent implements Agent {
             streamMode: ["messages" as const, "values" as const],
         };
         let lastKnownMessage: BaseMessage | undefined = undefined;
+        let canStreamToUser = false;
+        let streamMarkerBuffer = "";
+        let hasStreamedAnyUserText = false;
+
+        const getMessageChunkToStream = (chunkText: string): string => {
+            if (!chunkText) {
+                return "";
+            }
+
+            if (canStreamToUser) {
+                if (hasStreamedAnyUserText) {
+                    return chunkText;
+                }
+                const trimmedText = chunkText.trimStart();
+                if (trimmedText.length > 0) {
+                    hasStreamedAnyUserText = true;
+                }
+                return trimmedText;
+            }
+
+            streamMarkerBuffer += chunkText;
+            const markerIndex = streamMarkerBuffer.indexOf(USER_RESPONSE_MARKER);
+            if (markerIndex === -1) {
+                const markerCarryLength = Math.max(USER_RESPONSE_MARKER.length - 1, 0);
+                if (streamMarkerBuffer.length > markerCarryLength) {
+                    streamMarkerBuffer = streamMarkerBuffer.slice(-markerCarryLength);
+                }
+                return "";
+            }
+
+            canStreamToUser = true;
+            const textAfterMarker = streamMarkerBuffer.slice(markerIndex + USER_RESPONSE_MARKER.length).trimStart();
+            streamMarkerBuffer = "";
+            if (textAfterMarker.length > 0) {
+                hasStreamedAnyUserText = true;
+            }
+            return textAfterMarker;
+        };
+
         while (true) {
             let stream = await this.graph.stream(graphInput, { ...stateConfig, configurable: { thread_id: threadId } });
             for await (const state of stream) {
@@ -141,13 +181,17 @@ export class LanggraphAgent implements Agent {
                     let messageState = state[1];
                     const baseMessage = messageState[0];
                     if (baseMessage.type === "ai") {
+                        const textToStream = getMessageChunkToStream(baseMessage.text);
+                        if (!textToStream) {
+                            continue;
+                        }
                         yield {
                             type: "messageChunk",
                             id: baseMessage.id,
                             content: [
                                 {
                                     type: "text",
-                                    text: baseMessage.text
+                                    text: textToStream
                                 }
                             ]
                         }
