@@ -1,7 +1,9 @@
 import { AttributeDescriptor } from "../plugins/index.js";
 import { ComplexMessageContent, TextMessageContent } from "../schema.js";
 import xml2js from "xml2js"; // Consider adding @types/xml2js for better type support if not already present
-
+import { ContentBlock } from "@langchain/core/messages";
+import { lCmessageContentToContent } from "../agent-manager/message-utils.js";
+import { complexResponseToLangchainMessageContent } from "./format.js";
 // --- Constants ---
 const RESPONSE_OUTPUT_TAG = "response-metadata";
 const ATTRIBUTES_TAG = "attributes";
@@ -389,6 +391,26 @@ Hi, I am a helpful assistant, how can I help you?
             text: `${xml}\n${USER_RESPONSE_MARKER}\n`
         } satisfies TextMessageContent;
         return [combined, ...userMessage.result];
+    }
+
+    public produceCleanMessageLcContent(complexResponse: ContentBlock.Standard[]): ContentBlock.Standard[] {
+
+        const combinedText = complexResponse
+            .filter((c): c is TextMessageContent => c.type === "text")
+            .map(t => t.text)
+            .join(""); // Join without separators, assuming XML is contiguous
+
+        const xml = extractResponseOutputXml(combinedText) ?? `<${RESPONSE_OUTPUT_TAG}></${RESPONSE_OUTPUT_TAG}>`;
+        const userMessage = this.getUserMessage(lCmessageContentToContent(complexResponse));
+        const combined = {
+            type: "text",
+            text: `${xml}\n${USER_RESPONSE_MARKER}\n`
+        } satisfies TextMessageContent;
+        const lcUserMessage = complexResponseToLangchainMessageContent(userMessage.result)
+            .filter( c => !(c.type === "text" && c.text === ''))
+
+        const remaningContent = complexResponse.filter(c => c.type !== "text")
+        return [combined, ...lcUserMessage, ...remaningContent];
     }
 }
 

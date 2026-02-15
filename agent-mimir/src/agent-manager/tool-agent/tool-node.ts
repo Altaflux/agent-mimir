@@ -23,7 +23,7 @@ export const toolNodeFunction = (
             ? input[input.length - 1]
             : input.messages[input.messages.length - 1];
 
-        if (message?._getType() !== "ai") {
+        if (message?.type !== "ai") {
             throw new Error("ToolNode only accepts AIMessages as input.");
         }
 
@@ -39,7 +39,7 @@ export const toolNodeFunction = (
                     config
                 );
                 if (
-                    (isBaseMessage(output) && output._getType() === "tool") ||
+                    ( BaseMessage.isInstance(output) && output.type === "tool") ||
                     isCommand(output)
                 ) {
                     outputs.push(output);

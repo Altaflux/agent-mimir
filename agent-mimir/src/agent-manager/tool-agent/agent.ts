@@ -19,8 +19,6 @@ import { PluginContextProvider, RetentionAwareMessageContent } from "../../plugi
 import { AgentGraphType, AgentState, LanggraphAgent } from "../langgraph-agent.js";
 import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
 
-
-
 /**
  * Configuration options for creating a new agent.
  * Contains all necessary parameters to initialize an agent with its capabilities.
@@ -116,7 +114,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 if (m.type === "ai" && m.additional_kwargs["original_content"]) {
                     return new AIMessage({
                         ...m,
-                        content: complexResponseToLangchainMessageContent(m.additional_kwargs["original_content"] as ComplexMessageContent[])
+                        content: (m.additional_kwargs["original_content"] as ContentBlock.Standard[])
                     })
                 }
                 return m;
@@ -137,7 +135,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 messageToStore = [new HumanMessage({
                     additional_kwargs: {
                         persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
-                        original_content: persistentMessage.message.content,
+                        original_content:  complexResponseToLangchainMessageContent(persistentMessage.message.content) ,
                         shared_files: inputMessage.sharedFiles,
                     },
                     id: messageId,
@@ -173,7 +171,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                             id: `do-not-render-${v4()}`,
                             additional_kwargs: {
                                 persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
-                                original_content: persistentMessage.message.content
+                                original_content: complexResponseToLangchainMessageContent(persistentMessage.message.content) ,
                             },
                             content: []
                         })];
@@ -213,6 +211,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 }
             }
             const messageContent = fieldMapper.produceCleanMessageContent(lCmessageContentToContent(response.contentBlocks));
+            const cleanedLContent = fieldMapper.produceCleanMessageLcContent(response.contentBlocks)
             const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(messageContent);
             const sharedFiles = await workspaceManager.readAttributes(rawResponseAttributes);
             let mimirAiMessage = aiMessageToMimirAiMessage(response, sharedFiles, fieldMapper);
@@ -225,7 +224,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 ...response,
                 content: complexResponseToLangchainMessageContent(fieldMapper.getUserMessage(messageContent).result),
                 additional_kwargs: {
-                    original_content: messageContent
+                    original_content: response.content
                 }
             });
 
@@ -238,7 +237,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
         return callLLMNode;
     }
 
-    const routeAfterLLM3: ConditionalEdgeRouter<typeof AgentState> = (state) => {
+    const routeAfterLLM: ConditionalEdgeRouter<typeof AgentState> = (state) => {
         const lastMessage = state.messages[state.messages.length - 1];
 
         if (
@@ -261,7 +260,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
         // Iterate over messages with retention policies
         for (const [idx, message] of messagesWithRetention.entries()) {
             const retentionPolicy: RetentionAwareMessageContent["persistentMessage"]["retentionPolicy"] = message.additional_kwargs!.persistentMessageRetentionPolicy as any;
-            const messageContent = message.additional_kwargs["original_content"] as ComplexMessageContent[];
+            const messageContent = message.additional_kwargs["original_content"] as ContentBlock.Standard[];
 
             // Map content with its corresponding retention value and filter those
             // whose retention is either null or greater than the current idx.
@@ -278,7 +277,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 if (updatedContent.length > 0) {
                     modifiedMessages.push(new HumanMessage({
                         id: message.id!,
-                        contentBlocks: complexResponseToLangchainMessageContent(updatedContent),
+                        contentBlocks: updatedContent,
                         additional_kwargs: {
                             ...message.additional_kwargs,
                             persistentMessageRetentionPolicy: updatedRetention,
@@ -344,6 +343,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
     const workflow = new StateGraph(AgentState)
         .addNode("call_llm", callLLm())
         .addNode("run_tool", toolNodeFunction(langChainTools, { handleToolErrors: true }))
+        //.addNode("run_tool", new ToolNode(langChainTools))
         .addNode("message_prep", messageRetentionNode)
         .addNode("human_review_node", humanReviewNode, {
             ends: ["run_tool", "message_prep"]
@@ -351,7 +351,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
         .addEdge(START, "message_prep")
         .addConditionalEdges(
             "call_llm",
-            routeAfterLLM3,
+            routeAfterLLM,
             ["human_review_node", END]
         )
         .addEdge("run_tool", "message_prep")

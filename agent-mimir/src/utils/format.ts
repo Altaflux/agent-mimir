@@ -39,7 +39,7 @@ export function complexResponseToLangchainMessageContent(toolResponse: ComplexMe
       return openAIImageHandler(en.image_url, "high")
     }
     throw new Error(`Unsupported type: ${JSON.stringify(en)}`)
-  })
+  }).filter( c => !(c.type === "text" && c.text === ''))
 
   return mergeContent(content);
 }
