@@ -27,6 +27,7 @@ import crypto from "crypto";
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
+import { CodeAgentFactory, DockerPythonExecutor } from "agent-mimir/agent/code-agent";
 
 const SESSION_EVENT_CAP = 500;
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
@@ -368,7 +369,7 @@ class SessionManager {
                 }
 
                 const definition = agentDefinition.definition;
-                const factory = new FunctionAgentFactory({
+                const factory = new CodeAgentFactory({
                     description: agentDefinition.description,
                     profession: definition.profession,
                     model: definition.chatModel,
@@ -376,6 +377,7 @@ class SessionManager {
                     visionSupport: definition.visionSupport,
                     constitution: definition.constitution,
                     plugins: [...(definition.plugins ?? []) as PluginFactory[]],
+                    codeExecutor: (workspace) => new DockerPythonExecutor({additionalPackages: [], workspace: workspace}),
                     workspaceFactory
                 });
 
