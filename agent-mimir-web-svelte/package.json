@@ -10,7 +10,7 @@
         "preview": "vite preview"
     },
     "dependencies": {
-        "agent-mimir-runtime-shared": "*",
+        "agent-mimir-api-contracts": "*",
         "lucide-svelte": "^0.468.0",
         "marked": "^16.3.0"
     },

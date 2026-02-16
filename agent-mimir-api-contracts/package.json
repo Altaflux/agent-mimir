@@ -1,0 +1,26 @@
+{
+    "name": "agent-mimir-api-contracts",
+    "version": "0.0.1",
+    "private": true,
+    "type": "module",
+    "files": [
+        "dist"
+    ],
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./contracts": {
+            "types": "./dist/contracts.d.ts",
+            "import": "./dist/contracts.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch"
+    },
+    "devDependencies": {
+        "typescript": "^5.9.3"
+    }
+}

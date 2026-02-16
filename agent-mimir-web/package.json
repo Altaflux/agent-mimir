@@ -9,12 +9,8 @@
         "lint": "next lint"
     },
     "dependencies": {
-        "@langchain/core": "1.1.24",
-        "@langchain/langgraph": "1.1.4",
-        "@langchain/openai": "1.2.7",
         "@radix-ui/react-switch": "^1.1.0",
-        "agent-mimir": "*",
-        "agent-mimir-runtime-shared": "*",
+        "agent-mimir-api-contracts": "*",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "lucide-react": "^0.468.0",

@@ -33,6 +33,7 @@ const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const MAX_FILES_PER_TURN = 10;
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+const DEFAULT_PUBLIC_API_BASE_PATH = "/v1";
 
 type AgentDefinitionRuntime = {
     mainAgent?: boolean;
@@ -82,6 +83,16 @@ type SessionRuntime = {
     workingRoot: string;
     running: boolean;
 };
+
+function getPublicApiBasePath(): string {
+    const configured = process.env.MIMIR_PUBLIC_API_BASE_PATH?.trim() || DEFAULT_PUBLIC_API_BASE_PATH;
+    const withLeadingSlash = configured.startsWith("/") ? configured : `/${configured}`;
+    if (withLeadingSlash.length > 1 && withLeadingSlash.endsWith("/")) {
+        return withLeadingSlash.slice(0, -1);
+    }
+
+    return withLeadingSlash;
+}
 
 export type SessionSubscription = {
     state: SessionState;
@@ -561,6 +572,7 @@ class SessionManager {
 
     private async registerSharedFiles(session: SessionRuntime, sharedFiles: SharedFile[]): Promise<DownloadableFile[]> {
         const results: DownloadableFile[] = [];
+        const publicApiBasePath = getPublicApiBasePath();
 
         for (const file of sharedFiles) {
             const fileId = crypto.randomUUID();
@@ -573,7 +585,7 @@ class SessionManager {
             results.push({
                 fileId,
                 fileName: file.fileName,
-                href: `/api/sessions/${session.sessionId}/files/${fileId}`
+                href: `${publicApiBasePath}/sessions/${session.sessionId}/files/${fileId}`
             });
         }
 

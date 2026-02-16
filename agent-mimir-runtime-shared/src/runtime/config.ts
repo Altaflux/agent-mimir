@@ -6,6 +6,40 @@ import type { AgentMimirConfig } from "./types.js";
 
 let cachedConfig: Promise<AgentMimirConfig> | null = null;
 const nodeRequire = createRequire(import.meta.url);
+const DEFAULT_CONFIG_LOAD_TIMEOUT_MS = 60000;
+
+function getConfigLoadTimeoutMs(): number {
+    const raw = process.env.MIMIR_CONFIG_LOAD_TIMEOUT_MS;
+    if (!raw) {
+        return DEFAULT_CONFIG_LOAD_TIMEOUT_MS;
+    }
+
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+        return DEFAULT_CONFIG_LOAD_TIMEOUT_MS;
+    }
+
+    return parsed;
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, operation: string): Promise<T> {
+    let timeoutHandle: NodeJS.Timeout | undefined;
+
+    try {
+        return await Promise.race([
+            promise,
+            new Promise<T>((_resolve, reject) => {
+                timeoutHandle = setTimeout(() => {
+                    reject(new Error(`${operation} timed out after ${timeoutMs}ms.`));
+                }, timeoutMs);
+            })
+        ]);
+    } finally {
+        if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+        }
+    }
+}
 
 async function loadConfigModule(cfgFile: string): Promise<any> {
     try {
@@ -41,7 +75,11 @@ async function loadConfig(): Promise<AgentMimirConfig> {
     const loadedConfigModule = await loadConfigModule(cfgFile);
     const configFunction: Promise<AgentMimirConfig> | AgentMimirConfig =
         typeof loadedConfigModule === "function" ? loadedConfigModule() : loadedConfigModule;
-    return await Promise.resolve(configFunction);
+    return await withTimeout(
+        Promise.resolve(configFunction),
+        getConfigLoadTimeoutMs(),
+        "Loading mimir-cfg.js"
+    );
 }
 
 export async function getConfig(): Promise<AgentMimirConfig> {

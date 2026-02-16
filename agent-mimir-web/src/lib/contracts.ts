@@ -1,1 +1,1 @@
-export * from "agent-mimir-runtime-shared/contracts";
+export * from "agent-mimir-api-contracts/contracts";

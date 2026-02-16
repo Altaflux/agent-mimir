@@ -3,9 +3,11 @@
     "private": false,
     "scripts": {
         "build": "turbo run build",
+        "start-api": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStartApi",
         "start-cli": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStart",
         "start-discord": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStartDiscordNoBuild",
         "start-lg": "npm run build && dotenv -- npm run start -w lg-server",
+        "internalStartApi": "npm run build -w agent-mimir-api-contracts && npm run build -w agent-mimir-runtime-shared && npm run build -w agent-mimir-api-server && dotenv -- npm run start -w agent-mimir-api-server",
         "internalStartDiscord": "npm run build && dotenv -- npm run start -w agent-mimir-discord",
         "internalStartDiscordNoBuild": "dotenv -- npm run start -w agent-mimir-discord",
         "internalStart": "dotenv -- npm run start -w agent-mimir-cli",
@@ -14,14 +16,14 @@
         "lint": "turbo run lint",
         "publish": "bash scripts/release-branch.sh && turbo run build lint && npm run release -w agent-mimir && echo '🔗 Open https://github.com/Altaflux/agent-mimir/compare/release?expand=1 and merge the release PR'",
         "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-        "start-web": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStartWeb",
-        "start-web-dev": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStartWebNoBuild",
-        "internalStartWeb": "npm run build && dotenv -- npm run start -w agent-mimir-web",
-        "internalStartWebNoBuild": "dotenv -- npm run dev -w agent-mimir-web",
-        "start-web-svelte": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStartWebSvelte",
-        "start-web-svelte-dev": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStartWebSvelteNoBuild",
-        "internalStartWebSvelte": "npm run build && dotenv -- npm run start -w agent-mimir-web-svelte",
-        "internalStartWebSvelteNoBuild": "npm run build -w agent-mimir-runtime-shared && dotenv -- npm run dev -w agent-mimir-web-svelte"
+        "start-web": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps MIMIR_PUBLIC_API_BASE_PATH=/api dotenv -- npm run internalStartWeb",
+        "start-web-dev": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps MIMIR_PUBLIC_API_BASE_PATH=/api dotenv -- npm run internalStartWebNoBuild",
+        "internalStartWeb": "npm run build && turbo run start --only --env-mode=loose --filter=agent-mimir-api-server --filter=agent-mimir-web",
+        "internalStartWebNoBuild": "npm run build -w agent-mimir-api-contracts && npm run build -w agent-mimir-runtime-shared && npm run build -w agent-mimir-api-server && turbo run dev --env-mode=loose --filter=agent-mimir-api-server --filter=agent-mimir-web",
+        "start-web-svelte": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps MIMIR_PUBLIC_API_BASE_PATH=/api dotenv -- npm run internalStartWebSvelte",
+        "start-web-svelte-dev": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps MIMIR_PUBLIC_API_BASE_PATH=/api dotenv -- npm run internalStartWebSvelteNoBuild",
+        "internalStartWebSvelte": "npm run build && turbo run start --only --env-mode=loose --filter=agent-mimir-api-server --filter=agent-mimir-web-svelte",
+        "internalStartWebSvelteNoBuild": "npm run build -w agent-mimir-api-contracts && npm run build -w agent-mimir-runtime-shared && npm run build -w agent-mimir-api-server && turbo run dev --env-mode=loose --filter=agent-mimir-api-server --filter=agent-mimir-web-svelte"
     },
     "author": "Altaflux",
     "repository": {
@@ -43,6 +45,8 @@
     "packageManager": "npm@9.5.0",
     "workspaces": [
         "agent-mimir",
+        "agent-mimir-api-contracts",
+        "agent-mimir-api-server",
         "agent-mimir-cli",
         "agent-mimir-discord",
         "tools/*",

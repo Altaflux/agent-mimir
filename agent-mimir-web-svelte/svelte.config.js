@@ -6,7 +6,10 @@ const config = {
     kit: {
         adapter: adapter(),
         csrf: {
-            checkOrigin: false
+            trustedOrigins: [
+                'http://localhost:5173',
+                'http://localhost:3000'
+            ]
         },
         alias: {
             "@": "./src"
