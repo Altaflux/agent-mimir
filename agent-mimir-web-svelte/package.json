@@ -1,0 +1,29 @@
+{
+    "name": "agent-mimir-web-svelte",
+    "version": "0.0.1",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite dev",
+        "build": "vite build",
+        "start": "node build",
+        "preview": "vite preview"
+    },
+    "dependencies": {
+        "agent-mimir-runtime-shared": "*",
+        "lucide-svelte": "^0.468.0",
+        "marked": "^16.3.0"
+    },
+    "devDependencies": {
+        "@sveltejs/adapter-node": "^5.2.12",
+        "@sveltejs/kit": "^2.26.0",
+        "@sveltejs/vite-plugin-svelte": "^4.0.4",
+        "@types/node": "^22.13.8",
+        "autoprefixer": "^10.4.21",
+        "postcss": "^8.5.3",
+        "svelte": "^5.38.1",
+        "tailwindcss": "^3.4.17",
+        "typescript": "^5.9.3",
+        "vite": "^5.4.11"
+    }
+}

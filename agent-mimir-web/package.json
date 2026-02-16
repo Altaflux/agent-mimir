@@ -14,6 +14,7 @@
         "@langchain/openai": "1.2.7",
         "@radix-ui/react-switch": "^1.1.0",
         "agent-mimir": "*",
+        "agent-mimir-runtime-shared": "*",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "lucide-react": "^0.468.0",

@@ -1,10 +1,10 @@
+import { json } from "@sveltejs/kit";
 import { requireBoolean, requireString, toHttpError } from "agent-mimir-runtime-shared";
-import { NextResponse } from "next/server";
 
-export function jsonError(error: unknown): NextResponse {
+export function jsonError(error: unknown): Response {
     const normalized = toHttpError(error);
 
-    return NextResponse.json(
+    return json(
         {
             error: {
                 code: normalized.code,

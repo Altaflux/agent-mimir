@@ -17,7 +17,11 @@
         "start-web": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStartWeb",
         "start-web-dev": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStartWebNoBuild",
         "internalStartWeb": "npm run build && dotenv -- npm run start -w agent-mimir-web",
-        "internalStartWebNoBuild": "dotenv -- npm run dev -w agent-mimir-web"
+        "internalStartWebNoBuild": "dotenv -- npm run dev -w agent-mimir-web",
+        "start-web-svelte": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStartWebSvelte",
+        "start-web-svelte-dev": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStartWebSvelteNoBuild",
+        "internalStartWebSvelte": "npm run build && dotenv -- npm run start -w agent-mimir-web-svelte",
+        "internalStartWebSvelteNoBuild": "npm run build -w agent-mimir-runtime-shared && dotenv -- npm run dev -w agent-mimir-web-svelte"
     },
     "author": "Altaflux",
     "repository": {
@@ -43,7 +47,9 @@
         "agent-mimir-discord",
         "tools/*",
         ".temp_custom_deps",
-        "agent-mimir-web"
+        "agent-mimir-web",
+        "agent-mimir-runtime-shared",
+        "agent-mimir-web-svelte"
     ],
     "dependencies": {
         "@langchain/langgraph": "1.1.4",

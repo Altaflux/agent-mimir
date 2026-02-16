@@ -1,0 +1,90 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Sora:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --background: 226 30% 8%;
+        --foreground: 210 18% 93%;
+        --card: 224 24% 12%;
+        --card-foreground: 210 18% 93%;
+        --popover: 224 24% 12%;
+        --popover-foreground: 210 18% 93%;
+        --primary: 187 98% 58%;
+        --primary-foreground: 221 39% 8%;
+        --secondary: 225 19% 17%;
+        --secondary-foreground: 210 20% 90%;
+        --muted: 225 19% 17%;
+        --muted-foreground: 216 14% 69%;
+        --accent: 36 95% 62%;
+        --accent-foreground: 23 36% 12%;
+        --destructive: 0 78% 60%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 222 18% 24%;
+        --input: 222 18% 24%;
+        --ring: 187 98% 58%;
+        --radius: 0.9rem;
+        --font-body: "Manrope", serif;
+        --font-heading: "Sora", sans-serif;
+    }
+
+    * {
+        @apply border-border;
+    }
+
+    body {
+        min-height: 100vh;
+        color: hsl(var(--foreground));
+        font-family: var(--font-body), serif;
+        -webkit-font-smoothing: antialiased;
+        color-scheme: dark;
+        background:
+            radial-gradient(circle at 15% 8%, rgba(14, 165, 233, 0.28), transparent 34%),
+            radial-gradient(circle at 86% 4%, rgba(45, 212, 191, 0.19), transparent 32%),
+            radial-gradient(circle at 85% 92%, rgba(249, 115, 22, 0.14), transparent 28%),
+            linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+            hsl(var(--background));
+        background-size:
+            auto,
+            auto,
+            auto,
+            30px 30px,
+            30px 30px,
+            auto;
+        background-position:
+            center,
+            center,
+            center,
+            -1px -1px,
+            -1px -1px,
+            center;
+    }
+}
+
+@layer components {
+    .font-body {
+        font-family: var(--font-body), serif;
+    }
+
+    .font-heading {
+        font-family: var(--font-heading), sans-serif;
+    }
+
+    .app-shell {
+        animation: app-fade 320ms ease-out;
+    }
+}
+
+@keyframes app-fade {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
