@@ -29,10 +29,10 @@ import path from "path";
 import { CodeAgentFactory, DockerPythonExecutor } from "agent-mimir/agent/code-agent";
 
 const SESSION_EVENT_CAP = 500;
-const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
-const MAX_FILES_PER_TURN = 10;
-const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
-const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+const DEFAULT_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+const DEFAULT_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+const DEFAULT_MAX_FILES_PER_TURN = 10;
+const DEFAULT_MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 const DEFAULT_PUBLIC_API_BASE_PATH = "/v1";
 
 type AgentDefinitionRuntime = {
@@ -53,16 +53,36 @@ type SessionEventPayload = {
     [K in SessionEvent["type"]]: Omit<Extract<SessionEvent, { type: K }>, "id" | "sessionId" | "timestamp">;
 }[SessionEvent["type"]];
 
-type UploadInput = {
+type UploadInputBase = {
     fileName: string;
     contentType: string;
-    bytes: Buffer;
 };
+
+type UploadInput =
+    | (UploadInputBase & {
+          bytes: Buffer;
+          filePath?: never;
+      })
+    | (UploadInputBase & {
+          filePath: string;
+          bytes?: never;
+      });
 
 type SendMessageInput = {
     text: string;
     workspaceFiles: UploadInput[];
     chatImages: UploadInput[];
+};
+
+type UploadLimits = {
+    maxFilesPerTurn: number;
+    maxFileSizeBytes: number;
+};
+
+type SessionManagerOptions = {
+    sessionTtlMs?: number;
+    cleanupIntervalMs?: number;
+    uploadLimits?: Partial<UploadLimits>;
 };
 
 type SessionRuntime = {
@@ -101,31 +121,55 @@ export type SessionSubscription = {
     unsubscribe: () => void;
 };
 
-class SessionManager {
-    private readonly sessions = new Map<string, SessionRuntime>();
+function requirePositiveInteger(value: number, fieldName: string): number {
+    if (!Number.isInteger(value) || value <= 0) {
+        throw new Error(`${fieldName} must be a positive integer.`);
+    }
 
-    private constructor() {
-        const timer = setInterval(() => {
+    return value;
+}
+
+export class SessionManager {
+    private readonly sessions = new Map<string, SessionRuntime>();
+    private readonly sessionTtlMs: number;
+    private readonly uploadLimits: UploadLimits;
+    private readonly cleanupTimer: NodeJS.Timeout;
+
+    constructor(options: SessionManagerOptions = {}) {
+        this.sessionTtlMs =
+            options.sessionTtlMs === undefined
+                ? DEFAULT_SESSION_TTL_MS
+                : requirePositiveInteger(options.sessionTtlMs, "sessionTtlMs");
+
+        const maxFilesPerTurn =
+            options.uploadLimits?.maxFilesPerTurn === undefined
+                ? DEFAULT_MAX_FILES_PER_TURN
+                : requirePositiveInteger(options.uploadLimits.maxFilesPerTurn, "uploadLimits.maxFilesPerTurn");
+
+        const maxFileSizeBytes =
+            options.uploadLimits?.maxFileSizeBytes === undefined
+                ? DEFAULT_MAX_FILE_SIZE_BYTES
+                : requirePositiveInteger(options.uploadLimits.maxFileSizeBytes, "uploadLimits.maxFileSizeBytes");
+
+        this.uploadLimits = {
+            maxFilesPerTurn,
+            maxFileSizeBytes
+        };
+
+        const cleanupIntervalMs =
+            options.cleanupIntervalMs === undefined
+                ? DEFAULT_CLEANUP_INTERVAL_MS
+                : requirePositiveInteger(options.cleanupIntervalMs, "cleanupIntervalMs");
+
+        this.cleanupTimer = setInterval(() => {
             this.cleanupExpiredSessions().catch((error) => {
                 console.error("Session cleanup failed.", error);
             });
-        }, CLEANUP_INTERVAL_MS);
+        }, cleanupIntervalMs);
 
-        if (typeof timer.unref === "function") {
-            timer.unref();
+        if (typeof this.cleanupTimer.unref === "function") {
+            this.cleanupTimer.unref();
         }
-    }
-
-    static getInstance(): SessionManager {
-        const globalStore = globalThis as typeof globalThis & {
-            __agentMimirRuntimeSharedSessionManager?: SessionManager;
-        };
-
-        if (!globalStore.__agentMimirRuntimeSharedSessionManager) {
-            globalStore.__agentMimirRuntimeSharedSessionManager = new SessionManager();
-        }
-
-        return globalStore.__agentMimirRuntimeSharedSessionManager;
     }
 
     async getBootstrap(): Promise<BootstrapResponse> {
@@ -281,7 +325,7 @@ class SessionManager {
                 throw new HttpError(409, "PENDING_APPROVAL", "A tool approval decision is required before sending a new message.");
             }
 
-            this.validateUploadInput(input);
+            await this.validateUploadInput(input);
             const { agentInput, workspaceFileNames, chatImageNames } = await this.buildInputMessage(session, input);
 
             if ((agentInput.content.length === 0 || extractAllTextFromComplexResponse(agentInput.content).trim().length === 0) &&
@@ -414,16 +458,17 @@ class SessionManager {
         );
     }
 
-    private validateUploadInput(input: SendMessageInput) {
+    private async validateUploadInput(input: SendMessageInput) {
         const fileCount = input.workspaceFiles.length + input.chatImages.length;
-        if (fileCount > MAX_FILES_PER_TURN) {
-            throw new HttpError(400, "TOO_MANY_FILES", `A maximum of ${MAX_FILES_PER_TURN} files are allowed per message.`);
+        if (fileCount > this.uploadLimits.maxFilesPerTurn) {
+            throw new HttpError(400, "TOO_MANY_FILES", `A maximum of ${this.uploadLimits.maxFilesPerTurn} files are allowed per message.`);
         }
 
         const allFiles = [...input.workspaceFiles, ...input.chatImages];
         for (const file of allFiles) {
-            if (file.bytes.byteLength > MAX_FILE_SIZE_BYTES) {
-                throw new HttpError(400, "FILE_TOO_LARGE", `File ${file.fileName} exceeds ${MAX_FILE_SIZE_BYTES / (1024 * 1024)}MB.`);
+            const byteLength = await this.resolveUploadByteLength(file);
+            if (byteLength > this.uploadLimits.maxFileSizeBytes) {
+                throw new HttpError(400, "FILE_TOO_LARGE", `File ${file.fileName} exceeds ${this.uploadLimits.maxFileSizeBytes / (1024 * 1024)}MB.`);
             }
         }
 
@@ -451,7 +496,7 @@ class SessionManager {
             const safeFileName = this.makeUniqueFileName(usedNames, this.sanitizeFileName(upload.fileName, fallbackPrefix));
             const storedPath = path.join(session.uploadDirectory, `${crypto.randomUUID()}-${safeFileName}`);
             await fs.mkdir(session.uploadDirectory, { recursive: true });
-            await fs.writeFile(storedPath, upload.bytes);
+            await this.persistUploadToPath(upload, storedPath);
 
             return {
                 fileName: safeFileName,
@@ -473,11 +518,12 @@ class SessionManager {
 
             const mimeType = image.contentType.toLowerCase();
             const imageType = mimeType.includes("png") ? "png" : "jpeg";
+            const bytes = await this.readUploadBytes(image);
             chatImageContent.push({
                 type: "image_url",
                 image_url: {
                     type: imageType,
-                    url: image.bytes.toString("base64")
+                    url: bytes.toString("base64")
                 }
             });
         }
@@ -497,6 +543,59 @@ class SessionManager {
             workspaceFileNames,
             chatImageNames
         };
+    }
+
+    private async resolveUploadByteLength(upload: UploadInput): Promise<number> {
+        if (upload.bytes !== undefined) {
+            return upload.bytes.byteLength;
+        }
+
+        const filePath = upload.filePath;
+        if (!filePath) {
+            throw new HttpError(400, "INVALID_REQUEST", `Upload file ${upload.fileName} could not be read.`);
+        }
+
+        try {
+            const fileStats = await fs.stat(filePath);
+            return fileStats.size;
+        } catch {
+            throw new HttpError(400, "INVALID_REQUEST", `Upload file ${upload.fileName} could not be read.`);
+        }
+    }
+
+    private async readUploadBytes(upload: UploadInput): Promise<Buffer> {
+        if (upload.bytes !== undefined) {
+            return upload.bytes;
+        }
+
+        const filePath = upload.filePath;
+        if (!filePath) {
+            throw new HttpError(400, "INVALID_REQUEST", `Upload file ${upload.fileName} could not be read.`);
+        }
+
+        try {
+            return await fs.readFile(filePath);
+        } catch {
+            throw new HttpError(400, "INVALID_REQUEST", `Upload file ${upload.fileName} could not be read.`);
+        }
+    }
+
+    private async persistUploadToPath(upload: UploadInput, destinationPath: string): Promise<void> {
+        if (upload.bytes !== undefined) {
+            await fs.writeFile(destinationPath, upload.bytes);
+            return;
+        }
+
+        const filePath = upload.filePath;
+        if (!filePath) {
+            throw new HttpError(400, "INVALID_REQUEST", `Upload file ${upload.fileName} could not be saved.`);
+        }
+
+        try {
+            await fs.copyFile(filePath, destinationPath);
+        } catch {
+            throw new HttpError(400, "INVALID_REQUEST", `Upload file ${upload.fileName} could not be saved.`);
+        }
     }
 
     private async consumeGenerator(
@@ -733,9 +832,17 @@ class SessionManager {
 
     private async cleanupExpiredSessions() {
         const now = Date.now();
-        const expired = [...this.sessions.values()].filter((session) => !session.running && now - session.lastActivityAt > SESSION_TTL_MS);
+        const expired = [...this.sessions.values()].filter((session) => !session.running && now - session.lastActivityAt > this.sessionTtlMs);
 
         for (const session of expired) {
+            await this.disposeSession(session);
+        }
+    }
+
+    async shutDown(): Promise<void> {
+        clearInterval(this.cleanupTimer);
+        const activeSessions = [...this.sessions.values()];
+        for (const session of activeSessions) {
             await this.disposeSession(session);
         }
     }
@@ -750,5 +857,8 @@ class SessionManager {
     }
 }
 
-export const sessionManager = SessionManager.getInstance();
-export type { UploadInput, SendMessageInput };
+export function createSessionManager(options: SessionManagerOptions = {}): SessionManager {
+    return new SessionManager(options);
+}
+
+export type { UploadInput, SendMessageInput, UploadLimits, SessionManagerOptions };

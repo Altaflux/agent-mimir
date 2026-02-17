@@ -1,8 +1,10 @@
 import multipart from "@fastify/multipart";
 import Fastify, { type FastifyInstance } from "fastify";
 import crypto from "crypto";
-import { promises as fs } from "fs";
+import { createReadStream, createWriteStream, promises as fs } from "fs";
+import os from "os";
 import path from "path";
+import { pipeline } from "stream/promises";
 import type {
     ApprovalRequest,
     ApprovalResponse,
@@ -19,19 +21,33 @@ import type {
     ToggleContinuousModeRequest,
     ToggleContinuousModeResponse
 } from "agent-mimir-api-contracts/contracts";
-import type { SendMessageInput, UploadInput } from "agent-mimir-runtime-shared/runtime/session-manager";
-import { sessionManager } from "agent-mimir-runtime-shared/runtime/session-manager";
+import {
+    createSessionManager,
+    type SendMessageInput,
+    type SessionManager,
+    type SessionManagerOptions,
+    type UploadInput,
+    type UploadLimits
+} from "agent-mimir-runtime-shared/runtime/session-manager";
 import { HttpError, toHttpError } from "agent-mimir-runtime-shared/runtime/errors";
 import { requireBoolean, requireString } from "agent-mimir-runtime-shared/runtime/validators";
 
 const HEARTBEAT_MS = 15000;
-const MAX_FILES_PER_TURN = 10;
-const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
+const DEFAULT_MAX_MULTIPART_FIELDS = 50;
+const DEFAULT_API_BODY_LIMIT_BYTES = 30 * 1024 * 1024;
+
+type ApiUploadLimits = UploadLimits & {
+    maxMultipartFields: number;
+    bodyLimitBytes: number;
+};
 
 export type ApiServerOptions = {
     prefix?: string;
     serviceToken?: string;
     enforceServiceToken?: boolean;
+    sessionManager?: SessionManager;
+    sessionManagerOptions?: SessionManagerOptions;
+    uploadLimits?: Partial<ApiUploadLimits>;
 };
 
 function normalizePathPrefix(value: string): string {
@@ -112,24 +128,107 @@ function encodeSseChunk(payload: SessionEvent): string {
     return `data: ${JSON.stringify(payload)}\n\n`;
 }
 
+function parseOptionalPositiveInt(raw: string | undefined, label: string): number | undefined {
+    if (!raw) {
+        return undefined;
+    }
+
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+        throw new Error(`${label} must be a positive integer.`);
+    }
+
+    return parsed;
+}
+
+function normalizeOptionalPositiveInt(value: number | undefined, label: string): number | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+
+    if (!Number.isInteger(value) || value <= 0) {
+        throw new Error(`${label} must be a positive integer.`);
+    }
+
+    return value;
+}
+
+function getApiUploadLimits(options: ApiServerOptions): ApiUploadLimits {
+    const optionUploadLimits = options.uploadLimits;
+
+    const maxFilesPerTurn =
+        normalizeOptionalPositiveInt(optionUploadLimits?.maxFilesPerTurn, "uploadLimits.maxFilesPerTurn") ??
+        parseOptionalPositiveInt(process.env.MIMIR_API_MAX_FILES_PER_TURN, "MIMIR_API_MAX_FILES_PER_TURN") ??
+        10;
+
+    const maxFileSizeBytes =
+        normalizeOptionalPositiveInt(optionUploadLimits?.maxFileSizeBytes, "uploadLimits.maxFileSizeBytes") ??
+        parseOptionalPositiveInt(process.env.MIMIR_API_MAX_FILE_SIZE_BYTES, "MIMIR_API_MAX_FILE_SIZE_BYTES") ??
+        25 * 1024 * 1024;
+
+    const maxMultipartFields =
+        normalizeOptionalPositiveInt(optionUploadLimits?.maxMultipartFields, "uploadLimits.maxMultipartFields") ??
+        parseOptionalPositiveInt(process.env.MIMIR_API_MULTIPART_MAX_FIELDS, "MIMIR_API_MULTIPART_MAX_FIELDS") ??
+        DEFAULT_MAX_MULTIPART_FIELDS;
+
+    const bodyLimitBytes =
+        normalizeOptionalPositiveInt(optionUploadLimits?.bodyLimitBytes, "uploadLimits.bodyLimitBytes") ??
+        parseOptionalPositiveInt(process.env.MIMIR_API_BODY_LIMIT_BYTES, "MIMIR_API_BODY_LIMIT_BYTES") ??
+        DEFAULT_API_BODY_LIMIT_BYTES;
+
+    return {
+        maxFilesPerTurn,
+        maxFileSizeBytes,
+        maxMultipartFields,
+        bodyLimitBytes
+    };
+}
+
+function sanitizeStagedUploadName(fileName: string): string {
+    const candidate = path.basename(fileName);
+    const cleaned = candidate.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 180);
+    if (cleaned.length > 0) {
+        return cleaned;
+    }
+
+    return `upload-${Date.now()}`;
+}
+
 export async function createApiServer(options: ApiServerOptions = {}): Promise<FastifyInstance> {
     const prefix = normalizePathPrefix(options.prefix ?? process.env.MIMIR_API_PREFIX ?? "/v1");
     const { serviceToken, enforceServiceToken } = getServiceTokenSettings(options);
+    const uploadLimits = getApiUploadLimits(options);
+    const sessionManager =
+        options.sessionManager ??
+        createSessionManager({
+            ...(options.sessionManagerOptions ?? {}),
+            uploadLimits: {
+                maxFilesPerTurn: uploadLimits.maxFilesPerTurn,
+                maxFileSizeBytes: uploadLimits.maxFileSizeBytes
+            }
+        });
+    const ownsSessionManager = options.sessionManager === undefined;
 
     const app = Fastify({
         logger: {
             level: process.env.MIMIR_LOG_LEVEL ?? "info"
         },
-        bodyLimit: 30 * 1024 * 1024
+        bodyLimit: uploadLimits.bodyLimitBytes
     });
 
     await app.register(multipart, {
         limits: {
-            files: MAX_FILES_PER_TURN,
-            fileSize: MAX_FILE_SIZE_BYTES,
-            fields: 50
+            files: uploadLimits.maxFilesPerTurn,
+            fileSize: uploadLimits.maxFileSizeBytes,
+            fields: uploadLimits.maxMultipartFields
         }
     });
+
+    if (ownsSessionManager) {
+        app.addHook("onClose", async () => {
+            await sessionManager.shutDown();
+        });
+    }
 
     app.setErrorHandler((error, _request, reply) => {
         const normalized = normalizeError(error);
@@ -236,56 +335,75 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
                 let text = "";
                 const workspaceFiles: UploadInput[] = [];
                 const chatImages: UploadInput[] = [];
+                const stagedUploadsDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "mimir-api-upload-"));
 
-                for await (const part of request.parts()) {
-                    if (part.type === "field") {
-                        if (part.fieldname === "message") {
-                            text = typeof part.value === "string" ? part.value : String(part.value ?? "");
+                try {
+                    for await (const part of request.parts()) {
+                        if (part.type === "field") {
+                            if (part.fieldname === "message") {
+                                text = typeof part.value === "string" ? part.value : String(part.value ?? "");
+                            }
+                            continue;
                         }
-                        continue;
+
+                        const uploadFileName = part.filename || `${part.fieldname}-${Date.now()}`;
+                        const stagedFileName = `${crypto.randomUUID()}-${sanitizeStagedUploadName(uploadFileName)}`;
+                        const stagedFilePath = path.join(stagedUploadsDirectory, stagedFileName);
+                        await pipeline(part.file, createWriteStream(stagedFilePath));
+
+                        if (part.file.truncated) {
+                            throw new HttpError(
+                                400,
+                                "FILE_TOO_LARGE",
+                                `File ${uploadFileName} exceeds the ${uploadLimits.maxFileSizeBytes / (1024 * 1024)}MB limit.`
+                            );
+                        }
+
+                        const upload: UploadInput = {
+                            fileName: uploadFileName,
+                            contentType: part.mimetype || "application/octet-stream",
+                            filePath: stagedFilePath
+                        };
+
+                        if (part.fieldname === "workspaceFiles") {
+                            workspaceFiles.push(upload);
+                            continue;
+                        }
+
+                        if (part.fieldname === "chatImages") {
+                            chatImages.push(upload);
+                        }
                     }
 
-                    const bytes = await part.toBuffer();
-                    const upload: UploadInput = {
-                        fileName: part.filename || `${part.fieldname}-${Date.now()}`,
-                        contentType: part.mimetype || "application/octet-stream",
-                        bytes
+                    if (workspaceFiles.length + chatImages.length > uploadLimits.maxFilesPerTurn) {
+                        throw new HttpError(400, "TOO_MANY_FILES", `Maximum ${uploadLimits.maxFilesPerTurn} files per message.`);
+                    }
+
+                    const payload: SendMessageInput = {
+                        text,
+                        workspaceFiles,
+                        chatImages
                     };
 
-                    if (part.fieldname === "workspaceFiles") {
-                        workspaceFiles.push(upload);
-                        continue;
-                    }
-
-                    if (part.fieldname === "chatImages") {
-                        chatImages.push(upload);
-                    }
+                    const session = await sessionManager.sendMessage(request.params.sessionId, payload);
+                    const response: SendMessageResponse = { session };
+                    reply.send(response);
+                } finally {
+                    await fs.rm(stagedUploadsDirectory, { recursive: true, force: true }).catch(() => {
+                        return;
+                    });
                 }
-
-                if (workspaceFiles.length + chatImages.length > MAX_FILES_PER_TURN) {
-                    throw new HttpError(400, "TOO_MANY_FILES", "Maximum 10 files per message.");
-                }
-
-                const payload: SendMessageInput = {
-                    text,
-                    workspaceFiles,
-                    chatImages
-                };
-
-                const session = await sessionManager.sendMessage(request.params.sessionId, payload);
-                const response: SendMessageResponse = { session };
-                reply.send(response);
             });
 
             api.get<{ Params: { sessionId: string; fileId: string } }>("/sessions/:sessionId/files/:fileId", async (request, reply) => {
                 const file = await sessionManager.resolveFile(request.params.sessionId, request.params.fileId);
-                const bytes = await fs.readFile(file.absolutePath);
+                const stream = createReadStream(file.absolutePath);
                 const safeFileName = file.fileName.replaceAll('"', "");
 
                 reply
                     .header("Content-Type", inferMimeType(file.fileName))
                     .header("Content-Disposition", `attachment; filename=\"${safeFileName}\"`)
-                    .send(bytes);
+                    .send(stream);
             });
 
             api.get<{ Params: { sessionId: string } }>("/sessions/:sessionId/stream", async (request, reply) => {
