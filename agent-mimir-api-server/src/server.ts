@@ -1,7 +1,7 @@
 import multipart from "@fastify/multipart";
 import Fastify, { type FastifyInstance } from "fastify";
 import crypto from "crypto";
-import { createWriteStream, promises as fs } from "fs";
+import { createReadStream, createWriteStream, promises as fs } from "fs";
 import os from "os";
 import path from "path";
 import { pipeline } from "stream/promises";
@@ -433,13 +433,14 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
 
             api.get<{ Params: { sessionId: string; fileId: string } }>("/sessions/:sessionId/files/:fileId", async (request, reply) => {
                 const file = await sessionManager.resolveFile(request.params.sessionId, request.params.fileId);
-                const bytes = await fs.readFile(file.absolutePath);
+                const fileStats = await fs.stat(file.absolutePath);
+                const stream  = createReadStream(file.absolutePath);
                 const safeFileName = file.fileName.replaceAll('"', "");
-                reply
-                    .header("Content-Type", inferMimeType(file.fileName))
+                return reply
                     .header("Content-Disposition", `attachment; filename=\"${safeFileName}\"`)
-                    .header("Content-Length", String(bytes.byteLength))
-                    .send(bytes);
+                    .header("Content-Length", String(fileStats.size))
+                    .type(inferMimeType(file.fileName))
+                    .send(stream)
             });
 
             api.get<{ Params: { sessionId: string } }>("/sessions/:sessionId/stream", async (request, reply) => {

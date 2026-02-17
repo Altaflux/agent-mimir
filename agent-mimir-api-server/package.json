@@ -10,10 +10,10 @@
         "start": "node dist/index.js"
     },
     "dependencies": {
-        "@fastify/multipart": "^9.2.1",
+        "@fastify/multipart": "^9.4.0",
         "agent-mimir-api-contracts": "*",
         "agent-mimir-runtime-shared": "*",
-        "fastify": "^5.6.1"
+        "fastify": "^5.7.4"
     },
     "devDependencies": {
         "@types/node": "^22.13.8",
