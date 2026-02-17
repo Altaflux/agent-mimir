@@ -20,9 +20,9 @@ from fastapi import FastAPI
 from fastapi_websocket_rpc import RpcMethodsBase, WebsocketRPCEndpoint, RpcChannel
 import asyncio
 import logging
-import nest_asyncio
+import nest_asyncio2
 
-nest_asyncio.apply()
+nest_asyncio2.apply()
 
 logger = logging.getLogger(__name__)
 

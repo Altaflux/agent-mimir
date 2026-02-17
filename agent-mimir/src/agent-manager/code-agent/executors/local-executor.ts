@@ -66,7 +66,7 @@ export class LocalPythonExecutor implements CodeToolExecutor {
                 this.initialized = true;
             }
 
-            const externalDependencies = ["nest_asyncio", "asyncio", "uvicorn", "fastapi_websocket_rpc", ...libraries, ...this.config.additionalPackages ?? []];
+            const externalDependencies = ["nest-asyncio2", "asyncio", "uvicorn", "fastapi_websocket_rpc", ...libraries, ...this.config.additionalPackages ?? []];
             const librariesToInstall = externalDependencies.filter(lib => !this._installedLibraries.has(lib));
 
             if (librariesToInstall.length > 0) {

@@ -432,7 +432,7 @@ export class SessionManager {
                     visionSupport: definition.visionSupport,
                     constitution: definition.constitution,
                     plugins: [...(definition.plugins ?? []) as PluginFactory[]],
-                    codeExecutor: (workspace) => new DockerPythonExecutor({additionalPackages: [], workspace: workspace}),
+                    codeExecutor: (workspace) => new LocalPythonExecutor({additionalPackages: [], workspace: workspace}),
                     workspaceFactory
                 });
 
