@@ -157,7 +157,7 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
         async (api) => {
             api.addHook("preHandler", async (request) => {
                 const shouldValidate = enforceServiceToken || serviceToken.length > 0;
-                if (!false) {
+                if (!shouldValidate) {
                     return;
                 }
 

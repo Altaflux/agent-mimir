@@ -81,6 +81,7 @@ type SessionRuntime = {
     fileRegistry: Map<string, SessionFileRecord>;
     uploadDirectory: string;
     workingRoot: string;
+    cleanupPath: string;
     running: boolean;
 };
 
@@ -143,56 +144,67 @@ class SessionManager {
         const config = await getConfig();
         const now = Date.now();
 
-        const configuredRoot = config.workingDirectory ? path.resolve(config.workingDirectory) : await fs.mkdtemp(path.join(os.tmpdir(), "mimir-web-"));
+        const configuredRoot = config.workingDirectory
+            ? path.resolve(config.workingDirectory)
+            : await fs.mkdtemp(path.join(os.tmpdir(), "mimir-web-"));
         const workingRoot = path.join(configuredRoot, sessionId);
+        const cleanupPath = config.workingDirectory ? workingRoot : configuredRoot;
         const uploadDirectory = path.join(workingRoot, "_uploads");
 
-        await fs.mkdir(uploadDirectory, { recursive: true });
+        try {
+            await fs.mkdir(uploadDirectory, { recursive: true });
 
-        const orchestratorBuilder = new OrchestratorBuilder();
-        const workspaceFactory = async (agentName: string) => {
-            const tempDir = path.join(workingRoot, agentName);
-            await fs.mkdir(tempDir, { recursive: true });
-            const workspace = new FileSystemAgentWorkspace(tempDir);
-            await fs.mkdir(workspace.workingDirectory, { recursive: true });
-            return workspace;
-        };
+            const orchestratorBuilder = new OrchestratorBuilder();
+            const workspaceFactory = async (agentName: string) => {
+                const tempDir = path.join(workingRoot, agentName);
+                await fs.mkdir(tempDir, { recursive: true });
+                const workspace = new FileSystemAgentWorkspace(tempDir);
+                await fs.mkdir(workspace.workingDirectory, { recursive: true });
+                return workspace;
+            };
 
-        const agents = await this.createAgents(config, orchestratorBuilder, workspaceFactory);
+            const agents = await this.createAgents(config, orchestratorBuilder, workspaceFactory);
 
-        const mainAgent =
-            agents.length === 1
-                ? agents[0]?.agent
-                : agents.find((agentDefinition) => agentDefinition.mainAgent)?.agent;
+            const mainAgent =
+                agents.length === 1
+                    ? agents[0]?.agent
+                    : agents.find((agentDefinition) => agentDefinition.mainAgent)?.agent;
 
-        if (!mainAgent) {
-            throw new HttpError(500, "INVALID_CONFIG", "No main agent found in configuration.");
+            if (!mainAgent) {
+                throw new HttpError(500, "INVALID_CONFIG", "No main agent found in configuration.");
+            }
+
+            const activeAgentName = mainAgent.name;
+
+            const session: SessionRuntime = {
+                sessionId,
+                name: name?.trim() || `Chat ${this.sessions.size + 1}`,
+                createdAt: now,
+                lastActivityAt: now,
+                continuousMode: config.continuousMode ?? false,
+                activeAgentName,
+                agentNames: agents.map((entry) => entry.name),
+                agentsByName: new Map(agents.map((entry) => [entry.name, entry.agent])),
+                orchestrator: orchestratorBuilder.build(mainAgent),
+                pendingToolRequest: null,
+                eventBuffer: [],
+                subscribers: new Set<SessionListener>(),
+                fileRegistry: new Map(),
+                uploadDirectory,
+                workingRoot,
+                cleanupPath,
+                running: false
+            };
+
+            this.sessions.set(sessionId, session);
+            this.emitStateChanged(session);
+            return this.toSessionState(session);
+        } catch (error) {
+            await fs.rm(cleanupPath, { recursive: true, force: true }).catch(() => {
+                return;
+            });
+            throw error;
         }
-
-        const activeAgentName = mainAgent.name;
-
-        const session: SessionRuntime = {
-            sessionId,
-            name: name?.trim() || `Chat ${this.sessions.size + 1}`,
-            createdAt: now,
-            lastActivityAt: now,
-            continuousMode: config.continuousMode ?? false,
-            activeAgentName,
-            agentNames: agents.map((entry) => entry.name),
-            agentsByName: new Map(agents.map((entry) => [entry.name, entry.agent])),
-            orchestrator: orchestratorBuilder.build(mainAgent),
-            pendingToolRequest: null,
-            eventBuffer: [],
-            subscribers: new Set<SessionListener>(),
-            fileRegistry: new Map(),
-            uploadDirectory,
-            workingRoot,
-            running: false
-        };
-
-        this.sessions.set(sessionId, session);
-        this.emitStateChanged(session);
-        return this.toSessionState(session);
     }
 
     listSessions(): SessionSummary[] {
@@ -732,7 +744,7 @@ class SessionManager {
         this.sessions.delete(session.sessionId);
         session.subscribers.clear();
         await session.orchestrator.shutDown()
-        await fs.rm(session.workingRoot, { recursive: true, force: true }).catch(() => {
+        await fs.rm(session.cleanupPath, { recursive: true, force: true }).catch(() => {
             return;
         });
     }
