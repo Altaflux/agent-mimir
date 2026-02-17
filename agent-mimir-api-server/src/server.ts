@@ -1,7 +1,7 @@
 import multipart from "@fastify/multipart";
 import Fastify, { type FastifyInstance } from "fastify";
 import crypto from "crypto";
-import { createReadStream, createWriteStream, promises as fs } from "fs";
+import { createWriteStream, promises as fs } from "fs";
 import os from "os";
 import path from "path";
 import { pipeline } from "stream/promises";
@@ -11,6 +11,7 @@ import type {
     BootstrapResponse,
     CreateSessionRequest,
     CreateSessionResponse,
+    DownloadableFile,
     DeleteSessionResponse,
     ListSessionsResponse,
     ResetSessionResponse,
@@ -57,6 +58,11 @@ function normalizePathPrefix(value: string): string {
     }
 
     return withLeadingSlash;
+}
+
+function getPublicApiBasePath(): string {
+    const configured = process.env.MIMIR_PUBLIC_API_BASE_PATH?.trim() || "/v1";
+    return normalizePathPrefix(configured);
 }
 
 function inferMimeType(fileName: string): string {
@@ -194,10 +200,40 @@ function sanitizeStagedUploadName(fileName: string): string {
     return `upload-${Date.now()}`;
 }
 
+function withAttachmentLinks(
+    attachments: DownloadableFile[],
+    sessionId: string,
+    publicApiBasePath: string
+): DownloadableFile[] {
+    return attachments.map((file) => ({
+        ...file,
+        href: file.href ?? `${publicApiBasePath}/sessions/${sessionId}/files/${file.fileId}`
+    }));
+}
+
+function enrichSessionEventForClient(event: SessionEvent, publicApiBasePath: string): SessionEvent {
+    if (event.type === "agent_response") {
+        return {
+            ...event,
+            attachments: withAttachmentLinks(event.attachments, event.sessionId, publicApiBasePath)
+        };
+    }
+
+    if (event.type === "agent_to_agent") {
+        return {
+            ...event,
+            attachments: withAttachmentLinks(event.attachments, event.sessionId, publicApiBasePath)
+        };
+    }
+
+    return event;
+}
+
 export async function createApiServer(options: ApiServerOptions = {}): Promise<FastifyInstance> {
     const prefix = normalizePathPrefix(options.prefix ?? process.env.MIMIR_API_PREFIX ?? "/v1");
     const { serviceToken, enforceServiceToken } = getServiceTokenSettings(options);
     const uploadLimits = getApiUploadLimits(options);
+    const publicApiBasePath = getPublicApiBasePath();
     const sessionManager =
         options.sessionManager ??
         createSessionManager({
@@ -397,13 +433,13 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
 
             api.get<{ Params: { sessionId: string; fileId: string } }>("/sessions/:sessionId/files/:fileId", async (request, reply) => {
                 const file = await sessionManager.resolveFile(request.params.sessionId, request.params.fileId);
-                const stream = createReadStream(file.absolutePath);
+                const bytes = await fs.readFile(file.absolutePath);
                 const safeFileName = file.fileName.replaceAll('"', "");
-
                 reply
                     .header("Content-Type", inferMimeType(file.fileName))
                     .header("Content-Disposition", `attachment; filename=\"${safeFileName}\"`)
-                    .send(stream);
+                    .header("Content-Length", String(bytes.byteLength))
+                    .send(bytes);
             });
 
             api.get<{ Params: { sessionId: string } }>("/sessions/:sessionId/stream", async (request, reply) => {
@@ -416,7 +452,7 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
                 };
 
                 const emitEvent = (event: SessionEvent) => {
-                    emitRaw(encodeSseChunk(event));
+                    emitRaw(encodeSseChunk(enrichSessionEventForClient(event, publicApiBasePath)));
                 };
 
                 const subscription = sessionManager.subscribe(sessionId, (event) => {

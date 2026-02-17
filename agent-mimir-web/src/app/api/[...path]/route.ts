@@ -3,8 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const FORWARDED_RESPONSE_HEADERS = ["content-type", "cache-control", "content-disposition", "content-length"];
-
 type RouteContext = {
     params: Promise<{ path?: string[] }>;
 };
@@ -40,18 +38,6 @@ function buildProxyHeaders(request: Request): Headers {
     return headers;
 }
 
-function pickResponseHeaders(upstream: Response): Headers {
-    const headers = new Headers();
-    for (const headerName of FORWARDED_RESPONSE_HEADERS) {
-        const value = upstream.headers.get(headerName);
-        if (value) {
-            headers.set(headerName, value);
-        }
-    }
-
-    return headers;
-}
-
 async function proxyRequest(request: NextRequest, context: RouteContext): Promise<Response> {
     try {
         const { path = [] } = await context.params;
@@ -70,11 +56,7 @@ async function proxyRequest(request: NextRequest, context: RouteContext): Promis
         }
 
         const upstream = await fetch(upstreamUrl, init);
-
-        return new Response(upstream.body, {
-            status: upstream.status,
-            headers: pickResponseHeaders(upstream)
-        });
+        return upstream;
     } catch {
         return NextResponse.json(
             {

@@ -1,7 +1,5 @@
 import type { RequestHandler } from "@sveltejs/kit";
 
-const FORWARDED_RESPONSE_HEADERS = ["content-type", "cache-control", "content-disposition", "content-length"];
-
 function normalizePathPrefix(value: string): string {
     const withLeadingSlash = value.startsWith("/") ? value : `/${value}`;
     if (withLeadingSlash.length > 1 && withLeadingSlash.endsWith("/")) {
@@ -41,18 +39,6 @@ function buildProxyHeaders(request: Request): Headers {
     return headers;
 }
 
-function pickResponseHeaders(upstream: Response): Headers {
-    const headers = new Headers();
-    for (const headerName of FORWARDED_RESPONSE_HEADERS) {
-        const value = upstream.headers.get(headerName);
-        if (value) {
-            headers.set(headerName, value);
-        }
-    }
-
-    return headers;
-}
-
 const handler: RequestHandler = async ({ params, request }) => {
     try {
         const pathSegments = toPathSegments(params.path);
@@ -71,11 +57,7 @@ const handler: RequestHandler = async ({ params, request }) => {
         }
 
         const upstream = await fetch(upstreamUrl, init);
-
-        return new Response(upstream.body, {
-            status: upstream.status,
-            headers: pickResponseHeaders(upstream)
-        });
+        return upstream;
     } catch {
         return new Response(
             JSON.stringify({

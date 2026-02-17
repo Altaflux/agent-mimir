@@ -26,14 +26,13 @@ import crypto from "crypto";
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
-import { CodeAgentFactory, DockerPythonExecutor } from "agent-mimir/agent/code-agent";
+import { CodeAgentFactory, DockerPythonExecutor, LocalPythonExecutor } from "agent-mimir/agent/code-agent";
 
 const SESSION_EVENT_CAP = 500;
 const DEFAULT_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const DEFAULT_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 const DEFAULT_MAX_FILES_PER_TURN = 10;
 const DEFAULT_MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
-const DEFAULT_PUBLIC_API_BASE_PATH = "/v1";
 
 type AgentDefinitionRuntime = {
     mainAgent?: boolean;
@@ -104,16 +103,6 @@ type SessionRuntime = {
     cleanupPath: string;
     running: boolean;
 };
-
-function getPublicApiBasePath(): string {
-    const configured = process.env.MIMIR_PUBLIC_API_BASE_PATH?.trim() || DEFAULT_PUBLIC_API_BASE_PATH;
-    const withLeadingSlash = configured.startsWith("/") ? configured : `/${configured}`;
-    if (withLeadingSlash.length > 1 && withLeadingSlash.endsWith("/")) {
-        return withLeadingSlash.slice(0, -1);
-    }
-
-    return withLeadingSlash;
-}
 
 export type SessionSubscription = {
     state: SessionState;
@@ -683,7 +672,6 @@ export class SessionManager {
 
     private async registerSharedFiles(session: SessionRuntime, sharedFiles: SharedFile[]): Promise<DownloadableFile[]> {
         const results: DownloadableFile[] = [];
-        const publicApiBasePath = getPublicApiBasePath();
 
         for (const file of sharedFiles) {
             const fileId = crypto.randomUUID();
@@ -695,8 +683,7 @@ export class SessionManager {
 
             results.push({
                 fileId,
-                fileName: file.fileName,
-                href: `${publicApiBasePath}/sessions/${session.sessionId}/files/${fileId}`
+                fileName: file.fileName
             });
         }
 

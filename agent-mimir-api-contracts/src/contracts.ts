@@ -1,7 +1,7 @@
 export type DownloadableFile = {
     fileId: string;
     fileName: string;
-    href: string;
+    href?: string;
 };
 
 export type ToolCallPayload = {
