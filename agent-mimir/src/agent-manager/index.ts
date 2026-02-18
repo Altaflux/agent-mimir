@@ -64,7 +64,7 @@ export interface Agent {
      */
     call: (args: {
         message: InputAgentMessage | null,
-        threadId: string,
+        sessionId: string,
         noMessagesInTool?: boolean
     }) => AsyncGenerator<IntermediateAgentMessage, {
         message: AgentResponse,
@@ -77,7 +77,7 @@ export interface Agent {
      */
     handleCommand: (args: {
         command: CommandRequest,
-        threadId: string
+        sessionId: string,
     }) => AsyncGenerator<IntermediateAgentMessage, {
         message: AgentResponse,
         checkpointId: string
@@ -88,7 +88,7 @@ export interface Agent {
     commands: AgentCommand[],
     /** Resets the agent's state */
     reset: (args: {
-        threadId: string,
+        sessionId: string,
         checkpointId?: string
     }) => Promise<void>,
 
@@ -99,6 +99,7 @@ export interface Agent {
  * Represents a response from an agent requesting to use a tool.
  */
 export type AgentToolRequestResponse = {
+    checkpointId: string,
     /** Identifies this as a tool request response */
     type: "toolRequest",
     /** The tool request message */
@@ -111,7 +112,7 @@ export type AgentToolRequestResponse = {
  * Represents a response from an agent directed to a user.
  */
 export type AgentUserMessageResponse = {
-   // id: string,
+    checkpointId: string,
     /** Identifies this as an agent response */
     type: "agentResponse",
     /** The message content */

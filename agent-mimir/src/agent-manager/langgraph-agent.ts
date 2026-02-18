@@ -1,4 +1,4 @@
-import { CompiledStateGraph, Command,  StateDefinition, StateSchema, MessagesValue } from "@langchain/langgraph";
+import { CompiledStateGraph, Command,  StateDefinition, StateSchema, MessagesValue, BaseCheckpointSaver } from "@langchain/langgraph";
 import { AgentCommand, AgentPlugin } from "../plugins/index.js";
 import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, CommandRequest, InputAgentMessage, IntermediateAgentMessage, SharedFile } from "./index.js";
 import { AIMessageChunk, BaseMessage, HumanMessage,  RemoveMessage, ToolMessage } from "@langchain/core/messages";
@@ -42,13 +42,13 @@ export class LanggraphAgent implements Agent {
         this.commands = args.commands;
         this.graph = args.graph;
     }
-    async *call(args: { message: InputAgentMessage | null; threadId: string; noMessagesInTool?: boolean; }): AsyncGenerator<IntermediateAgentMessage, { message: AgentResponse; checkpointId: string; }, unknown> {
+    async *call(args: { message: InputAgentMessage | null; sessionId: string, checkpointId?: string; noMessagesInTool?: boolean; }): AsyncGenerator<IntermediateAgentMessage, { message: AgentResponse; checkpointId: string; }, unknown> {
 
         let stateConfig = {
             streamMode: ["messages" as const, "values" as const],
         };
         let graphInput: any = null;
-        const state = await this.graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
+        const state = await this.graph.getState({ ...stateConfig, configurable: {  thread_id: `${args.sessionId}#${this.name}` } });
         if (state.next.length > 0 && state.next[0] === "human_review_node") {
             if (args.message) {
                 graphInput = new Command({ resume: { type: "response", args: extractAllTextFromComplexResponse(args.message.content) } satisfies HumanResponse })
@@ -72,19 +72,19 @@ export class LanggraphAgent implements Agent {
             } : null;
         }
 
-        let generator = this.executeGraph(graphInput, args.threadId);
+        let generator = this.executeGraph(graphInput, args.sessionId,  args.checkpointId);
         let result;
         while (!(result = await generator.next()).done) {
             yield result.value;
         }
 
-        const newState = await this.graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
+        const newState = await this.graph.getState({ ...stateConfig, configurable: { thread_id: `${args.sessionId}#${this.name}` } });
         return {
             message: result.value,
-            checkpointId: newState.config.configurable?.checkpoint_id ?? "N/A",
+            checkpointId: newState.config.configurable?.checkpoint_id!,
         }
     }
-    async *handleCommand(args: { command: CommandRequest; threadId: string; }): AsyncGenerator<IntermediateAgentMessage, { message: AgentResponse; checkpointId: string; }, unknown> {
+    async *handleCommand(args: { command: CommandRequest; sessionId: string,  }): AsyncGenerator<IntermediateAgentMessage, { message: AgentResponse; checkpointId: string; }, unknown> {
         let stateConfig = {
             streamMode: ["messages" as const, "values" as const],
         };
@@ -99,13 +99,13 @@ export class LanggraphAgent implements Agent {
             responseAttributes: {}
         };
 
-        let generator = this.executeGraph(graphInput, args.threadId);
+        let generator = this.executeGraph(graphInput, args.sessionId);
         let result;
         while (!(result = await generator.next()).done) {
             yield result.value;
         }
 
-        const state = await this.graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
+        const state = await this.graph.getState({ ...stateConfig, configurable: { thread_id: `${args.sessionId}#${this.name}` } });
         return {
             message: result.value,
             checkpointId: state.config.configurable?.checkpoint_id ?? "N/A",
@@ -116,23 +116,32 @@ export class LanggraphAgent implements Agent {
         await Promise.all(this.args.plugins.map(async plugin => await plugin.destroy()));
     }
 
-    async reset(args: { threadId: string; checkpointId?: string; }): Promise<void> {
+    async reset(args: { sessionId: string,  checkpointId?: string; }): Promise<void> {
         let stateConfig = {
             streamMode: ["messages" as const, "values" as const],
         };
-        await Promise.all(this.args.plugins.map(async plugin => await plugin.reset()));
-        await this.args.workspace.reset();
-        const state = await this.graph.getState({ ...stateConfig, configurable: { thread_id: args.threadId } });
-        const messages: BaseMessage[] = state.values["messages"] ?? [];
-        const messagesToRemove = messages.map((m) => new RemoveMessage({ id: m.id! }));
-       await this.graph.updateState({ ...stateConfig, configurable: { thread_id: args.threadId } }, { messages: messagesToRemove })
+
+        const allList = (this.graph.checkpointer as BaseCheckpointSaver).list({})
+        for await (const i of allList) {
+            console.log(JSON.stringify(i))
+        }
+//         await Promise.all(this.args.plugins.map(async plugin => await plugin.reset()));
+//         await this.args.workspace.reset();
+// //        const iter = this.graph.getStateHistory({ ...stateConfig, configurable: { thread_id: `${args.threadId}` } });
+//         // for await (const i of iter) {
+//         //     console.log(JSON.stringify(i))
+//         // }
+
+//         const state = await this.graph.getState({ ...stateConfig, configurable: { thread_id: `${args.threadId}` } });
+//         const messages: BaseMessage[] = state.values["messages"] ?? [];
+//         const messagesToRemove = messages.map((m) => new RemoveMessage({ id: m.id! }));
+//        // (this.graph.checkpointer! as BaseCheckpointSaver).deleteThread
+//         await this.graph.updateState({ ...stateConfig, configurable: { thread_id: `${args.threadId}` } }, { messages: messagesToRemove })
     }
 
-
-
-    async *executeGraph(graphInput: any, threadId: string): AsyncGenerator<IntermediateAgentMessage, AgentResponse, unknown> {
+    async *executeGraph(graphInput: any, sessionId: string,  checkpointId?: string ): AsyncGenerator<IntermediateAgentMessage, AgentResponse, unknown> {
         let stateConfig = {
-            streamMode: ["messages" as const, "values" as const],
+            streamMode: ["messages" as const, "values" as const, "checkpoints" as const],
         };
         let lastKnownMessage: BaseMessage | undefined = undefined;
         let canStreamToUser = false;
@@ -175,7 +184,7 @@ export class LanggraphAgent implements Agent {
         };
 
         while (true) {
-            let stream = await this.graph.stream(graphInput, { ...stateConfig, configurable: { thread_id: threadId } });
+            let stream = await this.graph.stream(graphInput, { ...stateConfig, configurable: { thread_id:`${sessionId}#${this.name}`,  checkpoint_id: checkpointId } });
             for await (const state of stream) {
                 if (state[0] === "messages"){
                     let messageState = state[1];
@@ -217,13 +226,14 @@ export class LanggraphAgent implements Agent {
                 }
             }
 
-            const state = await this.graph.getState({ ...stateConfig, configurable: { thread_id: threadId } });
+            const state = await this.graph.getState({ ...stateConfig, configurable: {  thread_id: `${sessionId}#${this.name}` } });
             const lastMessage = state.values.messages[state.values.messages.length - 1] as BaseMessage;
             const responseAttributes: Record<string, any> = state.values["responseAttributes"];
             if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
                 const interruptState = state.tasks[0].interrupts[0];
                 const interruptVal = interruptState.value as HumanInterrupt
                 return {
+                    checkpointId: state.config?.configurable?.checkpoint_id,
                     type: "toolRequest",
                     output: {
                         content: lCmessageContentToContent(lastMessage.contentBlocks), 
@@ -238,8 +248,8 @@ export class LanggraphAgent implements Agent {
                     responseAttributes: responseAttributes
                 }
             }
-
             return {
+                checkpointId: state.config?.configurable?.checkpoint_id,
                 type: "agentResponse",
                 output: {
                     content: lCmessageContentToContent(lastMessage.contentBlocks),

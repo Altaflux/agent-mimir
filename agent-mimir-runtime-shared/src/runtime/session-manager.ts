@@ -27,6 +27,7 @@ import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
 import { CodeAgentFactory, DockerPythonExecutor, LocalPythonExecutor } from "agent-mimir/agent/code-agent";
+import { MemorySaver } from "@langchain/langgraph";
 
 const SESSION_EVENT_CAP = 500;
 const DEFAULT_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
@@ -187,7 +188,7 @@ export class SessionManager {
         try {
             await fs.mkdir(uploadDirectory, { recursive: true });
 
-            const orchestratorBuilder = new OrchestratorBuilder();
+            const orchestratorBuilder = new OrchestratorBuilder(sessionId);
             const workspaceFactory = async (agentName: string) => {
                 const tempDir = path.join(workingRoot, agentName);
                 await fs.mkdir(tempDir, { recursive: true });
@@ -263,7 +264,7 @@ export class SessionManager {
     async resetSession(sessionId: string): Promise<SessionState> {
         const session = this.requireSession(sessionId);
         return await this.withSessionLock(session, async () => {
-            await session.orchestrator.reset({ threadId: session.sessionId });
+            await session.orchestrator.reset({  });
             session.pendingToolRequest = null;
             session.fileRegistry.clear();
 
@@ -417,6 +418,7 @@ export class SessionManager {
         builder: OrchestratorBuilder,
         workspaceFactory: (agentName: string) => Promise<FileSystemAgentWorkspace>
     ): Promise<AgentDefinitionRuntime[]> {
+        const checkpointer = config.checkpointer ?? new MemorySaver();
         return await Promise.all(
             Object.entries(config.agents).map(async ([agentName, agentDefinition]) => {
                 if (!agentDefinition.definition) {
@@ -428,7 +430,7 @@ export class SessionManager {
                     description: agentDefinition.description,
                     profession: definition.profession,
                     model: definition.chatModel,
-                    checkpointer: definition.checkpointer,
+                    checkpointer: checkpointer,
                     visionSupport: definition.visionSupport,
                     constitution: definition.constitution,
                     plugins: [...(definition.plugins ?? []) as PluginFactory[]],

@@ -99,7 +99,7 @@ export const run = async () => {
         await fs.mkdir(workspace.workingDirectory, { recursive: true });
         return workspace;
     }
-    const orchestratorBuilder = new OrchestratorBuilder();
+    const orchestratorBuilder = new OrchestratorBuilder("1");
 
     const agents = await Promise.all(Object.entries(agentConfig.agents).map(async ([agentName, agentDefinition]) => {
         if (agentDefinition.definition) {
@@ -217,7 +217,7 @@ export const run = async () => {
 
         if (interaction.commandName === 'reset') {
             try {
-                await chatAgentHandle.reset({ threadId: interaction.channelId });
+                await chatAgentHandle.reset({  });
             } catch (e) {
                 console.error(e);
                 await interaction.editReply('There was an error resetting the agent.');

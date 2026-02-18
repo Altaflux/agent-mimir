@@ -116,7 +116,7 @@ export async function chatWithAgent(agentManager: MultiAgentCommunicationOrchest
 
 async function handleCommands(command: string, agentManager: MultiAgentCommunicationOrchestrator) {
   if (command.trim() === "reset") {
-    await agentManager.reset({threadId: "1"});
+    await agentManager.reset({});
     console.log(chalk.red(`Agents have been reset.`));
   } else {
     console.log(chalk.red(`Unknown command: ${command}`));

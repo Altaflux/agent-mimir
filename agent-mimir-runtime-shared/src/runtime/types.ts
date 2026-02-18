@@ -13,7 +13,6 @@ export type AgentDefinition = {
         chatModel: BaseChatModel;
         taskModel?: BaseLanguageModel;
         constitution?: string;
-        checkpointer?: BaseCheckpointSaver;
         visionSupport?: "openai";
         plugins?: PluginFactory[];
         chatHistory?: {
@@ -28,6 +27,7 @@ export type AgentDefinition = {
 
 export type AgentMimirConfig = {
     agents: Record<string, AgentDefinition>;
+    checkpointer?: BaseCheckpointSaver;
     embeddings: Embeddings;
     continuousMode?: boolean;
     workingDirectory?: string;

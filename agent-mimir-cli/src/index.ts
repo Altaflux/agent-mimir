@@ -71,7 +71,7 @@ export const run = async () => {
         return workspace;
     }
 
-    const orchestratorBuilder = new OrchestratorBuilder();
+    const orchestratorBuilder = new OrchestratorBuilder("1");
     const continousMode = agentConfig.continuousMode ?? false;
     const agents = await Promise.all(Object.entries(agentConfig.agents).map(async ([agentName, agentDefinition]) => {
         if (agentDefinition.definition) {

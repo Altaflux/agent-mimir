@@ -3,7 +3,7 @@ import { HelpersPluginFactory } from "./helpers.js";
 
 type PendingMessage = {
     content: InputAgentMessage;
-    threadId: string,
+
     replyFromAgent: string | undefined;
 }
 type AgentInvoke = (agent: Agent,) => AsyncGenerator<IntermediateAgentMessage, {
@@ -43,7 +43,7 @@ const DESTINATION_AGENT_ATTRIBUTE = "destinationAgent";
 export class OrchestratorBuilder {
     private readonly agentManager: Map<string, Agent> = new Map();
 
-    constructor() {
+    constructor(private readonly sessionId: string) {
     }
 
     /**
@@ -77,7 +77,7 @@ export class OrchestratorBuilder {
     }
 
     build(currentAgent: Agent) {
-        return new MultiAgentCommunicationOrchestrator(this.agentManager, currentAgent);
+        return new MultiAgentCommunicationOrchestrator(this.agentManager, currentAgent, this.sessionId);
     }
 }
 
@@ -85,7 +85,7 @@ export class MultiAgentCommunicationOrchestrator {
     public currentAgent: Agent;
     private agentStack: Agent[] = [];
 
-    constructor(private readonly agentManager: ReadonlyMap<string, Agent>, currentAgent: Agent) {
+    constructor(private readonly agentManager: ReadonlyMap<string, Agent>, currentAgent: Agent, private readonly sessionId: string) {
         this.currentAgent = currentAgent;
     }
 
@@ -93,9 +93,9 @@ export class MultiAgentCommunicationOrchestrator {
         return this.currentAgent;
     }
 
-    async reset(args: { threadId: string, checkpointId?: string }) {
+    async reset(args: { checkpointId?: string }) {
         for (const agent of this.agentManager.values()) {
-            await agent.reset({ threadId: args.threadId, checkpointId: args.checkpointId });
+            await agent.reset({ sessionId: this.sessionId, checkpointId: args.checkpointId });
         }
     }
 
@@ -107,14 +107,14 @@ export class MultiAgentCommunicationOrchestrator {
 
     async* handleMessage(args: {
         message: InputAgentMessage | null;
-    }, threadId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
-        return yield* this.doInvocation((agent) => agent.call({ message: args.message, threadId: threadId }), threadId);
+    }, sessionId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
+        return yield* this.doInvocation((agent) => agent.call({ message: args.message, sessionId: sessionId }), sessionId);
     }
 
     async* handleCommand(args: {
         command: CommandRequest;
-    }, threadId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
-        return yield* this.doInvocation((agent) => agent.handleCommand({ command: args.command, threadId: threadId }), threadId);
+    }, sessionId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
+        return yield* this.doInvocation((agent) => agent.handleCommand({ command: args.command, sessionId: sessionId }), sessionId);
     }
 
 
@@ -133,7 +133,6 @@ export class MultiAgentCommunicationOrchestrator {
                         currentAgent: this.currentAgent,
                         pendingMessage: {
                             replyFromAgent: undefined,
-                            threadId: threadId,
                             content: {
                                 content: [
                                     { type: "text", text: `Agent ${graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE]} does not exist.` }
@@ -148,7 +147,6 @@ export class MultiAgentCommunicationOrchestrator {
                     conversationComplete: false,
                     currentAgent: newAgent,
                     pendingMessage: {
-                        threadId: threadId,
                         replyFromAgent: undefined,
                         content: graphResponse.output
                     }
@@ -159,7 +157,6 @@ export class MultiAgentCommunicationOrchestrator {
                     conversationComplete: isFinalUser,
                     currentAgent: isFinalUser ? this.currentAgent : agentStack.pop()!,
                     pendingMessage: {
-                        threadId: threadId,
                         replyFromAgent: this.currentAgent.name,
                         content: graphResponse.output,
                     }
@@ -171,7 +168,7 @@ export class MultiAgentCommunicationOrchestrator {
 
             let generator = pendingMessage
                 ? this.currentAgent.call({
-                    threadId: pendingMessage.threadId,
+                    sessionId: this.sessionId,
                     message: {
                         ...pendingMessage.content,
                         content: [
