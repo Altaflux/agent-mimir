@@ -104,6 +104,7 @@ export function ChatApp() {
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     const dragDepthRef = useRef(0);
+    const conversationScrollRef = useRef<HTMLDivElement | null>(null);
 
     const activeState = activeSessionId ? sessionStates[activeSessionId] : undefined;
     const activeEvents = activeSessionId ? eventsBySession[activeSessionId] ?? [] : [];
@@ -656,6 +657,18 @@ export function ChatApp() {
         return `${activeState.name} (${activeState.activeAgentName})`;
     }, [activeState]);
 
+    useEffect(() => {
+        const container = conversationScrollRef.current;
+        if (!container) {
+            return;
+        }
+
+        container.scrollTo({
+            top: container.scrollHeight,
+            behavior: "auto"
+        });
+    }, [activeEvents, activeSessionId]);
+
     if (isLoading) {
         return (
             <main className="app-shell mx-auto flex min-h-screen w-full max-w-[1280px] items-center justify-center p-6">
@@ -670,14 +683,14 @@ export function ChatApp() {
     }
 
     return (
-        <main className="app-shell mx-auto min-h-screen w-full max-w-[1280px] p-4 md:p-6">
-            <div className="grid min-h-[calc(100vh-2rem)] grid-cols-1 gap-4 md:grid-cols-[300px_1fr]">
-                <Card className="overflow-hidden border-border/60 bg-card/70 shadow-2xl shadow-black/20 backdrop-blur-xl">
+        <main className="app-shell mx-auto h-[100dvh] min-h-screen w-full max-w-[1280px] overflow-hidden p-3 md:p-6">
+            <div className="grid h-full min-h-0 grid-cols-1 grid-rows-[minmax(220px,38dvh)_minmax(0,1fr)] gap-4 md:grid-cols-[300px_minmax(0,1fr)] md:grid-rows-1">
+                <Card className="flex min-h-0 flex-col overflow-hidden border-border/60 bg-card/70 shadow-2xl shadow-black/20 backdrop-blur-xl">
                     <CardHeader className="border-b border-border/60 bg-card/65">
                         <CardTitle>Conversations</CardTitle>
                         <CardDescription>Each conversation has isolated runtime state.</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-3 p-3">
+                    <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-3">
                         <Button
                             className="w-full"
                             onClick={() => {
@@ -689,7 +702,7 @@ export function ChatApp() {
                             <FilePlus2 className="mr-2 h-4 w-4" /> New Conversation
                         </Button>
 
-                        <div className="space-y-2">
+                        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
                             {sessions.map((session) => (
                                 <div
                                     key={session.sessionId}
@@ -726,8 +739,8 @@ export function ChatApp() {
                     </CardContent>
                 </Card>
 
-                <Card className="flex min-h-[calc(100vh-2rem)] flex-col overflow-hidden border-border/60 bg-card/70 shadow-2xl shadow-black/20 backdrop-blur-xl">
-                    <CardHeader className="border-b border-border/60 bg-card/65 backdrop-blur-xl">
+                <Card className="flex min-h-0 flex-col overflow-hidden border-border/60 bg-card/70 shadow-2xl shadow-black/20 backdrop-blur-xl">
+                    <CardHeader className="shrink-0 border-b border-border/60 bg-card/65 backdrop-blur-xl">
                         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
                                 <CardTitle>{sessionLabel}</CardTitle>
@@ -780,7 +793,7 @@ export function ChatApp() {
                         </div>
                     </CardHeader>
 
-                    <CardContent className="flex-1 space-y-3 overflow-y-auto p-4">
+                    <CardContent ref={conversationScrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-4">
                         {activeEvents.length === 0 ? (
                             <div className="rounded-lg border border-dashed border-border/80 bg-background/40 p-6 text-center text-sm text-muted-foreground">
                                 {activeSessionId ? "Send a message to begin." : "Create a conversation to begin."}
@@ -931,7 +944,7 @@ export function ChatApp() {
                         })}
                     </CardContent>
 
-                    <div className="border-t border-border/60 bg-card/70 p-4">
+                    <div className="shrink-0 border-t border-border/60 bg-card/70 p-4">
                         {pendingToolRequest ? (
                             <div className="mb-4 rounded-md border border-amber-400/45 bg-amber-500/12 p-3">
                                 <p className="text-sm font-semibold">Tool request is waiting for your decision.</p>
