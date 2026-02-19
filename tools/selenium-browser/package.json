@@ -1,5 +1,5 @@
 {
-  "name": "@agent-mimir/selenium-browser",
+  "name": "@mimir/selenium-browser",
   "description": "Selenium Web browser tool for langchain",
   "main": "dist/index.js",
   "type": "module",
@@ -20,7 +20,7 @@
    
     "rimraf": "^6.1.2",
     "typescript": "^5.3.3",
-    "agent-mimir": "*"
+    "@mimir/agent-core": "*"
   },
   "dependencies": {
     "async-exit-hook": "^2.0.1",
@@ -33,6 +33,6 @@
     "gpt-3-encoder": "v1.1.4"
   },
   "peerDependencies": {
-    "agent-mimir": "*"
+    "@mimir/agent-core": "*"
   }
 }

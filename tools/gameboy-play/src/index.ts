@@ -1,10 +1,10 @@
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
 
-import { ToolResponse } from "agent-mimir/tools";
-import { AgentTool } from "agent-mimir/tools";
-import { AdditionalContent, AgentPlugin, PluginFactory, NextMessageUser, PluginContext } from "agent-mimir/plugins";
-import { InputAgentMessage } from "agent-mimir/agent";
+import { ToolResponse } from "@mimir/agent-core/tools";
+import { AgentTool } from "@mimir/agent-core/tools";
+import { AdditionalContent, AgentPlugin, PluginFactory, NextMessageUser, PluginContext } from "@mimir/agent-core/plugins";
+import { InputAgentMessage } from "@mimir/agent-core/agent";
 import { GameboyController } from "./controller.js";
 
 export class GameboyPluginFactory implements PluginFactory {

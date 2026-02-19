@@ -1,5 +1,5 @@
 {
-  "name": "@agent-mimir/gameboy-play",
+  "name": "@mimir/gameboy-play",
   "description": "agent-mimir plugin for Gameboy emulator",
   "main": "dist/index.js",
   "type": "module",
@@ -14,7 +14,7 @@
     "@types/node": "^18.16.3",
     "rimraf": "^6.1.2",
     "typescript": "^5.3.3",
-    "agent-mimir": "*",
+    "@mimir/agent-core": "*",
     "@types/screenshot-desktop": "^1.15.0"
   },
   "dependencies": {
@@ -31,6 +31,6 @@
     "@jitsi/robotjs": "0.6.13"
   },
   "peerDependencies": {
-    "agent-mimir": "*"
+    "@mimir/agent-core": "*"
   }
 }

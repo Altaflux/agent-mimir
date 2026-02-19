@@ -23,8 +23,8 @@
     "@langchain/core": "^1.1.24",
     "@langchain/langgraph": "1.1.4",
     "langchain": "^1.2.24",
-    "agent-mimir": "*",
-    "@agent-mimir/mcp-client": "*"
+    "@mimir/agent-core": "*",
+    "@mimir/mcp-client": "*"
   },
   "workspaces": [
     "sub-project"

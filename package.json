@@ -1,5 +1,5 @@
 {
-    "name": "agent-mimir-pck",
+    "name": "@mimir/mimir-pck",
     "private": false,
     "scripts": {
         "build": "turbo run build",
@@ -7,19 +7,19 @@
         "start-cli": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStart",
         "start-discord": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps npm run internalStartDiscordNoBuild",
         "start-lg": "npm run build && dotenv -- npm run start -w lg-server",
-        "internalStartApi": "npm run build -w agent-mimir-api-contracts && npm run build -w agent-mimir-runtime-shared && npm run build -w agent-mimir-api-server && dotenv -- npm run start -w agent-mimir-api-server",
-        "internalStartDiscord": "npm run build && dotenv -- npm run start -w agent-mimir-discord",
-        "internalStartDiscordNoBuild": "dotenv -- npm run start -w agent-mimir-discord",
-        "internalStart": "dotenv -- npm run start -w agent-mimir-cli",
-        "test": "npm run test -w agent-mimir",
+        "internalStartApi": "npm run build -w api-contracts && npm run build -w runtime-shared && npm run build -w api-server && dotenv -- npm run start -w api-server",
+        "internalStartDiscord": "npm run build && dotenv -- npm run start -w discord-interface",
+        "internalStartDiscordNoBuild": "dotenv -- npm run start -w discord-interface",
+        "internalStart": "dotenv -- npm run start -w cli-interface",
+        "test": "npm run test -w agent-core",
         "dev": "turbo run dev",
         "lint": "turbo run lint",
-        "publish": "bash scripts/release-branch.sh && turbo run build lint && npm run release -w agent-mimir && echo '🔗 Open https://github.com/Altaflux/agent-mimir/compare/release?expand=1 and merge the release PR'",
+        "publish": "bash scripts/release-branch.sh && turbo run build lint && npm run release -w agent-core && echo '🔗 Open https://github.com/Altaflux/agent-mimir/compare/release?expand=1 and merge the release PR'",
         "format": "prettier --write \"**/*.{ts,tsx,md}\"",
         "start-web": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps MIMIR_PUBLIC_API_BASE_PATH=/api dotenv -- npm run internalStartWeb",
         "start-web-dev": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps MIMIR_PUBLIC_API_BASE_PATH=/api dotenv -- npm run internalStartWebNoBuild",
-        "internalStartWeb": "npm run build && turbo run start --only --env-mode=loose --filter=agent-mimir-api-server --filter=agent-mimir-web",
-        "internalStartWebNoBuild": "npm run build -w agent-mimir-api-contracts && npm run build -w agent-mimir-runtime-shared && npm run build -w agent-mimir-api-server && turbo run dev --env-mode=loose --filter=agent-mimir-api-server --filter=agent-mimir-web"
+        "internalStartWeb": "npm run build && turbo run start --only --env-mode=loose --filter=@mimir/api-server --filter=@mimir/web-interface",
+        "internalStartWebNoBuild": "npm run build -w api-contracts && npm run build -w runtime-shared && npm run build -w api-server && turbo run dev --env-mode=loose --filter=api-server --filter=web-interface"
     },
     "author": "Altaflux",
     "repository": {
@@ -40,15 +40,15 @@
     },
     "packageManager": "npm@9.5.0",
     "workspaces": [
-        "agent-mimir",
-        "agent-mimir-api-contracts",
-        "agent-mimir-api-server",
-        "agent-mimir-cli",
-        "agent-mimir-discord",
+        "agent-core",
+        "api-contracts",
+        "api-server",
+        "cli-interface",
+        "discord-interface",
         "tools/*",
         ".temp_custom_deps",
-        "agent-mimir-web",
-        "agent-mimir-runtime-shared"
+        "web-interface",
+        "runtime-shared"
     ],
     "dependencies": {
         "@langchain/langgraph": "1.1.4",

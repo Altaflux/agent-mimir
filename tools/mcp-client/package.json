@@ -1,5 +1,5 @@
 {
-  "name": "@agent-mimir/mcp-client",
+  "name": "@mimir/mcp-client",
   "description": "mcp-client",
   "main": "dist/index.js",
   "type": "module",
@@ -13,8 +13,8 @@
   "devDependencies": {
     "@types/node": "^18.16.3",
     "rimraf": "^6.1.2",
-    "typescript": "^5.3.3",
-    "agent-mimir": "*"
+    "typescript": "^5.9.3",
+    "@mimir/agent-core": "*"
   },
   "dependencies": {
 
@@ -23,6 +23,6 @@
  
   },
   "peerDependencies": {
-    "agent-mimir": "*"
+    "@mimir/agent-core": "*"
   }
 }

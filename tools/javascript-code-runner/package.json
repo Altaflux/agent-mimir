@@ -1,5 +1,5 @@
 {
-  "name": "@agent-mimir/javascript-code-runner",
+  "name": "@mimir/javascript-code-runner",
   "description": "Javascript code runner tool for langchain",
   "main": "dist/index.js",
   "scripts": {

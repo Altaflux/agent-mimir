@@ -1,5 +1,5 @@
-import { AgentPlugin, PluginFactory, PluginContext, AgentSystemMessage } from "agent-mimir/plugins";
-import { AgentTool, ToolResponse } from "agent-mimir/tools";
+import { AgentPlugin, PluginFactory, PluginContext, AgentSystemMessage } from "@mimir/agent-core/plugins";
+import { AgentTool, ToolResponse } from "@mimir/agent-core/tools";
 
 import { z } from "zod/v4";
 import Sqlite from 'better-sqlite3';

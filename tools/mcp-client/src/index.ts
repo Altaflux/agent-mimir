@@ -6,13 +6,13 @@ export { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/webso
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js"
 import { CallToolResult, EmbeddedResource, ImageContent, PromptMessage, TextContent } from "@modelcontextprotocol/sdk/types.js";
 
-import { AgentCommand, AgentSystemMessage, CommandContent, AgentPlugin, PluginFactory, PluginContext } from "agent-mimir/plugins";
-import { AgentTool, ToolResponse } from "agent-mimir/tools";
-import { ComplexMessageContent } from "agent-mimir/schema";
+import { AgentCommand, AgentSystemMessage, CommandContent, AgentPlugin, PluginFactory, PluginContext } from "@mimir/agent-core/plugins";
+import { AgentTool, ToolResponse } from "@mimir/agent-core/tools";
+import { ComplexMessageContent } from "@mimir/agent-core/schema";
 import { z } from 'zod';
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { loadMcpTools } from "@langchain/mcp-adapters";
-import { LangchainToolToMimirTool } from "agent-mimir/tools/langchain";
+import { LangchainToolToMimirTool } from "@mimir/agent-core/tools/langchain";
 
 interface PluginResult {
     tools: AgentTool[];
@@ -45,9 +45,10 @@ export class McpClientPluginFactory implements PluginFactory {
                 })
             );
 
-            const resourceTools = new McpResourceTool(clientResults);
+            const resourceTools: AgentTool = new McpResourceTool(clientResults);
             const combinedResult = this.combineResults(clientResults.map(c => c.pluginResult));
-            return new McpPlugin(clientResults, [...combinedResult.tools, resourceTools], combinedResult.prompts);
+            const allTools: AgentTool[] = [...combinedResult.tools, resourceTools];
+            return new McpPlugin(clientResults, allTools, combinedResult.prompts);
         } catch (error) {
             console.error("Failed to create MCP plugin:", error);
             throw error;
@@ -231,16 +232,17 @@ namespace ContentConverter {
     }
 }
 
-export class McpResourceTool extends AgentTool {
+
+class McpResourceTool extends AgentTool {
     schema = z.object({
         mcpServer: z.string().describe("The name of the MCP server to read from."),
         resourceURI: z.string().describe("The URI of the resource to read.")
-    })
+    }) as any
     constructor(private readonly clients: { client: Client, clientName: string }[]) {
         super()
 
     }
-    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
+    protected async _call(arg: any, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
         let client = this.clients.find(c => c.clientName === arg.mcpServer)!;
         try {
             const resource = await client.client.readResource({

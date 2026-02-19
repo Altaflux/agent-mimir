@@ -1,5 +1,5 @@
 {
-  "name": "@agent-mimir/sqlite-tool",
+  "name": "@mimir/sqlite-tool",
   "description": "SQLite tool",
   "main": "dist/index.js",
   "type": "module",
@@ -15,12 +15,12 @@
     "@types/better-sqlite3": "^7.6.9",
     "rimraf": "^6.1.2",
     "typescript": "^5.3.3",
-    "agent-mimir": "*"
+    "@mimir/agent-core": "*"
   },
   "dependencies": {
    "better-sqlite3": "^12.6.2"
   },
   "peerDependencies": {
-    "agent-mimir": "*"
+    "@mimir/agent-core": "*"
   }
 }

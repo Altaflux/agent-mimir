@@ -1,5 +1,5 @@
 {
-  "name": "@agent-mimir/serper-search",
+  "name": "@mimir/serper-search",
   "description": "Serper search tool for langchain",
   "main": "dist/index.js",
   "scripts": {

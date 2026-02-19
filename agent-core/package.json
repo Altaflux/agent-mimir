@@ -1,0 +1,118 @@
+{
+  "name": "@mimir/agent-core",
+  "version": "0.4.0",
+  "description": "",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    "./schema": {
+      "types": "./dist/schema.d.ts",
+      "import": {
+        "development": "./src/agent-manager/schema.ts",
+        "default": "./dist/schema.js"
+      }
+    },
+    "./agent/tool-agent": {
+      "types": "./dist/agent-manager/tool-agent/index.d.ts",
+      "import": {
+        "development": "./src/agent-manager/tool-agent/index.ts",
+        "default": "./dist/agent-manager/tool-agent/index.js"
+      }
+    },
+    "./agent/code-agent": {
+      "types": "./dist/agent-manager/code-agent/index.d.ts",
+      "import": {
+        "development": "./src/agent-manager/code-agent/index.ts",
+        "default": "./dist/agent-manager/code-agent/index.js"
+      }
+    },
+    "./agent": {
+      "types": "./dist/agent-manager/index.d.ts",
+      "import": {
+        "development": "./src/agent-manager/index.ts",
+        "default": "./dist/agent-manager/index.js"
+      }
+    },
+    "./plugins": {
+      "types": "./dist/plugins/index.d.ts",
+      "import": {
+        "development": "./src/plugins/index.ts",
+        "default": "./dist/plugins/index.js"
+      }
+    },
+    "./plugins/helpers": {
+      "types": "./dist/plugins/helpers.d.ts",
+      "import": {
+        
+        "development": "./src/plugins/helpers.ts",
+        "default": "./dist/plugins/helpers.js"
+      }
+    },
+    "./communication/multi-agent": {
+      "types": "./dist/communication/multi-agent.d.ts",
+      "import": {
+        "development": "./src/communication/multi-agent.ts",
+        "default": "./dist/communication/multi-agent.js"
+      }
+    },
+    "./utils/format": {
+      "types": "./dist/utils/format.d.ts",
+      "import": {
+        "development": "./src/utils/format.ts",
+        "default": "./dist/utils/format.js"
+      }
+    },
+    "./nodejs": {
+      "types": "./dist/nodejs/index.d.ts",
+      "import": {
+        "development": "./src/nodejs/index.ts",
+        "default": "./dist/nodejs/index.js"
+      }
+    },
+    "./tools": {
+      "types": "./dist/tools/index.d.ts",
+      "import": {
+        "development": "./src/tools/index.ts",
+        "default": "./dist/tools/index.js"
+      }
+    },
+    "./tools/langchain": {
+      "types": "./dist/tools/langchain.d.ts",
+      "import": {
+        "development": "./src/tools/langchain.ts",
+        "default": "./dist/tools/langchain.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "npm run build:esm ",
+    "build:esm": "tsc --outDir dist/ ",
+    "build:cjs": "tsc --outDir dist-cjs/ -p tsconfig.cjs.json",
+    "dev": "tsx watch src/index.ts",
+    "release": "npm run build && release-it --only-version ",
+    "test": "jest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/debug": "^4.1.7",
+    "@types/inquirer": "^9.0.3",
+    "@types/node": "^18.15.10",
+    "@types/xml2js": "0.4.14",
+    "nodemon": "3.1.10",
+    "rimraf": "6.0.1",
+    "typescript": "^5.9.3",
+    "ts-jest": "29.3.2",
+    "@jest/globals": "30.1.2"
+  },
+  "dependencies": {
+    "jsonrepair": "^3.0.2",
+    "ring-buffer-ts": "^1.2.0",
+    "gpt-3-encoder": "v1.1.4",
+    "yaml": "2.8.2",
+    "xml2js": "0.6.2"
+  }
+}

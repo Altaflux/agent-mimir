@@ -1,5 +1,5 @@
 {
-  "name": "@agent-mimir/playwright-browser",
+  "name": "@mimir/playwright-browser",
   "description": "Playwright Web browser tool for langchain",
   "main": "dist/index.js",
   "type": "module",
@@ -21,7 +21,7 @@
     "release-it": "19.2.4",
     "rimraf": "^6.1.2",
     "typescript": "^5.3.3",
-    "agent-mimir": "*"
+    "@mimir/agent-core": "*"
   },
   "dependencies": {
     "async-exit-hook": "^2.0.1",
@@ -33,6 +33,6 @@
     "gpt-3-encoder": "v1.1.4"
   },
   "peerDependencies": {
-    "agent-mimir": "*"
+    "@mimir/agent-core": "*"
   }
 }

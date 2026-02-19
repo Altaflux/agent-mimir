@@ -1,16 +1,16 @@
-import { ComplexMessageContent, } from "agent-mimir/schema";
+import { ComplexMessageContent, } from "@mimir/agent-core/schema";
 import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod/v4";
 
-import { ToolResponse } from "agent-mimir/tools";
-import { AgentTool } from "agent-mimir/tools";
+import { ToolResponse } from "@mimir/agent-core/tools";
+import { AgentTool } from "@mimir/agent-core/tools";
 import screenshot, { DisplayID } from 'screenshot-desktop';
 import si from 'systeminformation';
 import { Key, keyboard, mouse, Button, Point } from "@nut-tree-fork/nut-js";
 import sharp from 'sharp';
 import { Coordinates, PythonServerControl, TextBlocks } from "./sam.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { AdditionalContent, AgentPlugin, PluginFactory, NextMessageUser, PluginContext, AgentSystemMessage } from "agent-mimir/plugins";
+import { AdditionalContent, AgentPlugin, PluginFactory, NextMessageUser, PluginContext, AgentSystemMessage } from "@mimir/agent-core/plugins";
 import Fuse from 'fuse.js';
 import { MolmoServerControl } from "./molmo.js";
 

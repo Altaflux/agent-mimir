@@ -1,0 +1,54 @@
+{
+    "name": "@mimir/runtime-shared",
+    "version": "0.0.1",
+    "private": true,
+    "type": "module",
+    "files": [
+        "dist"
+    ],
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./contracts": {
+            "types": "./dist/contracts.d.ts",
+            "import": "./dist/contracts.js"
+        },
+        "./runtime/config": {
+            "types": "./dist/runtime/config.d.ts",
+            "import": "./dist/runtime/config.js"
+        },
+        "./runtime/errors": {
+            "types": "./dist/runtime/errors.d.ts",
+            "import": "./dist/runtime/errors.js"
+        },
+        "./runtime/validators": {
+            "types": "./dist/runtime/validators.d.ts",
+            "import": "./dist/runtime/validators.js"
+        },
+        "./runtime/types": {
+            "types": "./dist/runtime/types.d.ts",
+            "import": "./dist/runtime/types.js"
+        },
+        "./runtime/session-manager": {
+            "types": "./dist/runtime/session-manager.d.ts",
+            "import": "./dist/runtime/session-manager.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsx watch src/index.ts"
+    },
+    "dependencies": {
+        "@langchain/core": "1.1.24",
+        "@langchain/langgraph": "1.1.4",
+        "@mimir/api-contracts": "*",
+        "@mimir/agent-core": "*"
+    },
+    "devDependencies": {
+        "@types/node": "^22.13.8",
+        "tsx": "4.20.5",
+        "typescript": "^5.9.3"
+    }
+}

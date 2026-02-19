@@ -1,10 +1,9 @@
 import { WebDriverManager } from "./driver-manager.js";
-
 import { WebBrowserOptions } from "./driver-manager.js";
 import { Embeddings } from "@langchain/core/embeddings";
 import { WebBrowserTool, PassValueToInput, ClickWebSiteLinkOrButton, ScrollTool } from "./tools.js";
-import { AgentPlugin, PluginContext, PluginFactory, NextMessageUser, AdditionalContent, NextMessage } from "agent-mimir/plugins";
-import { AgentTool } from "agent-mimir/tools";
+import { AgentPlugin, PluginContext, PluginFactory, NextMessageUser, AdditionalContent, NextMessage } from "@mimir/agent-core/plugins";
+import { AgentTool } from "@mimir/agent-core/tools";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import sharp from "sharp";
 import { InteractableElement } from "html-processor.js";

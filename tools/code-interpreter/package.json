@@ -1,5 +1,5 @@
 {
-  "name": "@agent-mimir/code-interpreter",
+  "name": "@mimir/code-interpreter",
   "description": "Python code interpreter tool for langchain",
   "main": "dist/index.js",
   "type": "module",
@@ -14,12 +14,12 @@
     "@types/node": "^18.16.3",
     "rimraf": "^5.0.0",
     "typescript": "^5.3.3",
-    "agent-mimir": "*"
+    "@mimir/agent-core": "*"
   },
   "dependencies": {
    
   },
   "peerDependencies": {
-    "agent-mimir": "*"
+    "@mimir/agent-core": "*"
   }
 }
