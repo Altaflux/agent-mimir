@@ -84,6 +84,7 @@ export const getFunctionsPrompt = (dependencies: string[], tool: AgentTool[]) =>
     return `\nThe python environment has the following global functions available for to use, use them to accomplish the requested goal from the user.
 The result of functions with an output parameter of "ToolResponse" can be printed with the "print" function, and the result will be returned to you.
 If the function has a different defined output type then its output can be used in other functions as an normal Python type.
+This specific functions do not require the installation of any dependency to be used.
 The parameters of this functions is a single Dictionary parameter, not a list of parameters. Example: functionName({"param1": "value1", "param2": "value2"}).
 FUNCTIONS LIST:\n${functions}\n\n---------------------------------\n
 ${dependencies.length > 0 ? `The following libraries are available in the Python environment: ${dependencies.join(", ")}` : ""}

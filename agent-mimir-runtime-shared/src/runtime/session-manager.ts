@@ -627,6 +627,7 @@ export class SessionManager {
             throw new HttpError(409, "SESSION_BUSY", "Cannot delete a session while it is processing a request.");
         }
 
+        await session.orchestrator.reset();
         await this.disposeSession(session, { removeDiscovery: true });
     }
 
@@ -1202,10 +1203,12 @@ export class SessionManager {
 
     private async cleanupExpiredSessions() {
         const now = Date.now();
-        const expired = [...this.sessions.values()].filter((session) => !session.running && now - session.lastActivityAt > this.sessionTtlMs);
+        const expired = [...this.sessions.values()].filter(
+            (session) => !session.running && session.subscribers.size === 0 && now - session.lastActivityAt > this.sessionTtlMs
+        );
 
         for (const session of expired) {
-            await this.disposeSession(session);
+            await this.suspendSessionRuntime(session);
         }
     }
 
@@ -1213,18 +1216,22 @@ export class SessionManager {
         clearInterval(this.cleanupTimer);
         const activeSessions = [...this.sessions.values()];
         for (const session of activeSessions) {
-            await this.disposeSession(session);
+            await this.suspendSessionRuntime(session);
         }
     }
 
-    private async disposeSession(session: SessionRuntime, options: { removeDiscovery?: boolean } = {}): Promise<void> {
+    private async suspendSessionRuntime(session: SessionRuntime): Promise<void> {
         this.sessions.delete(session.sessionId);
         this.sessionHydrationPromises.delete(session.sessionId);
+        session.subscribers.clear();
+        await session.orchestrator.shutDown();
+    }
+
+    private async disposeSession(session: SessionRuntime, options: { removeDiscovery?: boolean } = {}): Promise<void> {
+        await this.suspendSessionRuntime(session);
         if (options.removeDiscovery) {
             this.discoveredSessions.delete(session.sessionId);
         }
-        session.subscribers.clear();
-        await session.orchestrator.shutDown()
         await fs.rm(session.cleanupPath, { recursive: true, force: true }).catch(() => {
             return;
         });
