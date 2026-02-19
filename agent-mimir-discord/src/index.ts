@@ -217,7 +217,7 @@ export const run = async () => {
 
         if (interaction.commandName === 'reset') {
             try {
-                await chatAgentHandle.reset({  });
+                await chatAgentHandle.reset();
             } catch (e) {
                 console.error(e);
                 await interaction.editReply('There was an error resetting the agent.');

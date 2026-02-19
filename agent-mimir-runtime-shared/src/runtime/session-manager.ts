@@ -14,6 +14,7 @@ import { Agent, InputAgentMessage, SharedFile } from "agent-mimir/agent";
 import {
     AgentToolRequestTwo,
     HandleMessageResult,
+    HydratedOrchestratorEvent,
     IntermediateAgentResponse,
     MultiAgentCommunicationOrchestrator,
     OrchestratorBuilder
@@ -27,7 +28,7 @@ import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
 import { CodeAgentFactory, DockerPythonExecutor, LocalPythonExecutor } from "agent-mimir/agent/code-agent";
-import { MemorySaver } from "@langchain/langgraph";
+import { BaseCheckpointSaver, MemorySaver } from "@langchain/langgraph";
 
 const SESSION_EVENT_CAP = 500;
 const DEFAULT_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
@@ -105,6 +106,22 @@ type SessionRuntime = {
     running: boolean;
 };
 
+type RuntimeConfigBundle = {
+    config: AgentMimirConfig;
+    checkpointer: BaseCheckpointSaver;
+};
+
+type PersistedSessionInfo = {
+    sessionId: string;
+    earliestTimestampMs: number;
+    latestTimestampMs: number;
+};
+
+type EmitEventOptions = {
+    timestamp?: string;
+    preserveLastActivity?: boolean;
+};
+
 export type SessionSubscription = {
     state: SessionState;
     backlog: SessionEvent[];
@@ -124,6 +141,9 @@ export class SessionManager {
     private readonly sessionTtlMs: number;
     private readonly uploadLimits: UploadLimits;
     private readonly cleanupTimer: NodeJS.Timeout;
+    private runtimeConfigPromise: Promise<RuntimeConfigBundle> | null = null;
+    private hydrationPromise: Promise<void> | null = null;
+    private hydrationComplete = false;
 
     constructor(options: SessionManagerOptions = {}) {
         this.sessionTtlMs =
@@ -173,9 +193,281 @@ export class SessionManager {
         };
     }
 
+    private async getRuntimeConfig(): Promise<RuntimeConfigBundle> {
+        if (!this.runtimeConfigPromise) {
+            this.runtimeConfigPromise = (async () => {
+                const config = await getConfig();
+                return {
+                    config,
+                    checkpointer: config.checkpointer ?? new MemorySaver()
+                };
+            })();
+        }
+
+        return await this.runtimeConfigPromise;
+    }
+
+    private async ensureHydrated(): Promise<void> {
+        if (this.hydrationComplete) {
+            return;
+        }
+
+        if (!this.hydrationPromise) {
+            this.hydrationPromise = (async () => {
+                try {
+                    await this.hydratePersistedSessions();
+                } catch (error) {
+                    console.error("Session hydration failed.", error);
+                } finally {
+                    this.hydrationComplete = true;
+                }
+            })();
+        }
+
+        await this.hydrationPromise;
+    }
+
+    private async hydratePersistedSessions(): Promise<void> {
+        const { config, checkpointer } = await this.getRuntimeConfig();
+        const validAgentNames = new Set(Object.keys(config.agents));
+        const persistedSessions = await this.discoverPersistedSessions(checkpointer, validAgentNames);
+        for (const persistedSession of persistedSessions) {
+            if (this.sessions.has(persistedSession.sessionId)) {
+                continue;
+            }
+
+            try {
+                await this.hydrateSessionRuntime(persistedSession, config, checkpointer);
+            } catch (error) {
+                console.warn(`Failed to hydrate session ${persistedSession.sessionId}.`, error);
+            }
+        }
+    }
+
+    private async discoverPersistedSessions(
+        checkpointer: BaseCheckpointSaver,
+        validAgentNames: Set<string>
+    ): Promise<PersistedSessionInfo[]> {
+        const sessions = new Map<string, PersistedSessionInfo>();
+        const allThreads = checkpointer.list({ configurable: {} });
+        for await (const checkpointTuple of allThreads) {
+            const threadId = checkpointTuple.config?.configurable?.thread_id;
+            if (typeof threadId !== "string") {
+                continue;
+            }
+
+            const parsed = this.parseSessionThreadId(threadId);
+            if (!parsed || !validAgentNames.has(parsed.agentName)) {
+                continue;
+            }
+
+            const timestampMs = Date.parse(checkpointTuple.checkpoint.ts);
+            const normalizedTimestampMs = Number.isFinite(timestampMs) ? timestampMs : Date.now();
+            const existing = sessions.get(parsed.sessionId);
+            if (existing) {
+                existing.earliestTimestampMs = Math.min(existing.earliestTimestampMs, normalizedTimestampMs);
+                existing.latestTimestampMs = Math.max(existing.latestTimestampMs, normalizedTimestampMs);
+                continue;
+            }
+
+            sessions.set(parsed.sessionId, {
+                sessionId: parsed.sessionId,
+                earliestTimestampMs: normalizedTimestampMs,
+                latestTimestampMs: normalizedTimestampMs
+            });
+        }
+
+        return [...sessions.values()].sort((left, right) => left.earliestTimestampMs - right.earliestTimestampMs);
+    }
+
+    private async hydrateSessionRuntime(
+        persistedSession: PersistedSessionInfo,
+        config: AgentMimirConfig,
+        checkpointer: BaseCheckpointSaver
+    ): Promise<void> {
+        const configuredRoot = config.workingDirectory
+            ? path.resolve(config.workingDirectory)
+            : await fs.mkdtemp(path.join(os.tmpdir(), "mimir-web-"));
+        const workingRoot = path.join(configuredRoot, persistedSession.sessionId);
+        const cleanupPath = config.workingDirectory ? workingRoot : configuredRoot;
+        const uploadDirectory = path.join(workingRoot, "_uploads");
+        await fs.mkdir(uploadDirectory, { recursive: true });
+
+        const orchestratorBuilder = new OrchestratorBuilder(persistedSession.sessionId);
+        const workspaceFactory = async (agentName: string) => {
+            const tempDir = path.join(workingRoot, agentName);
+            await fs.mkdir(tempDir, { recursive: true });
+            const workspace = new FileSystemAgentWorkspace(tempDir);
+            await fs.mkdir(workspace.workingDirectory, { recursive: true });
+            return workspace;
+        };
+  
+        const agents = await this.createAgents(config, checkpointer, orchestratorBuilder, workspaceFactory);
+        const mainAgent =
+            agents.length === 1 ? agents[0]?.agent : agents.find((agentDefinition) => agentDefinition.mainAgent)?.agent;
+        if (!mainAgent) {
+            throw new HttpError(500, "INVALID_CONFIG", "No main agent found in configuration.");
+        }
+
+        const session: SessionRuntime = {
+            sessionId: persistedSession.sessionId,
+            name: `Chat ${persistedSession.sessionId.slice(0, 8)}`,
+            createdAt: persistedSession.earliestTimestampMs,
+            lastActivityAt: persistedSession.latestTimestampMs,
+            continuousMode: config.continuousMode ?? false,
+            activeAgentName: mainAgent.name,
+            agentNames: agents.map((entry) => entry.name),
+            agentsByName: new Map(agents.map((entry) => [entry.name, entry.agent])),
+            orchestrator: orchestratorBuilder.build(mainAgent),
+            pendingToolRequest: null,
+            eventBuffer: [],
+            subscribers: new Set<SessionListener>(),
+            fileRegistry: new Map(),
+            uploadDirectory,
+            workingRoot,
+            cleanupPath,
+            running: false
+        };
+
+        const replayedConversation = await session.orchestrator.hydrateConversation(session.sessionId);
+        await this.applyHydratedConversation(session, replayedConversation);
+        session.activeAgentName = session.orchestrator.currentAgent.name;
+        this.sessions.set(session.sessionId, session);
+    }
+
+    private parseSessionThreadId(threadId: string): { sessionId: string; agentName: string } | null {
+        const separatorIndex = threadId.lastIndexOf("#");
+        if (separatorIndex <= 0 || separatorIndex >= threadId.length - 1) {
+            return null;
+        }
+
+        return {
+            sessionId: threadId.slice(0, separatorIndex),
+            agentName: threadId.slice(separatorIndex + 1)
+        };
+    }
+
+    private async applyHydratedConversation(session: SessionRuntime, events: HydratedOrchestratorEvent[]) {
+        let latestActivity = session.lastActivityAt;
+
+        for (const event of events) {
+            const parsedTimestamp = Date.parse(event.timestamp);
+            if (Number.isFinite(parsedTimestamp)) {
+                latestActivity = Math.max(latestActivity, parsedTimestamp);
+            }
+
+            if (event.type === "userMessage") {
+                const { workspaceFiles, chatImages } = this.classifyHydratedSharedFiles(event.value.sharedFiles ?? []);
+                this.emitEvent(
+                    session,
+                    {
+                        type: "user_message",
+                        text: extractAllTextFromComplexResponse(event.value.content),
+                        workspaceFiles,
+                        chatImages
+                    },
+                    { timestamp: event.timestamp, preserveLastActivity: true }
+                );
+                session.pendingToolRequest = null;
+                continue;
+            }
+
+            if (event.type === "intermediate") {
+                if (event.value.type === "intermediateOutput" && event.value.value.type === "toolResponse") {
+                    this.emitEvent(
+                        session,
+                        {
+                            type: "tool_response",
+                            agentName: event.value.agentName,
+                            toolName: event.value.value.toolResponse.name,
+                            toolCallId: event.value.value.toolResponse.id,
+                            response: extractAllTextFromComplexResponse(event.value.value.toolResponse.response)
+                        },
+                        { timestamp: event.timestamp, preserveLastActivity: true }
+                    );
+                    continue;
+                }
+
+                if (event.value.type !== "agentToAgentMessage") {
+                    continue;
+                }
+
+                const messageId = (event.value.value.content as { id?: string }).id;
+                const attachments = await this.registerSharedFiles(session, event.value.value.content.sharedFiles ?? []);
+                this.emitEvent(
+                    session,
+                    {
+                        type: "agent_to_agent",
+                        messageId,
+                        sourceAgent: event.value.value.sourceAgent,
+                        destinationAgent: event.value.value.destinationAgent,
+                        message: extractAllTextFromComplexResponse(event.value.value.content.content),
+                        attachments
+                    },
+                    { timestamp: event.timestamp, preserveLastActivity: true }
+                );
+                session.pendingToolRequest = null;
+                continue;
+            }
+
+            if (event.value.type === "toolRequest") {
+                this.emitEvent(
+                    session,
+                    {
+                        type: "tool_request",
+                        payload: this.toToolRequestPayload(event.value),
+                        requiresApproval: !session.continuousMode
+                    },
+                    { timestamp: event.timestamp, preserveLastActivity: true }
+                );
+                session.pendingToolRequest = event.value;
+                continue;
+            }
+
+            const text = extractAllTextFromComplexResponse(event.value.content.content);
+            const attachments = await this.registerSharedFiles(session, event.value.content.sharedFiles ?? []);
+            const responseMessageId = (event.value.content as { id?: string }).id ?? crypto.randomUUID();
+            this.emitEvent(
+                session,
+                {
+                    type: "agent_response",
+                    agentName: event.agentName,
+                    messageId: responseMessageId,
+                    markdown: text,
+                    attachments
+                },
+                { timestamp: event.timestamp, preserveLastActivity: true }
+            );
+            session.pendingToolRequest = null;
+        }
+
+        session.lastActivityAt = latestActivity;
+    }
+
+    private classifyHydratedSharedFiles(sharedFiles: SharedFile[]): { workspaceFiles: string[]; chatImages: string[] } {
+        const workspaceFiles: string[] = [];
+        const chatImages: string[] = [];
+
+        for (const file of sharedFiles) {
+            const extension = path.extname(file.fileName).toLowerCase();
+            if (extension === ".png" || extension === ".jpg" || extension === ".jpeg") {
+                chatImages.push(file.fileName);
+                continue;
+            }
+
+            workspaceFiles.push(file.fileName);
+        }
+
+        return {
+            workspaceFiles,
+            chatImages
+        };
+    }
+
     async createSession(name?: string): Promise<SessionState> {
+        await this.ensureHydrated();
         const sessionId = crypto.randomUUID();
-        const config = await getConfig();
+        const { config, checkpointer } = await this.getRuntimeConfig();
         const now = Date.now();
 
         const configuredRoot = config.workingDirectory
@@ -197,7 +489,7 @@ export class SessionManager {
                 return workspace;
             };
 
-            const agents = await this.createAgents(config, orchestratorBuilder, workspaceFactory);
+            const agents = await this.createAgents(config, checkpointer, orchestratorBuilder, workspaceFactory);
 
             const mainAgent =
                 agents.length === 1
@@ -241,18 +533,21 @@ export class SessionManager {
         }
     }
 
-    listSessions(): SessionSummary[] {
+    async listSessions(): Promise<SessionSummary[]> {
+        await this.ensureHydrated();
         return [...this.sessions.values()]
             .map((session) => this.toSessionSummary(session))
             .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
     }
 
-    getSessionState(sessionId: string): SessionState {
+    async getSessionState(sessionId: string): Promise<SessionState> {
+        await this.ensureHydrated();
         const session = this.requireSession(sessionId);
         return this.toSessionState(session);
     }
 
     async deleteSession(sessionId: string): Promise<void> {
+        await this.ensureHydrated();
         const session = this.requireSession(sessionId);
         if (session.running) {
             throw new HttpError(409, "SESSION_BUSY", "Cannot delete a session while it is processing a request.");
@@ -262,11 +557,17 @@ export class SessionManager {
     }
 
     async resetSession(sessionId: string): Promise<SessionState> {
+        await this.ensureHydrated();
         const session = this.requireSession(sessionId);
         return await this.withSessionLock(session, async () => {
-            await session.orchestrator.reset({  });
+            await session.orchestrator.reset();
             session.pendingToolRequest = null;
             session.fileRegistry.clear();
+            session.eventBuffer = [];
+            await fs.rm(session.uploadDirectory, { recursive: true, force: true }).catch(() => {
+                return;
+            });
+            await fs.mkdir(session.uploadDirectory, { recursive: true });
 
             this.emitEvent(session, {
                 type: "reset",
@@ -279,6 +580,7 @@ export class SessionManager {
     }
 
     async setContinuousMode(sessionId: string, enabled: boolean): Promise<SessionState> {
+        await this.ensureHydrated();
         const session = this.requireSession(sessionId);
         if (session.running) {
             throw new HttpError(409, "SESSION_BUSY", "Cannot change continuous mode while the session is processing.");
@@ -291,6 +593,7 @@ export class SessionManager {
     }
 
     async setActiveAgent(sessionId: string, activeAgentName: string): Promise<SessionState> {
+        await this.ensureHydrated();
         const session = this.requireSession(sessionId);
         if (session.running) {
             throw new HttpError(409, "SESSION_BUSY", "Cannot switch active agent while the session is processing.");
@@ -309,6 +612,7 @@ export class SessionManager {
     }
 
     async sendMessage(sessionId: string, input: SendMessageInput): Promise<SessionState> {
+        await this.ensureHydrated();
         const session = this.requireSession(sessionId);
         return await this.withSessionLock(session, async () => {
             if (session.pendingToolRequest) {
@@ -338,6 +642,7 @@ export class SessionManager {
     }
 
     async submitApproval(sessionId: string, request: ApprovalRequest): Promise<SessionState> {
+        await this.ensureHydrated();
         const session = this.requireSession(sessionId);
         return await this.withSessionLock(session, async () => {
             const pending = session.pendingToolRequest;
@@ -380,7 +685,8 @@ export class SessionManager {
         });
     }
 
-    subscribe(sessionId: string, listener: SessionListener): SessionSubscription {
+    async subscribe(sessionId: string, listener: SessionListener): Promise<SessionSubscription> {
+        await this.ensureHydrated();
         const session = this.requireSession(sessionId);
         session.subscribers.add(listener);
         session.lastActivityAt = Date.now();
@@ -395,6 +701,7 @@ export class SessionManager {
     }
 
     async resolveFile(sessionId: string, fileId: string): Promise<SessionFileRecord> {
+        await this.ensureHydrated();
         const session = this.requireSession(sessionId);
         const found = session.fileRegistry.get(fileId);
         if (!found) {
@@ -415,10 +722,10 @@ export class SessionManager {
 
     private async createAgents(
         config: AgentMimirConfig,
+        checkpointer: BaseCheckpointSaver,
         builder: OrchestratorBuilder,
         workspaceFactory: (agentName: string) => Promise<FileSystemAgentWorkspace>
     ): Promise<AgentDefinitionRuntime[]> {
-        const checkpointer = config.checkpointer ?? new MemorySaver();
         return await Promise.all(
             Object.entries(config.agents).map(async ([agentName, agentDefinition]) => {
                 if (!agentDefinition.definition) {
@@ -711,15 +1018,17 @@ export class SessionManager {
         });
     }
 
-    private emitEvent(session: SessionRuntime, event: SessionEventPayload) {
+    private emitEvent(session: SessionRuntime, event: SessionEventPayload, options: EmitEventOptions = {}) {
         const enriched = {
             ...event,
             id: crypto.randomUUID(),
             sessionId: session.sessionId,
-            timestamp: new Date().toISOString()
+            timestamp: options.timestamp ?? new Date().toISOString()
         } as unknown as SessionEvent;
 
-        session.lastActivityAt = Date.now();
+        if (!options.preserveLastActivity) {
+            session.lastActivityAt = Date.now();
+        }
         session.eventBuffer.push(enriched);
         if (session.eventBuffer.length > SESSION_EVENT_CAP) {
             session.eventBuffer.shift();
@@ -830,10 +1139,6 @@ export class SessionManager {
 
     async shutDown(): Promise<void> {
         clearInterval(this.cleanupTimer);
-        const activeSessions = [...this.sessions.values()];
-        for (const session of activeSessions) {
-            await this.disposeSession(session);
-        }
     }
 
     private async disposeSession(session: SessionRuntime): Promise<void> {

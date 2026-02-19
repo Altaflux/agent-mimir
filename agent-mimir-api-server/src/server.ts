@@ -311,7 +311,7 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
 
             api.get("/sessions", async (_request, reply) => {
                 const response: ListSessionsResponse = {
-                    sessions: sessionManager.listSessions()
+                    sessions: await sessionManager.listSessions()
                 };
                 reply.header("Cache-Control", "no-store");
                 reply.send(response);
@@ -456,7 +456,7 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
                     emitRaw(encodeSseChunk(enrichSessionEventForClient(event, publicApiBasePath)));
                 };
 
-                const subscription = sessionManager.subscribe(sessionId, (event) => {
+                const subscription = await sessionManager.subscribe(sessionId, (event) => {
                     emitEvent(event);
                 });
 

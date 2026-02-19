@@ -1,4 +1,4 @@
-import { Agent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, InputAgentMessage, AgentFactory, CommandRequest, IntermediateAgentMessage } from "../agent-manager/index.js";
+import { Agent, AgentHydrationEvent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, InputAgentMessage, AgentFactory, CommandRequest, IntermediateAgentMessage } from "../agent-manager/index.js";
 import { HelpersPluginFactory } from "./helpers.js";
 
 type PendingMessage = {
@@ -37,6 +37,27 @@ export type AgentToolRequestTwo = AgentMessageToolRequest & {
 
 export type AgentUserMessage = {
     content: InputAgentMessage,
+}
+
+type AgentHydrationEventWithAgent = AgentHydrationEvent & {
+    agentName: string,
+    sequence: number,
+}
+
+export type HydratedOrchestratorEvent = {
+    type: "userMessage",
+    timestamp: string,
+    sourceAgent: string,
+    value: InputAgentMessage
+} | {
+    type: "intermediate",
+    timestamp: string,
+    value: IntermediateAgentResponse
+} | {
+    type: "result",
+    timestamp: string,
+    agentName: string,
+    value: HandleMessageResult
 }
 
 const DESTINATION_AGENT_ATTRIBUTE = "destinationAgent";
@@ -93,9 +114,9 @@ export class MultiAgentCommunicationOrchestrator {
         return this.currentAgent;
     }
 
-    async reset(args: { checkpointId?: string }) {
+    async reset() {
         for (const agent of this.agentManager.values()) {
-            await agent.reset({ sessionId: this.sessionId, checkpointId: args.checkpointId });
+            await agent.reset({ sessionId: this.sessionId });
         }
     }
 
@@ -108,61 +129,138 @@ export class MultiAgentCommunicationOrchestrator {
     async* handleMessage(args: {
         message: InputAgentMessage | null;
     }, sessionId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
-        return yield* this.doInvocation((agent) => agent.call({ message: args.message, sessionId: sessionId }), sessionId);
+        return yield* this.doInvocation((agent) => agent.call({ message: args.message, sessionId: sessionId }));
     }
 
     async* handleCommand(args: {
         command: CommandRequest;
     }, sessionId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
-        return yield* this.doInvocation((agent) => agent.handleCommand({ command: args.command, sessionId: sessionId }), sessionId);
+        return yield* this.doInvocation((agent) => agent.handleCommand({ command: args.command, sessionId: sessionId }));
     }
 
+    async hydrateConversation(sessionId: string): Promise<HydratedOrchestratorEvent[]> {
+        const hydrationEvents: AgentHydrationEventWithAgent[] = [];
+        let sequence = 0;
 
-    private async* doInvocation(msg: AgentInvoke, threadId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
-
-        const handleMessage = async (graphResponse: AgentUserMessageResponse, agentStack: Agent[], threadId: string): Promise<{
-            conversationComplete: boolean,
-            currentAgent: Agent,
-            pendingMessage: PendingMessage | undefined
-        }> => {
-            if (graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE]) {
-                const newAgent = this.agentManager.get(graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE]);
-                if (!newAgent) {
-                    return {
-                        conversationComplete: false,
-                        currentAgent: this.currentAgent,
-                        pendingMessage: {
-                            replyFromAgent: undefined,
-                            content: {
-                                content: [
-                                    { type: "text", text: `Agent ${graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE]} does not exist.` }
-                                ]
-                            },
-
-                        }
-                    }
-                }
-                agentStack.push(this.currentAgent);
-                return {
-                    conversationComplete: false,
-                    currentAgent: newAgent,
-                    pendingMessage: {
-                        replyFromAgent: undefined,
-                        content: graphResponse.output
-                    }
-                }
-            } else {
-                const isFinalUser = agentStack.length === 0;
-                return {
-                    conversationComplete: isFinalUser,
-                    currentAgent: isFinalUser ? this.currentAgent : agentStack.pop()!,
-                    pendingMessage: {
-                        replyFromAgent: this.currentAgent.name,
-                        content: graphResponse.output,
-                    }
-                }
+        for (const agent of this.agentManager.values()) {
+            const events = await agent.readHydrationEvents({ sessionId });
+            for (const event of events) {
+                hydrationEvents.push({
+                    ...event,
+                    agentName: agent.name,
+                    sequence: sequence++,
+                });
             }
         }
+
+        hydrationEvents.sort((left, right) => this.compareHydrationEvents(left, right));
+        this.agentStack = [];
+
+        const replayed: HydratedOrchestratorEvent[] = [];
+        for (const event of hydrationEvents) {
+            const sourceAgent = this.agentManager.get(event.agentName);
+            if (sourceAgent) {
+                this.currentAgent = sourceAgent;
+            }
+
+            if (event.type === "userMessage") {
+                replayed.push({
+                    type: "userMessage",
+                    timestamp: event.timestamp,
+                    sourceAgent: event.agentName,
+                    value: event.content
+                });
+                continue;
+            }
+
+            if (event.type === "toolRequest") {
+                replayed.push({
+                    type: "result",
+                    timestamp: event.timestamp,
+                    agentName: event.agentName,
+                    value: {
+                        type: "toolRequest",
+                        callingAgent: event.agentName,
+                        ...event.output,
+                    },
+                });
+                continue;
+            }
+
+            if (event.type === "toolResponse") {
+                replayed.push({
+                    type: "intermediate",
+                    timestamp: event.timestamp,
+                    value: {
+                        type: "intermediateOutput",
+                        agentName: event.agentName,
+                        value: event.output
+                    }
+                });
+                continue;
+            }
+
+            const routedMessage = this.routeAgentResponse(
+                {
+                    type: "agentResponse",
+                    checkpointId: event.checkpointId,
+                    output: event.output,
+                    responseAttributes: event.responseAttributes,
+                },
+                this.agentStack
+            );
+            const messageSourceAgent = this.currentAgent.name;
+            this.currentAgent = routedMessage.currentAgent;
+
+            if (routedMessage.conversationComplete) {
+                replayed.push({
+                    type: "result",
+                    timestamp: event.timestamp,
+                    agentName: messageSourceAgent,
+                    value: {
+                        type: "agentResponse",
+                        content: event.output,
+                    },
+                });
+                continue;
+            }
+
+            replayed.push({
+                type: "intermediate",
+                timestamp: event.timestamp,
+                value: {
+                    type: "agentToAgentMessage",
+                    value: {
+                        content: event.output,
+                        destinationAgent: this.currentAgent.name,
+                        sourceAgent: messageSourceAgent,
+                    },
+                },
+            });
+        }
+
+        return replayed;
+    }
+
+    private compareHydrationEvents(left: AgentHydrationEventWithAgent, right: AgentHydrationEventWithAgent): number {
+        const leftTimestamp = Date.parse(left.timestamp);
+        const rightTimestamp = Date.parse(right.timestamp);
+        if (Number.isFinite(leftTimestamp) && Number.isFinite(rightTimestamp) && leftTimestamp !== rightTimestamp) {
+            return leftTimestamp - rightTimestamp;
+        }
+
+        if (left.checkpointId !== right.checkpointId) {
+            return left.checkpointId.localeCompare(right.checkpointId);
+        }
+
+        if (left.agentName !== right.agentName) {
+            return left.agentName.localeCompare(right.agentName);
+        }
+
+        return left.sequence - right.sequence;
+    }
+
+    private async* doInvocation(msg: AgentInvoke): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
         let pendingMessage: PendingMessage | undefined = undefined;
         while (true) {
 
@@ -198,7 +296,7 @@ export class MultiAgentCommunicationOrchestrator {
 
             if (graphResponse.type == "agentResponse") {
                 const sourceAgent = this.currentAgent.name;
-                const routedMessage = await handleMessage(graphResponse, this.agentStack, threadId);
+                const routedMessage = this.routeAgentResponse(graphResponse, this.agentStack);
                 this.currentAgent = routedMessage.currentAgent;
                 if (routedMessage.conversationComplete) {
                     return {
@@ -224,5 +322,49 @@ export class MultiAgentCommunicationOrchestrator {
                 }
             }
         }
+    }
+
+    private routeAgentResponse(graphResponse: AgentUserMessageResponse, agentStack: Agent[]): {
+        conversationComplete: boolean,
+        currentAgent: Agent,
+        pendingMessage: PendingMessage | undefined
+    } {
+        if (graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE]) {
+            const destinationAgentName = graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE];
+            const newAgent = this.agentManager.get(destinationAgentName);
+            if (!newAgent) {
+                return {
+                    conversationComplete: false,
+                    currentAgent: this.currentAgent,
+                    pendingMessage: {
+                        replyFromAgent: undefined,
+                        content: {
+                            content: [
+                                { type: "text", text: `Agent ${destinationAgentName} does not exist.` }
+                            ]
+                        },
+                    }
+                };
+            }
+            agentStack.push(this.currentAgent);
+            return {
+                conversationComplete: false,
+                currentAgent: newAgent,
+                pendingMessage: {
+                    replyFromAgent: undefined,
+                    content: graphResponse.output
+                }
+            };
+        }
+
+        const isFinalUser = agentStack.length === 0;
+        return {
+            conversationComplete: isFinalUser,
+            currentAgent: isFinalUser ? this.currentAgent : agentStack.pop()!,
+            pendingMessage: {
+                replyFromAgent: this.currentAgent.name,
+                content: graphResponse.output,
+            }
+        };
     }
 }

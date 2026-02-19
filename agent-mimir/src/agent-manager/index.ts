@@ -88,9 +88,12 @@ export interface Agent {
     commands: AgentCommand[],
     /** Resets the agent's state */
     reset: (args: {
-        sessionId: string,
-        checkpointId?: string
+        sessionId: string
     }) => Promise<void>,
+
+    readHydrationEvents: (args: {
+        sessionId: string
+    }) => Promise<AgentHydrationEvent[]>,
 
     shutDown: () => Promise<void>,
 };
@@ -125,6 +128,30 @@ export type AgentUserMessageResponse = {
  * Union type representing all possible agent response types.
  */
 export type AgentResponse = AgentToolRequestResponse | AgentUserMessageResponse;
+
+export type AgentHydrationEvent = {
+    type: "userMessage",
+    timestamp: string,
+    checkpointId: string,
+    content: InputAgentMessage
+} | {
+    type: "toolResponse",
+    timestamp: string,
+    checkpointId: string,
+    output: Extract<IntermediateAgentMessage, { type: "toolResponse" }>
+} | {
+    type: "agentResponse",
+    timestamp: string,
+    checkpointId: string,
+    output: OutputAgentMessage,
+    responseAttributes: Record<string, any>
+} | {
+    type: "toolRequest",
+    timestamp: string,
+    checkpointId: string,
+    output: AgentMessageToolRequest,
+    responseAttributes: Record<string, any>
+};
 
 /**
  * Represents a command request that can be sent to an agent.

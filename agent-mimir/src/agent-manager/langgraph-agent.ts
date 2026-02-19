@@ -1,7 +1,7 @@
 import { CompiledStateGraph, Command,  StateDefinition, StateSchema, MessagesValue, BaseCheckpointSaver } from "@langchain/langgraph";
 import { AgentCommand, AgentPlugin } from "../plugins/index.js";
-import { Agent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, CommandRequest, InputAgentMessage, IntermediateAgentMessage, SharedFile } from "./index.js";
-import { AIMessageChunk, BaseMessage, HumanMessage,  RemoveMessage, ToolMessage } from "@langchain/core/messages";
+import { Agent, AgentHydrationEvent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, CommandRequest, InputAgentMessage, IntermediateAgentMessage, SharedFile } from "./index.js";
+import { AIMessage, AIMessageChunk, BaseMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { v4 } from "uuid";
 import { complexResponseToLangchainMessageContent, extractAllTextFromComplexResponse } from "../utils/format.js";
 import { commandContentToBaseMessage, lCmessageContentToContent } from "./message-utils.js";
@@ -116,27 +116,137 @@ export class LanggraphAgent implements Agent {
         await Promise.all(this.args.plugins.map(async plugin => await plugin.destroy()));
     }
 
-    async reset(args: { sessionId: string,  checkpointId?: string; }): Promise<void> {
-        let stateConfig = {
-            streamMode: ["messages" as const, "values" as const],
-        };
+    async reset(args: { sessionId: string; }): Promise<void> {
+        await Promise.all(this.args.plugins.map(async plugin => await plugin.reset()));
+        await this.args.workspace.reset();
 
-        const allList = (this.graph.checkpointer as BaseCheckpointSaver).list({})
-        for await (const i of allList) {
-            console.log(JSON.stringify(i))
+        const checkpointer = this.graph.checkpointer as BaseCheckpointSaver | boolean | undefined;
+        if (checkpointer && checkpointer !== true) {
+            await checkpointer.deleteThread(`${args.sessionId}#${this.name}`);
         }
-//         await Promise.all(this.args.plugins.map(async plugin => await plugin.reset()));
-//         await this.args.workspace.reset();
-// //        const iter = this.graph.getStateHistory({ ...stateConfig, configurable: { thread_id: `${args.threadId}` } });
-//         // for await (const i of iter) {
-//         //     console.log(JSON.stringify(i))
-//         // }
+    }
 
-//         const state = await this.graph.getState({ ...stateConfig, configurable: { thread_id: `${args.threadId}` } });
-//         const messages: BaseMessage[] = state.values["messages"] ?? [];
-//         const messagesToRemove = messages.map((m) => new RemoveMessage({ id: m.id! }));
-//        // (this.graph.checkpointer! as BaseCheckpointSaver).deleteThread
-//         await this.graph.updateState({ ...stateConfig, configurable: { thread_id: `${args.threadId}` } }, { messages: messagesToRemove })
+    async readHydrationEvents(args: { sessionId: string; }): Promise<AgentHydrationEvent[]> {
+        const threadId = `${args.sessionId}#${this.name}`;
+        const stateHistory = this.graph.getStateHistory({
+            configurable: {
+                thread_id: threadId
+            }
+        });
+
+        const snapshots: any[] = [];
+        for await (const snapshot of stateHistory) {
+            snapshots.push(snapshot);
+        }
+
+        snapshots.reverse();
+        const seenMessageIds = new Set<string>();
+        const events: AgentHydrationEvent[] = [];
+
+        for (const snapshot of snapshots) {
+            const values = snapshot.values ?? {};
+            const messages = (values.messages ?? []) as BaseMessage[];
+            const checkpointId =
+                String(snapshot.config?.configurable?.checkpoint_id ?? snapshot.metadata?.step ?? "unknown-checkpoint");
+            const timestamp = snapshot.createdAt ?? new Date().toISOString();
+            const responseAttributes = (values.responseAttributes ?? {}) as Record<string, any>;
+
+            for (let idx = 0; idx < messages.length; idx += 1) {
+                const message = messages[idx]!;
+                const messageId = message.id ?? `${checkpointId}:${idx}:${message.constructor?.name ?? "message"}`;
+                if (seenMessageIds.has(messageId)) {
+                    continue;
+                }
+                seenMessageIds.add(messageId);
+
+                if (HumanMessage.isInstance(message)) {
+                    const content = lCmessageContentToContent(message.contentBlocks);
+                    const messageText = extractAllTextFromComplexResponse(content).trim();
+                    const sharedFiles = (message.additional_kwargs?.shared_files as SharedFile[] | undefined) ?? [];
+                    const isForwardedMessage = messageText.startsWith("This message is from ");
+                    const isSyntheticMessage = typeof message.id === "string" && message.id.startsWith("do-not-render-");
+
+                    if (isForwardedMessage || isSyntheticMessage) {
+                        continue;
+                    }
+
+                    if (messageText.length === 0 && sharedFiles.length === 0) {
+                        continue;
+                    }
+
+                    events.push({
+                        type: "userMessage",
+                        timestamp,
+                        checkpointId,
+                        content: {
+                            content,
+                            sharedFiles
+                        }
+                    });
+                    continue;
+                }
+
+                if (ToolMessage.isInstance(message)) {
+                    const response = lCmessageContentToContent(message.contentBlocks);
+                    events.push({
+                        type: "toolResponse",
+                        timestamp,
+                        checkpointId,
+                        output: {
+                            type: "toolResponse",
+                            id: message.tool_call_id ?? message.id ?? v4(),
+                            toolResponse: {
+                                id: message.tool_call_id ?? message.id ?? undefined,
+                                name: message.name ?? "Unknown",
+                                response
+                            }
+                        }
+                    });
+                    continue;
+                }
+
+                if (!AIMessage.isInstance(message)) {
+                    continue;
+                }
+
+                const content = lCmessageContentToContent(message.contentBlocks);
+                const sharedFiles = (message.additional_kwargs?.shared_files as SharedFile[] | undefined) ?? [];
+                const outputId = message.id ?? v4();
+                if ((message.tool_calls?.length ?? 0) > 0) {
+                    events.push({
+                        type: "toolRequest",
+                        timestamp,
+                        checkpointId,
+                        output: {
+                            id: outputId,
+                            content,
+                            sharedFiles,
+                            toolCalls: message.tool_calls!.map((toolCall) => ({
+                                id: toolCall.id,
+                                toolName: toolCall.name ?? "Unknown",
+                                input: JSON.stringify(toolCall.args ?? {}, null, 2)
+                            }))
+                        } satisfies AgentMessageToolRequest,
+                        responseAttributes
+                    });
+                    continue;
+                }
+
+                events.push({
+                    type: "agentResponse",
+                    timestamp,
+                    checkpointId,
+                    output: {
+                        id: outputId,
+                        content,
+                        sharedFiles
+                    },
+                    responseAttributes
+                });
+            }
+        }
+
+        return events;
     }
 
     async *executeGraph(graphInput: any, sessionId: string,  checkpointId?: string ): AsyncGenerator<IntermediateAgentMessage, AgentResponse, unknown> {
