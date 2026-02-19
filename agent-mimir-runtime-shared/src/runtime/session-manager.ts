@@ -138,12 +138,14 @@ function requirePositiveInteger(value: number, fieldName: string): number {
 
 export class SessionManager {
     private readonly sessions = new Map<string, SessionRuntime>();
+    private readonly discoveredSessions = new Map<string, PersistedSessionInfo>();
+    private readonly sessionHydrationPromises = new Map<string, Promise<SessionRuntime>>();
     private readonly sessionTtlMs: number;
     private readonly uploadLimits: UploadLimits;
     private readonly cleanupTimer: NodeJS.Timeout;
     private runtimeConfigPromise: Promise<RuntimeConfigBundle> | null = null;
-    private hydrationPromise: Promise<void> | null = null;
-    private hydrationComplete = false;
+    private discoveryPromise: Promise<void> | null = null;
+    private discoveryComplete = false;
 
     constructor(options: SessionManagerOptions = {}) {
         this.sessionTtlMs =
@@ -207,41 +209,101 @@ export class SessionManager {
         return await this.runtimeConfigPromise;
     }
 
-    private async ensureHydrated(): Promise<void> {
-        if (this.hydrationComplete) {
+    private async ensureDiscovered(): Promise<void> {
+        if (this.discoveryComplete) {
             return;
         }
 
-        if (!this.hydrationPromise) {
-            this.hydrationPromise = (async () => {
+        if (!this.discoveryPromise) {
+            this.discoveryPromise = (async () => {
                 try {
-                    await this.hydratePersistedSessions();
+                    const { config, checkpointer } = await this.getRuntimeConfig();
+                    const validAgentNames = new Set(Object.keys(config.agents));
+                    const persistedSessions = await this.discoverPersistedSessions(checkpointer, validAgentNames);
+                    for (const persistedSession of persistedSessions) {
+                        this.discoveredSessions.set(persistedSession.sessionId, persistedSession);
+                    }
                 } catch (error) {
-                    console.error("Session hydration failed.", error);
+                    console.error("Session discovery failed.", error);
                 } finally {
-                    this.hydrationComplete = true;
+                    this.discoveryComplete = true;
                 }
             })();
         }
 
-        await this.hydrationPromise;
+        await this.discoveryPromise;
     }
 
-    private async hydratePersistedSessions(): Promise<void> {
-        const { config, checkpointer } = await this.getRuntimeConfig();
-        const validAgentNames = new Set(Object.keys(config.agents));
-        const persistedSessions = await this.discoverPersistedSessions(checkpointer, validAgentNames);
-        for (const persistedSession of persistedSessions) {
-            if (this.sessions.has(persistedSession.sessionId)) {
-                continue;
-            }
-
-            try {
-                await this.hydrateSessionRuntime(persistedSession, config, checkpointer);
-            } catch (error) {
-                console.warn(`Failed to hydrate session ${persistedSession.sessionId}.`, error);
-            }
+    private async ensureSessionLoaded(sessionId: string): Promise<SessionRuntime> {
+        await this.ensureDiscovered();
+        const existingSession = this.sessions.get(sessionId);
+        if (existingSession) {
+            return existingSession;
         }
+
+        const discovered = this.discoveredSessions.get(sessionId);
+        if (!discovered) {
+            throw new HttpError(404, "SESSION_NOT_FOUND", `Session \"${sessionId}\" was not found.`);
+        }
+
+        const existingHydration = this.sessionHydrationPromises.get(sessionId);
+        if (existingHydration) {
+            return await existingHydration;
+        }
+
+        const hydrationPromise = (async () => {
+            const { config, checkpointer } = await this.getRuntimeConfig();
+            await this.hydrateSessionRuntime(discovered, config, checkpointer);
+            return this.requireSession(sessionId);
+        })();
+
+        this.sessionHydrationPromises.set(sessionId, hydrationPromise);
+        try {
+            return await hydrationPromise;
+        } finally {
+            this.sessionHydrationPromises.delete(sessionId);
+        }
+    }
+
+    private getDefaultMainAgentName(config: AgentMimirConfig): string | null {
+        const entries = Object.entries(config.agents);
+        if (entries.length === 0) {
+            return null;
+        }
+        if (entries.length === 1) {
+            return entries[0]![0];
+        }
+
+        return entries.find(([, definition]) => definition.mainAgent)?.[0] ?? entries[0]![0];
+    }
+
+    private async buildDiscoveredSessionSummary(sessionInfo: PersistedSessionInfo): Promise<SessionSummary> {
+        const { config } = await this.getRuntimeConfig();
+        const defaultMainAgent = this.getDefaultMainAgentName(config) ?? "Unknown";
+        return {
+            sessionId: sessionInfo.sessionId,
+            name: `Chat ${sessionInfo.sessionId.slice(0, 8)}`,
+            createdAt: new Date(sessionInfo.earliestTimestampMs).toISOString(),
+            lastActivityAt: new Date(sessionInfo.latestTimestampMs).toISOString(),
+            activeAgentName: defaultMainAgent,
+            continuousMode: config.continuousMode ?? false,
+            hasPendingToolRequest: false
+        };
+    }
+
+    private upsertDiscoveredSession(sessionId: string, timestampMs: number) {
+        const existing = this.discoveredSessions.get(sessionId);
+        if (existing) {
+            existing.earliestTimestampMs = Math.min(existing.earliestTimestampMs, timestampMs);
+            existing.latestTimestampMs = Math.max(existing.latestTimestampMs, timestampMs);
+            return;
+        }
+
+        this.discoveredSessions.set(sessionId, {
+            sessionId,
+            earliestTimestampMs: timestampMs,
+            latestTimestampMs: timestampMs
+        });
     }
 
     private async discoverPersistedSessions(
@@ -285,6 +347,10 @@ export class SessionManager {
         config: AgentMimirConfig,
         checkpointer: BaseCheckpointSaver
     ): Promise<void> {
+        if (this.sessions.has(persistedSession.sessionId)) {
+            return;
+        }
+
         const configuredRoot = config.workingDirectory
             ? path.resolve(config.workingDirectory)
             : await fs.mkdtemp(path.join(os.tmpdir(), "mimir-web-"));
@@ -333,6 +399,8 @@ export class SessionManager {
         await this.applyHydratedConversation(session, replayedConversation);
         session.activeAgentName = session.orchestrator.currentAgent.name;
         this.sessions.set(session.sessionId, session);
+        this.upsertDiscoveredSession(session.sessionId, session.createdAt);
+        this.upsertDiscoveredSession(session.sessionId, session.lastActivityAt);
     }
 
     private parseSessionThreadId(threadId: string): { sessionId: string; agentName: string } | null {
@@ -465,7 +533,7 @@ export class SessionManager {
     }
 
     async createSession(name?: string): Promise<SessionState> {
-        await this.ensureHydrated();
+        await this.ensureDiscovered();
         const sessionId = crypto.randomUUID();
         const { config, checkpointer } = await this.getRuntimeConfig();
         const now = Date.now();
@@ -504,7 +572,7 @@ export class SessionManager {
 
             const session: SessionRuntime = {
                 sessionId,
-                name: name?.trim() || `Chat ${this.sessions.size + 1}`,
+                name: name?.trim() || `Chat ${this.discoveredSessions.size + 1}`,
                 createdAt: now,
                 lastActivityAt: now,
                 continuousMode: config.continuousMode ?? false,
@@ -523,6 +591,7 @@ export class SessionManager {
             };
 
             this.sessions.set(sessionId, session);
+            this.upsertDiscoveredSession(sessionId, now);
             this.emitStateChanged(session);
             return this.toSessionState(session);
         } catch (error) {
@@ -534,31 +603,35 @@ export class SessionManager {
     }
 
     async listSessions(): Promise<SessionSummary[]> {
-        await this.ensureHydrated();
-        return [...this.sessions.values()]
-            .map((session) => this.toSessionSummary(session))
-            .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+        await this.ensureDiscovered();
+        const summaryBySessionId = new Map<string, SessionSummary>();
+        for (const [sessionId, discoveredSession] of this.discoveredSessions) {
+            summaryBySessionId.set(sessionId, await this.buildDiscoveredSessionSummary(discoveredSession));
+        }
+
+        for (const session of this.sessions.values()) {
+            summaryBySessionId.set(session.sessionId, this.toSessionSummary(session));
+        }
+
+        return [...summaryBySessionId.values()].sort((left, right) => right.lastActivityAt.localeCompare(left.lastActivityAt));
     }
 
     async getSessionState(sessionId: string): Promise<SessionState> {
-        await this.ensureHydrated();
-        const session = this.requireSession(sessionId);
+        const session = await this.ensureSessionLoaded(sessionId);
         return this.toSessionState(session);
     }
 
     async deleteSession(sessionId: string): Promise<void> {
-        await this.ensureHydrated();
-        const session = this.requireSession(sessionId);
+        const session = await this.ensureSessionLoaded(sessionId);
         if (session.running) {
             throw new HttpError(409, "SESSION_BUSY", "Cannot delete a session while it is processing a request.");
         }
 
-        await this.disposeSession(session);
+        await this.disposeSession(session, { removeDiscovery: true });
     }
 
     async resetSession(sessionId: string): Promise<SessionState> {
-        await this.ensureHydrated();
-        const session = this.requireSession(sessionId);
+        const session = await this.ensureSessionLoaded(sessionId);
         return await this.withSessionLock(session, async () => {
             await session.orchestrator.reset();
             session.pendingToolRequest = null;
@@ -580,8 +653,7 @@ export class SessionManager {
     }
 
     async setContinuousMode(sessionId: string, enabled: boolean): Promise<SessionState> {
-        await this.ensureHydrated();
-        const session = this.requireSession(sessionId);
+        const session = await this.ensureSessionLoaded(sessionId);
         if (session.running) {
             throw new HttpError(409, "SESSION_BUSY", "Cannot change continuous mode while the session is processing.");
         }
@@ -593,8 +665,7 @@ export class SessionManager {
     }
 
     async setActiveAgent(sessionId: string, activeAgentName: string): Promise<SessionState> {
-        await this.ensureHydrated();
-        const session = this.requireSession(sessionId);
+        const session = await this.ensureSessionLoaded(sessionId);
         if (session.running) {
             throw new HttpError(409, "SESSION_BUSY", "Cannot switch active agent while the session is processing.");
         }
@@ -612,8 +683,7 @@ export class SessionManager {
     }
 
     async sendMessage(sessionId: string, input: SendMessageInput): Promise<SessionState> {
-        await this.ensureHydrated();
-        const session = this.requireSession(sessionId);
+        const session = await this.ensureSessionLoaded(sessionId);
         return await this.withSessionLock(session, async () => {
             if (session.pendingToolRequest) {
                 throw new HttpError(409, "PENDING_APPROVAL", "A tool approval decision is required before sending a new message.");
@@ -642,8 +712,7 @@ export class SessionManager {
     }
 
     async submitApproval(sessionId: string, request: ApprovalRequest): Promise<SessionState> {
-        await this.ensureHydrated();
-        const session = this.requireSession(sessionId);
+        const session = await this.ensureSessionLoaded(sessionId);
         return await this.withSessionLock(session, async () => {
             const pending = session.pendingToolRequest;
             if (!pending) {
@@ -686,8 +755,7 @@ export class SessionManager {
     }
 
     async subscribe(sessionId: string, listener: SessionListener): Promise<SessionSubscription> {
-        await this.ensureHydrated();
-        const session = this.requireSession(sessionId);
+        const session = await this.ensureSessionLoaded(sessionId);
         session.subscribers.add(listener);
         session.lastActivityAt = Date.now();
 
@@ -701,8 +769,7 @@ export class SessionManager {
     }
 
     async resolveFile(sessionId: string, fileId: string): Promise<SessionFileRecord> {
-        await this.ensureHydrated();
-        const session = this.requireSession(sessionId);
+        const session = await this.ensureSessionLoaded(sessionId);
         const found = session.fileRegistry.get(fileId);
         if (!found) {
             throw new HttpError(404, "FILE_NOT_FOUND", "File not found for this session.");
@@ -1019,15 +1086,20 @@ export class SessionManager {
     }
 
     private emitEvent(session: SessionRuntime, event: SessionEventPayload, options: EmitEventOptions = {}) {
+        const eventTimestamp = options.timestamp ?? new Date().toISOString();
         const enriched = {
             ...event,
             id: crypto.randomUUID(),
             sessionId: session.sessionId,
-            timestamp: options.timestamp ?? new Date().toISOString()
+            timestamp: eventTimestamp
         } as unknown as SessionEvent;
 
         if (!options.preserveLastActivity) {
             session.lastActivityAt = Date.now();
+        }
+        const discoveredTimestampMs = Date.parse(eventTimestamp);
+        if (Number.isFinite(discoveredTimestampMs)) {
+            this.upsertDiscoveredSession(session.sessionId, discoveredTimestampMs);
         }
         session.eventBuffer.push(enriched);
         if (session.eventBuffer.length > SESSION_EVENT_CAP) {
@@ -1139,10 +1211,18 @@ export class SessionManager {
 
     async shutDown(): Promise<void> {
         clearInterval(this.cleanupTimer);
+        const activeSessions = [...this.sessions.values()];
+        for (const session of activeSessions) {
+            await this.disposeSession(session);
+        }
     }
 
-    private async disposeSession(session: SessionRuntime): Promise<void> {
+    private async disposeSession(session: SessionRuntime, options: { removeDiscovery?: boolean } = {}): Promise<void> {
         this.sessions.delete(session.sessionId);
+        this.sessionHydrationPromises.delete(session.sessionId);
+        if (options.removeDiscovery) {
+            this.discoveredSessions.delete(session.sessionId);
+        }
         session.subscribers.clear();
         await session.orchestrator.shutDown()
         await fs.rm(session.cleanupPath, { recursive: true, force: true }).catch(() => {

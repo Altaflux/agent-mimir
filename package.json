@@ -19,11 +19,7 @@
         "start-web": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps MIMIR_PUBLIC_API_BASE_PATH=/api dotenv -- npm run internalStartWeb",
         "start-web-dev": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps MIMIR_PUBLIC_API_BASE_PATH=/api dotenv -- npm run internalStartWebNoBuild",
         "internalStartWeb": "npm run build && turbo run start --only --env-mode=loose --filter=agent-mimir-api-server --filter=agent-mimir-web",
-        "internalStartWebNoBuild": "npm run build -w agent-mimir-api-contracts && npm run build -w agent-mimir-runtime-shared && npm run build -w agent-mimir-api-server && turbo run dev --env-mode=loose --filter=agent-mimir-api-server --filter=agent-mimir-web",
-        "start-web-svelte": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps MIMIR_PUBLIC_API_BASE_PATH=/api dotenv -- npm run internalStartWebSvelte",
-        "start-web-svelte-dev": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps MIMIR_PUBLIC_API_BASE_PATH=/api dotenv -- npm run internalStartWebSvelteNoBuild",
-        "internalStartWebSvelte": "npm run build && turbo run start --only --env-mode=loose --filter=agent-mimir-api-server --filter=agent-mimir-web-svelte",
-        "internalStartWebSvelteNoBuild": "npm run build -w agent-mimir-api-contracts && npm run build -w agent-mimir-runtime-shared && npm run build -w agent-mimir-api-server && turbo run dev --env-mode=loose --filter=agent-mimir-api-server --filter=agent-mimir-web-svelte"
+        "internalStartWebNoBuild": "npm run build -w agent-mimir-api-contracts && npm run build -w agent-mimir-runtime-shared && npm run build -w agent-mimir-api-server && turbo run dev --env-mode=loose --filter=agent-mimir-api-server --filter=agent-mimir-web"
     },
     "author": "Altaflux",
     "repository": {
@@ -52,8 +48,7 @@
         "tools/*",
         ".temp_custom_deps",
         "agent-mimir-web",
-        "agent-mimir-runtime-shared",
-        "agent-mimir-web-svelte"
+        "agent-mimir-runtime-shared"
     ],
     "dependencies": {
         "@langchain/langgraph": "1.1.4",
