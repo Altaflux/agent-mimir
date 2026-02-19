@@ -47,7 +47,7 @@ export class HelpersPlugin extends AgentPlugin {
                 name: "agentNameToWhichSendTheMessage",
                 required: false,
                 variableName: this.destinationAgentFieldName,
-                description: "Set this attribute to the name of the Agents you want to send a message. Only set it if you want to send a message to an Agents, else do not set it. When set, the message you send will be sent to that agent instead of the user. If not set you will be responding to the user.",
+                description: "Set this attribute to the name of the Agents you want to send a message. Only set it if you want to send a message to an Agents, else do not set it. When set, the message you send will be sent to that agent instead of the user. The user cannot see any communication you are having with an agent. If not set you will be responding to the user.",
             }
         ];
     }
