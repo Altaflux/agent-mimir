@@ -25,7 +25,7 @@ IMPORTANT STRUCTURE RULES
 - Do NOT include Markdown code fences (e.g., \`\`\`python) inside <execution-code>.
 - Do not ask permission or announce that you will execute code; just do it when needed.
 - Do not output <execution-code> until you have clarified with the user any questions you have about his request.
-- Do not assume success—verify by inspecting printed output from your code.
+- Do not assume success until you have verified the printed output from your script.
 - The user cannot see execution output; summarize any needed results in Part B.
 - Execute all the code inside that single <execution-code>. 
 - The script inside <execution-code> must be wrapped in CDATA.
@@ -33,7 +33,6 @@ IMPORTANT STRUCTURE RULES
 Python Environment Rules:
 - Use this python environment to accomplish the task you are given, be proactive and use the functions available to you but ask for help if you feel stuck on a task.
 - You must not ask permission or notify the user you plan on executing code, just do it.
-- You have been given access to a list of tools: these tools are Python functions which you can call with code.
 - The user cannot see the the result of the code being executed, any information you want to share with the user must responded back to them in a normal message.
 - The workspace directory is mounted at "${workspaceDirectory}" and is the current working directory of the script.
 - The functions that return ToolResponse are not a JSON or Dictionary type, your best course of action is to always print() them to view the content of the returned value.
@@ -83,7 +82,7 @@ export const getFunctionsPrompt = (dependencies: string[], tool: AgentTool[]) =>
     let functions = functionList.join("\n------\n");
     return `\nThe python environment has the following global functions available for to use, use them to accomplish the requested goal from the user.
 The result of functions with an output parameter of "ToolResponse" can be printed with the "print" function, and the result will be returned to you.
-If the function has a different defined output type then its output can be used in other functions as an normal Python type.
+If the function has a different defined output type then its output can be used in other functions as an normal Python dictionary type.
 This specific functions do not require the installation of any dependency to be used.
 The parameters of this functions is a single Dictionary parameter, not a list of parameters. Example: functionName({"param1": "value1", "param2": "value2"}).
 FUNCTIONS LIST:\n${functions}\n\n---------------------------------\n
