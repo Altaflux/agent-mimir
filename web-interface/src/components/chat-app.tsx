@@ -731,8 +731,8 @@ export function ChatApp() {
                         <div key={session.sessionId} className="group relative">
                             <button
                                 className={`w-full text-left rounded-lg px-3 py-2.5 text-sm transition-colors ${activeSessionId === session.sessionId
-                                        ? "bg-accent text-foreground"
-                                        : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                                    ? "bg-accent text-foreground"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                                     }`}
                                 onClick={() => setActiveSessionId(session.sessionId)}
                             >
@@ -912,7 +912,7 @@ export function ChatApp() {
                             /* ── Agent response chunk (streaming) ── */
                             if (event.type === "agent_response_chunk") {
                                 return (
-                                    <div key={event.id} className="flex items-start gap-3 animate-msg-in">
+                                    <div key={event.id} className="flex items-start gap-3">
                                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
                                             <Bot className="h-4 w-4 text-muted-foreground" />
                                         </div>
@@ -1096,8 +1096,8 @@ export function ChatApp() {
                             onDragLeave={handleComposerDragLeave}
                             onDrop={handleComposerDrop}
                             className={`relative rounded-2xl border transition-all ${isComposerDragOver
-                                    ? "border-emerald-500/50 bg-emerald-500/5 shadow-lg shadow-emerald-500/10"
-                                    : "border-border/60 bg-secondary/40 hover:border-border"
+                                ? "border-emerald-500/50 bg-emerald-500/5 shadow-lg shadow-emerald-500/10"
+                                : "border-border/60 bg-secondary/40 hover:border-border"
                                 }`}
                         >
                             {/* Attached files */}
