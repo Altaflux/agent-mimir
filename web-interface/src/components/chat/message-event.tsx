@@ -4,7 +4,7 @@ import { SessionEvent } from "@/lib/contracts";
 import { formatTime } from "@/lib/api";
 import { Bot, User, Wrench, Zap } from "lucide-react";
 import { MarkdownContent } from "@/components/chat/markdown";
-import { CollapsibleSection, DownloadLinks, ScrollableCodeBlock } from "@/components/chat/shared";
+import { CollapsibleSection, DownloadLinks, ScrollableCodeBlock, CopyButton } from "@/components/chat/shared";
 
 /** Renders a single session event as the appropriate message bubble / section. */
 export function MessageEvent({ event }: { event: SessionEvent }) {
@@ -15,8 +15,11 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
         return (
             <div className="flex justify-end animate-msg-in">
                 <div className="max-w-[80%] flex items-start gap-2.5">
-                    <div className="rounded-2xl rounded-tr-sm bg-user-bubble px-4 py-2.5">
-                        <p className="whitespace-pre-wrap text-sm text-foreground">{event.text || "(No text)"}</p>
+                    <div className="group rounded-2xl rounded-tr-sm bg-user-bubble px-4 py-2.5">
+                        <div className="flex items-start justify-between gap-4">
+                            <p className="whitespace-pre-wrap text-sm text-foreground">{event.text || "(No text)"}</p>
+                            {event.text ? <div className="mt-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"><CopyButton text={event.text} /></div> : null}
+                        </div>
                         {event.workspaceFiles.length > 0 ? (
                             <p className="mt-1.5 text-[11px] text-muted-foreground">
                                 📂 {event.workspaceFiles.join(", ")}
@@ -43,10 +46,13 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
                     <Bot className="h-4 w-4 text-muted-foreground" />
                 </div>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 group">
                     <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-medium text-muted-foreground">{event.agentName}</span>
                         <span className="text-[10px] text-muted-foreground/60">{formatTime(event.timestamp)}</span>
+                        <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                            <CopyButton text={event.markdown} />
+                        </div>
                     </div>
                     <MarkdownContent>{event.markdown}</MarkdownContent>
                     <DownloadLinks files={event.attachments} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Check, Copy } from "lucide-react";
 import { ReactNode, useState } from "react";
 
 /** An expandable section with icon + title. Used for tool calls, agent-to-agent, etc. */
@@ -50,5 +50,26 @@ export function DownloadLinks({ files }: { files: import("@/lib/contracts").Down
                 </a>
             ))}
         </div>
+    );
+}
+
+/** A small button to copy text to clipboard */
+export function CopyButton({ text }: { text: string }) {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    return (
+        <button
+            onClick={handleCopy}
+            className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+            title="Copy to clipboard"
+        >
+            {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+        </button>
     );
 }
