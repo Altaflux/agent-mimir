@@ -23,7 +23,7 @@ export function Sidebar({
 }: SidebarProps) {
     return (
         <aside
-            className={`${sidebarOpen ? "w-[260px]" : "w-0"
+            className={`absolute inset-y-0 left-0 z-30 md:static ${sidebarOpen ? "w-[85vw] max-w-[260px] md:w-[260px]" : "w-0"
                 } shrink-0 flex flex-col bg-sidebar border-r border-border/40 transition-all duration-300 overflow-hidden`}
         >
             {/* Sidebar header */}
@@ -44,8 +44,8 @@ export function Sidebar({
                     <div key={session.sessionId} className="group relative">
                         <button
                             className={`w-full text-left rounded-lg px-3 py-2.5 text-sm transition-colors ${activeSessionId === session.sessionId
-                                    ? "bg-accent text-foreground"
-                                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                                ? "bg-accent text-foreground"
+                                : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                                 }`}
                             onClick={() => onSelectSession(session.sessionId)}
                         >

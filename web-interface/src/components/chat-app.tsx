@@ -49,12 +49,25 @@ export function ChatApp() {
     /* ── Main layout ─────────────────────────────────── */
 
     return (
-        <main className="app-shell flex h-[100dvh] overflow-hidden bg-background">
+        <main className="app-shell relative flex h-[100dvh] overflow-hidden bg-background">
+            {/* Mobile overlay */}
+            {sidebarOpen ? (
+                <div
+                    className="absolute inset-0 z-20 bg-background/80 backdrop-blur-sm md:hidden"
+                    onClick={() => setSidebarOpen(false)}
+                />
+            ) : null}
+
             <Sidebar
                 sessions={session.sessions}
                 activeSessionId={session.activeSessionId}
                 sidebarOpen={sidebarOpen}
-                onSelectSession={(id) => session.setActiveSessionId(id)}
+                onSelectSession={(id) => {
+                    session.setActiveSessionId(id);
+                    if (window.innerWidth < 768) {
+                        setSidebarOpen(false);
+                    }
+                }}
                 onCreateSession={() => {
                     const name = window.prompt("Enter name for a new conversation:", "New Conversation");
                     if (name === null) return;
