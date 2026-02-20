@@ -101,12 +101,38 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                 >
                     <div className="space-y-2">
                         <ScrollableCodeBlock text={event.payload.content} />
-                        {event.payload.toolCalls.map((call, index) => (
-                            <div key={`${event.id}-${index}`} className="border-t border-border/30 pt-2">
-                                <p className="text-xs font-semibold text-foreground mb-1">{call.toolName}</p>
-                                <ScrollableCodeBlock text={call.input} />
-                            </div>
-                        ))}
+                        {event.payload.toolCalls.map((call, index) => {
+                            if (call.toolName === "CODE_EXECUTION") {
+                                try {
+                                    const parsed = JSON.parse(call.input);
+                                    if (typeof parsed === "object" && parsed !== null && typeof parsed.script === "string") {
+                                        const libraries = Array.isArray(parsed.libraries) && parsed.libraries.length > 0 ? parsed.libraries : null;
+                                        return (
+                                            <div key={`${event.id}-${index}`} className="border-t border-border/30 pt-2">
+                                                <p className="text-xs font-semibold text-foreground mb-1">{call.toolName}</p>
+                                                {libraries && (
+                                                    <p className="text-[11px] text-muted-foreground mb-2">
+                                                        Libraries to install: <span className="font-mono text-emerald-400 bg-secondary/50 px-1 py-0.5 rounded">{libraries.join(", ")}</span>
+                                                    </p>
+                                                )}
+                                                <MarkdownContent>
+                                                    {`\`\`\`python\n${parsed.script}\n\`\`\``}
+                                                </MarkdownContent>
+                                            </div>
+                                        );
+                                    }
+                                } catch {
+                                    // Silently fallback to default raw render if JSON is invalid
+                                }
+                            }
+
+                            return (
+                                <div key={`${event.id}-${index}`} className="border-t border-border/30 pt-2">
+                                    <p className="text-xs font-semibold text-foreground mb-1">{call.toolName}</p>
+                                    <ScrollableCodeBlock text={call.input} />
+                                </div>
+                            );
+                        })}
                     </div>
                 </CollapsibleSection>
             </div>
