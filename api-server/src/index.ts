@@ -12,7 +12,7 @@ function parsePort(value: string | undefined): number {
 
     return parsed;
 }
-
+import { writeFileSync } from 'node:fs';
 async function main() {
     const host = process.env.MIMIR_API_HOST ?? "0.0.0.0";
     const port = parsePort(process.env.MIMIR_API_PORT);
@@ -22,6 +22,9 @@ async function main() {
     const shutdown = async (signal: NodeJS.Signals) => {
         app.log.info({ signal }, "Shutting down API server.");
         await app.close();
+        await new Promise(r => setTimeout(r, 2000));
+        writeFileSync('example.txt', 'Hello\n');
+        app.log.info({ signal }, "API server shut down successfully.");
         process.exit(0);
     };
 

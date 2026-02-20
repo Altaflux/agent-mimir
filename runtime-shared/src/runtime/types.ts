@@ -27,7 +27,6 @@ export type AgentDefinition = {
 
 export type AgentMimirConfig = {
     agents: Record<string, AgentDefinition>;
-    checkpointer?: BaseCheckpointSaver;
     embeddings: Embeddings;
     continuousMode?: boolean;
     workingDirectory?: string;

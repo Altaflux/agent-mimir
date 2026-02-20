@@ -45,7 +45,8 @@
         "@langchain/langgraph": "1.1.4",
         "@mimir/agent-core": "*",
         "@mimir/api-contracts": "*",
-        "better-sqlite3": "^12.6.2"
+        "better-sqlite3": "^12.6.2",
+        "@langchain/langgraph-checkpoint-sqlite": "1.0.1"
     },
     "devDependencies": {
         "@types/better-sqlite3": "^7.6.13",

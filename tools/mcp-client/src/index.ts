@@ -62,8 +62,8 @@ export class McpClientPluginFactory implements PluginFactory {
             version: "1.0.0",
         }, {
             capabilities: {
-                
-               
+
+
             }
         });
 
@@ -280,8 +280,9 @@ export class McpPlugin extends AgentPlugin {
 
     async destroy(): Promise<void> {
         await Promise.all(this.clients.map(async client => await client.client.close()));
+        console.log("MCP client destroyed.");
     }
-    
+
     async getSystemMessages(): Promise<AgentSystemMessage> {
 
         const resourcesTemplate: string = (await Promise.all(this.clients.map(async c => {
@@ -297,7 +298,7 @@ export class McpPlugin extends AgentPlugin {
                 let resources: Awaited<ReturnType<typeof c.client.listResources>> | undefined = undefined as any;
                 try {
                     resources = await c.client.listResources({});
-                }catch(e){
+                } catch (e) {
                 }
 
                 if (!resources?.resources?.length) {

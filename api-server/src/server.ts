@@ -100,8 +100,8 @@ function normalizeError(error: unknown): HttpError {
                 typeof withStatus.code === "string"
                     ? withStatus.code
                     : withStatus.statusCode >= 500
-                      ? "INTERNAL_ERROR"
-                      : "INVALID_REQUEST";
+                        ? "INTERNAL_ERROR"
+                        : "INVALID_REQUEST";
             const message =
                 typeof withStatus.message === "string" && withStatus.message.length > 0
                     ? withStatus.message
@@ -262,7 +262,9 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
 
     if (ownsSessionManager) {
         app.addHook("onClose", async () => {
+            app.log.info("Shutting down session manager.");
             await sessionManager.shutDown();
+            app.log.info("Session manager shut down successfully.");
         });
     }
 
@@ -434,7 +436,7 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
             api.get<{ Params: { sessionId: string; fileId: string } }>("/sessions/:sessionId/files/:fileId", async (request, reply) => {
                 const file = await sessionManager.resolveFile(request.params.sessionId, request.params.fileId);
                 const fileStats = await fs.stat(file.absolutePath);
-                const stream  = createReadStream(file.absolutePath);
+                const stream = createReadStream(file.absolutePath);
                 const safeFileName = file.fileName.replaceAll('"', "");
                 return reply
                     .header("Content-Disposition", `attachment; filename=\"${safeFileName}\"`)

@@ -30,6 +30,8 @@ import path from "path";
 import { SessionStore } from "./session-store.js";
 import { CodeAgentFactory, DockerPythonExecutor, LocalPythonExecutor } from "@mimir/agent-core/agent/code-agent";
 import { BaseCheckpointSaver, MemorySaver } from "@langchain/langgraph";
+import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
+import Database from "better-sqlite3";
 
 const SESSION_EVENT_CAP = 500;
 const DEFAULT_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
@@ -109,7 +111,7 @@ type SessionRuntime = {
 
 type RuntimeConfigBundle = {
     config: AgentMimirConfig;
-    checkpointer: BaseCheckpointSaver;
+    checkpointer: SqliteSaver;
 };
 
 type PersistedSessionInfo = {
@@ -202,9 +204,15 @@ export class SessionManager {
         if (!this.runtimeConfigPromise) {
             this.runtimeConfigPromise = (async () => {
                 const config = await getConfig();
+                const configuredRoot = config.workingDirectory
+                    ? path.resolve(config.workingDirectory)
+                    : path.join(os.tmpdir(), "mimir-web-db-fallback");
+                const dbPath = path.join(configuredRoot, "chat-checkpointer.db");
+                const db = new Database(dbPath);
+                this.store = new SessionStore();
                 return {
                     config,
-                    checkpointer: config.checkpointer ?? new MemorySaver()
+                    checkpointer: new SqliteSaver(db)
                 };
             })();
         }
@@ -1239,6 +1247,8 @@ export class SessionManager {
             await this.suspendSessionRuntime(session);
         }
         this.store?.close();
+        const { checkpointer } = await this.getRuntimeConfig();
+        checkpointer.db.close();
     }
 
     private async suspendSessionRuntime(session: SessionRuntime): Promise<void> {
