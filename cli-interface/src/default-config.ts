@@ -32,7 +32,7 @@ export default async function () {
                 description: 'An assistant',
                 definition: {
                     agentType: 'openai-function-agent' as const,
-                    visionSupport: 'openai' as const,
+                    visionSupport: false,
                     chatModel: chatModel,
                     profession: 'an Assistant',
                     chatHistory: {

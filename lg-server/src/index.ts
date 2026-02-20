@@ -1,11 +1,11 @@
 
-import { CodeAgentFactory, LocalPythonExecutor,  createLgAgent as codeCreateLgAgent } from "agent-mimir/agent/code-agent";
-import { FunctionAgentFactory, createLgAgent} from "agent-mimir/agent/tool-agent";
+import { CodeAgentFactory, LocalPythonExecutor, createLgAgent as codeCreateLgAgent } from "agent-mimir/agent/code-agent";
+import { FunctionAgentFactory, createLgAgent } from "agent-mimir/agent/tool-agent";
 import { promises as fs } from 'fs';
 import { FileSystemAgentWorkspace } from "agent-mimir/nodejs";
 import os from 'os';
 import path from "path";
-import {ChatOpenAI} from '@langchain/openai';
+import { ChatOpenAI } from '@langchain/openai';
 import { AdditionalContent, AgentPlugin, PluginContext, PluginFactory } from "agent-mimir/plugins";
 import { InputAgentMessage } from "agent-mimir/agent";
 
@@ -37,7 +37,7 @@ async function createAgent() {
     const McpClientPluginFactory = (await import('@agent-mimir/mcp-client')).McpClientPluginFactory;
     const StdioClientTransport = (await import('@agent-mimir/mcp-client')).StdioClientTransport;
 
-    const workingDirectory =  await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-cli-'));
+    const workingDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'mimir-cli-'));
     const workspaceFactory = async (agentName: string) => {
         const tempDir = path.join(workingDirectory, agentName);
         await fs.mkdir(tempDir, { recursive: true });
@@ -57,9 +57,9 @@ async function createAgent() {
         model: chatModel,
         profession: "a helpful assistant",
         workspaceFactory: workspaceFactory,
-        visionSupport: "openai",
-        codeExecutor: (workspace) => new LocalPythonExecutor({additionalPackages: [], workspace: workspace}),
-        plugins:[
+        visionSupport: true,
+        codeExecutor: (workspace) => new LocalPythonExecutor({ additionalPackages: [], workspace: workspace }),
+        plugins: [
             new DummyPluginFactory(),
             new McpClientPluginFactory({
                 servers: {

@@ -41,7 +41,7 @@ export type AgentDefinition = {
         chatModel: BaseChatModel;
         taskModel?: BaseLanguageModel;
         constitution?: string;
-        visionSupport?: 'openai';
+        visionSupport?: boolean;
         plugins?: PluginFactory[];
         checkpointer?: BaseCheckpointSaver,
         chatHistory: {
@@ -114,7 +114,7 @@ export const run = async () => {
                     checkpointer: agentDefinition.definition.checkpointer,
                     visionSupport: agentDefinition.definition.visionSupport,
                     constitution: agentDefinition.definition.constitution,
-                    plugins: [...agentDefinition.definition.plugins ?? [], ], //...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))
+                    plugins: [...agentDefinition.definition.plugins ?? [],], //...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))
                     workspaceFactory: workspaceFactory,
                     //codeExecutor: (workspace) => new DockerPythonExecutor({additionalPackages: [], workspace: workspace}),
                 }), agentName, agentDefinition.definition.communicationWhitelist)
@@ -161,7 +161,7 @@ export const run = async () => {
                 option.setRequired(arg.required);
                 if (arg.description) {
                     option.setDescription((arg.description.length > 90) ? arg.description.slice(0, 90 - 1) + '&hellip;' : arg.description);
-                } else  {
+                } else {
                     option.setDescription("N/A");
                 }
                 return option
@@ -254,7 +254,7 @@ export const run = async () => {
             const images = await imagesToFiles(call.response);
 
             const headerEmbed = new EmbedBuilder()
-                .setDescription(`Called function: \`${call.name}\` \nResponded with: \n\`\`\`${formattedResponse}\n${images.map(i=>"(image)")}\`\`\``)
+                .setDescription(`Called function: \`${call.name}\` \nResponded with: \n\`\`\`${formattedResponse}\n${images.map(i => "(image)")}\`\`\``)
                 .setColor(0xff0000);
             await sendResponse({
                 message: toolResponse,
@@ -263,14 +263,14 @@ export const run = async () => {
             });
         };
         let intermediateResponseHandler = async (chainResponse: IntermediateAgentResponse) => {
-        
+
             if (chainResponse.type === "intermediateOutput" && chainResponse.value.type === "toolResponse") {
                 toolCallback({
                     agentName: chainResponse.agentName,
                     name: chainResponse.value.toolResponse.name,
                     response: chainResponse.value.toolResponse.response
                 });
-            } else if (chainResponse.type === "agentToAgentMessage"){
+            } else if (chainResponse.type === "agentToAgentMessage") {
                 const stringResponse = extractAllTextFromComplexResponse(chainResponse.value.content.content);
                 const discordMessage = `\`${chainResponse.value.sourceAgent}\` is sending a message to \`${chainResponse.value.destinationAgent}\`:\n\`\`\`${stringResponse}\`\`\`` +
                     `\nFiles provided: ${chainResponse.value.content.sharedFiles?.map((f: any) => `\`${f.fileName}\``).join(", ") || "None"}`;
@@ -291,7 +291,7 @@ export const run = async () => {
         const sendToolInvocationPermissionRequest = async (toolRequest: AgentToolRequestTwo) => {
             const toolCalls = (toolRequest.toolCalls ?? []).map(tr => {
                 const headerEmbed = new EmbedBuilder()
-                    .setDescription(`Tool request: \`${tr.toolName}\`\nWith Payload: \n\`\`\`${tr.input.length > 300 ? tr.input.substring(0,3000) : tr.input}\`\`\``)
+                    .setDescription(`Tool request: \`${tr.toolName}\`\nWith Payload: \n\`\`\`${tr.input.length > 300 ? tr.input.substring(0, 3000) : tr.input}\`\`\``)
                     .setColor(0xff0000);
                 return headerEmbed;
             });
@@ -471,9 +471,9 @@ async function imagesToFiles(images: ComplexMessageContent[]): Promise<string[]>
     return imagesPath;
 }
 
-async function saveImageFromDataUrl(imageType:string, base64Data: string): Promise<string> {
-  //  const regex = /^data:image\/(png|jpeg);base64,(.+)$/;
-  //  const matches = dataUrl;
+async function saveImageFromDataUrl(imageType: string, base64Data: string): Promise<string> {
+    //  const regex = /^data:image\/(png|jpeg);base64,(.+)$/;
+    //  const matches = dataUrl;
 
     // if (!matches) {
     //     throw new Error('Invalid image data URL.');

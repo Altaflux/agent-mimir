@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Manrope, Sora } from "next/font/google";
+import { Inter, Sora } from "next/font/google";
 import type { ReactNode } from "react";
 import "./globals.css";
 
@@ -8,13 +8,13 @@ const heading = Sora({
     variable: "--font-heading"
 });
 
-const body = Manrope({
+const body = Inter({
     subsets: ["latin"],
     variable: "--font-body"
 });
 
 export const metadata: Metadata = {
-    title: "Agent Mimir Web",
+    title: "Agent Mimir",
     description: "Web interface for Agent Mimir"
 };
 

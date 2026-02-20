@@ -9,7 +9,7 @@ import { extractResponseOutputXml, ResponseFieldMapper } from "../../utils/instr
 import { dividerSystemMessage, humanMessageToInputAgentMessage, lCmessageContentToContent, mergeSystemMessages, toolMessageToInputAgentMessage } from "./../message-utils.js";
 import { Agent, AgentWorkspace, WorkspaceFactory } from "./../index.js";
 import { PluginFactory } from "../../plugins/index.js";
-import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex,  getLibrariesContentRegex,  langChainToolMessageToMimirHumanMessage, toPythonFunctionName } from "./utils.js";
+import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex, getLibrariesContentRegex, langChainToolMessageToMimirHumanMessage, toPythonFunctionName } from "./utils.js";
 import { pythonToolNodeFunction } from "./tool-node.js";
 import { functionPrompt, getFunctionsPrompt, PYTHON_SCRIPT_SCHEMA } from "./prompt.js";
 import { DefaultPluginFactory } from "../../plugins/default-plugins.js";
@@ -38,8 +38,8 @@ export type CreateAgentArgs = {
     plugins?: PluginFactory[],
     /** Optional constitution defining agent behavior guidelines */
     constitution?: string,
-    /** Optional vision support type (currently only supports 'openai') */
-    visionSupport?: 'openai',
+    /** Optional vision support type*/
+    visionSupport?: boolean,
     /** Factory function to create the agent's workspace */
     workspaceFactory: WorkspaceFactory,
 
@@ -78,8 +78,8 @@ export async function createLgAgent(config: CreateAgentArgs) {
         toolNameSanitizer: toPythonFunctionName
     });
 
-    const callLLm = () => { 
-      const callLLMNode: GraphNode<typeof AgentState> = async (state) => {
+    const callLLm = () => {
+        const callLLMNode: GraphNode<typeof AgentState> = async (state) => {
 
             const lastMessage: BaseMessage = state.messages[state.messages.length - 1];
 
@@ -144,7 +144,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
                 persistentMessage.message.content = trimAndSanitizeMessageContent(persistentMessage.message.content);
 
-          
+
                 messageListToSend.push(new HumanMessage({
                     id: messageId,
                     contentBlocks: complexResponseToLangchainMessageContent(displayMessage.content)
@@ -165,7 +165,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 response = await modelWithTools.invoke([systemMessage, ...messageListToSend]);
 
             } else {
-       
+
                 if (ToolMessage.isInstance(lastMessage)) {
                     const inputMessage = toolMessageToInputAgentMessage(lastMessage);
                     const { displayMessage, persistentMessage } = await pluginContextProvider.additionalMessageContent(inputMessage);
@@ -183,7 +183,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                             tool_call_id: lastMessage.tool_call_id,
                             additional_kwargs: {
                                 persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
-                                original_content: persistentMessage.message.content ,
+                                original_content: persistentMessage.message.content,
                             },
                             contentBlocks: complexResponseToLangchainMessageContent(inputMessage.content)
                         })];
@@ -208,8 +208,8 @@ export async function createLgAgent(config: CreateAgentArgs) {
             }
             const messageContent = fieldMapper.produceCleanMessageContent(lCmessageContentToContent(response.contentBlocks));
             const responseMetadata = extractResponseOutputXml(extractTextContentFromComplexMessageContent(messageContent)) ?? "";
-            const pythonCode =  getExecutionCodeContentRegex(responseMetadata)
-            const pythonLibs =  getLibrariesContentRegex(responseMetadata)
+            const pythonCode = getExecutionCodeContentRegex(responseMetadata)
+            const pythonLibs = getLibrariesContentRegex(responseMetadata)
             //Agents calling agents cannot see the messages from the tool, so we remove them so the AI doesn't think it has already responded.
             if (pythonCode !== null && state.noMessagesInTool) {
                 response = new AIMessage({
@@ -220,7 +220,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     }]
                 })
             }
-            
+
             const rawResponseAttributes = await fieldMapper.readInstructionsFromResponse(messageContent);
             const sharedFiles = await workspaceManager.readAttributes(rawResponseAttributes);
             let mimirAiMessage = aiMessageToMimirAiMessage(response, sharedFiles, fieldMapper);
@@ -241,13 +241,13 @@ export async function createLgAgent(config: CreateAgentArgs) {
                     original_ai_content: complexResponseToLangchainMessageContent(messageContent),
                     shared_files: mimirAiMessage.sharedFiles ?? []
                 },
-                tool_calls: pythonCode ?  [
+                tool_calls: pythonCode ? [
                     {
                         id: v4(),
                         name: "CODE_EXECUTION",
                         args: {
                             libraries: pythonLibs,
-                            script:  pythonCode
+                            script: pythonCode
                         }
                     }
                 ] : []
@@ -283,7 +283,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
 
         // Iterate over messages with retention policies
         for (const [idx, message] of messagesWithRetention.entries()) {
-            const retentionPolicy: RetentionAwareMessageContent["persistentMessage"]["retentionPolicy"]  = message.additional_kwargs!.persistentMessageRetentionPolicy as any;
+            const retentionPolicy: RetentionAwareMessageContent["persistentMessage"]["retentionPolicy"] = message.additional_kwargs!.persistentMessageRetentionPolicy as any;
             const messageContent = message.additional_kwargs["original_content"] as ComplexMessageContent[];
 
             // Map content with its corresponding retention value and filter those
@@ -321,33 +321,33 @@ export async function createLgAgent(config: CreateAgentArgs) {
 
     const humanReviewNode: GraphNode<typeof AgentState> = async (state) => {
         const toolRequest = state.messages[state.messages.length - 1] as AIMessage;
-            const toolCall = toolRequest.tool_calls![0]!
-            const humanInterrupt: HumanInterrupt = {
-                description: "The agent is requesting permission to execute the following tool.",
-                action_request: {
-                    action: toolCall.name,
-                    args: toolCall.args
-                },
-                config: {
-                    allow_accept: true,
-                    allow_ignore: false,
-                    allow_respond: true,
-                    allow_edit: true
-                }
+        const toolCall = toolRequest.tool_calls![0]!
+        const humanInterrupt: HumanInterrupt = {
+            description: "The agent is requesting permission to execute the following tool.",
+            action_request: {
+                action: toolCall.name,
+                args: toolCall.args
+            },
+            config: {
+                allow_accept: true,
+                allow_ignore: false,
+                allow_respond: true,
+                allow_edit: true
             }
-            const humanReviewResponse = interrupt<HumanInterrupt, HumanResponse | HumanResponse[]>(humanInterrupt);
-            const humanReview: HumanResponse = Array.isArray(humanReviewResponse) ? humanReviewResponse[0] : humanReviewResponse
-            if (humanReview.type === "response") {
-                const responseMessage = new ToolMessage({
-                    tool_call_id: toolRequest.tool_calls![0].id!,
-                    id: v4(),
-                    contentBlocks: complexResponseToLangchainMessageContent([
-                        { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
-                        { type: 'text', text: humanReview.args as string }]),
-                });
-                return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
-            }
-        
+        }
+        const humanReviewResponse = interrupt<HumanInterrupt, HumanResponse | HumanResponse[]>(humanInterrupt);
+        const humanReview: HumanResponse = Array.isArray(humanReviewResponse) ? humanReviewResponse[0] : humanReviewResponse
+        if (humanReview.type === "response") {
+            const responseMessage = new ToolMessage({
+                tool_call_id: toolRequest.tool_calls![0].id!,
+                id: v4(),
+                contentBlocks: complexResponseToLangchainMessageContent([
+                    { type: "text", text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n` },
+                    { type: 'text', text: humanReview.args as string }]),
+            });
+            return new Command({ goto: "call_llm", update: { messages: [responseMessage] } });
+        }
+
         return new Command({ goto: "run_tool" });
     }
 
