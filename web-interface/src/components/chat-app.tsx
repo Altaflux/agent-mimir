@@ -56,7 +56,10 @@ export function ChatApp() {
                 sidebarOpen={sidebarOpen}
                 onSelectSession={(id) => session.setActiveSessionId(id)}
                 onCreateSession={() => {
-                    session.createSession().catch((error) => {
+                    const name = window.prompt("Enter name for a new conversation:", "New Conversation");
+                    if (name === null) return;
+
+                    session.createSession(name).catch((error) => {
                         session.setErrorMessage(error instanceof Error ? error.message : "Failed to create session.");
                     });
                 }}

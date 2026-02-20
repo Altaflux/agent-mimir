@@ -43,10 +43,12 @@
     "dependencies": {
         "@langchain/core": "1.1.24",
         "@langchain/langgraph": "1.1.4",
+        "@mimir/agent-core": "*",
         "@mimir/api-contracts": "*",
-        "@mimir/agent-core": "*"
+        "better-sqlite3": "^12.6.2"
     },
     "devDependencies": {
+        "@types/better-sqlite3": "^7.6.13",
         "@types/node": "^22.13.8",
         "tsx": "4.20.5",
         "typescript": "^5.9.3"

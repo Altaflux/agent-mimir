@@ -27,6 +27,7 @@ import crypto from "crypto";
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
+import { SessionStore } from "./session-store.js";
 import { CodeAgentFactory, DockerPythonExecutor, LocalPythonExecutor } from "@mimir/agent-core/agent/code-agent";
 import { BaseCheckpointSaver, MemorySaver } from "@langchain/langgraph";
 
@@ -115,6 +116,7 @@ type PersistedSessionInfo = {
     sessionId: string;
     earliestTimestampMs: number;
     latestTimestampMs: number;
+    name: string | null;
 };
 
 type EmitEventOptions = {
@@ -146,6 +148,7 @@ export class SessionManager {
     private runtimeConfigPromise: Promise<RuntimeConfigBundle> | null = null;
     private discoveryPromise: Promise<void> | null = null;
     private discoveryComplete = false;
+    private store: SessionStore | null = null;
 
     constructor(options: SessionManagerOptions = {}) {
         this.sessionTtlMs =
@@ -220,7 +223,16 @@ export class SessionManager {
                     const { config, checkpointer } = await this.getRuntimeConfig();
                     const validAgentNames = new Set(Object.keys(config.agents));
                     const persistedSessions = await this.discoverPersistedSessions(checkpointer, validAgentNames);
+
+                    const configuredRoot = config.workingDirectory
+                        ? path.resolve(config.workingDirectory)
+                        : path.join(os.tmpdir(), "mimir-web-db-fallback");
+                    this.store = new SessionStore();
+                    await this.store.init(configuredRoot);
+                    const nameMap = this.store.getAllNames();
+
                     for (const persistedSession of persistedSessions) {
+                        persistedSession.name = nameMap.get(persistedSession.sessionId) ?? null;
                         this.discoveredSessions.set(persistedSession.sessionId, persistedSession);
                     }
                 } catch (error) {
@@ -282,7 +294,7 @@ export class SessionManager {
         const defaultMainAgent = this.getDefaultMainAgentName(config) ?? "Unknown";
         return {
             sessionId: sessionInfo.sessionId,
-            name: `Chat ${sessionInfo.sessionId.slice(0, 8)}`,
+            name: sessionInfo.name || `Chat ${sessionInfo.sessionId.slice(0, 8)}`,
             createdAt: new Date(sessionInfo.earliestTimestampMs).toISOString(),
             lastActivityAt: new Date(sessionInfo.latestTimestampMs).toISOString(),
             activeAgentName: defaultMainAgent,
@@ -291,18 +303,22 @@ export class SessionManager {
         };
     }
 
-    private upsertDiscoveredSession(sessionId: string, timestampMs: number) {
+    private upsertDiscoveredSession(sessionId: string, timestampMs: number, name?: string | null) {
         const existing = this.discoveredSessions.get(sessionId);
         if (existing) {
             existing.earliestTimestampMs = Math.min(existing.earliestTimestampMs, timestampMs);
             existing.latestTimestampMs = Math.max(existing.latestTimestampMs, timestampMs);
+            if (name !== undefined && name !== null) {
+                existing.name = name;
+            }
             return;
         }
 
         this.discoveredSessions.set(sessionId, {
             sessionId,
             earliestTimestampMs: timestampMs,
-            latestTimestampMs: timestampMs
+            latestTimestampMs: timestampMs,
+            name: name ?? null
         });
     }
 
@@ -335,7 +351,8 @@ export class SessionManager {
             sessions.set(parsed.sessionId, {
                 sessionId: parsed.sessionId,
                 earliestTimestampMs: normalizedTimestampMs,
-                latestTimestampMs: normalizedTimestampMs
+                latestTimestampMs: normalizedTimestampMs,
+                name: null
             });
         }
 
@@ -377,7 +394,7 @@ export class SessionManager {
 
         const session: SessionRuntime = {
             sessionId: persistedSession.sessionId,
-            name: `Chat ${persistedSession.sessionId.slice(0, 8)}`,
+            name: persistedSession.name || `Chat ${persistedSession.sessionId.slice(0, 8)}`,
             createdAt: persistedSession.earliestTimestampMs,
             lastActivityAt: persistedSession.latestTimestampMs,
             continuousMode: config.continuousMode ?? false,
@@ -399,7 +416,7 @@ export class SessionManager {
         await this.applyHydratedConversation(session, replayedConversation);
         session.activeAgentName = session.orchestrator.currentAgent.name;
         this.sessions.set(session.sessionId, session);
-        this.upsertDiscoveredSession(session.sessionId, session.createdAt);
+        this.upsertDiscoveredSession(session.sessionId, session.createdAt, session.name);
         this.upsertDiscoveredSession(session.sessionId, session.lastActivityAt);
     }
 
@@ -570,9 +587,12 @@ export class SessionManager {
 
             const activeAgentName = mainAgent.name;
 
+            const finalName = name?.trim() || `Chat ${this.discoveredSessions.size + 1}`;
+            this.store?.upsertName(sessionId, finalName);
+
             const session: SessionRuntime = {
                 sessionId,
-                name: name?.trim() || `Chat ${this.discoveredSessions.size + 1}`,
+                name: finalName,
                 createdAt: now,
                 lastActivityAt: now,
                 continuousMode: config.continuousMode ?? false,
@@ -591,7 +611,7 @@ export class SessionManager {
             };
 
             this.sessions.set(sessionId, session);
-            this.upsertDiscoveredSession(sessionId, now);
+            this.upsertDiscoveredSession(sessionId, now, finalName);
             this.emitStateChanged(session);
             return this.toSessionState(session);
         } catch (error) {
@@ -1218,6 +1238,7 @@ export class SessionManager {
         for (const session of activeSessions) {
             await this.suspendSessionRuntime(session);
         }
+        this.store?.close();
     }
 
     private async suspendSessionRuntime(session: SessionRuntime): Promise<void> {
@@ -1231,6 +1252,7 @@ export class SessionManager {
         await this.suspendSessionRuntime(session);
         if (options.removeDiscovery) {
             this.discoveredSessions.delete(session.sessionId);
+            this.store?.deleteSession(session.sessionId);
         }
         await fs.rm(session.cleanupPath, { recursive: true, force: true }).catch(() => {
             return;

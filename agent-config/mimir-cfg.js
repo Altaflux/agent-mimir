@@ -89,7 +89,7 @@ module.exports = async function () {
     // const GameboyPluginFactory = (await import('@agent-mimir/gameboy-play')).GameboyPluginFactory;
     // const SqlLiteFactory = (await import('@agent-mimir/sqlite-tool')).SqliteToolPluginFactory;
     //new Foo();
-    const checkpointer = SqliteSaver.fromConnString("C:\\AI\\mimir\\mydatabase2.db");
+    const checkpointer = SqliteSaver.fromConnString("C:\\AI\\mimir\\mydatabase1.db");
     return {
         continuousMode: false,
         workingDirectory: 'C:\\AI\\mimir',
