@@ -100,7 +100,6 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                     defaultOpen={event.requiresApproval}
                 >
                     <div className="space-y-2">
-                        <ScrollableCodeBlock text={event.payload.content} />
                         {event.payload.toolCalls.map((call, index) => {
                             if (call.toolName === "CODE_EXECUTION") {
                                 try {

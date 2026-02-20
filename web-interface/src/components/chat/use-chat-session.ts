@@ -90,6 +90,32 @@ export function useChatSession() {
                     return { ...current, [event.sessionId]: [...filtered, event] };
                 }
 
+                if (event.type === "tool_request") {
+                    let nextEvents = existing;
+                    // Clear out the temporary chunks for this agent since the tool request marks the end of their message
+                    nextEvents = existing.filter(
+                        (e) => !(e.type === "agent_response_chunk" && e.agentName === event.payload.callingAgent)
+                    );
+
+                    // Synthesize an agent_response for the text strictly before the tool call so it persists across hydration!
+                    if (event.payload.content && event.payload.content.trim().length > 0) {
+                        const syntheticResponse: Extract<SessionEvent, { type: "agent_response" }> = {
+                            id: `${event.id}_text`,
+                            sessionId: event.sessionId,
+                            timestamp: event.timestamp,
+                            type: "agent_response",
+                            agentName: event.payload.callingAgent,
+                            messageId: `${event.id}_msg`,
+                            markdown: event.payload.content,
+                            attachments: []
+                        };
+                        nextEvents = [...nextEvents, syntheticResponse];
+                    }
+
+                    if (nextEvents.some((e) => e.id === event.id)) return current;
+                    return { ...current, [event.sessionId]: [...nextEvents, event] };
+                }
+
                 if (existing.some((e) => e.id === event.id)) return current;
                 return { ...current, [event.sessionId]: [...existing, event] };
             });
