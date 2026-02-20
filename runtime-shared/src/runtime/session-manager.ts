@@ -1130,8 +1130,36 @@ export class SessionManager {
         if (Number.isFinite(discoveredTimestampMs)) {
             this.upsertDiscoveredSession(session.sessionId, discoveredTimestampMs);
         }
+        if (enriched.type === "agent_response" || enriched.type === "agent_to_agent") {
+            const messageId = (enriched as any).messageId;
+            if (messageId) {
+                session.eventBuffer = session.eventBuffer.filter(
+                    (e) => e.type !== "agent_response_chunk" || (e as any).messageId !== messageId
+                );
+            }
+        }
+
         session.eventBuffer.push(enriched);
-        if (session.eventBuffer.length > SESSION_EVENT_CAP) {
+
+        let structuralCount = 0;
+        for (const e of session.eventBuffer) {
+            if (e.type !== "agent_response_chunk") {
+                structuralCount++;
+            }
+        }
+
+        while (structuralCount > SESSION_EVENT_CAP) {
+            const targetIndex = session.eventBuffer.findIndex((e) => e.type !== "agent_response_chunk");
+            if (targetIndex !== -1) {
+                session.eventBuffer.splice(targetIndex, 1);
+                structuralCount--;
+            } else {
+                break;
+            }
+        }
+
+        const MAX_BUFFER_SIZE = SESSION_EVENT_CAP * 20;
+        while (session.eventBuffer.length > MAX_BUFFER_SIZE) {
             session.eventBuffer.shift();
         }
 
