@@ -13,7 +13,7 @@ export type AgentDefinition = {
         chatModel: BaseChatModel;
         taskModel?: BaseLanguageModel;
         constitution?: string;
-        visionSupport?: "openai";
+        visionSupport?: boolean;
         plugins?: PluginFactory[];
         chatHistory?: {
             summaryModel?: BaseChatModel;

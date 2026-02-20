@@ -118,7 +118,7 @@ export class DockerPythonExecutor implements CodeToolExecutor {
             }
 
             const externalDependencies = [
-                "nest_asyncio",
+                "nest-asyncio2",
                 "asyncio",
                 "uvicorn",
                 "fastapi_websocket_rpc",

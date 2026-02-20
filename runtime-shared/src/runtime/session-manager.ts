@@ -61,13 +61,13 @@ type UploadInputBase = {
 
 type UploadInput =
     | (UploadInputBase & {
-          bytes: Buffer;
-          filePath?: never;
-      })
+        bytes: Buffer;
+        filePath?: never;
+    })
     | (UploadInputBase & {
-          filePath: string;
-          bytes?: never;
-      });
+        filePath: string;
+        bytes?: never;
+    });
 
 type SendMessageInput = {
     text: string;
@@ -367,7 +367,7 @@ export class SessionManager {
             await fs.mkdir(workspace.workingDirectory, { recursive: true });
             return workspace;
         };
-  
+
         const agents = await this.createAgents(config, checkpointer, orchestratorBuilder, workspaceFactory);
         const mainAgent =
             agents.length === 1 ? agents[0]?.agent : agents.find((agentDefinition) => agentDefinition.mainAgent)?.agent;
@@ -809,7 +809,7 @@ export class SessionManager {
                     visionSupport: definition.visionSupport,
                     constitution: definition.constitution,
                     plugins: [...(definition.plugins ?? []) as PluginFactory[]],
-                    codeExecutor: (workspace) => new LocalPythonExecutor({additionalPackages: [], workspace: workspace}),
+                    codeExecutor: (workspace) => new DockerPythonExecutor({ additionalPackages: [], workspace: workspace }),
                     workspaceFactory
                 });
 
@@ -974,7 +974,7 @@ export class SessionManager {
             while (!(result = await generator.next()).done) {
                 await this.handleIntermediateResponse(session, result.value);
             }
-            
+
             if (result.value.type === "agentResponse") {
                 const text = extractAllTextFromComplexResponse(result.value.content.content);
                 const attachments = await this.registerSharedFiles(session, result.value.content.sharedFiles ?? []);

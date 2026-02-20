@@ -24,7 +24,7 @@ export type AgentDefinition = {
         constitution?: string;
         checkpointer?: BaseCheckpointSaver,
         plugins?: PluginFactory[];
-        visionSupport?: 'openai';
+        visionSupport?: boolean;
         chatHistory?: {
             summaryModel?: BaseChatModel;
             tokenLimit?: number;
@@ -78,16 +78,16 @@ export const run = async () => {
             const newAgent = {
                 mainAgent: agentDefinition.mainAgent,
                 name: agentName,
-                agent: await orchestratorBuilder.initializeAgent( new CodeAgentFactory({
+                agent: await orchestratorBuilder.initializeAgent(new CodeAgentFactory({
                     description: agentDefinition.description,
                     profession: agentDefinition.definition.profession,
                     model: agentDefinition.definition.chatModel,
                     visionSupport: agentDefinition.definition.visionSupport,
                     constitution: agentDefinition.definition.constitution,
                     checkpointer: agentDefinition.definition.checkpointer,
-                    plugins: [...agentDefinition.definition.plugins ?? [], ], // ...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))
+                    plugins: [...agentDefinition.definition.plugins ?? [],], // ...(agentDefinition.definition.langChainTools ?? []).map(t => new LangchainToolWrapperPluginFactory(t))
                     workspaceFactory: workspaceFactory,
-                    codeExecutor: (workspace) =>  new LocalPythonExecutor({workspace}),
+                    codeExecutor: (workspace) => new LocalPythonExecutor({ workspace }),
                 }), agentName, agentDefinition.definition.communicationWhitelist)
             }
             console.log(chalk.green(`Created agent "${agentName}" with profession "${agentDefinition.definition.profession}" and description "${agentDefinition.description}"`));

@@ -4,8 +4,8 @@ import { ViewPluginFactory } from "../../tools/image_view.js";
 import { MimirToolToLangchainTool } from "./wrapper.js";
 import { ToolMessage } from "@langchain/core/messages/tool";
 import { complexResponseToLangchainMessageContent, trimAndSanitizeMessageContent } from "../../utils/format.js";
-import { AIMessage, BaseMessage, ContentBlock, HumanMessage,   RemoveMessage, SystemMessage } from "@langchain/core/messages";
-import {  BaseCheckpointSaver, Command, END, interrupt, MemorySaver,  START,  StateGraph, GraphNode, ConditionalEdgeRouter } from "@langchain/langgraph";
+import { AIMessage, BaseMessage, ContentBlock, HumanMessage, RemoveMessage, SystemMessage } from "@langchain/core/messages";
+import { BaseCheckpointSaver, Command, END, interrupt, MemorySaver, START, StateGraph, GraphNode, ConditionalEdgeRouter } from "@langchain/langgraph";
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { dividerSystemMessage, humanMessageToInputAgentMessage, lCmessageContentToContent, mergeSystemMessages } from "../message-utils.js";
@@ -36,8 +36,8 @@ export type CreateAgentArgs = {
     plugins?: PluginFactory[],
     /** Optional constitution defining agent behavior guidelines */
     constitution?: string,
-    /** Optional vision support type (currently only supports 'openai') */
-    visionSupport?: 'openai',
+    /** Optional vision support type */
+    visionSupport?: boolean,
     /** Factory function to create the agent's workspace */
     workspaceFactory: WorkspaceFactory,
 
@@ -135,7 +135,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 messageToStore = [new HumanMessage({
                     additional_kwargs: {
                         persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
-                        original_content:  persistentMessage.message.content,
+                        original_content: persistentMessage.message.content,
                         shared_files: inputMessage.sharedFiles,
                     },
                     id: messageId,
@@ -372,7 +372,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
     const commandList = agentCommands.map(ac => ac.commands).flat();
 
     const memory = config.checkpointer ?? new MemorySaver()
-    const graph: AgentGraphType  = workflow.compile({
+    const graph: AgentGraphType = workflow.compile({
         checkpointer: memory,
     });
 

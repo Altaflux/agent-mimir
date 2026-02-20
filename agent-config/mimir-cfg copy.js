@@ -1,7 +1,7 @@
 
 const ChatOpenAI = require('@langchain/openai').ChatOpenAI;
 const ChatAnthropic = require('@langchain/anthropic').ChatAnthropic;
-const ChatGroq  = require('@langchain/groq').ChatGroq;
+const ChatGroq = require('@langchain/groq').ChatGroq;
 // import { z } from "zod";
 
 const z = require("zod").z;
@@ -63,7 +63,7 @@ const embeddings = new OpenAIEmbeddings({
 
 const chatModel = new ChatAnthropic({
     temperature: 0.0,
-  //  modelName: "claude-3-5-sonnet-20241022",
+    //  modelName: "claude-3-5-sonnet-20241022",
     modelName: "claude-sonnet-4-5-20250929",
     // In Node.js defaults to process.env.ANTHROPIC_API_KEY,
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
@@ -72,7 +72,7 @@ const chatModel = new ChatAnthropic({
 
 // const chatModel = new ChatGoogleGenerativeAI({
 //     model: "gemini-3-pro-preview",
-    
+
 //     //modelName: "gemini-2.0-flash",
 // });
 
@@ -103,7 +103,7 @@ module.exports = async function () {
                     //agentType: "openai-function-agent",
                     agentType: "plain-text-agent",
                     profession: 'an Assistant that instructs and guide workers to do tasks',
-                    visionSupport: 'openai',
+                    visionSupport: true,
                     chatHistory: {
                         tokenLimit: 300, //Maximum number of tokens that can be used by the chat. 8000 by default.
                         conversationTokenThreshold: 90, //Percentage threshold of the tokens used by the chat before summarizing. 75% by default.
@@ -111,7 +111,7 @@ module.exports = async function () {
 
                     },
                     plugins: [
-                    //    new GameboyPluginFactory("SameBoy"),
+                        //    new GameboyPluginFactory("SameBoy"),
                         // new DesktopControlPluginFactory({
                         //    // mouseMode: ["SOM", 'TEXT', 'COORDINATES',],
                         //     mouseMode: ['COORDINATES',],
@@ -131,7 +131,7 @@ module.exports = async function () {
                         //     dbPath: "C:\\AI\\northwind.db"
                         // }),
                         new McpClientPluginFactory({
-                        
+
                             servers: {
                                 // "sqlite": {
                                 //     description: "Query a Northwind SQLite database.",

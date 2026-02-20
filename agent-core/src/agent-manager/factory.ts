@@ -19,11 +19,11 @@ export interface AgentConfig {
     model: BaseChatModel;
     /** Optional constitution defining agent behavior guidelines */
     constitution?: string;
-    /** Optional vision support type (currently only supports 'openai') */
-    visionSupport?: 'openai';
+    /** Optional vision support type */
+    visionSupport?: boolean;
     /** Factory function to create the agent's workspace */
     workspaceFactory: WorkspaceFactory;
-    
+
     plugins: PluginFactory[],
 
     checkpointer?: BaseCheckpointSaver

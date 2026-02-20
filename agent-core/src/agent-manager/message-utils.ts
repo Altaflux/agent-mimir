@@ -1,5 +1,5 @@
 import { v4 } from "uuid";
-import { AIMessage, BaseMessage, ContentBlock, HumanMessage,  SystemMessage, ToolMessage } from "@langchain/core/messages";
+import { AIMessage, BaseMessage, ContentBlock, HumanMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { ComplexMessageContent, ImageMessageContent, TextMessageContent, SupportedImageTypes, } from "../schema.js";
 import { CONSTANTS, ERROR_MESSAGES } from "./constants.js";
 import { complexResponseToLangchainMessageContent } from "../utils/format.js";
@@ -35,7 +35,7 @@ export function lCmessageContentToContent(content: ContentBlock[] | string): Com
         }
 
         if (c.type === "image") {
-            //TODO FIX FOR HANDLING BETTER url tyoes
+            //TODO FIX FOR HANDLING BETTER url types
             const imgContent = c as ContentBlock.Multimodal.Image;
             const imageUrl = typeof imgContent.data === 'string' ?
                 imgContent.data :
@@ -76,20 +76,20 @@ export const dividerSystemMessage = {
 } satisfies ComplexMessageContent;
 
 
-export function humanMessageToInputAgentMessage(message: HumanMessage) : InputAgentMessage {
+export function humanMessageToInputAgentMessage(message: HumanMessage): InputAgentMessage {
     return {
-      content: lCmessageContentToContent(message.contentBlocks),
-      sharedFiles: [
-        ...(message.additional_kwargs?.["sharedFiles"] as SharedFile[] ?? [])
-      ]
+        content: lCmessageContentToContent(message.contentBlocks),
+        sharedFiles: [
+            ...(message.additional_kwargs?.["sharedFiles"] as SharedFile[] ?? [])
+        ]
     }
-  }
+}
 
-export function toolMessageToInputAgentMessage(message: ToolMessage) : InputAgentMessage {
+export function toolMessageToInputAgentMessage(message: ToolMessage): InputAgentMessage {
     return {
-      content: lCmessageContentToContent(message.contentBlocks),
-      sharedFiles: [
-        ...(message.additional_kwargs?.["sharedFiles"] as SharedFile[] ?? [])
-      ]
+        content: lCmessageContentToContent(message.contentBlocks),
+        sharedFiles: [
+            ...(message.additional_kwargs?.["sharedFiles"] as SharedFile[] ?? [])
+        ]
     }
-  }
+}
