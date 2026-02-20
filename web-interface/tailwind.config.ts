@@ -28,12 +28,39 @@ const config: Config = {
                 "destructive-foreground": "hsl(var(--destructive-foreground))",
                 border: "hsl(var(--border))",
                 input: "hsl(var(--input))",
-                ring: "hsl(var(--ring))"
+                ring: "hsl(var(--ring))",
+                sidebar: "hsl(var(--sidebar))",
+                "user-bubble": "hsl(var(--user-bubble))"
             },
             borderRadius: {
                 lg: "var(--radius)",
                 md: "calc(var(--radius) - 2px)",
                 sm: "calc(var(--radius) - 4px)"
+            },
+            animation: {
+                "msg-in": "msg-in 300ms ease-out",
+                "dot-bounce": "dot-bounce 1.4s infinite ease-in-out both",
+                "pulse-glow": "pulse-glow 2s ease-in-out infinite",
+                shimmer: "shimmer 1.5s ease-in-out infinite",
+                spin: "spin 0.7s linear infinite"
+            },
+            keyframes: {
+                "msg-in": {
+                    from: { opacity: "0", transform: "translateY(8px)" },
+                    to: { opacity: "1", transform: "translateY(0)" }
+                },
+                "dot-bounce": {
+                    "0%, 80%, 100%": { transform: "scale(0.6)", opacity: "0.4" },
+                    "40%": { transform: "scale(1)", opacity: "1" }
+                },
+                "pulse-glow": {
+                    "0%, 100%": { opacity: "0.5" },
+                    "50%": { opacity: "1" }
+                },
+                shimmer: {
+                    "0%": { backgroundPosition: "-200% 0" },
+                    "100%": { backgroundPosition: "200% 0" }
+                }
             }
         }
     },

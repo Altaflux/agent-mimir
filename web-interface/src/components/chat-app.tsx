@@ -13,22 +13,44 @@ import {
 } from "@/lib/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { FilePlus2, RefreshCw, SendHorizontal, Trash2, X } from "lucide-react";
+import {
+    ArrowUp,
+    Bot,
+    ChevronDown,
+    ChevronRight,
+    FilePlus2,
+    Loader2,
+    Menu,
+    MessageSquarePlus,
+    Paperclip,
+    RefreshCw,
+    Trash2,
+    User,
+    Wrench,
+    X,
+    Zap
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { DragEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DragEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+/* ── Types ──────────────────────────────────────────────── */
 
 type EventMap = Record<string, SessionEvent[]>;
 type StateMap = Record<string, SessionState>;
 type ErrorPayload = { error?: { code?: string; message?: string } };
+
 const CHAT_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/jpg"]);
+
 const CHAT_MARKDOWN_CLASS =
     "prose prose-sm prose-invert max-w-none whitespace-pre-wrap text-foreground " +
-    "prose-headings:my-2 prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 " +
-    "prose-pre:my-2 prose-pre:max-h-56 prose-pre:overflow-auto prose-code:before:content-none prose-code:after:content-none";
+    "prose-headings:my-2 prose-p:my-1 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 " +
+    "prose-pre:my-2 prose-pre:max-h-64 prose-pre:overflow-auto prose-pre:rounded-lg prose-pre:bg-[hsl(0,0%,10%)] " +
+    "prose-code:before:content-none prose-code:after:content-none prose-code:bg-[hsl(0,0%,18%)] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-[0.85em]";
+
+/* ── Utilities ──────────────────────────────────────────── */
 
 function formatTime(iso: string) {
     const date = new Date(iso);
@@ -42,7 +64,6 @@ function apiErrorMessage(errorPayload: unknown, fallback: string): string {
             return maybeError.message;
         }
     }
-
     return fallback;
 }
 
@@ -53,32 +74,7 @@ function apiErrorCode(errorPayload: unknown): string | undefined {
             return maybeError.code;
         }
     }
-
     return undefined;
-}
-
-function downloadLinks(files: DownloadableFile[]) {
-    if (files.length === 0) {
-        return null;
-    }
-
-    return (
-        <div className="mt-2 flex flex-wrap gap-2">
-            {files.map((file) => (
-                <a
-                    key={file.fileId}
-                    href={file.href}
-                    className="rounded-full border border-border bg-background px-3 py-1 text-xs hover:bg-accent hover:text-accent-foreground"
-                >
-                    {file.fileName}
-                </a>
-            ))}
-        </div>
-    );
-}
-
-function ScrollableCodeBlock({ text }: { text: string }) {
-    return <pre className="max-h-44 overflow-auto whitespace-pre-wrap rounded-md border border-border/70 bg-background/70 p-3 text-xs text-foreground/90">{text}</pre>;
 }
 
 function isChatImageFile(file: File) {
@@ -88,6 +84,74 @@ function isChatImageFile(file: File) {
 function fileFingerprint(file: File) {
     return `${file.name}|${file.size}|${file.lastModified}|${file.type}`;
 }
+
+/* ── Sub-components ─────────────────────────────────────── */
+
+function ThinkingDots() {
+    return (
+        <div className="flex items-start gap-3 animate-msg-in">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+                <Bot className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="mt-1 rounded-2xl rounded-tl-sm bg-secondary px-4 py-3">
+                <div className="thinking-dots flex items-center gap-0.5">
+                    <span />
+                    <span />
+                    <span />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ScrollableCodeBlock({ text }: { text: string }) {
+    return (
+        <pre className="max-h-44 overflow-auto whitespace-pre-wrap rounded-lg bg-[hsl(0,0%,10%)] p-3 text-xs text-foreground/90 font-mono">
+            {text}
+        </pre>
+    );
+}
+
+function CollapsibleSection({ title, icon, children, defaultOpen = false }: {
+    title: string;
+    icon: ReactNode;
+    children: ReactNode;
+    defaultOpen?: boolean;
+}) {
+    const [isOpen, setIsOpen] = useState(defaultOpen);
+    return (
+        <div className="rounded-xl border border-border/50 bg-secondary/30 overflow-hidden animate-msg-in">
+            <button
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-muted-foreground hover:bg-secondary/50 transition-colors"
+                onClick={() => setIsOpen((o) => !o)}
+            >
+                {icon}
+                <span className="flex-1">{title}</span>
+                {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            </button>
+            {isOpen ? <div className="border-t border-border/30 px-3 py-2">{children}</div> : null}
+        </div>
+    );
+}
+
+function DownloadLinks({ files }: { files: DownloadableFile[] }) {
+    if (files.length === 0) return null;
+    return (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+            {files.map((file) => (
+                <a
+                    key={file.fileId}
+                    href={file.href}
+                    className="rounded-full border border-border bg-secondary px-2.5 py-0.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                >
+                    📎 {file.fileName}
+                </a>
+            ))}
+        </div>
+    );
+}
+
+/* ── Main Component ─────────────────────────────────────── */
 
 export function ChatApp() {
     const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -102,12 +166,17 @@ export function ChatApp() {
     const [disapproveMessage, setDisapproveMessage] = useState("");
     const [showDisapproveBox, setShowDisapproveBox] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [sidebarOpen, setSidebarOpen] = useState(true);
 
     const dragDepthRef = useRef(0);
     const conversationScrollRef = useRef<HTMLDivElement | null>(null);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
     const activeState = activeSessionId ? sessionStates[activeSessionId] : undefined;
     const activeEvents = activeSessionId ? eventsBySession[activeSessionId] ?? [] : [];
+
+    /* ── Session helpers (logic unchanged) ─────────────── */
 
     const upsertSessionSummary = useCallback((summary: SessionSummary) => {
         setSessions((current) => {
@@ -150,16 +219,10 @@ export function ChatApp() {
 
                         const mergedEvents = [...existing];
                         mergedEvents[existingChunkIndex] = mergedChunk;
-                        return {
-                            ...current,
-                            [event.sessionId]: mergedEvents
-                        };
+                        return { ...current, [event.sessionId]: mergedEvents };
                     }
 
-                    return {
-                        ...current,
-                        [event.sessionId]: [...existing, event]
-                    };
+                    return { ...current, [event.sessionId]: [...existing, event] };
                 }
 
                 if (event.type === "agent_response") {
@@ -169,11 +232,7 @@ export function ChatApp() {
                     if (withoutRelatedChunks.some((entry) => entry.id === event.id)) {
                         return current;
                     }
-
-                    return {
-                        ...current,
-                        [event.sessionId]: [...withoutRelatedChunks, event]
-                    };
+                    return { ...current, [event.sessionId]: [...withoutRelatedChunks, event] };
                 }
 
                 if (event.type === "agent_to_agent") {
@@ -184,21 +243,14 @@ export function ChatApp() {
                     if (withoutRelatedChunks.some((entry) => entry.id === event.id)) {
                         return current;
                     }
-
-                    return {
-                        ...current,
-                        [event.sessionId]: [...withoutRelatedChunks, event]
-                    };
+                    return { ...current, [event.sessionId]: [...withoutRelatedChunks, event] };
                 }
 
                 if (existing.some((entry) => entry.id === event.id)) {
                     return current;
                 }
 
-                return {
-                    ...current,
-                    [event.sessionId]: [...existing, event]
-                };
+                return { ...current, [event.sessionId]: [...existing, event] };
             });
 
             if (event.type === "state_changed") {
@@ -212,14 +264,11 @@ export function ChatApp() {
         async (name?: string) => {
             const response = await fetch("/api/sessions", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ name: name?.trim() || undefined })
             });
 
             const payload = (await response.json()) as CreateSessionResponse | { error?: { message?: string } };
-
             if (!response.ok) {
                 throw new Error(apiErrorMessage(payload, "Unable to create a new session."));
             }
@@ -236,13 +285,10 @@ export function ChatApp() {
         const response = await fetch("/api/sessions", {
             method: "GET",
             cache: "no-store",
-            headers: {
-                "Cache-Control": "no-cache"
-            }
+            headers: { "Cache-Control": "no-cache" }
         });
 
         const payload = (await response.json()) as ListSessionsResponse | { error?: { message?: string } };
-
         if (!response.ok) {
             throw new Error(apiErrorMessage(payload, "Unable to load sessions."));
         }
@@ -257,7 +303,6 @@ export function ChatApp() {
                     next[sessionId] = state;
                 }
             }
-
             return next;
         });
         setEventsBySession((current) => {
@@ -267,7 +312,6 @@ export function ChatApp() {
                     next[sessionId] = events;
                 }
             }
-
             return next;
         });
         return success.sessions;
@@ -300,11 +344,12 @@ export function ChatApp() {
                 await recoverFromMissingSession(sessionId);
                 return true;
             }
-
             return false;
         },
         [recoverFromMissingSession]
     );
+
+    /* ── Effects ──────────────────────────────────────── */
 
     useEffect(() => {
         (async () => {
@@ -329,9 +374,7 @@ export function ChatApp() {
     }, [refreshSessions]);
 
     useEffect(() => {
-        if (!activeSessionId) {
-            return;
-        }
+        if (!activeSessionId) return;
 
         const eventSource = new EventSource(`/api/sessions/${activeSessionId}/stream`);
 
@@ -356,10 +399,10 @@ export function ChatApp() {
         };
     }, [activeSessionId, appendEvent, recoverFromMissingSession]);
 
+    /* ── Actions ──────────────────────────────────────── */
+
     const sendMessage = useCallback(async () => {
-        if (!activeSessionId || isSubmitting) {
-            return;
-        }
+        if (!activeSessionId || isSubmitting) return;
 
         if (message.trim().length === 0 && attachedFiles.length === 0) {
             setErrorMessage("Write a message or attach files before sending.");
@@ -385,9 +428,7 @@ export function ChatApp() {
 
             const payload = await response.json();
             if (!response.ok) {
-                if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) {
-                    return;
-                }
+                if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) return;
                 throw new Error(apiErrorMessage(payload, "Message failed."));
             }
 
@@ -402,9 +443,7 @@ export function ChatApp() {
 
     const submitApproval = useCallback(
         async (action: ApprovalRequest["action"]) => {
-            if (!activeSessionId) {
-                return;
-            }
+            if (!activeSessionId) return;
 
             if (action === "disapprove" && disapproveMessage.trim().length === 0) {
                 setErrorMessage("Disapproval requires a feedback message.");
@@ -416,9 +455,7 @@ export function ChatApp() {
             try {
                 const response = await fetch(`/api/sessions/${activeSessionId}/approval`, {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         action,
                         feedback: action === "disapprove" ? disapproveMessage : undefined
@@ -427,9 +464,7 @@ export function ChatApp() {
 
                 const payload = await response.json();
                 if (!response.ok) {
-                    if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) {
-                        return;
-                    }
+                    if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) return;
                     throw new Error(apiErrorMessage(payload, "Failed to submit approval."));
                 }
 
@@ -446,25 +481,19 @@ export function ChatApp() {
 
     const setContinuousMode = useCallback(
         async (enabled: boolean) => {
-            if (!activeSessionId) {
-                return;
-            }
+            if (!activeSessionId) return;
 
             setErrorMessage(null);
             try {
                 const response = await fetch(`/api/sessions/${activeSessionId}/continuous-mode`, {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ enabled })
                 });
 
                 const payload = (await response.json()) as ToggleContinuousModeResponse | { error?: { message?: string } };
                 if (!response.ok) {
-                    if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) {
-                        return;
-                    }
+                    if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) return;
                     throw new Error(apiErrorMessage(payload, "Failed to set continuous mode."));
                 }
 
@@ -479,25 +508,19 @@ export function ChatApp() {
 
     const setActiveAgent = useCallback(
         async (agentName: string) => {
-            if (!activeSessionId) {
-                return;
-            }
+            if (!activeSessionId) return;
 
             setErrorMessage(null);
             try {
                 const response = await fetch(`/api/sessions/${activeSessionId}/active-agent`, {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ agentName })
                 });
 
                 const payload = (await response.json()) as SetActiveAgentResponse | { error?: { message?: string } };
                 if (!response.ok) {
-                    if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) {
-                        return;
-                    }
+                    if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) return;
                     throw new Error(apiErrorMessage(payload, "Failed to switch active agent."));
                 }
 
@@ -511,18 +534,14 @@ export function ChatApp() {
     );
 
     const resetSession = useCallback(async () => {
-        if (!activeSessionId) {
-            return;
-        }
+        if (!activeSessionId) return;
 
         setErrorMessage(null);
         try {
             const response = await fetch(`/api/sessions/${activeSessionId}/reset`, { method: "POST" });
             const payload = await response.json();
             if (!response.ok) {
-                if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) {
-                    return;
-                }
+                if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) return;
                 throw new Error(apiErrorMessage(payload, "Failed to reset session."));
             }
         } catch (error) {
@@ -534,17 +553,13 @@ export function ChatApp() {
         async (sessionId: string) => {
             setErrorMessage(null);
             try {
-                const response = await fetch(`/api/sessions/${sessionId}`, {
-                    method: "DELETE"
-                });
-
+                const response = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
                 const payload = await response.json();
                 if (!response.ok) {
                     throw new Error(apiErrorMessage(payload, "Failed to delete session."));
                 }
 
                 const remaining = sessions.filter((entry) => entry.sessionId !== sessionId);
-
                 setSessions(remaining);
                 setSessionStates((current) => {
                     const { [sessionId]: _removed, ...rest } = current;
@@ -569,14 +584,13 @@ export function ChatApp() {
         [activeSessionId, sessions]
     );
 
+    /* ── Drag & drop / Files ─────────────────────────── */
+
     const pendingToolRequest = activeState?.pendingToolRequest;
     const disableComposer = isSubmitting || Boolean(pendingToolRequest);
 
     const addDroppedFiles = useCallback((incomingFiles: File[]) => {
-        if (incomingFiles.length === 0) {
-            return;
-        }
-
+        if (incomingFiles.length === 0) return;
         setAttachedFiles((current) => {
             const existingFingerprints = new Set(current.map((file) => fileFingerprint(file)));
             const uniqueIncoming = incomingFiles.filter((file) => !existingFingerprints.has(fileFingerprint(file)));
@@ -592,7 +606,6 @@ export function ChatApp() {
                     removed = true;
                     return false;
                 }
-
                 return true;
             });
         });
@@ -601,14 +614,8 @@ export function ChatApp() {
     const handleComposerDragEnter = useCallback(
         (event: DragEvent<HTMLDivElement>) => {
             event.preventDefault();
-            if (disableComposer || !activeSessionId) {
-                return;
-            }
-
-            if (!event.dataTransfer.types.includes("Files")) {
-                return;
-            }
-
+            if (disableComposer || !activeSessionId) return;
+            if (!event.dataTransfer.types.includes("Files")) return;
             dragDepthRef.current += 1;
             setIsComposerDragOver(true);
         },
@@ -618,9 +625,7 @@ export function ChatApp() {
     const handleComposerDragOver = useCallback(
         (event: DragEvent<HTMLDivElement>) => {
             event.preventDefault();
-            if (disableComposer || !activeSessionId) {
-                return;
-            }
+            if (disableComposer || !activeSessionId) return;
             event.dataTransfer.dropEffect = "copy";
         },
         [activeSessionId, disableComposer]
@@ -639,347 +644,422 @@ export function ChatApp() {
             event.preventDefault();
             dragDepthRef.current = 0;
             setIsComposerDragOver(false);
-
-            if (disableComposer || !activeSessionId) {
-                return;
-            }
-
+            if (disableComposer || !activeSessionId) return;
             addDroppedFiles(Array.from(event.dataTransfer.files ?? []));
         },
         [activeSessionId, addDroppedFiles, disableComposer]
     );
 
-    const sessionLabel = useMemo(() => {
-        if (!activeState) {
-            return "No active conversation";
-        }
+    /* ── Auto-resize textarea ────────────────────────── */
 
-        return `${activeState.name} (${activeState.activeAgentName})`;
+    useEffect(() => {
+        const ta = textareaRef.current;
+        if (!ta) return;
+        ta.style.height = "auto";
+        ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
+    }, [message]);
+
+    /* ── Computed ─────────────────────────────────────── */
+
+    const sessionLabel = useMemo(() => {
+        if (!activeState) return "Agent Mimir";
+        return activeState.name;
     }, [activeState]);
 
     useEffect(() => {
         const container = conversationScrollRef.current;
-        if (!container) {
-            return;
-        }
-
-        container.scrollTo({
-            top: container.scrollHeight,
-            behavior: "auto"
-        });
+        if (!container) return;
+        container.scrollTo({ top: container.scrollHeight, behavior: "auto" });
     }, [activeEvents, activeSessionId]);
+
+    /* Check if the agent is currently "thinking" — we just sent a message and no response came back yet */
+    const isAgentThinking = useMemo(() => {
+        if (!isSubmitting && activeEvents.length > 0) {
+            const lastEvent = activeEvents[activeEvents.length - 1];
+            if (lastEvent && lastEvent.type === "user_message") return true;
+        }
+        return isSubmitting;
+    }, [isSubmitting, activeEvents]);
+
+    /* ── Loading screen ──────────────────────────────── */
 
     if (isLoading) {
         return (
-            <main className="app-shell mx-auto flex min-h-screen w-full max-w-[1280px] items-center justify-center p-6">
-                <Card className="w-full max-w-md border-border/60 bg-card/75 shadow-2xl shadow-black/30 backdrop-blur-xl">
-                    <CardHeader>
-                        <CardTitle>Loading Agent Mimir Web</CardTitle>
-                        <CardDescription>Preparing your session runtime.</CardDescription>
-                    </CardHeader>
-                </Card>
+            <main className="app-shell flex h-[100dvh] items-center justify-center bg-background">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="flex items-center gap-3">
+                        <Bot className="h-10 w-10 text-muted-foreground animate-pulse-glow" />
+                        <h1 className="text-2xl font-heading font-semibold text-foreground">Agent Mimir</h1>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Preparing your session...
+                    </div>
+                </div>
             </main>
         );
     }
 
+    /* ── Render ───────────────────────────────────────── */
+
     return (
-        <main className="app-shell mx-auto h-[100dvh] min-h-screen w-full max-w-[1280px] overflow-hidden p-3 md:p-6">
-            <div className="grid h-full min-h-0 grid-cols-1 grid-rows-[minmax(220px,38dvh)_minmax(0,1fr)] gap-4 md:grid-cols-[300px_minmax(0,1fr)] md:grid-rows-1">
-                <Card className="flex min-h-0 flex-col overflow-hidden border-border/60 bg-card/70 shadow-2xl shadow-black/20 backdrop-blur-xl">
-                    <CardHeader className="border-b border-border/60 bg-card/65">
-                        <CardTitle>Conversations</CardTitle>
-                        <CardDescription>Each conversation has isolated runtime state.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-3">
-                        <Button
-                            className="w-full"
-                            onClick={() => {
-                                createSession().catch((error) => {
-                                    setErrorMessage(error instanceof Error ? error.message : "Failed to create session.");
-                                });
-                            }}
-                        >
-                            <FilePlus2 className="mr-2 h-4 w-4" /> New Conversation
-                        </Button>
+        <main className="app-shell flex h-[100dvh] overflow-hidden bg-background">
+            {/* ── Sidebar ───────────────────────────────── */}
+            <aside
+                className={`${sidebarOpen ? "w-[260px]" : "w-0"
+                    } shrink-0 flex flex-col bg-sidebar border-r border-border/40 transition-all duration-300 overflow-hidden`}
+            >
+                {/* Sidebar header */}
+                <div className="flex items-center justify-between p-3 border-b border-border/30">
+                    <span className="text-sm font-semibold text-foreground truncate">Conversations</span>
+                    <button
+                        className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                        onClick={() => {
+                            createSession().catch((error) => {
+                                setErrorMessage(error instanceof Error ? error.message : "Failed to create session.");
+                            });
+                        }}
+                        title="New conversation"
+                    >
+                        <MessageSquarePlus className="h-4 w-4" />
+                    </button>
+                </div>
 
-                        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-                            {sessions.map((session) => (
-                                <div
-                                    key={session.sessionId}
-                                    className={`rounded-lg border p-2 transition ${activeSessionId === session.sessionId ? "border-primary/80 bg-primary/10 shadow-lg shadow-primary/10" : "border-border/70 bg-background/35 hover:bg-background/55"}`}
-                                >
-                                    <button
-                                        className="w-full text-left"
-                                        onClick={() => {
-                                            setActiveSessionId(session.sessionId);
-                                        }}
-                                    >
-                                        <p className="truncate font-semibold">{session.name}</p>
-                                        <p className="text-xs text-muted-foreground">{session.activeAgentName}</p>
-                                        <div className="mt-1 flex items-center gap-2">
-                                            {session.hasPendingToolRequest ? <Badge variant="destructive">Pending approval</Badge> : null}
-                                            {session.continuousMode ? <Badge variant="secondary">Continuous</Badge> : null}
-                                        </div>
-                                    </button>
-                                    <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="mt-2 w-full"
-                                        onClick={() => {
-                                            deleteSession(session.sessionId).catch((error) => {
-                                                setErrorMessage(error instanceof Error ? error.message : "Failed to delete session.");
-                                            });
-                                        }}
-                                    >
-                                        <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                    </Button>
+                {/* Conversation list */}
+                <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+                    {sessions.map((session) => (
+                        <div key={session.sessionId} className="group relative">
+                            <button
+                                className={`w-full text-left rounded-lg px-3 py-2.5 text-sm transition-colors ${activeSessionId === session.sessionId
+                                        ? "bg-accent text-foreground"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                                    }`}
+                                onClick={() => setActiveSessionId(session.sessionId)}
+                            >
+                                <p className="truncate font-medium">{session.name}</p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                    <span className="text-[11px] opacity-60">{session.activeAgentName}</span>
+                                    {session.hasPendingToolRequest ? (
+                                        <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                                            Pending
+                                        </Badge>
+                                    ) : null}
+                                    {session.continuousMode ? (
+                                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                            Auto
+                                        </Badge>
+                                    ) : null}
                                 </div>
-                            ))}
+                            </button>
+                            <button
+                                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"
+                                onClick={() => {
+                                    deleteSession(session.sessionId).catch((error) => {
+                                        setErrorMessage(error instanceof Error ? error.message : "Failed to delete session.");
+                                    });
+                                }}
+                                title="Delete conversation"
+                            >
+                                <Trash2 className="h-3.5 w-3.5" />
+                            </button>
                         </div>
-                    </CardContent>
-                </Card>
+                    ))}
 
-                <Card className="flex min-h-0 flex-col overflow-hidden border-border/60 bg-card/70 shadow-2xl shadow-black/20 backdrop-blur-xl">
-                    <CardHeader className="shrink-0 border-b border-border/60 bg-card/65 backdrop-blur-xl">
-                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                            <div>
-                                <CardTitle>{sessionLabel}</CardTitle>
-                                <CardDescription>Tools, approvals, and multi-agent routing are streamed live.</CardDescription>
-                            </div>
+                    {sessions.length === 0 ? (
+                        <p className="text-center text-xs text-muted-foreground py-8">No conversations yet</p>
+                    ) : null}
+                </div>
+            </aside>
 
-                            <div className="flex flex-wrap items-center gap-3">
-                                <label className="flex items-center gap-2 text-sm">
-                                    <span>Continuous mode</span>
-                                    <Switch
-                                        checked={activeState?.continuousMode ?? false}
-                                        onCheckedChange={(checked) => {
-                                            setContinuousMode(Boolean(checked)).catch((error) => {
-                                                setErrorMessage(error instanceof Error ? error.message : "Could not toggle continuous mode.");
-                                            });
-                                        }}
-                                        disabled={!activeState}
-                                    />
-                                </label>
+            {/* ── Main area ─────────────────────────────── */}
+            <div className="flex flex-1 flex-col min-w-0">
+                {/* Top bar */}
+                <header className="flex items-center gap-3 px-4 py-2.5 border-b border-border/30 bg-background/80 backdrop-blur-sm shrink-0">
+                    <button
+                        className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                        onClick={() => setSidebarOpen((o) => !o)}
+                        title={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+                    >
+                        <Menu className="h-5 w-5" />
+                    </button>
 
-                                <select
-                                    className="h-10 rounded-md border border-input bg-background/80 px-3 text-sm"
-                                    value={activeState?.activeAgentName ?? ""}
-                                    onChange={(event) => {
-                                        setActiveAgent(event.target.value).catch((error) => {
-                                            setErrorMessage(error instanceof Error ? error.message : "Could not change agent.");
+                    <div className="flex-1 min-w-0">
+                        <h1 className="text-sm font-semibold truncate">{sessionLabel}</h1>
+                        {activeState ? (
+                            <p className="text-xs text-muted-foreground truncate">
+                                Agent: {activeState.activeAgentName}
+                            </p>
+                        ) : null}
+                    </div>
+
+                    {activeState ? (
+                        <div className="flex items-center gap-2 shrink-0">
+                            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                                <Zap className="h-3.5 w-3.5" />
+                                <span className="hidden sm:inline">Auto</span>
+                                <Switch
+                                    checked={activeState.continuousMode}
+                                    onCheckedChange={(checked) => {
+                                        setContinuousMode(Boolean(checked)).catch((error) => {
+                                            setErrorMessage(error instanceof Error ? error.message : "Could not toggle continuous mode.");
                                         });
                                     }}
-                                    disabled={!activeState}
-                                >
-                                    {(activeState?.agentNames ?? []).map((agentName) => (
-                                        <option key={agentName} value={agentName}>
-                                            {agentName}
-                                        </option>
-                                    ))}
-                                </select>
+                                />
+                            </label>
 
-                                <Button
-                                    variant="outline"
-                                    onClick={() => {
-                                        resetSession().catch((error) => {
-                                            setErrorMessage(error instanceof Error ? error.message : "Could not reset session.");
-                                        });
-                                    }}
-                                    disabled={!activeState}
-                                >
-                                    <RefreshCw className="mr-2 h-4 w-4" /> Reset
-                                </Button>
-                            </div>
+                            <select
+                                className="h-8 rounded-lg border border-border bg-secondary px-2 text-xs text-foreground appearance-none cursor-pointer"
+                                value={activeState.activeAgentName}
+                                onChange={(event) => {
+                                    setActiveAgent(event.target.value).catch((error) => {
+                                        setErrorMessage(error instanceof Error ? error.message : "Could not change agent.");
+                                    });
+                                }}
+                            >
+                                {activeState.agentNames.map((agentName) => (
+                                    <option key={agentName} value={agentName}>
+                                        {agentName}
+                                    </option>
+                                ))}
+                            </select>
+
+                            <button
+                                className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                                onClick={() => {
+                                    resetSession().catch((error) => {
+                                        setErrorMessage(error instanceof Error ? error.message : "Could not reset session.");
+                                    });
+                                }}
+                                title="Reset session"
+                            >
+                                <RefreshCw className="h-4 w-4" />
+                            </button>
                         </div>
-                    </CardHeader>
+                    ) : null}
+                </header>
 
-                    <CardContent ref={conversationScrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-4">
+                {/* ── Chat messages ──────────────────────── */}
+                <div ref={conversationScrollRef} className="flex-1 overflow-y-auto overscroll-contain">
+                    <div className="mx-auto max-w-3xl px-4 py-6 space-y-5">
+                        {/* Empty state */}
                         {activeEvents.length === 0 ? (
-                            <div className="rounded-lg border border-dashed border-border/80 bg-background/40 p-6 text-center text-sm text-muted-foreground">
-                                {activeSessionId ? "Send a message to begin." : "Create a conversation to begin."}
+                            <div className="flex flex-col items-center justify-center py-24 text-center">
+                                <Bot className="h-12 w-12 text-muted-foreground/40 mb-4" />
+                                <h2 className="text-lg font-heading font-semibold text-foreground/80 mb-1">
+                                    {activeSessionId ? "Start a conversation" : "Create a conversation"}
+                                </h2>
+                                <p className="text-sm text-muted-foreground max-w-sm">
+                                    {activeSessionId
+                                        ? "Send a message to begin chatting with your agent."
+                                        : "Click the + button in the sidebar to create your first conversation."}
+                                </p>
                             </div>
                         ) : null}
 
+                        {/* Messages */}
                         {activeEvents.map((event) => {
-                            if (event.type === "state_changed") {
-                                return null;
-                            }
+                            if (event.type === "state_changed") return null;
 
+                            /* ── User message ─────────────── */
                             if (event.type === "user_message") {
                                 return (
-                                    <Card key={event.id} className="border-border/60 bg-background/45">
-                                        <CardHeader className="pb-2">
-                                            <CardTitle className="text-base">You</CardTitle>
-                                            <CardDescription>{formatTime(event.timestamp)}</CardDescription>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <p className="whitespace-pre-wrap text-sm">{event.text || "(No text)"}</p>
-                                            {event.workspaceFiles.length > 0 ? (
-                                                <p className="mt-2 text-xs text-muted-foreground">Workspace files: {event.workspaceFiles.join(", ")}</p>
-                                            ) : null}
-                                            {event.chatImages.length > 0 ? (
-                                                <p className="mt-1 text-xs text-muted-foreground">Chat images: {event.chatImages.join(", ")}</p>
-                                            ) : null}
-                                        </CardContent>
-                                    </Card>
+                                    <div key={event.id} className="flex justify-end animate-msg-in">
+                                        <div className="max-w-[80%] flex items-start gap-2.5">
+                                            <div className="rounded-2xl rounded-tr-sm bg-user-bubble px-4 py-2.5">
+                                                <p className="whitespace-pre-wrap text-sm text-foreground">{event.text || "(No text)"}</p>
+                                                {event.workspaceFiles.length > 0 ? (
+                                                    <p className="mt-1.5 text-[11px] text-muted-foreground">
+                                                        📂 {event.workspaceFiles.join(", ")}
+                                                    </p>
+                                                ) : null}
+                                                {event.chatImages.length > 0 ? (
+                                                    <p className="mt-1 text-[11px] text-muted-foreground">
+                                                        🖼️ {event.chatImages.join(", ")}
+                                                    </p>
+                                                ) : null}
+                                            </div>
+                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent">
+                                                <User className="h-4 w-4 text-muted-foreground" />
+                                            </div>
+                                        </div>
+                                    </div>
                                 );
                             }
 
+                            /* ── Agent response ───────────── */
+                            if (event.type === "agent_response") {
+                                return (
+                                    <div key={event.id} className="flex items-start gap-3 animate-msg-in">
+                                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+                                            <Bot className="h-4 w-4 text-muted-foreground" />
+                                        </div>
+                                        <div className="min-w-0 flex-1 max-w-[85%]">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-xs font-medium text-muted-foreground">{event.agentName}</span>
+                                                <span className="text-[10px] text-muted-foreground/60">{formatTime(event.timestamp)}</span>
+                                            </div>
+                                            <div className="rounded-2xl rounded-tl-sm bg-secondary/50 px-4 py-3">
+                                                <ReactMarkdown remarkPlugins={[remarkGfm]} className={CHAT_MARKDOWN_CLASS}>
+                                                    {event.markdown}
+                                                </ReactMarkdown>
+                                                <DownloadLinks files={event.attachments} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            /* ── Agent response chunk (streaming) ── */
+                            if (event.type === "agent_response_chunk") {
+                                return (
+                                    <div key={event.id} className="flex items-start gap-3 animate-msg-in">
+                                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+                                            <Bot className="h-4 w-4 text-muted-foreground" />
+                                        </div>
+                                        <div className="min-w-0 flex-1 max-w-[85%]">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-xs font-medium text-muted-foreground">{event.agentName}</span>
+                                                <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-pulse-glow" title="Streaming..." />
+                                            </div>
+                                            <div className="rounded-2xl rounded-tl-sm bg-secondary/50 px-4 py-3">
+                                                <ReactMarkdown remarkPlugins={[remarkGfm]} className={CHAT_MARKDOWN_CLASS}>
+                                                    {event.markdownChunk}
+                                                </ReactMarkdown>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            /* ── Tool response ────────────── */
                             if (event.type === "tool_response") {
                                 return (
-                                    <Card key={event.id} className="border-cyan-400/35 bg-cyan-500/10">
-                                        <CardHeader className="pb-2">
-                                            <CardTitle className="text-base">
-                                                Tool Response <span className="text-muted-foreground">[{event.agentName}]</span>
-                                            </CardTitle>
-                                            <CardDescription>
-                                                {event.toolName} {event.toolCallId ? `(${event.toolCallId})` : ""}
-                                            </CardDescription>
-                                        </CardHeader>
-                                        <CardContent>
+                                    <div key={event.id} className="mx-auto max-w-[85%]">
+                                        <CollapsibleSection
+                                            title={`Tool Response: ${event.toolName} [${event.agentName}]`}
+                                            icon={<Wrench className="h-3.5 w-3.5 text-cyan-400" />}
+                                        >
                                             <ScrollableCodeBlock text={event.response} />
-                                        </CardContent>
-                                    </Card>
+                                        </CollapsibleSection>
+                                    </div>
                                 );
                             }
 
-                            if (event.type === "agent_to_agent") {
-                                return (
-                                    <Card key={event.id} className="border-emerald-400/35 bg-emerald-500/10">
-                                        <CardHeader className="pb-2">
-                                            <CardTitle className="text-base">Agent to Agent</CardTitle>
-                                            <CardDescription>
-                                                {event.sourceAgent} → {event.destinationAgent}
-                                            </CardDescription>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <ReactMarkdown remarkPlugins={[remarkGfm]} className={CHAT_MARKDOWN_CLASS}>
-                                                {event.message}
-                                            </ReactMarkdown>
-                                            {downloadLinks(event.attachments)}
-                                        </CardContent>
-                                    </Card>
-                                );
-                            }
-
+                            /* ── Tool request ─────────────── */
                             if (event.type === "tool_request") {
-                                const title = event.requiresApproval ? "Tool Approval Needed" : "Tool Call (Continuous Mode)";
-                                const description = event.requiresApproval
-                                    ? `Agent: ${event.payload.callingAgent}`
-                                    : `Agent: ${event.payload.callingAgent} (auto-continued)`;
+                                const title = event.requiresApproval
+                                    ? `Tool Approval: ${event.payload.callingAgent}`
+                                    : `Tool Call (auto): ${event.payload.callingAgent}`;
                                 return (
-                                    <Card key={event.id} className="border-amber-400/35 bg-amber-500/10">
-                                        <CardHeader className="pb-2">
-                                            <CardTitle className="text-base">{title}</CardTitle>
-                                            <CardDescription>{description}</CardDescription>
-                                        </CardHeader>
-                                        <CardContent className="space-y-3">
-                                            <ScrollableCodeBlock text={event.payload.content} />
-                                            <div className="space-y-2 rounded-md bg-background p-3">
+                                    <div key={event.id} className="mx-auto max-w-[85%]">
+                                        <CollapsibleSection
+                                            title={title}
+                                            icon={<Wrench className="h-3.5 w-3.5 text-amber-400" />}
+                                            defaultOpen={event.requiresApproval}
+                                        >
+                                            <div className="space-y-2">
+                                                <ScrollableCodeBlock text={event.payload.content} />
                                                 {event.payload.toolCalls.map((call, index) => (
-                                                    <div key={`${event.id}-${index}`} className="space-y-1 border-b border-border pb-2 last:border-b-0 last:pb-0">
-                                                        <p className="text-sm font-semibold">{call.toolName}</p>
+                                                    <div key={`${event.id}-${index}`} className="border-t border-border/30 pt-2">
+                                                        <p className="text-xs font-semibold text-foreground mb-1">{call.toolName}</p>
                                                         <ScrollableCodeBlock text={call.input} />
                                                     </div>
                                                 ))}
                                             </div>
-                                        </CardContent>
-                                    </Card>
+                                        </CollapsibleSection>
+                                    </div>
                                 );
                             }
 
-                            if (event.type === "agent_response") {
+                            /* ── Agent-to-Agent ───────────── */
+                            if (event.type === "agent_to_agent") {
                                 return (
-                                    <Card key={event.id} className="border-border/60 bg-card/70">
-                                        <CardHeader className="pb-2">
-                                            <CardTitle className="text-base">{event.agentName}</CardTitle>
-                                            <CardDescription>{formatTime(event.timestamp)}</CardDescription>
-                                        </CardHeader>
-                                        <CardContent>
+                                    <div key={event.id} className="mx-auto max-w-[85%]">
+                                        <CollapsibleSection
+                                            title={`${event.sourceAgent} → ${event.destinationAgent}`}
+                                            icon={<Zap className="h-3.5 w-3.5 text-emerald-400" />}
+                                            defaultOpen
+                                        >
                                             <ReactMarkdown remarkPlugins={[remarkGfm]} className={CHAT_MARKDOWN_CLASS}>
-                                                {event.markdown}
+                                                {event.message}
                                             </ReactMarkdown>
-                                            {downloadLinks(event.attachments)}
-                                        </CardContent>
-                                    </Card>
+                                            <DownloadLinks files={event.attachments} />
+                                        </CollapsibleSection>
+                                    </div>
                                 );
                             }
 
-                            if (event.type === "agent_response_chunk") {
-                                return (
-                                    <Card key={event.id} className="border-primary/35 bg-primary/10">
-                                        <CardHeader className="pb-2">
-                                            <CardTitle className="text-base">{event.agentName} (typing)</CardTitle>
-                                            <CardDescription>{formatTime(event.timestamp)}</CardDescription>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <ReactMarkdown remarkPlugins={[remarkGfm]} className={CHAT_MARKDOWN_CLASS}>
-                                                {event.markdownChunk}
-                                            </ReactMarkdown>
-                                        </CardContent>
-                                    </Card>
-                                );
-                            }
-
+                            /* ── Reset ─────────────────────── */
                             if (event.type === "reset") {
                                 return (
-                                    <Card key={event.id} className="border-lime-400/35 bg-lime-500/10">
-                                        <CardHeader className="pb-2">
-                                            <CardTitle className="text-base">Reset</CardTitle>
-                                        </CardHeader>
-                                        <CardContent>{event.message}</CardContent>
-                                    </Card>
+                                    <div key={event.id} className="flex justify-center animate-msg-in">
+                                        <div className="rounded-full bg-secondary/50 px-4 py-1.5 text-xs text-muted-foreground">
+                                            🔄 {event.message}
+                                        </div>
+                                    </div>
                                 );
                             }
 
+                            /* ── Error ─────────────────────── */
                             return (
-                                <Card key={event.id} className="border-destructive/30 bg-destructive/5">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-base">Error</CardTitle>
-                                        <CardDescription>{event.code ?? "UNKNOWN_ERROR"}</CardDescription>
-                                    </CardHeader>
-                                    <CardContent>{event.message}</CardContent>
-                                </Card>
+                                <div key={event.id} className="mx-auto max-w-[85%] animate-msg-in">
+                                    <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+                                        <p className="text-xs font-semibold text-red-400 mb-1">{event.code ?? "Error"}</p>
+                                        <p className="text-sm text-foreground/90">{event.message}</p>
+                                    </div>
+                                </div>
                             );
                         })}
-                    </CardContent>
 
-                    <div className="shrink-0 border-t border-border/60 bg-card/70 p-4">
+                        {/* Thinking animation */}
+                        {isAgentThinking ? <ThinkingDots /> : null}
+                    </div>
+                </div>
+
+                {/* ── Bottom composer area ───────────────── */}
+                <div className="shrink-0 border-t border-border/20 bg-background">
+                    <div className="mx-auto max-w-3xl px-4 py-3 space-y-2">
+                        {/* Approval bar */}
                         {pendingToolRequest ? (
-                            <div className="mb-4 rounded-md border border-amber-400/45 bg-amber-500/12 p-3">
-                                <p className="text-sm font-semibold">Tool request is waiting for your decision.</p>
-                                <div className="mt-3 flex flex-wrap gap-2">
+                            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 animate-msg-in">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Wrench className="h-4 w-4 text-amber-400" />
+                                    <span className="text-sm font-medium text-foreground">Tool request awaiting your decision</span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
                                     <Button
+                                        size="sm"
                                         onClick={() => {
                                             submitApproval("approve").catch((error) => {
                                                 setErrorMessage(error instanceof Error ? error.message : "Approval failed.");
                                             });
                                         }}
                                         disabled={isSubmitting}
+                                        className="rounded-lg"
                                     >
+                                        {isSubmitting ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
                                         Approve
                                     </Button>
                                     <Button
+                                        size="sm"
                                         variant="destructive"
-                                        onClick={() => {
-                                            setShowDisapproveBox((current) => !current);
-                                        }}
+                                        onClick={() => setShowDisapproveBox((current) => !current)}
                                         disabled={isSubmitting}
+                                        className="rounded-lg"
                                     >
                                         Disapprove
                                     </Button>
                                 </div>
-
                                 {showDisapproveBox ? (
                                     <div className="mt-3 space-y-2">
                                         <Textarea
                                             value={disapproveMessage}
-                                            onChange={(event) => {
-                                                setDisapproveMessage(event.target.value);
-                                            }}
-                                            placeholder="Explain why this tool execution should not run..."
+                                            onChange={(event) => setDisapproveMessage(event.target.value)}
+                                            placeholder="Explain why this should not run..."
+                                            className="min-h-[60px] rounded-lg bg-background/50 text-sm"
                                         />
                                         <Button
+                                            size="sm"
                                             variant="destructive"
                                             onClick={() => {
                                                 submitApproval("disapprove").catch((error) => {
@@ -987,96 +1067,132 @@ export function ChatApp() {
                                                 });
                                             }}
                                             disabled={isSubmitting}
+                                            className="rounded-lg"
                                         >
-                                            Send Disapproval Message
+                                            Send Disapproval
                                         </Button>
                                     </div>
                                 ) : null}
                             </div>
                         ) : null}
 
-                        <div className="space-y-3">
-                            <div
-                                onDragEnter={handleComposerDragEnter}
-                                onDragOver={handleComposerDragOver}
-                                onDragLeave={handleComposerDragLeave}
-                                onDrop={handleComposerDrop}
-                                className={`rounded-md border transition ${isComposerDragOver ? "border-primary bg-primary/10 shadow-lg shadow-primary/20" : "border-border/70 bg-background/45"}`}
-                            >
-                                <Textarea
-                                    value={message}
-                                    onChange={(event) => {
-                                        setMessage(event.target.value);
+                        {/* Error message */}
+                        {errorMessage ? (
+                            <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+                                <span className="flex-1">{errorMessage}</span>
+                                <button
+                                    onClick={() => setErrorMessage(null)}
+                                    className="shrink-0 rounded-md p-0.5 hover:bg-red-500/20 transition-colors"
+                                >
+                                    <X className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
+                        ) : null}
+
+                        {/* Composer */}
+                        <div
+                            onDragEnter={handleComposerDragEnter}
+                            onDragOver={handleComposerDragOver}
+                            onDragLeave={handleComposerDragLeave}
+                            onDrop={handleComposerDrop}
+                            className={`relative rounded-2xl border transition-all ${isComposerDragOver
+                                    ? "border-emerald-500/50 bg-emerald-500/5 shadow-lg shadow-emerald-500/10"
+                                    : "border-border/60 bg-secondary/40 hover:border-border"
+                                }`}
+                        >
+                            {/* Attached files */}
+                            {attachedFiles.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5 px-3 pt-3">
+                                    {attachedFiles.map((file, index) => {
+                                        const fingerprint = fileFingerprint(file);
+                                        return (
+                                            <div
+                                                key={`${fingerprint}-${index}`}
+                                                className="flex items-center gap-1.5 rounded-lg border border-border/50 bg-background/60 px-2.5 py-1 text-xs text-muted-foreground"
+                                            >
+                                                <Paperclip className="h-3 w-3" />
+                                                <span className="max-w-[180px] truncate">{file.name}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeAttachedFile(fingerprint)}
+                                                    className="rounded p-0.5 hover:bg-accent hover:text-foreground transition-colors"
+                                                    aria-label={`Remove ${file.name}`}
+                                                >
+                                                    <X className="h-3 w-3" />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : null}
+
+                            <div className="flex items-end gap-2 p-2">
+                                {/* File attach button */}
+                                <button
+                                    type="button"
+                                    className="shrink-0 rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={disableComposer || !activeSessionId}
+                                    title="Attach files"
+                                >
+                                    <Paperclip className="h-4 w-4" />
+                                </button>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    multiple
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        addDroppedFiles(Array.from(e.target.files ?? []));
+                                        if (fileInputRef.current) fileInputRef.current.value = "";
                                     }}
+                                />
+
+                                {/* Textarea */}
+                                <textarea
+                                    ref={textareaRef}
+                                    value={message}
+                                    onChange={(event) => setMessage(event.target.value)}
                                     onKeyDown={(event) => {
-                                        if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
-                                            return;
-                                        }
-
+                                        if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
                                         event.preventDefault();
-                                        if (disableComposer || !activeSessionId) {
-                                            return;
-                                        }
-
+                                        if (disableComposer || !activeSessionId) return;
                                         sendMessage().catch((error) => {
                                             setErrorMessage(error instanceof Error ? error.message : "Failed to send message.");
                                         });
                                     }}
-                                    placeholder="Send a message to your active agent... (drag files into this box to attach)"
+                                    placeholder={activeSessionId ? "Message Agent Mimir..." : "Create a conversation first..."}
                                     disabled={disableComposer || !activeSessionId}
-                                    className="min-h-24 border-0 bg-transparent shadow-none focus-visible:ring-0"
+                                    className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none disabled:opacity-50 py-2 max-h-[200px]"
+                                    rows={1}
                                 />
-                                <div className="border-t border-border px-3 py-2">
-                                    <p className="text-xs text-muted-foreground">
-                                        Drag files here to attach. Image files are also sent as chat images.
-                                    </p>
-                                    {attachedFiles.length > 0 ? (
-                                        <div className="mt-2 flex flex-wrap gap-2">
-                                            {attachedFiles.map((file, index) => {
-                                                const fingerprint = fileFingerprint(file);
-                                                return (
-                                                    <div
-                                                        key={`${fingerprint}-${index}`}
-                                                        className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs"
-                                                    >
-                                                        <span className="max-w-[220px] truncate">{file.name}</span>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                removeAttachedFile(fingerprint);
-                                                            }}
-                                                            className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                                                            aria-label={`Remove ${file.name}`}
-                                                        >
-                                                            <X className="h-3 w-3" />
-                                                        </button>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    ) : null}
-                                </div>
-                            </div>
 
-                            {errorMessage ? (
-                                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{errorMessage}</div>
-                            ) : null}
-
-                            <div className="flex items-center justify-end">
-                                <Button
+                                {/* Send button */}
+                                <button
+                                    type="button"
                                     onClick={() => {
                                         sendMessage().catch((error) => {
                                             setErrorMessage(error instanceof Error ? error.message : "Failed to send message.");
                                         });
                                     }}
-                                    disabled={!activeSessionId || disableComposer}
+                                    disabled={!activeSessionId || disableComposer || (message.trim().length === 0 && attachedFiles.length === 0)}
+                                    className="shrink-0 rounded-full bg-foreground p-2 text-background transition-all hover:bg-foreground/90 disabled:opacity-30 disabled:cursor-not-allowed"
+                                    title="Send message"
                                 >
-                                    <SendHorizontal className="mr-2 h-4 w-4" /> Send
-                                </Button>
+                                    {isSubmitting ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <ArrowUp className="h-4 w-4" />
+                                    )}
+                                </button>
                             </div>
                         </div>
+
+                        <p className="text-center text-[11px] text-muted-foreground/50">
+                            Agent Mimir may produce inaccurate information. Drag files into the input to attach.
+                        </p>
                     </div>
-                </Card>
+                </div>
             </div>
         </main>
     );
