@@ -90,12 +90,28 @@ export function useChatSession() {
                     return { ...current, [event.sessionId]: [...filtered, event] };
                 }
 
+                if (event.type === "tool_response") {
+                    const msgId = event.messageId;
+                    const filtered = msgId
+                        ? existing.filter((e) => !(e.type === "agent_response_chunk" && e.messageId === msgId))
+                        : existing;
+                    if (filtered.some((e) => e.id === event.id)) return current;
+                    return { ...current, [event.sessionId]: [...filtered, event] };
+                }
+
                 if (event.type === "tool_request") {
                     let nextEvents = existing;
                     // Clear out the temporary chunks for this agent since the tool request marks the end of their message
-                    nextEvents = existing.filter(
-                        (e) => !(e.type === "agent_response_chunk" && e.agentName === event.payload.callingAgent)
-                    );
+                    const msgId = event.payload.messageId;
+                    if (msgId) {
+                        nextEvents = existing.filter(
+                            (e) => !(e.type === "agent_response_chunk" && e.messageId === msgId)
+                        );
+                    } else {
+                        nextEvents = existing.filter(
+                            (e) => !(e.type === "agent_response_chunk" && e.agentName === event.payload.callingAgent)
+                        );
+                    }
 
                     // Synthesize an agent_response for the text strictly before the tool call so it persists across hydration!
                     if (event.payload.content && event.payload.content.trim().length > 0) {
@@ -105,7 +121,7 @@ export function useChatSession() {
                             timestamp: event.timestamp,
                             type: "agent_response",
                             agentName: event.payload.callingAgent,
-                            messageId: `${event.id}_msg`,
+                            messageId: msgId ?? `${event.id}_msg`,
                             markdown: event.payload.content,
                             attachments: []
                         };

@@ -1053,6 +1053,7 @@ export class SessionManager {
         if (chainResponse.type === "intermediateOutput" && chainResponse.value.type === "toolResponse") {
             this.emitEvent(session, {
                 type: "tool_response",
+                messageId: chainResponse.value.id,
                 agentName: chainResponse.agentName,
                 toolName: chainResponse.value.toolResponse.name,
                 toolCallId: chainResponse.value.toolResponse.id,
@@ -1097,6 +1098,7 @@ export class SessionManager {
 
     private toToolRequestPayload(toolRequest: AgentToolRequestTwo): ToolRequestPayload {
         return {
+            messageId: toolRequest.id,
             callingAgent: toolRequest.callingAgent,
             content: extractAllTextFromComplexResponse(toolRequest.content),
             toolCalls: (toolRequest.toolCalls ?? []).map((toolCall) => ({
@@ -1130,11 +1132,22 @@ export class SessionManager {
         if (Number.isFinite(discoveredTimestampMs)) {
             this.upsertDiscoveredSession(session.sessionId, discoveredTimestampMs);
         }
-        if (enriched.type === "agent_response" || enriched.type === "agent_to_agent") {
-            const messageId = (enriched as any).messageId;
-            if (messageId) {
+        if (
+            enriched.type === "agent_response" ||
+            enriched.type === "agent_to_agent" ||
+            enriched.type === "tool_response" ||
+            enriched.type === "tool_request"
+        ) {
+            let messageIdStr: string | undefined;
+            if (enriched.type === "tool_request") {
+                messageIdStr = (enriched as any).payload?.messageId;
+            } else {
+                messageIdStr = (enriched as any).messageId;
+            }
+
+            if (messageIdStr) {
                 session.eventBuffer = session.eventBuffer.filter(
-                    (e) => e.type !== "agent_response_chunk" || (e as any).messageId !== messageId
+                    (e) => e.type !== "agent_response_chunk" || (e as any).messageId !== messageIdStr
                 );
             }
         }

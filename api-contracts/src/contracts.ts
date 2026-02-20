@@ -11,6 +11,7 @@ export type ToolCallPayload = {
 };
 
 export type ToolRequestPayload = {
+    messageId?: string;
     callingAgent: string;
     content: string;
     toolCalls: ToolCallPayload[];
@@ -33,84 +34,85 @@ export type SessionState = SessionSummary & {
 
 export type SessionEvent =
     | {
-          id: string;
-          sessionId: string;
-          timestamp: string;
-          type: "user_message";
-          text: string;
-          workspaceFiles: string[];
-          chatImages: string[];
-      }
+        id: string;
+        sessionId: string;
+        timestamp: string;
+        type: "user_message";
+        text: string;
+        workspaceFiles: string[];
+        chatImages: string[];
+    }
     | {
-          id: string;
-          sessionId: string;
-          timestamp: string;
-          type: "tool_response";
-          agentName: string;
-          toolName: string;
-          toolCallId?: string;
-          response: string;
-      }
+        id: string;
+        sessionId: string;
+        timestamp: string;
+        type: "tool_response";
+        messageId?: string;
+        agentName: string;
+        toolName: string;
+        toolCallId?: string;
+        response: string;
+    }
     | {
-          id: string;
-          sessionId: string;
-          timestamp: string;
-          type: "agent_to_agent";
-          messageId?: string;
-          sourceAgent: string;
-          destinationAgent: string;
-          message: string;
-          attachments: DownloadableFile[];
-      }
+        id: string;
+        sessionId: string;
+        timestamp: string;
+        type: "agent_to_agent";
+        messageId?: string;
+        sourceAgent: string;
+        destinationAgent: string;
+        message: string;
+        attachments: DownloadableFile[];
+    }
     | {
-          id: string;
-          sessionId: string;
-          timestamp: string;
-          type: "tool_request";
-          payload: ToolRequestPayload;
-          requiresApproval: boolean;
-      }
+        id: string;
+        sessionId: string;
+        timestamp: string;
+        type: "tool_request";
+        payload: ToolRequestPayload;
+        requiresApproval: boolean;
+    }
     | {
-          id: string;
-          sessionId: string;
-          timestamp: string;
-          type: "agent_response_chunk";
-          agentName: string;
-          messageId: string;
-          markdownChunk: string;
-      }
+        id: string;
+        sessionId: string;
+        timestamp: string;
+        type: "agent_response_chunk";
+        agentName: string;
+        messageId: string;
+        markdownChunk: string;
+    }
     | {
-          id: string;
-          sessionId: string;
-          timestamp: string;
-          type: "agent_response";
-          agentName: string;
-          messageId: string;
-          markdown: string;
-          attachments: DownloadableFile[];
-      }
+        id: string;
+        sessionId: string;
+        timestamp: string;
+        type: "agent_response";
+        agentName: string;
+        messageId: string;
+        markdown: string;
+        attachments: DownloadableFile[];
+    }
     | {
-          id: string;
-          sessionId: string;
-          timestamp: string;
-          type: "state_changed";
-          state: SessionState;
-      }
+        id: string;
+        sessionId: string;
+        timestamp: string;
+        type: "state_changed";
+        state: SessionState;
+    }
     | {
-          id: string;
-          sessionId: string;
-          timestamp: string;
-          type: "reset";
-          message: string;
-      }
+        id: string;
+        sessionId: string;
+        timestamp: string;
+        type: "reset";
+        message: string;
+    }
     | {
-          id: string;
-          sessionId: string;
-          timestamp: string;
-          type: "error";
-          message: string;
-          code?: string;
-      };
+        id: string;
+        sessionId: string;
+        timestamp: string;
+        type: "error";
+        message: string;
+        code?: string;
+    };
 
 export type BootstrapResponse = {
     availableAgentNames: string[];
