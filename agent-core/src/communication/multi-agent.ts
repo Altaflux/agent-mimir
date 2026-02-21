@@ -302,7 +302,7 @@ export class MultiAgentCommunicationOrchestrator {
                 message: AgentResponse;
             }>;
             while (!(result = await generator.next()).done) {
-                const intermediateOutputType = convertIntermediateAgentMessage(result.value);
+                const intermediateOutputType = convertIntermediateAgentMessage(result.value, this.agentStack.length > 0 ? this.agentStack[this.agentStack.length - 1].name : undefined);
                 yield {
                     type: "intermediateOutput",
                     agentName: this.currentAgent.name,
@@ -386,7 +386,7 @@ export class MultiAgentCommunicationOrchestrator {
     }
 }
 
-function convertIntermediateAgentMessage(intermediateAgentMessage: IntermediateAgentMessage): IntermediateOutputType {
+function convertIntermediateAgentMessage(intermediateAgentMessage: IntermediateAgentMessage, agentName: string | undefined): IntermediateOutputType {
     if (intermediateAgentMessage.type === "toolResponse") {
         return {
             type: "toolResponse",
@@ -398,7 +398,7 @@ function convertIntermediateAgentMessage(intermediateAgentMessage: IntermediateA
         return {
             type: "messageChunk",
             id: intermediateAgentMessage.id,
-            destinationAgent: intermediateAgentMessage.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE],
+            destinationAgent: intermediateAgentMessage.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE] ?? agentName,
             content: intermediateAgentMessage.content,
         }
     }
