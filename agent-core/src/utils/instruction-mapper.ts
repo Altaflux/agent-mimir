@@ -271,13 +271,18 @@ function extractContentAfterDelimiter(delimiter: string, messages: ComplexMessag
  */
 export class ResponseFieldMapper<T = any> { // Consider making T more specific if possible
     private readonly xmlParser: xml2js.Parser;
+    private attributeSetters: AttributeDescriptor[] | null = null;
 
-    constructor(private readonly attributeSetters: AttributeDescriptor[]) {
+    constructor() {
         this.xmlParser = new xml2js.Parser({
             explicitArray: false, // Keeps structure simpler if elements don't repeat unexpectedly
             trim: true,
             // explicitRoot: false // Might simplify accessing 'RESPONSE_OUTPUT_TAG' directly, but check xml2js docs
         });
+    }
+
+    public setAttributeSetters(attributeSetters: AttributeDescriptor[]): void {
+        this.attributeSetters = attributeSetters;
     }
 
     /**
@@ -286,14 +291,14 @@ export class ResponseFieldMapper<T = any> { // Consider making T more specific i
      * @returns The complete instruction string.
      */
     public createFieldInstructions(additionalExampleInstructions: string = ""): string {
-        const xsdAttributeExamples = this.attributeSetters.map((attr) => {
+        const xsdAttributeExamples = (this.attributeSetters ?? []).map((attr) => {
             // Provide default example if none is given
             const exampleValue = attr.example ?? `[Example ${attr.name}]`;
             return `<${attr.name}>${exampleValue}</${attr.name}>`; // Indentation improved
         }).join('\n');
 
-        const exampleResponse = 
-`<${RESPONSE_OUTPUT_TAG}>
+        const exampleResponse =
+            `<${RESPONSE_OUTPUT_TAG}>
     <${ATTRIBUTES_TAG}>
         ${xsdAttributeExamples}
     </${ATTRIBUTES_TAG}>
@@ -306,23 +311,12 @@ Hi, I am a helpful assistant, how can I help you?
 -----END OF EXAMPLE RESPONSE---------
 `; // Separated for clarity
 
-        const header = generateResponseHeader(additionalExampleInstructions, this.attributeSetters);
+        const header = generateResponseHeader(additionalExampleInstructions, this.attributeSetters ?? []);
 
         return `${header}\n\nExample Response:\n--------------------\n${exampleResponse}\n${userResponseExampleHeader}`;
     }
 
-    /**
-     * Parses the XML from the response content to extract attribute values.
-     * @param complexResponse - The array of message content parts.
-     * @returns A record containing the extracted attribute values, keyed by their variableName.
-     */
-    public async readInstructionsFromResponse(complexResponse: ComplexMessageContent[]): Promise<Record<string, any>> {
-        // Combine only text parts
-        const combinedText = complexResponse
-            .filter((c): c is TextMessageContent => c.type === "text")
-            .map(t => t.text)
-            .join(""); // Join without separators, assuming XML is contiguous
-
+    public async readInstructionsFromResponseString(combinedText: string): Promise<Record<string, any>> {
         const xmlToParse = extractResponseOutputXml(combinedText);
 
         if (!xmlToParse) {
@@ -343,7 +337,7 @@ Hi, I am a helpful assistant, how can I help you?
             }
 
             const attributeValues: Record<string, any> = {};
-            for (const attributeSetter of this.attributeSetters) {
+            for (const attributeSetter of this.attributeSetters ?? []) {
                 const attributeValue = attributes[attributeSetter.name]; // Access directly by name
 
                 // Ensure value exists and is non-empty string after trimming
@@ -351,7 +345,7 @@ Hi, I am a helpful assistant, how can I help you?
                     attributeValues[attributeSetter.variableName] = attributeValue.trim(); // Store trimmed value
                 } else if (attributeSetter.required) {
                     // Handle missing required attributes if necessary (e.g., log warning, throw error)
-                     console.warn(`Required attribute "${attributeSetter.name}" missing or empty in response.`);
+                    console.warn(`Required attribute "${attributeSetter.name}" missing or empty in response.`);
                 }
             }
             return attributeValues;
@@ -362,6 +356,20 @@ Hi, I am a helpful assistant, how can I help you?
             // console.error("XML content:", xmlToParse);
             return {}; // Return empty object on parsing error
         }
+    }
+    /**
+     * Parses the XML from the response content to extract attribute values.
+     * @param complexResponse - The array of message content parts.
+     * @returns A record containing the extracted attribute values, keyed by their variableName.
+     */
+    public async readInstructionsFromResponse(complexResponse: ComplexMessageContent[]): Promise<Record<string, any>> {
+        // Combine only text parts
+        const combinedText = complexResponse
+            .filter((c): c is TextMessageContent => c.type === "text")
+            .map(t => t.text)
+            .join(""); // Join without separators, assuming XML is contiguous
+
+        return this.readInstructionsFromResponseString(combinedText);
     }
 
     /**
@@ -407,7 +415,7 @@ Hi, I am a helpful assistant, how can I help you?
             text: `${xml}\n${USER_RESPONSE_MARKER}\n`
         } satisfies TextMessageContent;
         const lcUserMessage = complexResponseToLangchainMessageContent(userMessage.result)
-            .filter( c => !(c.type === "text" && c.text === ''))
+            .filter(c => !(c.type === "text" && c.text === ''))
 
         const remaningContent = complexResponse.filter(c => c.type !== "text")
         return [combined, ...lcUserMessage, ...remaningContent];

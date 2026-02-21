@@ -1,4 +1,4 @@
-import { CompiledStateGraph, Command,  StateDefinition, StateSchema, MessagesValue, BaseCheckpointSaver } from "@langchain/langgraph";
+import { CompiledStateGraph, Command, StateDefinition, StateSchema, MessagesValue, BaseCheckpointSaver } from "@langchain/langgraph";
 import { AgentCommand, AgentPlugin } from "../plugins/index.js";
 import { Agent, AgentHydrationEvent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, CommandRequest, InputAgentMessage, IntermediateAgentMessage, SharedFile } from "./index.js";
 import { AIMessage, AIMessageChunk, BaseMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
@@ -6,7 +6,7 @@ import { v4 } from "uuid";
 import { complexResponseToLangchainMessageContent, extractAllTextFromComplexResponse } from "../utils/format.js";
 import { commandContentToBaseMessage, lCmessageContentToContent } from "./message-utils.js";
 import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
-import { USER_RESPONSE_MARKER } from "../utils/instruction-mapper.js";
+import { ResponseFieldMapper, USER_RESPONSE_MARKER } from "../utils/instruction-mapper.js";
 import z from "zod";
 
 
@@ -24,7 +24,8 @@ export type LanggraphAgentArgs = {
     workspace: AgentWorkspace,
     commands: AgentCommand[],
     plugins: AgentPlugin[],
-    graph: AgentGraphType
+    graph: AgentGraphType,
+    fieldMapper: ResponseFieldMapper
 }
 
 
@@ -48,7 +49,7 @@ export class LanggraphAgent implements Agent {
             streamMode: ["messages" as const, "values" as const],
         };
         let graphInput: any = null;
-        const state = await this.graph.getState({ ...stateConfig, configurable: {  thread_id: `${args.sessionId}#${this.name}` } });
+        const state = await this.graph.getState({ ...stateConfig, configurable: { thread_id: `${args.sessionId}#${this.name}` } });
         if (state.next.length > 0 && state.next[0] === "human_review_node") {
             if (args.message) {
                 graphInput = new Command({ resume: { type: "response", args: extractAllTextFromComplexResponse(args.message.content) } satisfies HumanResponse })
@@ -72,7 +73,7 @@ export class LanggraphAgent implements Agent {
             } : null;
         }
 
-        let generator = this.executeGraph(graphInput, args.sessionId,  args.checkpointId);
+        let generator = this.executeGraph(graphInput, args.sessionId, args.checkpointId);
         let result;
         while (!(result = await generator.next()).done) {
             yield result.value;
@@ -84,7 +85,7 @@ export class LanggraphAgent implements Agent {
             checkpointId: newState.config.configurable?.checkpoint_id!,
         }
     }
-    async *handleCommand(args: { command: CommandRequest; sessionId: string,  }): AsyncGenerator<IntermediateAgentMessage, { message: AgentResponse; checkpointId: string; }, unknown> {
+    async *handleCommand(args: { command: CommandRequest; sessionId: string, }): AsyncGenerator<IntermediateAgentMessage, { message: AgentResponse; checkpointId: string; }, unknown> {
         let stateConfig = {
             streamMode: ["messages" as const, "values" as const],
         };
@@ -112,7 +113,7 @@ export class LanggraphAgent implements Agent {
         }
     }
 
-    async shutDown(){
+    async shutDown() {
         await Promise.all(this.args.plugins.map(async plugin => await plugin.destroy()));
     }
 
@@ -249,7 +250,7 @@ export class LanggraphAgent implements Agent {
         return events;
     }
 
-    async *executeGraph(graphInput: any, sessionId: string,  checkpointId?: string ): AsyncGenerator<IntermediateAgentMessage, AgentResponse, unknown> {
+    async *executeGraph(graphInput: any, sessionId: string, checkpointId?: string): AsyncGenerator<IntermediateAgentMessage, AgentResponse, unknown> {
         let stateConfig = {
             streamMode: ["messages" as const, "values" as const, "checkpoints" as const],
         };
@@ -257,50 +258,53 @@ export class LanggraphAgent implements Agent {
         let canStreamToUser = false;
         let streamMarkerBuffer = "";
         let hasStreamedAnyUserText = false;
+        let responseAttributes: Record<string, any> | undefined = undefined;
 
-        const getMessageChunkToStream = (chunkText: string): string => {
+        const getMessageChunkToStream = async (chunkText: string): Promise<{ text: string, responseAttributes: Record<string, any> | undefined }> => {
             if (!chunkText) {
-                return "";
+                return { text: "", responseAttributes: undefined };
             }
 
             if (canStreamToUser) {
                 if (hasStreamedAnyUserText) {
-                    return chunkText;
+                    return { text: chunkText, responseAttributes: undefined };
                 }
                 const trimmedText = chunkText.trimStart();
                 if (trimmedText.length > 0) {
                     hasStreamedAnyUserText = true;
                 }
-                return trimmedText;
+                return { text: trimmedText, responseAttributes: undefined };
             }
 
             streamMarkerBuffer += chunkText;
             const markerIndex = streamMarkerBuffer.indexOf(USER_RESPONSE_MARKER);
             if (markerIndex === -1) {
-                const markerCarryLength = Math.max(USER_RESPONSE_MARKER.length - 1, 0);
-                if (streamMarkerBuffer.length > markerCarryLength) {
-                    streamMarkerBuffer = streamMarkerBuffer.slice(-markerCarryLength);
-                }
-                return "";
+                return { text: "", responseAttributes: undefined };
             }
 
             canStreamToUser = true;
+            if (!responseAttributes) {
+                responseAttributes = await this.args.fieldMapper.readInstructionsFromResponseString(streamMarkerBuffer);
+            }
             const textAfterMarker = streamMarkerBuffer.slice(markerIndex + USER_RESPONSE_MARKER.length).trimStart();
             streamMarkerBuffer = "";
             if (textAfterMarker.length > 0) {
                 hasStreamedAnyUserText = true;
             }
-            return textAfterMarker;
+            return {
+                text: textAfterMarker,
+                responseAttributes
+            };
         };
 
         while (true) {
-            let stream = await this.graph.stream(graphInput, { ...stateConfig, configurable: { thread_id:`${sessionId}#${this.name}`,  checkpoint_id: checkpointId } });
+            let stream = await this.graph.stream(graphInput, { ...stateConfig, configurable: { thread_id: `${sessionId}#${this.name}`, checkpoint_id: checkpointId } });
             for await (const state of stream) {
-                if (state[0] === "messages"){
+                if (state[0] === "messages") {
                     let messageState = state[1];
                     const baseMessage = messageState[0];
                     if (baseMessage.type === "ai") {
-                        const textToStream = getMessageChunkToStream(baseMessage.text);
+                        const textToStream = await getMessageChunkToStream(baseMessage.text);
                         if (!textToStream) {
                             continue;
                         }
@@ -310,16 +314,17 @@ export class LanggraphAgent implements Agent {
                             content: [
                                 {
                                     type: "text",
-                                    text: textToStream
+                                    text: textToStream.text
                                 }
-                            ]
+                            ],
+                            responseAttributes: textToStream.responseAttributes
                         }
                     }
                 }
                 else if (state[0] === "values") {
                     let messageState = state[1];
-                    
-                    if ((messageState.messages?.length ?? 0 )> 0) {
+
+                    if ((messageState.messages?.length ?? 0) > 0) {
                         const lastMessage = messageState.messages[messageState.messages.length - 1];
                         if (ToolMessage.isInstance(lastMessage) && lastMessage.id !== (lastKnownMessage?.id)) {
                             lastKnownMessage = lastMessage;
@@ -336,7 +341,7 @@ export class LanggraphAgent implements Agent {
                 }
             }
 
-            const state = await this.graph.getState({ ...stateConfig, configurable: {  thread_id: `${sessionId}#${this.name}` } });
+            const state = await this.graph.getState({ ...stateConfig, configurable: { thread_id: `${sessionId}#${this.name}` } });
             const lastMessage = state.values.messages[state.values.messages.length - 1] as BaseMessage;
             const responseAttributes: Record<string, any> = state.values["responseAttributes"];
             if (state.tasks.length > 0 && state.tasks[0].name === "human_review_node") {
@@ -346,8 +351,8 @@ export class LanggraphAgent implements Agent {
                     checkpointId: state.config?.configurable?.checkpoint_id,
                     type: "toolRequest",
                     output: {
-                        content: lCmessageContentToContent(lastMessage.contentBlocks), 
-                        id: lastMessage.id ?? "", 
+                        content: lCmessageContentToContent(lastMessage.contentBlocks),
+                        id: lastMessage.id ?? "",
                         toolCalls: [
                             {
                                 toolName: interruptVal.action_request.action,
@@ -364,7 +369,7 @@ export class LanggraphAgent implements Agent {
                 output: {
                     content: lCmessageContentToContent(lastMessage.contentBlocks),
                     id: lastMessage.id ?? v4(),
-                    sharedFiles: lastMessage.additional_kwargs["shared_files"]  as SharedFile[] ?? []
+                    sharedFiles: lastMessage.additional_kwargs["shared_files"] as SharedFile[] ?? []
                 },
                 responseAttributes: responseAttributes
             } satisfies AgentUserMessageResponse

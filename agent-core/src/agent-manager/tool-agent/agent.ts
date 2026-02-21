@@ -53,7 +53,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
     const model = config.model;
     const workspace = await config.workspaceFactory(shortName);
     const allPluginFactories = (config.plugins ?? []);
-
+    const fieldMapper = new ResponseFieldMapper();
     const toolPlugins: PluginFactory[] = [];
     toolPlugins.push(new WorkspacePluginFactory());
     toolPlugins.push(new ViewPluginFactory());
@@ -92,7 +92,8 @@ export async function createLgAgent(config: CreateAgentArgs) {
             const pluginAttributes = (await Promise.all(
                 allCreatedPlugins.map(async (plugin) => await plugin.attributes(nextMessage!))
             )).flatMap(e => e);
-            const fieldMapper = new ResponseFieldMapper([...pluginAttributes, ...defaultAttributes]);
+
+            fieldMapper.setAttributeSetters([...pluginAttributes, ...defaultAttributes])
             const responseFormatSystemMessage = [
                 {
                     type: "text",
@@ -380,7 +381,8 @@ export async function createLgAgent(config: CreateAgentArgs) {
         graph: graph,
         workspace: workspace,
         commandList: commandList,
-        plugins: allCreatedPlugins
+        plugins: allCreatedPlugins,
+        fieldMapper: fieldMapper
     };
 }
 
@@ -394,7 +396,8 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         workspace: agent.workspace,
         commands: agent.commandList,
         graph: agent.graph,
-        plugins: agent.plugins
+        plugins: agent.plugins,
+        fieldMapper: agent.fieldMapper
     })
 }
 

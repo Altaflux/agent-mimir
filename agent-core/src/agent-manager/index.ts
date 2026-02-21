@@ -19,7 +19,7 @@ export type MessageContentToolUse = {
  */
 export type AgentMessageToolRequest = { toolCalls: MessageContentToolUse[] } & OutputAgentMessage;
 
-export type OutputAgentMessage = {id: string} & InputAgentMessage
+export type OutputAgentMessage = { id: string } & InputAgentMessage
 /**
  * Represents an input message to an agent.
  * Contains the message content and optional shared files.
@@ -32,10 +32,10 @@ export type InputAgentMessage = {
 };
 
 export type SharedFile = {
-        /** URL where the file can be accessed */
-        url: string,
-        /** Name of the file */
-        fileName: string,
+    /** URL where the file can be accessed */
+    url: string,
+    /** Name of the file */
+    fileName: string,
 }
 
 /**
@@ -170,19 +170,20 @@ export type IntermediateAgentMessage = {
 } | {
     type: "messageChunk",
     id: string,
-    content: ComplexMessageContent[]
+    content: ComplexMessageContent[],
+    responseAttributes: Record<string, string> | undefined
 }
 
 /**
  * Information about a tool's response after execution.
  */
-export type ToolResponseInfo = { 
+export type ToolResponseInfo = {
     /** Optional unique identifier for the tool response */
-    id?: string, 
+    id?: string,
     /** Name of the tool that was executed */
-    name: string, 
+    name: string,
     /** Array of complex message content representing the tool's response */
-    response: ComplexMessageContent[] 
+    response: ComplexMessageContent[]
 }
 
 

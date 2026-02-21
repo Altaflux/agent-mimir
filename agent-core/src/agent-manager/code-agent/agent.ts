@@ -20,6 +20,7 @@ import { PluginContextProvider, RetentionAwareMessageContent } from "../../plugi
 import { langChainHumanMessageToMimirHumanMessage } from "../tool-agent/utils.js";
 import { AgentGraphType, AgentState, LanggraphAgent } from "../langgraph-agent.js";
 import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
+import { fi } from "zod/locales";
 
 /**
  * Configuration options for creating a new agent.
@@ -58,7 +59,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
     const model = config.model;
     const workspace = await config.workspaceFactory(shortName);
     const allPluginFactories = (config.plugins ?? []);
-
+    const fieldMapper = new ResponseFieldMapper();
     const toolPlugins: PluginFactory[] = [];
     toolPlugins.push(new WorkspacePluginFactory());
     toolPlugins.push(new ViewPluginFactory());
@@ -95,7 +96,9 @@ export async function createLgAgent(config: CreateAgentArgs) {
             const pluginAttributes = (await Promise.all(
                 allCreatedPlugins.map(async (plugin) => await plugin.attributes(nextMessage!))
             )).flatMap(e => e);
-            const fieldMapper = new ResponseFieldMapper([...pluginAttributes]);
+
+            fieldMapper.setAttributeSetters(pluginAttributes);
+
             const responseFormatSystemMessage = [
                 {
                     type: "text" as const,
@@ -393,7 +396,8 @@ export async function createLgAgent(config: CreateAgentArgs) {
         graph: graph,
         workspace: workspace,
         commandList: commandList,
-        plugins: allCreatedPlugins
+        plugins: allCreatedPlugins,
+        fieldMapper: fieldMapper
     };
 
 }
@@ -408,7 +412,8 @@ export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
         workspace: agent.workspace,
         commands: agent.commandList,
         graph: agent.graph,
-        plugins: agent.plugins
+        plugins: agent.plugins,
+        fieldMapper: agent.fieldMapper
     })
 }
 
