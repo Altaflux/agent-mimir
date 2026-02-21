@@ -4,8 +4,8 @@ import { HelpersPluginFactory } from "./helpers.js";
 
 type PendingMessage = {
     content: InputAgentMessage;
-
-    replyFromAgent: string | undefined;
+    fromAgent: string | undefined;
+    toAgent: string | undefined;
 }
 type AgentInvoke = (agent: Agent,) => AsyncGenerator<IntermediateAgentMessage, {
     message: AgentResponse;
@@ -145,7 +145,7 @@ export class MultiAgentCommunicationOrchestrator {
     async* handleMessage(args: {
         message: InputAgentMessage | null;
     }, sessionId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
-        return yield* this.doInvocation((agent) => agent.call({ message: args.message, sessionId: sessionId }));
+        return yield* this.doInvocation((agent) => agent.call({ message: args.message, requestAttributes: undefined, sessionId: sessionId }));
     }
 
     async* handleCommand(args: {
@@ -283,17 +283,19 @@ export class MultiAgentCommunicationOrchestrator {
             let generator = pendingMessage
                 ? this.currentAgent.call({
                     sessionId: this.sessionId,
+                    requestAttributes: { "messageFromAgent": pendingMessage.fromAgent },
                     message: {
                         ...pendingMessage.content,
                         content: [
                             {
                                 type: "text",
-                                text: pendingMessage.replyFromAgent ? `This message is from ${pendingMessage.replyFromAgent}:\n` : "",
+                                text: pendingMessage.fromAgent ? `This message is from ${pendingMessage.fromAgent}:\n` : "",
                             },
                             ...pendingMessage.content.content,
                         ]
                     },
-                    noMessagesInTool: true
+                    noMessagesInTool: true,
+
                 })
                 : msg(this.currentAgent);
 
@@ -346,15 +348,18 @@ export class MultiAgentCommunicationOrchestrator {
         currentAgent: Agent,
         pendingMessage: PendingMessage | undefined
     } {
-        if (graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE]) {
-            const destinationAgentName = graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE];
+
+        const destinationAgentName = graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE];
+        if (destinationAgentName && (this.agentStack.length === 0 || destinationAgentName !== this.agentStack[this.agentStack.length - 1].name)) {
+
             const newAgent = this.agentManager.get(destinationAgentName);
             if (!newAgent) {
                 return {
                     conversationComplete: false,
                     currentAgent: this.currentAgent,
                     pendingMessage: {
-                        replyFromAgent: undefined,
+                        toAgent: destinationAgentName,
+                        fromAgent: this.currentAgent.name,
                         content: {
                             content: [
                                 { type: "text", text: `Agent ${destinationAgentName} does not exist.` }
@@ -368,18 +373,21 @@ export class MultiAgentCommunicationOrchestrator {
                 conversationComplete: false,
                 currentAgent: newAgent,
                 pendingMessage: {
-                    replyFromAgent: undefined,
+                    toAgent: newAgent.name,
+                    fromAgent: this.currentAgent.name,
                     content: graphResponse.output
                 }
             };
         }
 
         const isFinalUser = agentStack.length === 0;
+        const newCurrentAgent = isFinalUser ? this.currentAgent : agentStack.pop()!;
         return {
             conversationComplete: isFinalUser,
-            currentAgent: isFinalUser ? this.currentAgent : agentStack.pop()!,
+            currentAgent: newCurrentAgent,
             pendingMessage: {
-                replyFromAgent: this.currentAgent.name,
+                toAgent: undefined,
+                fromAgent: this.currentAgent.name,
                 content: graphResponse.output,
             }
         };

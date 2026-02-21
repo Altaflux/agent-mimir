@@ -65,7 +65,8 @@ export interface Agent {
     call: (args: {
         message: InputAgentMessage | null,
         sessionId: string,
-        noMessagesInTool?: boolean
+        noMessagesInTool?: boolean,
+        requestAttributes?: Record<string, unknown>
     }) => AsyncGenerator<IntermediateAgentMessage, {
         message: AgentResponse,
         checkpointId: string,
@@ -133,7 +134,8 @@ export type AgentHydrationEvent = {
     type: "userMessage",
     timestamp: string,
     checkpointId: string,
-    content: InputAgentMessage
+    content: InputAgentMessage,
+    requestAttributes: Record<string, any>
 } | {
     type: "toolResponse",
     timestamp: string,

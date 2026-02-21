@@ -43,7 +43,7 @@ export class LanggraphAgent implements Agent {
         this.commands = args.commands;
         this.graph = args.graph;
     }
-    async *call(args: { message: InputAgentMessage | null; sessionId: string, checkpointId?: string; noMessagesInTool?: boolean; }): AsyncGenerator<IntermediateAgentMessage, { message: AgentResponse; checkpointId: string; }, unknown> {
+    async *call(args: { message: InputAgentMessage | null; sessionId: string, checkpointId?: string; noMessagesInTool?: boolean; requestAttributes?: Record<string, unknown> }): AsyncGenerator<IntermediateAgentMessage, { message: AgentResponse; checkpointId: string; }, unknown> {
 
         let stateConfig = {
             streamMode: ["messages" as const, "values" as const],
@@ -67,7 +67,7 @@ export class LanggraphAgent implements Agent {
                         sharedFiles: args.message.sharedFiles
                     }
                 })],
-                requestAttributes: {},
+                requestAttributes: args.requestAttributes ?? {},
                 responseAttributes: {},
                 noMessagesInTool: args.noMessagesInTool ?? false,
             } : null;
@@ -151,6 +151,7 @@ export class LanggraphAgent implements Agent {
                 String(snapshot.config?.configurable?.checkpoint_id ?? snapshot.metadata?.step ?? "unknown-checkpoint");
             const timestamp = snapshot.createdAt ?? new Date().toISOString();
             const responseAttributes = (values.responseAttributes ?? {}) as Record<string, any>;
+            const requestAttributes = (values.requestAttributes ?? {}) as Record<string, any>;
 
             for (let idx = 0; idx < messages.length; idx += 1) {
                 const message = messages[idx]!;
@@ -182,7 +183,8 @@ export class LanggraphAgent implements Agent {
                         content: {
                             content,
                             sharedFiles
-                        }
+                        },
+                        requestAttributes: requestAttributes
                     });
                     continue;
                 }
