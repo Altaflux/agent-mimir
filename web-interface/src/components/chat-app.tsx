@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bot, Loader2 } from "lucide-react";
+import { Bot, Loader2, Zap } from "lucide-react";
 
 import { useChatSession } from "@/components/chat/use-chat-session";
 import { Sidebar } from "@/components/chat/sidebar";
@@ -9,6 +9,8 @@ import { ChatHeader } from "@/components/chat/chat-header";
 import { MessageEvent } from "@/components/chat/message-event";
 import { ThinkingDots } from "@/components/chat/thinking-dots";
 import { Composer } from "@/components/chat/composer";
+import { CollapsibleSection } from "@/components/chat/shared";
+import { SessionEvent } from "@/lib/contracts";
 
 /**
  * Root chat application component.
@@ -125,9 +127,68 @@ export function ChatApp() {
                         ) : null}
 
                         {/* Messages */}
-                        {session.activeEvents.map((event) => (
-                            <MessageEvent key={event.id} event={event} />
-                        ))}
+                        {(() => {
+                            type Block =
+                                | { type: "event"; id: string; event: SessionEvent }
+                                | { type: "sub-chat"; id: string; events: SessionEvent[] };
+
+                            const blocks: Block[] = [];
+                            let inSubChat = false;
+                            let currentSubChatEvents: SessionEvent[] = [];
+
+                            for (const event of session.activeEvents) {
+                                const isMainChatResponse =
+                                    event.type === "user_message" ||
+                                    event.type === "agent_response" ||
+                                    (event.type === "agent_response_chunk" && !event.destinationAgent) ||
+                                    event.type === "reset" ||
+                                    event.type === "error";
+
+                                const isExplicitAgentToAgent =
+                                    event.type === "agent_to_agent" ||
+                                    (event.type === "agent_response_chunk" && !!event.destinationAgent);
+
+                                if (isMainChatResponse) {
+                                    inSubChat = false;
+                                    blocks.push({ type: "event", id: event.id, event });
+                                } else if (isExplicitAgentToAgent) {
+                                    if (!inSubChat) {
+                                        inSubChat = true;
+                                        currentSubChatEvents = [];
+                                        blocks.push({ type: "sub-chat", id: `subchat-${event.id}`, events: currentSubChatEvents });
+                                    }
+                                    currentSubChatEvents.push(event);
+                                } else {
+                                    if (inSubChat) {
+                                        currentSubChatEvents.push(event);
+                                    } else {
+                                        blocks.push({ type: "event", id: event.id, event });
+                                    }
+                                }
+                            }
+
+                            return blocks.map((block) => {
+                                if (block.type === "event") {
+                                    return <MessageEvent key={block.id} event={block.event} />;
+                                } else {
+                                    return (
+                                        <div key={block.id} className="mx-auto max-w-[95%] sm:max-w-[90%] my-2">
+                                            <CollapsibleSection
+                                                title="Agent Communication"
+                                                icon={<Zap className="h-4 w-4 text-emerald-400" />}
+                                                defaultOpen
+                                            >
+                                                <div className="space-y-4 pt-1">
+                                                    {block.events.map((e) => (
+                                                        <MessageEvent key={e.id} event={e} />
+                                                    ))}
+                                                </div>
+                                            </CollapsibleSection>
+                                        </div>
+                                    );
+                                }
+                            });
+                        })()}
 
                         {/* Thinking animation */}
                         {session.isAgentThinking ? <ThinkingDots /> : null}

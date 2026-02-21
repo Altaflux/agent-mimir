@@ -70,7 +70,11 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                 </div>
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-medium text-muted-foreground">{event.agentName}</span>
+                        {event.destinationAgent ? (
+                            <span className="text-xs font-medium text-muted-foreground">{event.agentName} <span className="text-[10px] text-emerald-500/80 mx-1">→</span> {event.destinationAgent}</span>
+                        ) : (
+                            <span className="text-xs font-medium text-muted-foreground">{event.agentName}</span>
+                        )}
                         <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-pulse-glow" title="Streaming..." />
                     </div>
                     <MarkdownContent>{event.markdownChunk}</MarkdownContent>
@@ -147,15 +151,21 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
     /* ── Agent-to-Agent ───────────── */
     if (event.type === "agent_to_agent") {
         return (
-            <div className="mx-auto max-w-[85%]">
-                <CollapsibleSection
-                    title={`${event.sourceAgent} → ${event.destinationAgent}`}
-                    icon={<Zap className="h-3.5 w-3.5 text-emerald-400" />}
-                    defaultOpen
-                >
+            <div className="flex items-start gap-3 animate-msg-in">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+                    <Bot className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="min-w-0 flex-1 group">
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-medium text-muted-foreground">{event.sourceAgent} <span className="text-[10px] text-emerald-500/80 mx-1">→</span> {event.destinationAgent}</span>
+                        <span className="text-[10px] text-muted-foreground/60">{formatTime(event.timestamp)}</span>
+                        <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                            <CopyButton text={event.message} />
+                        </div>
+                    </div>
                     <MarkdownContent>{event.message}</MarkdownContent>
                     <DownloadLinks files={event.attachments} />
-                </CollapsibleSection>
+                </div>
             </div>
         );
     }
