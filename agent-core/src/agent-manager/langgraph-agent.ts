@@ -262,24 +262,24 @@ export class LanggraphAgent implements Agent {
 
         const getMessageChunkToStream = async (chunkText: string): Promise<{ text: string, responseAttributes: Record<string, any> | undefined }> => {
             if (!chunkText) {
-                return { text: "", responseAttributes: undefined };
+                return { text: "", responseAttributes: responseAttributes };
             }
 
             if (canStreamToUser) {
                 if (hasStreamedAnyUserText) {
-                    return { text: chunkText, responseAttributes: undefined };
+                    return { text: chunkText, responseAttributes: responseAttributes };
                 }
                 const trimmedText = chunkText.trimStart();
                 if (trimmedText.length > 0) {
                     hasStreamedAnyUserText = true;
                 }
-                return { text: trimmedText, responseAttributes: undefined };
+                return { text: trimmedText, responseAttributes: responseAttributes };
             }
 
             streamMarkerBuffer += chunkText;
             const markerIndex = streamMarkerBuffer.indexOf(USER_RESPONSE_MARKER);
             if (markerIndex === -1) {
-                return { text: "", responseAttributes: undefined };
+                return { text: "", responseAttributes: responseAttributes };
             }
 
             canStreamToUser = true;

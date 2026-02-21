@@ -78,6 +78,7 @@ export type SessionEvent =
         timestamp: string;
         type: "agent_response_chunk";
         agentName: string;
+        destinationAgent: string | undefined;
         messageId: string;
         markdownChunk: string;
     }

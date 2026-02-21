@@ -1,4 +1,5 @@
-import { Agent, AgentHydrationEvent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, InputAgentMessage, AgentFactory, CommandRequest, IntermediateAgentMessage } from "../agent-manager/index.js";
+import { Agent, AgentHydrationEvent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, InputAgentMessage, AgentFactory, CommandRequest, IntermediateAgentMessage, ToolResponseInfo } from "../agent-manager/index.js";
+import { ComplexMessageContent } from "../schema.js";
 import { HelpersPluginFactory } from "./helpers.js";
 
 type PendingMessage = {
@@ -10,14 +11,29 @@ type AgentInvoke = (agent: Agent,) => AsyncGenerator<IntermediateAgentMessage, {
     message: AgentResponse;
 }, unknown>;
 
+
+export type IntermediateOutputType = {
+    type: "toolResponse",
+    id: string,
+    toolResponse: ToolResponseInfo
+} |
+{
+    type: "messageChunk",
+    id: string,
+    destinationAgent: string | undefined,
+    content: ComplexMessageContent[],
+};
+
 export type IntermediateAgentResponse = ({
     type: "agentToAgentMessage",
     value: AgentToAgentMessage
-} ) | {
+}) |
+{
     type: "intermediateOutput",
     agentName: string,
-    value: IntermediateAgentMessage
+    value: IntermediateOutputType
 };
+
 
 export type AgentToAgentMessage = {
     sourceAgent: string,
@@ -286,10 +302,11 @@ export class MultiAgentCommunicationOrchestrator {
                 message: AgentResponse;
             }>;
             while (!(result = await generator.next()).done) {
+                const intermediateOutputType = convertIntermediateAgentMessage(result.value);
                 yield {
                     type: "intermediateOutput",
                     agentName: this.currentAgent.name,
-                    value: result.value
+                    value: intermediateOutputType
                 };
             }
             let graphResponse = result.value.message;
@@ -367,4 +384,23 @@ export class MultiAgentCommunicationOrchestrator {
             }
         };
     }
+}
+
+function convertIntermediateAgentMessage(intermediateAgentMessage: IntermediateAgentMessage): IntermediateOutputType {
+    if (intermediateAgentMessage.type === "toolResponse") {
+        return {
+            type: "toolResponse",
+            id: intermediateAgentMessage.id,
+            toolResponse: intermediateAgentMessage.toolResponse
+        }
+    }
+    if (intermediateAgentMessage.type === "messageChunk") {
+        return {
+            type: "messageChunk",
+            id: intermediateAgentMessage.id,
+            destinationAgent: intermediateAgentMessage.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE],
+            content: intermediateAgentMessage.content,
+        }
+    }
+    throw new Error(`Unknown intermediate agent message type: ${(intermediateAgentMessage as any).type}`);
 }

@@ -1045,7 +1045,8 @@ export class SessionManager {
                 type: "agent_response_chunk",
                 agentName: chainResponse.agentName,
                 messageId: chainResponse.value.id,
-                markdownChunk: chunkText
+                markdownChunk: chunkText,
+                destinationAgent: chainResponse.value.destinationAgent
             });
             return;
         }
