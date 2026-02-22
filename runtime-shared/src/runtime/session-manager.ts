@@ -509,7 +509,8 @@ export class SessionManager {
                     {
                         type: "tool_request",
                         payload: this.toToolRequestPayload(event.value),
-                        requiresApproval: !session.continuousMode
+                        requiresApproval: !session.continuousMode,
+                        destinationAgent: event.value.destinationAgent
                     },
                     { timestamp: event.timestamp, preserveLastActivity: true }
                 );
@@ -1022,7 +1023,8 @@ export class SessionManager {
             this.emitEvent(session, {
                 type: "tool_request",
                 payload: pendingPayload,
-                requiresApproval: !session.continuousMode
+                requiresApproval: !session.continuousMode,
+                destinationAgent: pending.destinationAgent
             });
 
             if (!session.continuousMode) {

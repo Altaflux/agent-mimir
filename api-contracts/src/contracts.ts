@@ -69,6 +69,7 @@ export type SessionEvent =
         sessionId: string;
         timestamp: string;
         type: "tool_request";
+        destinationAgent: string | undefined;
         payload: ToolRequestPayload;
         requiresApproval: boolean;
     }
