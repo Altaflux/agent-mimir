@@ -4,7 +4,7 @@ import { ApprovalRequest } from "@/lib/contracts";
 import { fileFingerprint } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowUp, Loader2, Paperclip, Wrench, X } from "lucide-react";
+import { ArrowUp, Loader2, Paperclip, Square, Wrench, X } from "lucide-react";
 import { DragEvent, useCallback, useEffect, useRef, useState } from "react";
 
 export interface ComposerProps {
@@ -15,6 +15,7 @@ export interface ComposerProps {
     onSendMessage: (message: string, files: File[]) => void;
     onSubmitApproval: (action: ApprovalRequest["action"], feedback?: string) => void;
     onClearError: () => void;
+    onStopSession: () => void;
 }
 
 export function Composer({
@@ -24,7 +25,8 @@ export function Composer({
     errorMessage,
     onSendMessage,
     onSubmitApproval,
-    onClearError
+    onClearError,
+    onStopSession
 }: ComposerProps) {
     const [message, setMessage] = useState("");
     const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
@@ -262,19 +264,26 @@ export function Composer({
                             rows={1}
                         />
 
-                        <button
-                            type="button"
-                            onClick={handleSend}
-                            disabled={!activeSessionId || disableComposer || (message.trim().length === 0 && attachedFiles.length === 0)}
-                            className="shrink-0 rounded-full bg-foreground p-2 text-background transition-all hover:bg-foreground/90 disabled:opacity-30 disabled:cursor-not-allowed"
-                            title="Send message"
-                        >
-                            {isSubmitting ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
+                        {isSubmitting ? (
+                            <button
+                                type="button"
+                                onClick={onStopSession}
+                                className="shrink-0 rounded-full bg-red-500 p-2 text-white transition-all hover:bg-red-600"
+                                title="Stop generating"
+                            >
+                                <Square fill="currentColor" className="h-4 w-4" />
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={handleSend}
+                                disabled={!activeSessionId || disableComposer || (message.trim().length === 0 && attachedFiles.length === 0)}
+                                className="shrink-0 rounded-full bg-foreground p-2 text-background transition-all hover:bg-foreground/90 disabled:opacity-30 disabled:cursor-not-allowed"
+                                title="Send message"
+                            >
                                 <ArrowUp className="h-4 w-4" />
-                            )}
-                        </button>
+                            </button>
+                        )}
                     </div>
                 </div>
 

@@ -43,7 +43,7 @@ export class LanggraphAgent implements Agent {
         this.commands = args.commands;
         this.graph = args.graph;
     }
-    async *call(args: { message: InputAgentMessage | null; sessionId: string, checkpointId?: string; noMessagesInTool?: boolean; requestAttributes?: Record<string, unknown> }): AsyncGenerator<IntermediateAgentMessage, { message: AgentResponse; checkpointId: string; }, unknown> {
+    async *call(args: { message: InputAgentMessage | null; sessionId: string, checkpointId?: string; noMessagesInTool?: boolean; requestAttributes?: Record<string, unknown>; abortSignal?: AbortSignal }): AsyncGenerator<IntermediateAgentMessage, { message: AgentResponse; checkpointId: string; }, unknown> {
 
         let stateConfig = {
             streamMode: ["messages" as const, "values" as const],
@@ -73,7 +73,7 @@ export class LanggraphAgent implements Agent {
             } : null;
         }
 
-        let generator = this.executeGraph(graphInput, args.sessionId, args.checkpointId);
+        let generator = this.executeGraph(graphInput, args.sessionId, args.checkpointId, args.abortSignal);
         let result;
         while (!(result = await generator.next()).done) {
             yield result.value;
@@ -85,7 +85,7 @@ export class LanggraphAgent implements Agent {
             checkpointId: newState.config.configurable?.checkpoint_id!,
         }
     }
-    async *handleCommand(args: { command: CommandRequest; sessionId: string, }): AsyncGenerator<IntermediateAgentMessage, { message: AgentResponse; checkpointId: string; }, unknown> {
+    async *handleCommand(args: { command: CommandRequest; sessionId: string; abortSignal?: AbortSignal }): AsyncGenerator<IntermediateAgentMessage, { message: AgentResponse; checkpointId: string; }, unknown> {
         let stateConfig = {
             streamMode: ["messages" as const, "values" as const],
         };
@@ -100,7 +100,7 @@ export class LanggraphAgent implements Agent {
             responseAttributes: {}
         };
 
-        let generator = this.executeGraph(graphInput, args.sessionId);
+        let generator = this.executeGraph(graphInput, args.sessionId, undefined, args.abortSignal);
         let result;
         while (!(result = await generator.next()).done) {
             yield result.value;
@@ -252,7 +252,7 @@ export class LanggraphAgent implements Agent {
         return events;
     }
 
-    async *executeGraph(graphInput: any, sessionId: string, checkpointId?: string): AsyncGenerator<IntermediateAgentMessage, AgentResponse, unknown> {
+    async *executeGraph(graphInput: any, sessionId: string, checkpointId?: string, abortSignal?: AbortSignal): AsyncGenerator<IntermediateAgentMessage, AgentResponse, unknown> {
         let stateConfig = {
             streamMode: ["messages" as const, "values" as const, "checkpoints" as const],
         };
@@ -300,7 +300,7 @@ export class LanggraphAgent implements Agent {
         };
 
         while (true) {
-            let stream = await this.graph.stream(graphInput, { ...stateConfig, configurable: { thread_id: `${sessionId}#${this.name}`, checkpoint_id: checkpointId } });
+            let stream = await this.graph.stream(graphInput, { ...stateConfig, signal: abortSignal, configurable: { thread_id: `${sessionId}#${this.name}`, checkpoint_id: checkpointId } });
             for await (const state of stream) {
                 if (state[0] === "messages") {
                     let messageState = state[1];

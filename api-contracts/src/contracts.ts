@@ -172,6 +172,10 @@ export type ResetSessionResponse = {
     session: SessionState;
 };
 
+export type StopSessionResponse = {
+    session: SessionState;
+};
+
 export type ApiErrorResponse = {
     error: {
         code: string;

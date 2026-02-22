@@ -318,6 +318,11 @@ export function useChatSession() {
             }
             setErrorMessage(null);
             setIsSubmitting(true);
+            setSessionStates((current) => {
+                const state = current[activeSessionId];
+                if (!state) return current;
+                return { ...current, [activeSessionId]: { ...state, pendingToolRequest: undefined } };
+            });
             try {
                 const response = await fetch(`/api/sessions/${activeSessionId}/approval`, {
                     method: "POST",
@@ -332,6 +337,7 @@ export function useChatSession() {
                     if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) return;
                     throw new Error(apiErrorMessage(payload, "Failed to submit approval."));
                 }
+                upsertSessionState(payload.session);
             } catch (error) {
                 setErrorMessage(error instanceof Error ? error.message : "Approval request failed.");
             } finally {
@@ -408,6 +414,23 @@ export function useChatSession() {
         }
     }, [activeSessionId, recoverFromSessionNotFoundResponse]);
 
+    /* ── Action: stop session ───────────────────────── */
+
+    const stopSession = useCallback(async () => {
+        if (!activeSessionId) return;
+        setErrorMessage(null);
+        try {
+            const response = await fetch(`/api/sessions/${activeSessionId}/stop`, { method: "POST" });
+            const payload = await response.json();
+            if (!response.ok) {
+                if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) return;
+                throw new Error(apiErrorMessage(payload, "Failed to stop session."));
+            }
+        } catch (error) {
+            setErrorMessage(error instanceof Error ? error.message : "Failed to stop session.");
+        }
+    }, [activeSessionId, recoverFromSessionNotFoundResponse]);
+
     /* ── Action: delete session ──────────────────────── */
 
     const deleteSession = useCallback(
@@ -479,6 +502,7 @@ export function useChatSession() {
         setContinuousMode,
         setActiveAgent,
         resetSession,
+        stopSession,
         deleteSession
     };
 }

@@ -107,6 +107,7 @@ type SessionRuntime = {
     workingRoot: string;
     cleanupPath: string;
     running: boolean;
+    abortController?: AbortController;
 };
 
 type RuntimeConfigBundle = {
@@ -417,7 +418,8 @@ export class SessionManager {
             uploadDirectory,
             workingRoot,
             cleanupPath,
-            running: false
+            running: false,
+            abortController: undefined
         };
 
         const replayedConversation = await session.orchestrator.hydrateConversation(session.sessionId);
@@ -616,7 +618,8 @@ export class SessionManager {
                 uploadDirectory,
                 workingRoot,
                 cleanupPath,
-                running: false
+                running: false,
+                abortController: undefined
             };
 
             this.sessions.set(sessionId, session);
@@ -682,6 +685,14 @@ export class SessionManager {
         });
     }
 
+    async stopSession(sessionId: string): Promise<SessionState> {
+        const session = await this.ensureSessionLoaded(sessionId);
+        if (session.running && session.abortController) {
+            session.abortController.abort("User requested stop");
+        }
+        return this.toSessionState(session);
+    }
+
     async setContinuousMode(sessionId: string, enabled: boolean): Promise<SessionState> {
         const session = await this.ensureSessionLoaded(sessionId);
         if (session.running) {
@@ -734,7 +745,7 @@ export class SessionManager {
                 chatImages: chatImageNames
             });
 
-            let generator = session.orchestrator.handleMessage({ message: agentInput }, session.sessionId);
+            let generator = session.orchestrator.handleMessage({ message: agentInput, abortSignal: session.abortController?.signal }, session.sessionId);
             await this.consumeGenerator(session, generator);
             this.emitStateChanged(session);
             return this.toSessionState(session);
@@ -750,6 +761,7 @@ export class SessionManager {
             }
 
             session.pendingToolRequest = null;
+            this.emitStateChanged(session);
 
             if (request.action === "disapprove") {
                 const feedback = request.feedback?.trim();
@@ -775,7 +787,7 @@ export class SessionManager {
                 );
                 await this.consumeGenerator(session, generator);
             } else {
-                const generator = session.orchestrator.handleMessage({ message: null }, session.sessionId);
+                const generator = session.orchestrator.handleMessage({ message: null, abortSignal: session.abortController?.signal }, session.sessionId);
                 await this.consumeGenerator(session, generator);
             }
 
@@ -1190,6 +1202,7 @@ export class SessionManager {
         }
 
         session.running = true;
+        session.abortController = new AbortController();
         session.lastActivityAt = Date.now();
 
         try {
@@ -1204,7 +1217,9 @@ export class SessionManager {
             throw normalized;
         } finally {
             session.running = false;
+            session.abortController = undefined;
             session.lastActivityAt = Date.now();
+            this.emitStateChanged(session);
         }
     }
 

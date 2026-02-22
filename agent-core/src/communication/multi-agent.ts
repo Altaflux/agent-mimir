@@ -145,14 +145,16 @@ export class MultiAgentCommunicationOrchestrator {
 
     async* handleMessage(args: {
         message: InputAgentMessage | null;
+        abortSignal?: AbortSignal;
     }, sessionId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
-        return yield* this.doInvocation((agent) => agent.call({ message: args.message, requestAttributes: undefined, sessionId: sessionId }));
+        return yield* this.doInvocation((agent) => agent.call({ message: args.message, requestAttributes: undefined, sessionId: sessionId, abortSignal: args.abortSignal }), args.abortSignal);
     }
 
     async* handleCommand(args: {
         command: CommandRequest;
+        abortSignal?: AbortSignal;
     }, sessionId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
-        return yield* this.doInvocation((agent) => agent.handleCommand({ command: args.command, sessionId: sessionId }));
+        return yield* this.doInvocation((agent) => agent.handleCommand({ command: args.command, sessionId: sessionId, abortSignal: args.abortSignal }), args.abortSignal);
     }
 
     async hydrateConversation(sessionId: string): Promise<HydratedOrchestratorEvent[]> {
@@ -278,7 +280,7 @@ export class MultiAgentCommunicationOrchestrator {
         return left.sequence - right.sequence;
     }
 
-    private async* doInvocation(msg: AgentInvoke): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
+    private async* doInvocation(msg: AgentInvoke, abortSignal?: AbortSignal): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
         let pendingMessage: PendingMessage | undefined = undefined;
         while (true) {
 
@@ -297,7 +299,7 @@ export class MultiAgentCommunicationOrchestrator {
                         ]
                     },
                     noMessagesInTool: true,
-
+                    abortSignal: abortSignal
                 })
                 : msg(this.currentAgent);
 

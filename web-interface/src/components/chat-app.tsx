@@ -215,6 +215,11 @@ export function ChatApp() {
                         });
                     }}
                     onClearError={() => session.setErrorMessage(null)}
+                    onStopSession={() => {
+                        session.stopSession().catch((error) => {
+                            session.setErrorMessage(error instanceof Error ? error.message : "Stop failed.");
+                        });
+                    }}
                 />
             </div>
         </main>

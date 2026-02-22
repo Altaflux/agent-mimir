@@ -66,7 +66,8 @@ export interface Agent {
         message: InputAgentMessage | null,
         sessionId: string,
         noMessagesInTool?: boolean,
-        requestAttributes?: Record<string, unknown>
+        requestAttributes?: Record<string, unknown>,
+        abortSignal?: AbortSignal
     }) => AsyncGenerator<IntermediateAgentMessage, {
         message: AgentResponse,
         checkpointId: string,
@@ -79,6 +80,7 @@ export interface Agent {
     handleCommand: (args: {
         command: CommandRequest,
         sessionId: string,
+        abortSignal?: AbortSignal
     }) => AsyncGenerator<IntermediateAgentMessage, {
         message: AgentResponse,
         checkpointId: string

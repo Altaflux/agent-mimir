@@ -20,7 +20,8 @@ import type {
     SetActiveAgentRequest,
     SetActiveAgentResponse,
     ToggleContinuousModeRequest,
-    ToggleContinuousModeResponse
+    ToggleContinuousModeResponse,
+    StopSessionResponse
 } from "@mimir/api-contracts/contracts";
 import {
     createSessionManager,
@@ -341,6 +342,12 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
             api.post<{ Params: { sessionId: string } }>("/sessions/:sessionId/reset", async (request, reply) => {
                 const session = await sessionManager.resetSession(request.params.sessionId);
                 const response: ResetSessionResponse = { session };
+                reply.send(response);
+            });
+
+            api.post<{ Params: { sessionId: string } }>("/sessions/:sessionId/stop", async (request, reply) => {
+                const session = await sessionManager.stopSession(request.params.sessionId);
+                const response: StopSessionResponse = { session };
                 reply.send(response);
             });
 
