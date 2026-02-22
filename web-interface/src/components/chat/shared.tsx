@@ -4,15 +4,16 @@ import { ChevronDown, ChevronRight, Check, Copy } from "lucide-react";
 import { ReactNode, useState } from "react";
 
 /** An expandable section with icon + title. Used for tool calls, agent-to-agent, etc. */
-export function CollapsibleSection({ title, icon, children, defaultOpen = false }: {
+export function CollapsibleSection({ title, icon, children, defaultOpen = false, className }: {
     title: string;
     icon: ReactNode;
     children: ReactNode;
     defaultOpen?: boolean;
+    className?: string;
 }) {
     const [isOpen, setIsOpen] = useState(defaultOpen);
     return (
-        <div className="rounded-xl border border-border/50 bg-secondary/30 overflow-hidden animate-msg-in">
+        <div className={`rounded-xl border border-border/50 bg-secondary/30 overflow-hidden animate-msg-in ${className || ""}`}>
             <button
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-muted-foreground hover:bg-secondary/50 transition-colors"
                 onClick={() => setIsOpen((o) => !o)}

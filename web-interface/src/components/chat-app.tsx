@@ -139,14 +139,16 @@ export function ChatApp() {
                             for (const event of session.activeEvents) {
                                 const isMainChatResponse =
                                     event.type === "user_message" ||
-                                    event.type === "agent_response" ||
+                                    (event.type === "agent_response" && !event.destinationAgent) ||
                                     (event.type === "agent_response_chunk" && !event.destinationAgent) ||
                                     event.type === "reset" ||
                                     event.type === "error";
 
                                 const isExplicitAgentToAgent =
                                     event.type === "agent_to_agent" ||
-                                    (event.type === "agent_response_chunk" && !!event.destinationAgent);
+                                    (event.type === "agent_response" && !!event.destinationAgent) ||
+                                    (event.type === "agent_response_chunk" && !!event.destinationAgent) ||
+                                    (event.type === "tool_request" && !!event.destinationAgent);
 
                                 if (isMainChatResponse) {
                                     inSubChat = false;

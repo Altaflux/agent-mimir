@@ -48,7 +48,11 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                 </div>
                 <div className="min-w-0 flex-1 group">
                     <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-medium text-muted-foreground">{event.agentName}</span>
+                        {event.destinationAgent ? (
+                            <span className="text-xs font-medium text-muted-foreground">{event.agentName} <span className="text-[10px] text-emerald-500/80 mx-1">→</span> {event.destinationAgent}</span>
+                        ) : (
+                            <span className="text-xs font-medium text-muted-foreground">{event.agentName}</span>
+                        )}
                         <span className="text-[10px] text-muted-foreground/60">{formatTime(event.timestamp)}</span>
                         <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
                             <CopyButton text={event.markdown} />
@@ -86,13 +90,19 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
     /* ── Tool response ────────────── */
     if (event.type === "tool_response") {
         return (
-            <div className="mx-auto max-w-[85%]">
-                <CollapsibleSection
-                    title={`Tool Response: ${event.toolName} [${event.agentName}]`}
-                    icon={<Wrench className="h-3.5 w-3.5 text-cyan-400" />}
-                >
-                    <ScrollableCodeBlock text={event.response} />
-                </CollapsibleSection>
+            <div className="flex items-start gap-3 animate-msg-in">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+                    <Wrench className="h-4 w-4 text-cyan-500" />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <CollapsibleSection
+                        title={`Tool Response: ${event.toolName} [${event.agentName}]`}
+                        icon={<Wrench className="h-3.5 w-3.5 text-cyan-400" />}
+                        className="border-cyan-500/20 bg-cyan-500/5"
+                    >
+                        <ScrollableCodeBlock text={event.response} />
+                    </CollapsibleSection>
+                </div>
             </div>
         );
     }
@@ -103,47 +113,53 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
             ? `Tool Approval: ${event.payload.callingAgent}`
             : `Tool Call (auto): ${event.payload.callingAgent}`;
         return (
-            <div className="mx-auto max-w-[85%]">
-                <CollapsibleSection
-                    title={title}
-                    icon={<Wrench className="h-3.5 w-3.5 text-amber-400" />}
-                    defaultOpen={event.requiresApproval}
-                >
-                    <div className="space-y-2">
-                        {event.payload.toolCalls.map((call, index) => {
-                            if (call.toolName === "CODE_EXECUTION") {
-                                try {
-                                    const parsed = JSON.parse(call.input);
-                                    if (typeof parsed === "object" && parsed !== null && typeof parsed.script === "string") {
-                                        const libraries = Array.isArray(parsed.libraries) && parsed.libraries.length > 0 ? parsed.libraries : null;
-                                        return (
-                                            <div key={`${event.id}-${index}`} className="border-t border-border/30 pt-2">
-                                                <p className="text-xs font-semibold text-foreground mb-1">{call.toolName}</p>
-                                                {libraries && (
-                                                    <p className="text-[11px] text-muted-foreground mb-2">
-                                                        Libraries to install: <span className="font-mono text-emerald-400 bg-secondary/50 px-1 py-0.5 rounded">{libraries.join(", ")}</span>
-                                                    </p>
-                                                )}
-                                                <MarkdownContent>
-                                                    {`\`\`\`python\n${parsed.script}\n\`\`\``}
-                                                </MarkdownContent>
-                                            </div>
-                                        );
+            <div className="flex items-start gap-3 animate-msg-in">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+                    <Wrench className={`h-4 w-4 ${event.requiresApproval ? "text-amber-500" : "text-muted-foreground"}`} />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <CollapsibleSection
+                        title={title}
+                        icon={<Wrench className={event.requiresApproval ? "h-3.5 w-3.5 text-amber-400" : "h-3.5 w-3.5 text-muted-foreground"} />}
+                        defaultOpen={event.requiresApproval}
+                        className={event.requiresApproval ? "border-amber-500/40 bg-amber-500/5 shadow-[0_0_15px_rgba(245,158,11,0.05)]" : "border-border/50 bg-secondary/30"}
+                    >
+                        <div className="space-y-2">
+                            {event.payload.toolCalls.map((call, index) => {
+                                if (call.toolName === "CODE_EXECUTION") {
+                                    try {
+                                        const parsed = JSON.parse(call.input);
+                                        if (typeof parsed === "object" && parsed !== null && typeof parsed.script === "string") {
+                                            const libraries = Array.isArray(parsed.libraries) && parsed.libraries.length > 0 ? parsed.libraries : null;
+                                            return (
+                                                <div key={`${event.id}-${index}`} className="border-t border-border/30 pt-2">
+                                                    <p className="text-xs font-semibold text-foreground mb-1">{call.toolName}</p>
+                                                    {libraries && (
+                                                        <p className="text-[11px] text-muted-foreground mb-2">
+                                                            Libraries to install: <span className="font-mono text-emerald-400 bg-secondary/50 px-1 py-0.5 rounded">{libraries.join(", ")}</span>
+                                                        </p>
+                                                    )}
+                                                    <MarkdownContent>
+                                                        {`\`\`\`python\n${parsed.script}\n\`\`\``}
+                                                    </MarkdownContent>
+                                                </div>
+                                            );
+                                        }
+                                    } catch {
+                                        // Silently fallback to default raw render if JSON is invalid
                                     }
-                                } catch {
-                                    // Silently fallback to default raw render if JSON is invalid
                                 }
-                            }
 
-                            return (
-                                <div key={`${event.id}-${index}`} className="border-t border-border/30 pt-2">
-                                    <p className="text-xs font-semibold text-foreground mb-1">{call.toolName}</p>
-                                    <ScrollableCodeBlock text={call.input} />
-                                </div>
-                            );
-                        })}
-                    </div>
-                </CollapsibleSection>
+                                return (
+                                    <div key={`${event.id}-${index}`} className="border-t border-border/30 pt-2">
+                                        <p className="text-xs font-semibold text-foreground mb-1">{call.toolName}</p>
+                                        <ScrollableCodeBlock text={call.input} />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </CollapsibleSection>
+                </div>
             </div>
         );
     }

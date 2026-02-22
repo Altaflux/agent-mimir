@@ -89,6 +89,7 @@ export type SessionEvent =
         timestamp: string;
         type: "agent_response";
         agentName: string;
+        destinationAgent?: string;
         messageId: string;
         markdown: string;
         attachments: DownloadableFile[];
