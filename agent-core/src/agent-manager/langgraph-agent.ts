@@ -1,4 +1,4 @@
-import { CompiledStateGraph, Command, StateDefinition, StateSchema, MessagesValue, BaseCheckpointSaver } from "@langchain/langgraph";
+import { CompiledStateGraph, Command, StateDefinition, StateSchema, MessagesValue, BaseCheckpointSaver, CheckpointTuple } from "@langchain/langgraph";
 import { AgentCommand, AgentPlugin } from "../plugins/index.js";
 import { Agent, AgentHydrationEvent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, CommandRequest, InputAgentMessage, IntermediateAgentMessage, SharedFile } from "./index.js";
 import { AIMessage, AIMessageChunk, BaseMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
@@ -128,28 +128,29 @@ export class LanggraphAgent implements Agent {
     }
 
     async readHydrationEvents(args: { sessionId: string; }): Promise<AgentHydrationEvent[]> {
+
         const threadId = `${args.sessionId}#${this.name}`;
-        const stateHistory = this.graph.getStateHistory({
+        //// Using Checkpointer
+        const checkpointTuples: CheckpointTuple[] = [];
+        const checkpointTuplesAsyncGenerator = (this.graph.checkpointer as BaseCheckpointSaver).list({
             configurable: {
                 thread_id: threadId
             }
         });
-
-        const snapshots: any[] = [];
-        for await (const snapshot of stateHistory) {
-            snapshots.push(snapshot);
+        for await (const snapshot of checkpointTuplesAsyncGenerator) {
+            checkpointTuples.push(snapshot);
         }
 
-        snapshots.reverse();
+        checkpointTuples.reverse();
         const seenMessageIds = new Set<string>();
         const events: AgentHydrationEvent[] = [];
 
-        for (const snapshot of snapshots) {
-            const values = snapshot.values ?? {};
+        for (const snapshot of checkpointTuples) {
+            const values = (snapshot.checkpoint?.channel_values ?? {}) as Record<string, any>;
             const messages = (values.messages ?? []) as BaseMessage[];
             const checkpointId =
                 String(snapshot.config?.configurable?.checkpoint_id ?? snapshot.metadata?.step ?? "unknown-checkpoint");
-            const timestamp = snapshot.createdAt ?? new Date().toISOString();
+            const timestamp = snapshot.checkpoint?.ts ?? new Date().toISOString();
             const responseAttributes = (values.responseAttributes ?? {}) as Record<string, any>;
             const requestAttributes = (values.requestAttributes ?? {}) as Record<string, any>;
 
