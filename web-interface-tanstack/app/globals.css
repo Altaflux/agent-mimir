@@ -1,0 +1,176 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --background: 0 0% 13%;
+        --foreground: 0 0% 93%;
+        --card: 0 0% 16%;
+        --card-foreground: 0 0% 93%;
+        --popover: 0 0% 16%;
+        --popover-foreground: 0 0% 93%;
+        --primary: 0 0% 100%;
+        --primary-foreground: 0 0% 9%;
+        --secondary: 0 0% 20%;
+        --secondary-foreground: 0 0% 93%;
+        --muted: 0 0% 20%;
+        --muted-foreground: 0 0% 64%;
+        --accent: 0 0% 22%;
+        --accent-foreground: 0 0% 93%;
+        --destructive: 0 78% 60%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 0 0% 22%;
+        --input: 0 0% 22%;
+        --ring: 0 0% 60%;
+        --radius: 0.75rem;
+        --sidebar: 0 0% 11%;
+        --user-bubble: 0 0% 22%;
+        --font-heading: 'Sora', sans-serif;
+        --font-body: 'Inter', sans-serif;
+    }
+
+    * {
+        @apply border-border;
+    }
+
+    body {
+        color-scheme: dark;
+        background: hsl(var(--background));
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: hsl(var(--muted));
+        border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: hsl(var(--muted-foreground));
+    }
+}
+
+@layer components {
+    .font-body {
+        font-family: var(--font-body), sans-serif;
+    }
+
+    .font-heading {
+        font-family: var(--font-heading), sans-serif;
+    }
+
+    .app-shell {
+        animation: app-fade 320ms ease-out;
+    }
+}
+
+/* ── Animations ─────────────────────────────────────────── */
+
+@keyframes app-fade {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes msg-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes dot-bounce {
+
+    0%,
+    80%,
+    100% {
+        transform: scale(0.6);
+        opacity: 0.4;
+    }
+
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes pulse-glow {
+
+    0%,
+    100% {
+        opacity: 0.5;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Thinking dots */
+.thinking-dots span {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin: 0 2px;
+    border-radius: 50%;
+    background: hsl(var(--muted-foreground));
+    animation: dot-bounce 1.4s infinite ease-in-out both;
+}
+
+.thinking-dots span:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.thinking-dots span:nth-child(2) {
+    animation-delay: 0.16s;
+}
+
+.thinking-dots span:nth-child(3) {
+    animation-delay: 0.32s;
+}
+
+/* Skeleton loader */
+.skeleton {
+    background: linear-gradient(90deg,
+            hsl(var(--muted)) 25%,
+            hsl(var(--accent)) 50%,
+            hsl(var(--muted)) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: 0.5rem;
+}

@@ -119,7 +119,49 @@ module.exports = async function () {
                     ]
                 }
             },
-            'Researcher': {
+            'Researcher1': {
+                mainAgent: true,
+                description: 'An agent specialized in research.',
+                definition: {
+                    communicationWhitelist: true,
+                    chatModel: chatModel,
+                    //agentType: "openai-function-agent",
+                    agentType: "plain-text-agent",
+                    profession: 'an agent specialized in research',
+                    visionSupport: true,
+                    chatHistory: {
+                        tokenLimit: 300, //Maximum number of tokens that can be used by the chat. 8000 by default.
+                        conversationTokenThreshold: 90, //Percentage threshold of the tokens used by the chat before summarizing. 75% by default.
+                        summaryModel: summaryModel
+
+                    },
+                    plugins: [
+
+                        // new McpClientPluginFactory({
+
+                        //     servers: {
+
+                        //         "researcher": {
+                        //             description: "Execute complex research",
+                        //             transport: () => new StdioClientTransport({
+                        //                 "command": "py",
+                        //                 "env": {
+                        //                     PYTHONUTF8: "1",
+                        //                     PYTHONIOENCODING: "utf-8"
+                        //                 },
+                        //                 "args": ["C:\\Users\\pablo\\projects\\gptr-mcp\\server.py"]
+                        //             })
+                        //         },
+
+                        //     }
+                        // }),
+                    ],
+                    tools: [
+
+                    ]
+                }
+            },
+            'Researcher2': {
                 mainAgent: true,
                 description: 'An agent specialized in research.',
                 definition: {
