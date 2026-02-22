@@ -49,6 +49,7 @@ export type HandleMessageResult = ({
 
 export type AgentToolRequestTwo = AgentMessageToolRequest & {
     callingAgent: string,
+    destinationAgent: string | undefined,
 }
 
 export type AgentUserMessage = {
@@ -196,6 +197,7 @@ export class MultiAgentCommunicationOrchestrator {
                     agentName: event.agentName,
                     value: {
                         type: "toolRequest",
+                        destinationAgent: this.agentStack.at(-1)?.name,
                         callingAgent: event.agentName,
                         ...event.output,
                     },
@@ -304,7 +306,7 @@ export class MultiAgentCommunicationOrchestrator {
                 message: AgentResponse;
             }>;
             while (!(result = await generator.next()).done) {
-                const intermediateOutputType = convertIntermediateAgentMessage(result.value, this.agentStack.length > 0 ? this.agentStack[this.agentStack.length - 1].name : undefined);
+                const intermediateOutputType = convertIntermediateAgentMessage(result.value, this.agentStack.at(-1)?.name);
                 yield {
                     type: "intermediateOutput",
                     agentName: this.currentAgent.name,
@@ -337,6 +339,7 @@ export class MultiAgentCommunicationOrchestrator {
                 return {
                     type: "toolRequest",
                     callingAgent: this.currentAgent.name,
+                    destinationAgent: this.agentStack.at(-1)?.name,
                     ...graphResponse.output,
                 }
             }
