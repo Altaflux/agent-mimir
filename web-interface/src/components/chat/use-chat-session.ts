@@ -239,6 +239,11 @@ export function useChatSession() {
             }
         };
 
+        const handleServerClose = () => {
+            eventSource.close();
+        };
+        eventSource.addEventListener("close", handleServerClose);
+
         eventSource.onerror = () => {
             eventSource.close();
             recoverFromMissingSession(activeSessionId).catch((err) => {
@@ -246,7 +251,10 @@ export function useChatSession() {
             });
         };
 
-        return () => eventSource.close();
+        return () => {
+            eventSource.removeEventListener("close", handleServerClose);
+            eventSource.close();
+        };
     }, [activeSessionId, appendEvent, recoverFromMissingSession]);
 
     /* ── Action: create session ──────────────────────── */

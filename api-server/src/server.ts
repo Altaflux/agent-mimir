@@ -46,7 +46,7 @@ export type ApiServerOptions = {
     prefix?: string;
     serviceToken?: string;
     enforceServiceToken?: boolean;
-    sessionManager?: SessionManager;
+
     sessionManagerOptions?: SessionManagerOptions;
     uploadLimits?: Partial<ApiUploadLimits>;
 };
@@ -235,7 +235,6 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
     const uploadLimits = getApiUploadLimits(options);
     const publicApiBasePath = getPublicApiBasePath();
     const sessionManager =
-        options.sessionManager ??
         createSessionManager({
             ...(options.sessionManagerOptions ?? {}),
             uploadLimits: {
@@ -243,7 +242,8 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
                 maxFileSizeBytes: uploadLimits.maxFileSizeBytes
             }
         });
-    const ownsSessionManager = options.sessionManager === undefined;
+
+    const activeStreams = new Set<() => void>();
 
     const app = Fastify({
         logger: {
@@ -260,14 +260,20 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
         }
     });
 
-    if (ownsSessionManager) {
-        app.addHook("onClose", async () => {
-            app.log.info("Shutting down session manager.");
-            await sessionManager.shutDown();
-            app.log.info("Session manager shut down successfully.");
-        });
-    }
+    app.addHook("onClose", async () => {
+        app.log.info("Shutting down session manager.");
+        await sessionManager.shutDown();
+        app.log.info("Session manager shut down successfully.");
+    });
 
+    app.addHook("preClose", async () => {
+        app.log.info("Closing all active streams.");
+        for (const closeStream of activeStreams) {
+            closeStream();
+        }
+        app.log.info("All active streams closed.");
+        activeStreams.clear();
+    });
     app.setErrorHandler((error, _request, reply) => {
         const normalized = normalizeError(error);
         if (reply.sent) {
@@ -488,10 +494,13 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
                 const close = () => {
                     clearInterval(heartbeat);
                     subscription.unsubscribe();
+                    activeStreams.delete(close);
                     if (!reply.raw.writableEnded) {
+                        reply.raw.write("event: close\ndata: {}\n\n");
                         reply.raw.end();
                     }
                 };
+                activeStreams.add(close);
 
                 request.raw.on("close", close);
                 request.raw.on("error", close);

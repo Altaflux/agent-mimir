@@ -47,7 +47,8 @@ async function proxyRequest(request: NextRequest, context: RouteContext): Promis
         const init: RequestInit & { duplex?: "half" } = {
             method,
             headers: buildProxyHeaders(request),
-            redirect: "manual"
+            redirect: "manual",
+            signal: request.signal
         };
 
         if (method !== "GET" && method !== "HEAD" && request.body) {
