@@ -94,9 +94,6 @@ export interface Agent {
         sessionId: string
     }) => Promise<void>,
 
-    readHydrationEvents: (args: {
-        sessionId: string
-    }) => Promise<AgentHydrationEvent[]>,
 
     shutDown: () => Promise<void>,
 };

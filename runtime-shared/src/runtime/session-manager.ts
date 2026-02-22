@@ -12,6 +12,7 @@ import { HttpError } from "./errors.js";
 import type { AgentMimirConfig } from "./types.js";
 import { Agent, InputAgentMessage, SharedFile } from "@mimir/agent-core/agent";
 import {
+    AgentHydrationEventWithAgent,
     AgentToolRequestTwo,
     HandleMessageResult,
     HydratedOrchestratorEvent,
@@ -28,10 +29,11 @@ import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
 import { SessionStore } from "./session-store.js";
-import { CodeAgentFactory, DockerPythonExecutor, LocalPythonExecutor } from "@mimir/agent-core/agent/code-agent";
-import { BaseCheckpointSaver, MemorySaver } from "@langchain/langgraph";
+import { CodeAgentFactory, DockerPythonExecutor } from "@mimir/agent-core/agent/code-agent";
+import { BaseCheckpointSaver } from "@langchain/langgraph";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import Database from "better-sqlite3";
+import { readHydrationEvents } from "@mimir/agent-core/utils/hydration";
 
 const SESSION_EVENT_CAP = 500;
 const DEFAULT_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
@@ -119,6 +121,7 @@ type PersistedSessionInfo = {
     sessionId: string;
     earliestTimestampMs: number;
     latestTimestampMs: number;
+    discoveredAgents: Set<string>;
     name: string | null;
 };
 
@@ -327,7 +330,8 @@ export class SessionManager {
             sessionId,
             earliestTimestampMs: timestampMs,
             latestTimestampMs: timestampMs,
-            name: name ?? null
+            name: name ?? null,
+            discoveredAgents: new Set<string>()
         });
     }
 
@@ -344,7 +348,7 @@ export class SessionManager {
             }
 
             const parsed = this.parseSessionThreadId(threadId);
-            if (!parsed || !validAgentNames.has(parsed.agentName)) {
+            if (!parsed) {
                 continue;
             }
 
@@ -354,6 +358,7 @@ export class SessionManager {
             if (existing) {
                 existing.earliestTimestampMs = Math.min(existing.earliestTimestampMs, normalizedTimestampMs);
                 existing.latestTimestampMs = Math.max(existing.latestTimestampMs, normalizedTimestampMs);
+                existing.discoveredAgents.add(parsed.agentName);
                 continue;
             }
 
@@ -361,6 +366,7 @@ export class SessionManager {
                 sessionId: parsed.sessionId,
                 earliestTimestampMs: normalizedTimestampMs,
                 latestTimestampMs: normalizedTimestampMs,
+                discoveredAgents: new Set([parsed.agentName]),
                 name: null
             });
         }
@@ -422,7 +428,24 @@ export class SessionManager {
             abortController: undefined
         };
 
-        const replayedConversation = await session.orchestrator.hydrateConversation(session.sessionId);
+        const hydrationEvents: AgentHydrationEventWithAgent[] = [];
+        let sequence = 0;
+
+        for (const agentName of persistedSession.discoveredAgents) {
+            const events = await readHydrationEvents({ sessionId: persistedSession.sessionId, name: agentName, checkpointer: checkpointer });
+            for (const event of events) {
+                hydrationEvents.push({
+                    ...event,
+                    agentName: agentName,
+                    sequence: sequence++,
+                });
+            }
+        }
+        const agentsByName = [...persistedSession.discoveredAgents].reduce((left, right) => {
+            left.set(right, { name: right });
+            return left;
+        }, new Map<string, { name: string }>());
+        const replayedConversation = await session.orchestrator.hydrateConversation(hydrationEvents, agentsByName);
         await this.applyHydratedConversation(session, replayedConversation);
         session.activeAgentName = session.orchestrator.currentAgent.name;
         this.sessions.set(session.sessionId, session);

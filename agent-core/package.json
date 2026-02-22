@@ -45,7 +45,6 @@
     "./plugins/helpers": {
       "types": "./dist/plugins/helpers.d.ts",
       "import": {
-        
         "development": "./src/plugins/helpers.ts",
         "default": "./dist/plugins/helpers.js"
       }
@@ -62,6 +61,13 @@
       "import": {
         "development": "./src/utils/format.ts",
         "default": "./dist/utils/format.js"
+      }
+    },
+    "./utils/hydration": {
+      "types": "./dist/utils/hydration.d.ts",
+      "import": {
+        "development": "./src/utils/hydration.ts",
+        "default": "./dist/utils/hydration.js"
       }
     },
     "./nodejs": {

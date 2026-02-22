@@ -56,7 +56,7 @@ export type AgentUserMessage = {
     content: InputAgentMessage,
 }
 
-type AgentHydrationEventWithAgent = AgentHydrationEvent & {
+export type AgentHydrationEventWithAgent = AgentHydrationEvent & {
     agentName: string,
     sequence: number,
 }
@@ -157,29 +157,18 @@ export class MultiAgentCommunicationOrchestrator {
         return yield* this.doInvocation((agent) => agent.handleCommand({ command: args.command, sessionId: sessionId, abortSignal: args.abortSignal }), args.abortSignal);
     }
 
-    async hydrateConversation(sessionId: string): Promise<HydratedOrchestratorEvent[]> {
-        const hydrationEvents: AgentHydrationEventWithAgent[] = [];
-        let sequence = 0;
+    async hydrateConversation(hydrationEvents: AgentHydrationEventWithAgent[], agentManager: ReadonlyMap<string, { name: string }>): Promise<HydratedOrchestratorEvent[]> {
 
-        for (const agent of this.agentManager.values()) {
-            const events = await agent.readHydrationEvents({ sessionId });
-            for (const event of events) {
-                hydrationEvents.push({
-                    ...event,
-                    agentName: agent.name,
-                    sequence: sequence++,
-                });
-            }
-        }
 
         hydrationEvents.sort((left, right) => this.compareHydrationEvents(left, right));
-        this.agentStack = [];
+        const agentStack: { name: string }[] = [];
+        let currentAgent: { name: string } | undefined = undefined;
 
         const replayed: HydratedOrchestratorEvent[] = [];
         for (const event of hydrationEvents) {
-            const sourceAgent = this.agentManager.get(event.agentName);
+            const sourceAgent = agentManager.get(event.agentName);
             if (sourceAgent) {
-                this.currentAgent = sourceAgent;
+                currentAgent = { name: event.agentName };
             }
 
             if (event.type === "userMessage") {
@@ -199,7 +188,7 @@ export class MultiAgentCommunicationOrchestrator {
                     agentName: event.agentName,
                     value: {
                         type: "toolRequest",
-                        destinationAgent: this.agentStack.at(-1)?.name,
+                        destinationAgent: agentStack.at(-1)?.name,
                         callingAgent: event.agentName,
                         ...event.output,
                     },
@@ -227,10 +216,11 @@ export class MultiAgentCommunicationOrchestrator {
                     output: event.output,
                     responseAttributes: event.responseAttributes,
                 },
-                this.agentStack
+                currentAgent!,
+                agentStack, agentManager
             );
-            const messageSourceAgent = this.currentAgent.name;
-            this.currentAgent = routedMessage.currentAgent;
+            const messageSourceAgent = currentAgent!.name;
+            currentAgent = routedMessage.currentAgent;
 
             if (routedMessage.conversationComplete) {
                 replayed.push({
@@ -252,7 +242,7 @@ export class MultiAgentCommunicationOrchestrator {
                     type: "agentToAgentMessage",
                     value: {
                         content: event.output,
-                        destinationAgent: this.currentAgent.name,
+                        destinationAgent: currentAgent.name,
                         sourceAgent: messageSourceAgent,
                     },
                 },
@@ -315,11 +305,15 @@ export class MultiAgentCommunicationOrchestrator {
                     value: intermediateOutputType
                 };
             }
-            let graphResponse = result.value.message;
+            let graphResponse: AgentResponse = result.value.message;
 
             if (graphResponse.type == "agentResponse") {
                 const sourceAgent = this.currentAgent.name;
-                const routedMessage = this.routeAgentResponse(graphResponse, this.agentStack);
+                const routedMessage: {
+                    conversationComplete: boolean,
+                    currentAgent: Agent,
+                    pendingMessage: PendingMessage | undefined
+                } = this.routeAgentResponse(graphResponse, this.currentAgent, this.agentStack, this.agentManager);
                 this.currentAgent = routedMessage.currentAgent;
                 if (routedMessage.conversationComplete) {
                     return {
@@ -348,23 +342,23 @@ export class MultiAgentCommunicationOrchestrator {
         }
     }
 
-    private routeAgentResponse(graphResponse: AgentUserMessageResponse, agentStack: Agent[]): {
+    private routeAgentResponse<T extends { name: string; }>(graphResponse: AgentUserMessageResponse, currentAgent: T, agentStack: T[], agentList: ReadonlyMap<string, T>): {
         conversationComplete: boolean,
-        currentAgent: Agent,
+        currentAgent: T,
         pendingMessage: PendingMessage | undefined
     } {
 
         const destinationAgentName = graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE];
-        if (destinationAgentName && (this.agentStack.length === 0 || destinationAgentName !== this.agentStack[this.agentStack.length - 1].name)) {
+        if (destinationAgentName && (agentStack.length === 0 || destinationAgentName !== agentStack.at(-1)?.name)) {
 
-            const newAgent = this.agentManager.get(destinationAgentName);
+            const newAgent = agentList.get(destinationAgentName);
             if (!newAgent) {
                 return {
                     conversationComplete: false,
-                    currentAgent: this.currentAgent,
+                    currentAgent: currentAgent,
                     pendingMessage: {
                         toAgent: destinationAgentName,
-                        fromAgent: this.currentAgent.name,
+                        fromAgent: currentAgent.name,
                         content: {
                             content: [
                                 { type: "text", text: `Agent ${destinationAgentName} does not exist.` }
@@ -373,26 +367,26 @@ export class MultiAgentCommunicationOrchestrator {
                     }
                 };
             }
-            agentStack.push(this.currentAgent);
+            agentStack.push(currentAgent);
             return {
                 conversationComplete: false,
                 currentAgent: newAgent,
                 pendingMessage: {
                     toAgent: newAgent.name,
-                    fromAgent: this.currentAgent.name,
+                    fromAgent: currentAgent.name,
                     content: graphResponse.output
                 }
             };
         }
 
         const isFinalUser = agentStack.length === 0;
-        const newCurrentAgent = isFinalUser ? this.currentAgent : agentStack.pop()!;
+        const newCurrentAgent = isFinalUser ? currentAgent : agentStack.pop()!;
         return {
             conversationComplete: isFinalUser,
             currentAgent: newCurrentAgent,
             pendingMessage: {
                 toAgent: undefined,
-                fromAgent: this.currentAgent.name,
+                fromAgent: currentAgent.name,
                 content: graphResponse.output,
             }
         };
