@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, ChevronRight, Check, Copy } from "lucide-react";
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useRef, useEffect } from "react";
 
 /** An expandable section with icon + title. Used for tool calls, agent-to-agent, etc. */
 export function CollapsibleSection({ title, icon, children, defaultOpen = false, className }: {
@@ -72,5 +72,64 @@ export function CopyButton({ text }: { text: string }) {
         >
             {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
         </button>
+    );
+}
+
+/** Wraps long text to collapse it by default, with an option to expand */
+export function ExpandableMessage({ children }: { children: ReactNode }) {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [isOverflowing, setIsOverflowing] = useState(false);
+    const contentRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const el = contentRef.current;
+        if (!el) return;
+
+        const checkOverflow = () => {
+            setIsOverflowing(el.scrollHeight > 160);
+        };
+
+        const observer = new ResizeObserver(checkOverflow);
+        observer.observe(el);
+        // Also observe children changes using MutationObserver just in case inner text nodes change without resize trigger
+        const mutationObserver = new MutationObserver(checkOverflow);
+        mutationObserver.observe(el, { childList: true, subtree: true, characterData: true });
+
+        checkOverflow();
+
+        return () => {
+            observer.disconnect();
+            mutationObserver.disconnect();
+        };
+    }, [children]);
+
+    if (!isOverflowing && !isExpanded) {
+        return (
+            <div ref={contentRef}>
+                {children}
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-1">
+            <div
+                className={isExpanded ? "" : "max-h-[160px] overflow-hidden relative"}
+            >
+                <div
+                    ref={contentRef}
+                    style={{ WebkitMaskImage: !isExpanded ? 'linear-gradient(to bottom, black 60%, transparent 100%)' : 'none', maskImage: !isExpanded ? 'linear-gradient(to bottom, black 60%, transparent 100%)' : 'none' }}
+                >
+                    {children}
+                </div>
+            </div>
+            <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="text-[11px] font-medium text-emerald-500 hover:text-emerald-400 transition-colors"
+                style={{ marginTop: isExpanded ? '8px' : '0px' }}
+            >
+                {isExpanded ? "Show less" : "Show more"}
+            </button>
+        </div>
     );
 }

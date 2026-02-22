@@ -4,7 +4,7 @@ import { SessionEvent } from "@/lib/contracts";
 import { formatTime } from "@/lib/api";
 import { Bot, User, Wrench, Zap } from "lucide-react";
 import { MarkdownContent } from "@/components/chat/markdown";
-import { CollapsibleSection, DownloadLinks, ScrollableCodeBlock, CopyButton } from "@/components/chat/shared";
+import { CollapsibleSection, DownloadLinks, ScrollableCodeBlock, CopyButton, ExpandableMessage } from "@/components/chat/shared";
 
 /** Renders a single session event as the appropriate message bubble / section. */
 export function MessageEvent({ event }: { event: SessionEvent }) {
@@ -58,8 +58,17 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                             <CopyButton text={event.markdown} />
                         </div>
                     </div>
-                    <MarkdownContent>{event.markdown}</MarkdownContent>
-                    <DownloadLinks files={event.attachments} />
+                    {event.destinationAgent ? (
+                        <ExpandableMessage>
+                            <MarkdownContent>{event.markdown}</MarkdownContent>
+                            <DownloadLinks files={event.attachments} />
+                        </ExpandableMessage>
+                    ) : (
+                        <>
+                            <MarkdownContent>{event.markdown}</MarkdownContent>
+                            <DownloadLinks files={event.attachments} />
+                        </>
+                    )}
                 </div>
             </div>
         );
@@ -81,7 +90,13 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                         )}
                         <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-pulse-glow" title="Streaming..." />
                     </div>
-                    <MarkdownContent>{event.markdownChunk}</MarkdownContent>
+                    {event.destinationAgent ? (
+                        <ExpandableMessage>
+                            <MarkdownContent>{event.markdownChunk}</MarkdownContent>
+                        </ExpandableMessage>
+                    ) : (
+                        <MarkdownContent>{event.markdownChunk}</MarkdownContent>
+                    )}
                 </div>
             </div>
         );
@@ -179,8 +194,10 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                             <CopyButton text={event.message} />
                         </div>
                     </div>
-                    <MarkdownContent>{event.message}</MarkdownContent>
-                    <DownloadLinks files={event.attachments} />
+                    <ExpandableMessage>
+                        <MarkdownContent>{event.message}</MarkdownContent>
+                        <DownloadLinks files={event.attachments} />
+                    </ExpandableMessage>
                 </div>
             </div>
         );
