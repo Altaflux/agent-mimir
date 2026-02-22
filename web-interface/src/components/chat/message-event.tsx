@@ -91,7 +91,7 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                         <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-pulse-glow" title="Streaming..." />
                     </div>
                     {event.destinationAgent ? (
-                        <ExpandableMessage>
+                        <ExpandableMessage isStreaming={true}>
                             <MarkdownContent>{event.markdownChunk}</MarkdownContent>
                         </ExpandableMessage>
                     ) : (

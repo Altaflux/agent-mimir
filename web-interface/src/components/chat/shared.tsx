@@ -76,10 +76,15 @@ export function CopyButton({ text }: { text: string }) {
 }
 
 /** Wraps long text to collapse it by default, with an option to expand */
-export function ExpandableMessage({ children }: { children: ReactNode }) {
-    const [isExpanded, setIsExpanded] = useState(false);
+export function ExpandableMessage({ children, isStreaming = false }: { children: ReactNode; isStreaming?: boolean }) {
+    const [isExpanded, setIsExpanded] = useState(isStreaming);
     const [isOverflowing, setIsOverflowing] = useState(false);
     const contentRef = useRef<HTMLDivElement>(null);
+
+    // Auto-update expanded state when streaming state changes
+    useEffect(() => {
+        setIsExpanded(isStreaming);
+    }, [isStreaming]);
 
     useEffect(() => {
         const el = contentRef.current;
@@ -91,45 +96,48 @@ export function ExpandableMessage({ children }: { children: ReactNode }) {
 
         const observer = new ResizeObserver(checkOverflow);
         observer.observe(el);
-        // Also observe children changes using MutationObserver just in case inner text nodes change without resize trigger
-        const mutationObserver = new MutationObserver(checkOverflow);
-        mutationObserver.observe(el, { childList: true, subtree: true, characterData: true });
 
         checkOverflow();
 
         return () => {
             observer.disconnect();
-            mutationObserver.disconnect();
         };
-    }, [children]);
+    }, []);
 
-    if (!isOverflowing && !isExpanded) {
-        return (
-            <div ref={contentRef}>
-                {children}
-            </div>
-        );
-    }
+    // Check overflow securely whenever children updates
+    useEffect(() => {
+        if (contentRef.current) {
+            setIsOverflowing(contentRef.current.scrollHeight > 160);
+        }
+    }, [children]);
 
     return (
         <div className="space-y-1">
             <div
-                className={isExpanded ? "" : "max-h-[160px] overflow-hidden relative"}
+                className={(!isOverflowing || isExpanded) ? "" : "max-h-[160px] overflow-hidden relative"}
             >
                 <div
                     ref={contentRef}
-                    style={{ WebkitMaskImage: !isExpanded ? 'linear-gradient(to bottom, black 60%, transparent 100%)' : 'none', maskImage: !isExpanded ? 'linear-gradient(to bottom, black 60%, transparent 100%)' : 'none' }}
+                    style={{
+                        WebkitMaskImage: (isOverflowing && !isExpanded) ? 'linear-gradient(to bottom, black 60%, transparent 100%)' : 'none',
+                        maskImage: (isOverflowing && !isExpanded) ? 'linear-gradient(to bottom, black 60%, transparent 100%)' : 'none'
+                    }}
                 >
                     {children}
                 </div>
             </div>
-            <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="text-[11px] font-medium text-emerald-500 hover:text-emerald-400 transition-colors"
-                style={{ marginTop: isExpanded ? '8px' : '0px' }}
-            >
-                {isExpanded ? "Show less" : "Show more"}
-            </button>
+            {isOverflowing && (
+                <button
+                    onClick={(e) => {
+                        e.preventDefault();
+                        setIsExpanded((prev) => !prev);
+                    }}
+                    type="button"
+                    className="text-[11px] font-medium text-emerald-500 hover:text-emerald-400 transition-colors relative z-10 cursor-pointer select-none py-1"
+                >
+                    {isExpanded ? "Show less" : "Show more"}
+                </button>
+            )}
         </div>
     );
 }
