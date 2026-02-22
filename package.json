@@ -19,7 +19,7 @@
         "start-web": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps MIMIR_PUBLIC_API_BASE_PATH=/api dotenv -- npm run internalStartWeb",
         "start-web-dev": "dotenv -- node scripts/config-setup.js && cd .temp_custom_deps && npm install && cd .. && cross-env MIMIR_CFG_PATH=$INIT_CWD/.temp_custom_deps MIMIR_PUBLIC_API_BASE_PATH=/api dotenv -- npm run internalStartWebNoBuild",
         "internalStartWeb": "npm run build && turbo run start --only --env-mode=loose --filter=@mimir/api-server --filter=@mimir/web-interface",
-        "internalStartWebNoBuild": "npm run build -w api-contracts && npm run build -w runtime-shared && npm run build -w api-server && turbo run dev --env-mode=loose --filter=api-server --filter=web-interface"
+        "internalStartWebNoBuild": "npm run build -w api-contracts && npm run build -w runtime-shared && npm run build -w api-server && turbo run dev --env-mode=loose --filter=@mimir/api-server --filter=@mimir/web-interface"
     },
     "author": "Altaflux",
     "repository": {

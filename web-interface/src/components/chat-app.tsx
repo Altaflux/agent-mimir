@@ -150,21 +150,23 @@ export function ChatApp() {
                                     (event.type === "agent_response_chunk" && !!event.destinationAgent) ||
                                     (event.type === "tool_request" && !!event.destinationAgent);
 
+                                const stableId = (event as any).messageId || event.id;
+
                                 if (isMainChatResponse) {
                                     inSubChat = false;
-                                    blocks.push({ type: "event", id: event.id, event });
+                                    blocks.push({ type: "event", id: stableId, event });
                                 } else if (isExplicitAgentToAgent) {
                                     if (!inSubChat) {
                                         inSubChat = true;
                                         currentSubChatEvents = [];
-                                        blocks.push({ type: "sub-chat", id: `subchat-${event.id}`, events: currentSubChatEvents });
+                                        blocks.push({ type: "sub-chat", id: `subchat-${stableId}`, events: currentSubChatEvents });
                                     }
                                     currentSubChatEvents.push(event);
                                 } else {
                                     if (inSubChat) {
                                         currentSubChatEvents.push(event);
                                     } else {
-                                        blocks.push({ type: "event", id: event.id, event });
+                                        blocks.push({ type: "event", id: stableId, event });
                                     }
                                 }
                             }
