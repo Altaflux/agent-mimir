@@ -1,1 +1,1 @@
-export * from "@mimir/api-contracts/contracts";
+export type * from "@mimir/api-contracts/contracts";

@@ -10,7 +10,7 @@ import { MessageEvent } from "@/components/chat/message-event";
 import { ThinkingDots } from "@/components/chat/thinking-dots";
 import { Composer } from "@/components/chat/composer";
 import { CollapsibleSection } from "@/components/chat/shared";
-import { SessionEvent } from "@/lib/contracts";
+import { type SessionEvent } from "@/lib/contracts";
 
 /**
  * Root chat application component.

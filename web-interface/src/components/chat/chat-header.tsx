@@ -1,6 +1,6 @@
 "use client";
 
-import { SessionState } from "@/lib/contracts";
+import { type SessionState } from "@/lib/contracts";
 import { Switch } from "@/components/ui/switch";
 import { Menu, RefreshCw, Zap } from "lucide-react";
 

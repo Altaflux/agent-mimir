@@ -1,6 +1,6 @@
 "use client";
 
-import ReactMarkdown, { Components } from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 const CHAT_MARKDOWN_CLASS =

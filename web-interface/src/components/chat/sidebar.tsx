@@ -1,6 +1,6 @@
 "use client";
 
-import { SessionSummary } from "@/lib/contracts";
+import { type SessionSummary } from "@/lib/contracts";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquarePlus, Trash2 } from "lucide-react";
 

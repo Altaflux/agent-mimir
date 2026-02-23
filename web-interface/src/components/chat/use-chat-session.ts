@@ -1,16 +1,16 @@
 "use client";
 
 import {
-    ApprovalRequest,
-    CreateSessionResponse,
-    ListSessionsResponse,
-    SessionEvent,
-    SessionState,
-    SessionSummary,
-    SetActiveAgentResponse,
-    ToggleContinuousModeResponse
+    type ApprovalRequest,
+    type CreateSessionResponse,
+    type ListSessionsResponse,
+    type SessionEvent,
+    type SessionState,
+    type SessionSummary,
+    type SetActiveAgentResponse,
+    type ToggleContinuousModeResponse
 } from "@/lib/contracts";
-import { apiErrorCode, apiErrorMessage, EventMap, isChatImageFile, StateMap } from "@/lib/api";
+import { apiErrorCode, apiErrorMessage, type EventMap, isChatImageFile, type StateMap } from "@/lib/api";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 /**

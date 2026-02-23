@@ -1,34 +1,46 @@
 {
-    "name": "@mimir/web-interface",
-    "version": "0.0.1",
-    "private": true,
-    "scripts": {
-        "dev": "next dev",
-        "build": "next build",
-        "start": "next start",
-        "lint": "next lint"
-    },
-    "dependencies": {
-        "@mimir/api-contracts": "*",
-        "@radix-ui/react-switch": "^1.1.0",
-        "@tailwindcss/typography": "^0.5.19",
-        "class-variance-authority": "^0.7.1",
-        "clsx": "^2.1.1",
-        "lucide-react": "^0.468.0",
-        "next": "^15.3.0",
-        "react": "^19.0.0",
-        "react-dom": "^19.0.0",
-        "react-markdown": "^9.0.3",
-        "remark-gfm": "^4.0.1",
-        "tailwind-merge": "^2.5.5"
-    },
-    "devDependencies": {
-        "@types/node": "^22.13.8",
-        "@types/react": "^19.0.12",
-        "@types/react-dom": "^19.0.5",
-        "autoprefixer": "^10.4.21",
-        "postcss": "^8.5.3",
-        "tailwindcss": "^3.4.17",
-        "typescript": "^5.9.3"
-    }
+  "name": "@mimir/web-interface",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "start": "vite dev --port 3000",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mimir/api-contracts": "*",
+    "@radix-ui/react-switch": "^1.1.0",
+    "@tailwindcss/typography": "^0.5.19",
+    "@tanstack/react-router": "^1.132.0",
+    "@tanstack/react-start": "^1.132.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.468.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-markdown": "^9.0.3",
+    "remark-gfm": "^4.0.1",
+    "tailwind-merge": "^2.5.5"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.2.0",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.4",
+    "autoprefixer": "^10.4.21",
+    "jsdom": "^27.0.0",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
+    "vite": "^7.1.7",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.0.5"
+  }
 }

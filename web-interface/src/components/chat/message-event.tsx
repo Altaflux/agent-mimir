@@ -1,6 +1,6 @@
 "use client";
 
-import { SessionEvent } from "@/lib/contracts";
+import { type SessionEvent } from "@/lib/contracts";
 import { formatTime } from "@/lib/api";
 import { Bot, User, Wrench, Zap } from "lucide-react";
 import { MarkdownContent } from "@/components/chat/markdown";

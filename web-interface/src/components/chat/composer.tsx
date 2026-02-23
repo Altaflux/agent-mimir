@@ -1,11 +1,11 @@
 "use client";
 
-import { ApprovalRequest } from "@/lib/contracts";
+import { type ApprovalRequest } from "@/lib/contracts";
 import { fileFingerprint } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowUp, Loader2, Paperclip, Square, Wrench, X } from "lucide-react";
-import { DragEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type DragEvent, useCallback, useEffect, useRef, useState } from "react";
 
 export interface ComposerProps {
     activeSessionId: string | null;
