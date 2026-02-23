@@ -38,8 +38,8 @@ yarn-error.log*
 
 .temp_custom_deps/
 
-mimir-config/
-agent-config/
+# mimir-config/
+# agent-config/
 # LangGraph API
 .langgraph_api
 
