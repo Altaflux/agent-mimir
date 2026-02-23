@@ -57,7 +57,7 @@ MCP examples (LG server sample):
 
 Default workspace implementation:
 
-- `FileSystemAgentWorkspace` in `agent-mimir/src/nodejs/filesystem-work-directory.ts`
+- `FileSystemAgentWorkspace` in `agent-core/src/nodejs/filesystem-work-directory.ts`
 
 Behavior:
 
@@ -100,7 +100,7 @@ Workspace build is orchestrated by Turbo at root:
 
 Core library tests currently include plugin context coverage:
 
-- `agent-mimir/src/plugins/context-provider.test.ts`
+- `agent-core/src/plugins/context-provider.test.ts`
 
 ## Troubleshooting quick reference
 

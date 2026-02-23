@@ -15,10 +15,10 @@ This allows plugins to inject transient context without polluting long-term hist
 
 Defined/used across:
 
-- `agent-mimir/src/plugins/context-provider.ts`
-- `agent-mimir/src/plugins/index.ts`
-- `agent-mimir/src/agent-manager/tool-agent/agent.ts`
-- `agent-mimir/src/agent-manager/code-agent/agent.ts`
+- `agent-core/src/plugins/context-provider.ts`
+- `agent-core/src/plugins/index.ts`
+- `agent-core/src/agent-manager/tool-agent/agent.ts`
+- `agent-core/src/agent-manager/code-agent/agent.ts`
 
 Key contracts:
 

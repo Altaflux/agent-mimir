@@ -4,7 +4,7 @@
 
 This document describes the Python execution path used by the code agent in:
 
-- `agent-mimir/src/agent-manager/code-agent/`
+- `agent-core/src/agent-manager/code-agent/`
 
 It covers:
 
@@ -24,15 +24,15 @@ Parsing helpers:
 
 - `getExecutionCodeContentRegex(...)`
 - `getLibrariesContentRegex(...)`
-- implemented in `agent-mimir/src/agent-manager/code-agent/utils.ts`
+- implemented in `agent-core/src/agent-manager/code-agent/utils.ts`
 
 Prompt instructions are generated in:
 
-- `agent-mimir/src/agent-manager/code-agent/prompt.ts`
+- `agent-core/src/agent-manager/code-agent/prompt.ts`
 
 ## Executor interface
 
-`CodeToolExecutor` (`agent-mimir/src/agent-manager/code-agent/index.ts`) requires:
+`CodeToolExecutor` (`agent-core/src/agent-manager/code-agent/index.ts`) requires:
 
 - `availableDependencies: string[]`
 - `workspaceFullPath(): string`
