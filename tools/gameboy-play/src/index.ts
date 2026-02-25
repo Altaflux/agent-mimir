@@ -43,11 +43,9 @@ class GameboyPlugin extends AgentPlugin {
                 displayOnCurrentMessage: true,
                 content: [
                     {
-                        type: "image_url",
-                        image_url: {
-                            type: "jpeg",
-                            url: screen.toString("base64")
-                        },
+                        type: "image",
+                        mimeType: "image/jpeg",
+                        data: screen.toString("base64"),
                     }
                 ]
             }

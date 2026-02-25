@@ -7,7 +7,7 @@ This map is intended as a fast navigation index for maintainers.
 ### Contracts and shared types
 
 - `agent-core/src/schema.ts`
-  - canonical message content types (`text`, `image_url`)
+  - canonical message content types (`text`, `image`)
 - `agent-core/src/agent-manager/index.ts`
   - agent/workspace interfaces and response types
 - `agent-core/src/agent-manager/factory.ts`
@@ -108,5 +108,5 @@ This map is intended as a fast navigation index for maintainers.
   - workspace scripts (`start-cli`, `start-discord`, `start-lg`, `build`)
 - `scripts/config-setup.js`
   - stages config/dependencies into `.temp_custom_deps`
-- `mimir-config.example/mimir-cfg.js`
+- `agent-config.example/mimir-cfg.js`
   - reference configuration shape

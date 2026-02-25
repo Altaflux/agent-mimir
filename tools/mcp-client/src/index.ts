@@ -164,11 +164,9 @@ namespace ContentConverter {
                 } satisfies ComplexMessageContent;
             case "image":
                 return {
-                    type: "image_url",
-                    image_url: {
-                        type: getImageType(content.mimeType),
-                        url: content.data
-                    }
+                    type: "image",
+                    mimeType: content.mimeType,
+                    data: content.data
                 } satisfies ComplexMessageContent;
             case "resource":
                 return convertEmbeddedResourceToComplexResponse(content.resource);

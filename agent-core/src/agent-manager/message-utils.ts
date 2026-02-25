@@ -1,6 +1,6 @@
 import { v4 } from "uuid";
 import { AIMessage, BaseMessage, ContentBlock, HumanMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
-import { ComplexMessageContent, ImageMessageContent, TextMessageContent, SupportedImageTypes, } from "../schema.js";
+import { ComplexMessageContent, ImageMessageContent, TextMessageContent } from "../schema.js";
 import { CONSTANTS, ERROR_MESSAGES } from "./constants.js";
 import { complexResponseToLangchainMessageContent } from "../utils/format.js";
 import { InputAgentMessage, SharedFile } from "./index.js";
@@ -42,13 +42,10 @@ export function lCmessageContentToContent(content: ContentBlock[] | string): Com
                 undefined!;
 
             return {
-                type: "image_url" as const,
-                image_url: {
-                    //TODO: We need to handle images per LLM provider, no LLM currently supports responding image types.
-                    //TODO THIS IS WRONG, WE DONT KNOW THE TYPE OF IMAGE RETURNED FROM THE LLM
-                    type: "jpeg" satisfies SupportedImageTypes,
-                    url: imageUrl,
-                }
+                type: "image" as const,
+                mimeType: imgContent.mimeType,
+                data: imgContent.data as string,
+
             } satisfies ImageMessageContent;
         }
 

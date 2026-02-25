@@ -19,6 +19,7 @@ import { PluginFactory } from "@mimir/agent-core/plugins";
 import { ComplexMessageContent, ImageMessageContent } from "@mimir/agent-core/schema";
 //import { LangchainToolWrapperPluginFactory } from "@mimir/agent-core/tools/langchain";
 import { file } from 'tmp-promise';
+import mime from 'mime';
 import { CodeAgentFactory, DockerPythonExecutor, LocalPythonExecutor } from "@mimir/agent-core/agent/code-agent";
 import { FunctionAgentFactory } from "@mimir/agent-core/agent/tool-agent";
 import { BaseCheckpointSaver } from "@langchain/langgraph";
@@ -466,8 +467,8 @@ async function sendDiscordResponseFromCommand(msg: ChatInputCommandInteraction<C
 async function imagesToFiles(images: ComplexMessageContent[]): Promise<string[]> {
 
 
-    const imageUlrs = images.filter(i => i.type === "image_url").map(i => (i as ImageMessageContent).image_url);
-    const imagesPath = await Promise.all(imageUlrs.map(async (image) => { return await saveImageFromDataUrl(image.type, image.url); }));
+    const imageUlrs = images.filter(i => i.type === "image").map(i => (i as ImageMessageContent));
+    const imagesPath = await Promise.all(imageUlrs.map(async (image) => { return await saveImageFromDataUrl(image.mimeType!, image.data!); }));
     return imagesPath;
 }
 
@@ -483,7 +484,7 @@ async function saveImageFromDataUrl(imageType: string, base64Data: string): Prom
 
     const imageBuffer = Buffer.from(base64Data, 'base64');
 
-    const { fd, path, cleanup } = await file({ postfix: `.${imageType}` });
+    const { fd, path, cleanup } = await file({ postfix: `.${mime.getExtension(imageType)}` });
 
     await fs.writeFile(path, imageBuffer);
 

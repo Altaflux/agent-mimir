@@ -360,7 +360,7 @@ describe('PluginContextProvider', () => {
             const complexInitialMessage: InputAgentMessage = {
                 content: [
                     { type: 'text', text: 'Check this image:' } satisfies TextMessageContent,
-                    { type: 'image_url', image_url: { url: 'http://example.com/img.png', type: 'png' } } satisfies ImageMessageContent,
+                    { type: 'image', data: 'http://example.com/img.png' } satisfies ImageMessageContent,
                 ],
             };
             const plugins = [

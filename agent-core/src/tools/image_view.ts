@@ -1,7 +1,7 @@
-import {  SupportedImageTypes } from "../schema.js";
 import { z } from "zod/v4";
 import { AgentTool, ToolResponse } from "./index.js";
 import { AgentPlugin, PluginFactory, PluginContext } from "../plugins/index.js";
+import mime from 'mime';
 
 export class ViewPluginFactory implements PluginFactory {
     name: string = "viewImages";
@@ -38,11 +38,9 @@ export class ViewTool extends AgentTool {
             let imageType = arg.fileName.split('.').pop()!;
             return [
                 {
-                    type: "image_url",
-                    image_url: {
-                        type: imageType as SupportedImageTypes,
-                        url: file.toString("base64"),
-                    }
+                    type: "image",
+                    mimeType: mime.getType(imageType)!,
+                    data: file.toString("base64")
                 }
             ];
         }

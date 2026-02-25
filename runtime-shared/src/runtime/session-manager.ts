@@ -947,14 +947,11 @@ export class SessionManager {
             chatImageNames.push(shared.fileName);
 
             const mimeType = image.contentType.toLowerCase();
-            const imageType = mimeType.includes("png") ? "png" : "jpeg";
             const bytes = await this.readUploadBytes(image);
             chatImageContent.push({
-                type: "image_url",
-                image_url: {
-                    type: imageType,
-                    url: bytes.toString("base64")
-                }
+                type: "image",
+                data: bytes.toString("base64"),
+                mimeType: mimeType,
             });
         }
 

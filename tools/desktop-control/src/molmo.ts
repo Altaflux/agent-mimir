@@ -47,11 +47,11 @@ export class MolmoServerControl {
     }
 
 
-    async locateItem(screenshotImage: Buffer, description: string, imageWidth: number, imageHeight: number, currentPointer: { x: number, y: number}): Promise<{
+    async locateItem(screenshotImage: Buffer, description: string, imageWidth: number, imageHeight: number, currentPointer: { x: number, y: number }): Promise<{
         x: number,
         y: number
     }> {
-       
+
         console.log('Locating item:', description);
         console.log('Current pointer:', currentPointer);
         const requestBody = {
@@ -65,8 +65,8 @@ export class MolmoServerControl {
                             text: `Point to the position of: "${description}", it should be close or at point (x: ${currentPointer.x}, y: ${currentPointer.y}).`
                         },
                         {
-                            type: "image_url",
-                            image_url: {
+                            type: "image",
+                            image: {
                                 url: `data:image/png;base64,${screenshotImage.toString("base64")}`
                             }
                         }

@@ -1,5 +1,5 @@
-import { ContentBlock, MessageContent } from "@langchain/core/messages";
-import { ComplexMessageContent, TextMessageContent, SupportedImageTypes } from "../schema.js";
+import { ContentBlock } from "@langchain/core/messages";
+import { ComplexMessageContent, TextMessageContent, ImageMessageContent } from "../schema.js";
 
 export function extractTextContent(messageContent: ContentBlock.Standard[]): string {
   if (typeof messageContent === "string") {
@@ -8,8 +8,8 @@ export function extractTextContent(messageContent: ContentBlock.Standard[]): str
     const text = messageContent
       .filter(c => c.type === 'text')
       .reduce((prev, next) => {
-            return prev + (next as ContentBlock.Text).text
-        }, "");
+        return prev + (next as ContentBlock.Text).text
+      }, "");
 
     return text;
   } else {
@@ -35,8 +35,8 @@ export function complexResponseToLangchainMessageContent(toolResponse: ComplexMe
         type: "text",
         text: en.text
       } satisfies ContentBlock.Text
-    } else if (en.type === "image_url") {
-      return openAIImageHandler(en.image_url, "high")
+    } else if (en.type === "image") {
+      return openAIImageHandler(en, "high")
     }
     throw new Error(`Unsupported type: ${JSON.stringify(en)}`)
   }).filter(c => !(c.type === "text" && c.text === ""))
@@ -47,36 +47,31 @@ export function extractAllTextFromComplexResponse(toolResponse: ComplexMessageCo
   return toolResponse.filter((r) => r.type === "text").map((r) => (r as TextMessageContent).text).join("\n");
 }
 
-export const openAIImageHandler = (image: { url: string, type: SupportedImageTypes }, detail: "high" | "low" = "high"): ContentBlock.Multimodal.Image => {
-  let normalizedType = image.type as string;
-  if (normalizedType === "jpg") {
-    normalizedType = "jpeg";
-  }
+export const openAIImageHandler = (image: ImageMessageContent, detail: "high" | "low" = "high"): ContentBlock.Multimodal.Image => {
 
-  if (normalizedType === "url") {
-    return {
-      type: "image",
-      // Compatibility for providers that still rely on deprecated data content blocks.
-      source_type: "url",
-      url: image.url
-    } as ContentBlock.Multimodal.Image;
-  }
+  // if (normalizedType === "url") {
+  //   return {
+  //     type: "image",
+  //     // Compatibility for providers that still rely on deprecated data content blocks.
+  //   //  source_type: "url",
+  //     url: image.url
+  //   } as ContentBlock.Multimodal.Image;
+  // }
 
-  let mimeType = `image/${normalizedType}`;
-  let base64Data = image.url;
-  const dataUrlMatch = image.url.match(/^data:([^;]+);base64,(.+)$/);
-  if (dataUrlMatch) {
-    mimeType = dataUrlMatch[1]!;
-    base64Data = dataUrlMatch[2]!;
-  }
+  // let mimeType = `image/${normalizedType}`;
+  // let base64Data = image.url;
+  // const dataUrlMatch = image.url.match(/^data:([^;]+);base64,(.+)$/);
+  // if (dataUrlMatch) {
+  //   mimeType = dataUrlMatch[1]!;
+  //   base64Data = dataUrlMatch[2]!;
+  // }
 
   return {
     type: "image",
-    mimeType,
-    data: base64Data,
-    // Compatibility for providers that still rely on deprecated data content blocks.
+    mimeType: image.mimeType,
     source_type: "base64",
-    mime_type: mimeType
+    mime_type: image.mimeType,
+    data: image.data,
   } as ContentBlock.Multimodal.Image;
 }
 
@@ -91,7 +86,7 @@ export function trimAndSanitizeMessageContent(inputArray: ComplexMessageContent[
 export function isEmptyMessageContent(message: ComplexMessageContent): boolean {
   if (message.type === "text") {
     return message.text.trim().length === 0;
-  } else if (message.type === "image_url") {
+  } else if (message.type === "image") {
     return false; // Images are not considered empty
   } else {
     return false

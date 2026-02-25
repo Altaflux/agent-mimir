@@ -94,11 +94,9 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
                         text: "The image of the user's computer screen is displayed below."
                     },
                     {
-                        type: "image_url",
-                        image_url: {
-                            type: "jpeg",
-                            url: finalImage.toString("base64")
-                        }
+                        type: "image",
+                        mimeType: "image/jpeg",
+                        data: finalImage.toString("base64")
                     }
                 ]
             },
@@ -161,8 +159,8 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
                 text: `This image includes a grid of cells with numbers to help you identify the coordinates of the computer screen.If you want to use this coordinates use the "moveMouseLocationOnComputerScreenGridCell" tool to move the mouse to a specific location on the screen.`
             },
             {
-                type: "image_url" as const,
-                image_url: {
+                type: "image" as const,
+                image: {
                     type: "jpeg" as const,
                     url: finalTiledImageResized.toString("base64")
                 },
@@ -173,8 +171,8 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
                 text: `Screenshot of the computer's screen. Before you proceed to use the tools, make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks.`
             },
             {
-                type: "image_url" as const,
-                image_url: {
+                type: "image" as const,
+                image: {
                     type: "jpeg" as const,
                     url: finalImageResized.toString("base64")
                 }

@@ -89,11 +89,9 @@ class WebBrowserPlugin extends AgentPlugin {
                         text: `The following image is a screenshot of the browser which is currently at page ${title}:`
                     },
                     {
-                        type: "image_url",
-                        image_url: {
-                            type: "png",
-                            url: resizedImaged.toString("base64")
-                        }
+                        type: "image",
+                        mimeType: "image/png",
+                        data: resizedImaged.toString("base64")
                     }
                 ]
             },
@@ -106,11 +104,9 @@ class WebBrowserPlugin extends AgentPlugin {
                         text: `The following image is a screenshot of the browser which is currently at page ${title}:`
                     },
                     {
-                        type: "image_url",
-                        image_url: {
-                            type: "png",
-                            url: imageWithLabels.toString("base64")
-                        }
+                        type: "image",
+                        mimeType: "image/png",
+                        data: resizedImaged.toString("base64")
                     }
                 ]
             },
