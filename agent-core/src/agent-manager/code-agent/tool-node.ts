@@ -76,7 +76,7 @@ export const pythonToolNodeFunction = (
         const userMesage = new ToolMessage({
             id: v4(),
             tool_call_id: toolCall.id ?? v4(),
-            content: complexResponseToLangchainMessageContent([
+            contentBlocks: complexResponseToLangchainMessageContent([
                 {
                     type: "text",
                     text: "Result from script execution:\n\n",

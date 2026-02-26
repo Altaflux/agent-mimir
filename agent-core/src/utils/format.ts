@@ -48,29 +48,9 @@ export function extractAllTextFromComplexResponse(toolResponse: ComplexMessageCo
 }
 
 export const openAIImageHandler = (image: ImageMessageContent, detail: "high" | "low" = "high"): ContentBlock.Multimodal.Image => {
-
-  // if (normalizedType === "url") {
-  //   return {
-  //     type: "image",
-  //     // Compatibility for providers that still rely on deprecated data content blocks.
-  //   //  source_type: "url",
-  //     url: image.url
-  //   } as ContentBlock.Multimodal.Image;
-  // }
-
-  // let mimeType = `image/${normalizedType}`;
-  // let base64Data = image.url;
-  // const dataUrlMatch = image.url.match(/^data:([^;]+);base64,(.+)$/);
-  // if (dataUrlMatch) {
-  //   mimeType = dataUrlMatch[1]!;
-  //   base64Data = dataUrlMatch[2]!;
-  // }
-
   return {
     type: "image",
     mimeType: image.mimeType,
-    source_type: "base64",
-    mime_type: image.mimeType,
     data: image.data,
   } as ContentBlock.Multimodal.Image;
 }

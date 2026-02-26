@@ -62,7 +62,9 @@ export async function createLgAgent(config: CreateAgentArgs) {
     const fieldMapper = new ResponseFieldMapper();
     const toolPlugins: PluginFactory[] = [];
     toolPlugins.push(new WorkspacePluginFactory());
-    toolPlugins.push(new ViewPluginFactory());
+    if (config.visionSupport) {
+        toolPlugins.push(new ViewPluginFactory());
+    }
     toolPlugins.push(new DefaultPluginFactory());
     const allCreatedPlugins = await Promise.all([...allPluginFactories, ...toolPlugins].map(async factory => await factory.create({
         workspace: workspace,
