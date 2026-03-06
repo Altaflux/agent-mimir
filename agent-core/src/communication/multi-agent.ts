@@ -110,7 +110,7 @@ export class OrchestratorBuilder {
         });
 
         const agent = await factory.create(name, [helpersPlugin]);
-        this.agentManager.set(name, agent);
+        this.agentManager.set(name.trim(), agent);
         return agent;
     }
 
