@@ -69,12 +69,12 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
         }
     }
     async init(): Promise<void> {
-        await this.pythonServer.init()
+        //    await this.pythonServer.init()
         //await this.molmoServer.init()
     }
 
     async reset(): Promise<void> {
-        await this.pythonServer.close()
+        //  await this.pythonServer.close()
         //await this.molmoServer.close()
     }
 
@@ -153,17 +153,16 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
 
 
 
-        const tilesMessage = this.options.mouseMode.includes('COORDINATES') ? [
+        const tilesMessage: ComplexMessageContent[] = this.options.mouseMode.includes('COORDINATES') ? [
             {
                 type: "text" as const,
                 text: `This image includes a grid of cells with numbers to help you identify the coordinates of the computer screen.If you want to use this coordinates use the "moveMouseLocationOnComputerScreenGridCell" tool to move the mouse to a specific location on the screen.`
             },
             {
                 type: "image" as const,
-                image: {
-                    type: "jpeg" as const,
-                    url: finalTiledImageResized.toString("base64")
-                },
+                mimeType: "image/jpeg" as const,
+                data: finalTiledImageResized.toString("base64")
+
             },
         ] : [
             {
@@ -172,10 +171,8 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
             },
             {
                 type: "image" as const,
-                image: {
-                    type: "jpeg" as const,
-                    url: finalImageResized.toString("base64")
-                }
+                mimeType: "image/jpeg" as const,
+                data: finalImageResized.toString("base64")
             }
         ];
 
