@@ -13,12 +13,10 @@ import { join } from "path";
 import { Coordinates, PythonServerControl, TextBlocks } from "./sam.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { AdditionalContent, AgentPlugin, PluginFactory, NextMessageUser, PluginContext, AgentSystemMessage } from "@mimir/agent-core/plugins";
-import Fuse from 'fuse.js';
 
-type MyAtLeastOneType = 'SOM' | 'COORDINATES' | 'TEXT';
+type MyAtLeastOneType = 'SOM' | 'COORDINATES';
 type DesktopContext = {
     coordinates: Coordinates
-    textBlocks: TextBlocks
 }
 export type DesktopControlOptions = {
     mouseMode: [MyAtLeastOneType, ...MyAtLeastOneType[]]
@@ -46,7 +44,6 @@ class DesktopControlPlugin extends AgentPlugin {
 
     private readonly desktopContext: DesktopContext = {
         coordinates: [],
-        textBlocks: []
     };
 
     constructor(private context: PluginContext, private options: DesktopControlOptions) {
@@ -108,10 +105,9 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
         const tiles = await getScreenTiles(computerScreenshot, true);
 
         let textBlocks: TextBlocks = []
-        if (this.options.mouseMode.includes('SOM') || this.options.mouseMode.includes('TEXT')) {
+        if (this.options.mouseMode.includes('SOM')) {
             textBlocks = await this.pythonServer.getTextBlocks(tiles.originalImage);
         }
-        this.desktopContext.textBlocks = textBlocks;
 
         const labeledImage = this.options.mouseMode.includes('SOM')
             ? await this.pythonServer.addSam(tiles.originalImage, textBlocks)
@@ -187,9 +183,6 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
         if (this.options.mouseMode.includes('SOM')) {
 
             mouseTools.push(new MoveMouseToLabel(screenshot, this.desktopContext));
-        }
-        if (this.options.mouseMode.includes('TEXT')) {
-            mouseTools.push(new MoveMouseToText(screenshot, this.desktopContext));
         }
 
         return [
@@ -372,105 +365,6 @@ class MoveMouseToLabel extends AgentTool {
     }
 }
 
-class MoveMouseToText extends AgentTool {
-
-    constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>, private context: DesktopContext) {
-        super();
-    }
-
-    schema = z.object({
-        elementDescription: z.string().describe("A description of the element to which you are moving the mouse over."),
-        location: z.object({
-            elementText: z.string().describe("The exact text in the button or link to click. Include ONLY the text to locate.")
-        }),
-    })
-
-    name: string = "moveMouseLocationOnComputerScreenToTextLocation";
-    description: string = "Move the mouse to a location on the computer screen. This tool is preferred over the \"moveMouseLocationOnComputerScreenToCoordinate\" tool, but if you are not succeeding try using then try the \"moveMouseLocationOnComputerScreenToCoordinate\" tool. Use as input the text on the element to which you are want to move the mouse over. The text must be as precise as possible!";
-
-    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
-
-        const symbols = this.context.textBlocks.filter((el) => el.text.trim() !== '');
-
-        ///TEST
-        const fullTextIntact = symbols.map((symbol) => symbol.text).join(' ').toLowerCase();
-        const searchKeywordIntact = arg.location.elementText.toLowerCase();
-        const result = findFuzzyMatch(fullTextIntact, searchKeywordIntact);
-
-        if (result === null) {
-            return [
-                {
-                    type: "text",
-                    text: "Could not find the element to which move the mouse to, please try again by using the \"moveMouseLocationOnComputerScreenToCoordinate\" tool.",
-                }
-            ]
-        }
-        const searchLocation = fullTextIntact.slice(0, result!.startIndex).split(" ").length - 1;
-        const startingLocation = symbols[searchLocation].bbox;
-        const endingLocation = symbols[searchLocation + result!.matchedText.split(" ").length - 1].bbox;
-
-        const graphics = await si.graphics();
-        const displays = await screenshot.listDisplays();
-        const mainDisplay = (displays.find((el) => (graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0]).deviceName === el.name) ?? displays[0]) as { id: number; name: string, height: number, width: number };
-
-        const x = startingLocation.x0 + (endingLocation.x1 - startingLocation.x0) / 2;
-        const y = startingLocation.y0 + (endingLocation.y1 - startingLocation.y0) / 2;
-
-        const mainScreen = graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0];
-        const scaledX = Math.floor(((((mainScreen.resolutionX ?? 0) / mainDisplay.width) * 100) * x) / 100);
-        const scaledY = Math.floor(((((mainScreen.resolutionY ?? 0) / mainDisplay.height) * 100) * y) / 100);
-
-        const location = convertToPixelCoordinates2(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, scaledX, scaledY, 1, 1);
-        await mouse.setPosition(new Point(location.xPixelCoordinate, location.yPixelCoordinate));
-
-        return [
-            {
-                type: "text",
-                text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location (look at the computer screen image), if that is not the case try again with a different \"text\" value or use the \"moveMouseLocationOnComputerScreenToCoordinate\" tool. .",
-            },
-            ... await this.getScreenFunc()
-        ]
-    }
-}
-
-
-function findFuzzyMatch(paragraph: string, searchPhrase: string) {
-    // Split the paragraph into overlapping chunks
-    const chunks = [];
-    const words = paragraph.split(' ');
-
-    // Create chunks of 3 words (or however many words are in your search phrase)
-    const searchWordCount = searchPhrase.split(' ').length;
-
-    for (let i = 0; i <= words.length - searchWordCount; i++) {
-        const chunk = words.slice(i, i + searchWordCount).join(' ');
-        chunks.push({
-            text: chunk,
-            startIndex: words.slice(0, i).join(' ').length + (i > 0 ? 1 : 0)
-        });
-    }
-
-    // Configure Fuse options
-    const options = {
-        includeScore: true,
-        threshold: 0.4, // Adjust this value to control fuzzy matching sensitivity
-        keys: ['text']
-    };
-
-    const fuse = new Fuse(chunks, options);
-    const results = fuse.search(searchPhrase);
-
-    if (results.length > 0) {
-        // Return the best match
-        return {
-            matchedText: results[0].item.text,
-            startIndex: results[0].item.startIndex,
-            score: results[0].score
-        };
-    }
-
-    return null;
-}
 class MoveMouseToCoordinate extends AgentTool {
 
     constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>, private gridSize: number) {
