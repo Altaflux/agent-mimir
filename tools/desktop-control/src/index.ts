@@ -8,11 +8,12 @@ import screenshot, { DisplayID } from 'screenshot-desktop';
 import si from 'systeminformation';
 import { Key, keyboard, mouse, Button, Point } from "@nut-tree-fork/nut-js";
 import sharp from 'sharp';
+import { mkdir, writeFile } from "fs/promises";
+import { join } from "path";
 import { Coordinates, PythonServerControl, TextBlocks } from "./sam.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { AdditionalContent, AgentPlugin, PluginFactory, NextMessageUser, PluginContext, AgentSystemMessage } from "@mimir/agent-core/plugins";
 import Fuse from 'fuse.js';
-import { MolmoServerControl } from "./molmo.js";
 
 type MyAtLeastOneType = 'SOM' | 'COORDINATES' | 'TEXT';
 type DesktopContext = {
@@ -43,8 +44,6 @@ class DesktopControlPlugin extends AgentPlugin {
 
     private pythonServer: PythonServerControl = new PythonServerControl();
 
-    private molmoServer: MolmoServerControl = new MolmoServerControl();
-
     private readonly desktopContext: DesktopContext = {
         coordinates: [],
         textBlocks: []
@@ -70,19 +69,14 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
     }
     async init(): Promise<void> {
         //    await this.pythonServer.init()
-        //await this.molmoServer.init()
     }
 
     async reset(): Promise<void> {
         //  await this.pythonServer.close()
-        //await this.molmoServer.close()
     }
 
     async additionalMessageContent(message: NextMessageUser): Promise<AdditionalContent[]> {
         const { content, finalImage } = await this.generateComputerImageContent();
-        // const sharpImage = sharp(finalImage);
-        //   const metadata = await sharpImage.metadata();
-        //const resizedImage = await sharpImage.resize({ width: Math.floor(metadata.width! * (30 / 100)) }).toBuffer();
 
         return [
             {
@@ -123,12 +117,7 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
             ? await this.pythonServer.addSam(tiles.originalImage, textBlocks)
             : { screenshot: tiles.originalImage, coordinates: [] };
 
-        //const sharpFinalImage = sharp(labeledImage.screenshot);
         this.desktopContext.coordinates = labeledImage.coordinates;
-
-        //const sharpFinalImage = sharp(labeledImage.screenshot);
-        // const metadata = await sharpFinalImage.metadata();
-        //const finalImage = await sharpFinalImage.resize({ width: Math.floor(metadata.width! * (70 / 100)) }).toBuffer();
 
 
 
@@ -193,7 +182,7 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
         const screenshot = async () => { return [] };
         const mouseTools = [];
         if (this.options.mouseMode.includes('COORDINATES')) {
-            mouseTools.push(new MoveMouseToCoordinate(screenshot, this.gridSize, this.molmoServer));
+            mouseTools.push(new MoveMouseToCoordinate(screenshot, this.gridSize));
         }
         if (this.options.mouseMode.includes('SOM')) {
 
@@ -484,7 +473,7 @@ function findFuzzyMatch(paragraph: string, searchPhrase: string) {
 }
 class MoveMouseToCoordinate extends AgentTool {
 
-    constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>, private gridSize: number, private molmo: MolmoServerControl) {
+    constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>, private gridSize: number) {
         super();
     }
 
@@ -514,21 +503,6 @@ class MoveMouseToCoordinate extends AgentTool {
         const cords = getTileCenterCoordinates(mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, arg.gridCellNumber);
         console.log(`Moving mouse to: ${cords.x}, ${cords.y}`);
         await mouse.setPosition(new Point(cords.x, cords.y));
-
-        try {
-            const screenshot = await getComputerScreenImage();
-            const coordsAsPercentage = {
-                x: Math.floor((cords.x / (mainScreen.resolutionX ?? 0)) * 100),
-                y: Math.floor((cords.y / (mainScreen.resolutionY ?? 0)) * 100)
-            };
-            const newCoords = await this.molmo.locateItem(screenshot, arg.elementDescription, mainScreen.resolutionX ?? 0, mainScreen.resolutionY ?? 0, coordsAsPercentage);
-
-            await mouse.setPosition(new Point(newCoords.x, newCoords.y));
-        } catch (e) {
-            console.error(e);
-        }
-
-
 
         return [
             {
