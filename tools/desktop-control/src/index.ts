@@ -292,8 +292,7 @@ async function getComputerScreenImage(displayMouse: boolean = true) {
 
     const imageWithMouse = await addMouse(screenshotImage);
     const meta = await imageWithMouse.metadata();
-    // const mainGraphics =  (graphics.displays.find((ui) => ui.main === true) ?? graphics.displays[0]);
-    // const rezised = imageWithMouse.resize({ width: mainGraphics.resolutionX! })
+
     const asBuffer = await imageWithMouse.toBuffer();
     return asBuffer;
 }
@@ -305,12 +304,6 @@ async function getScreenTiles(screenshot: Buffer, displayMouse: boolean) {
     const tiledImage = await drawGridForTile(await screenshotImage.toBuffer())
 
     const fullImage = await screenshotImage
-        // .toFormat('jpeg')
-        // .jpeg({
-        //     quality: 100,
-        //     chromaSubsampling: '4:4:4',
-        //     force: true,
-        // })
         .toBuffer();
 
     return {
