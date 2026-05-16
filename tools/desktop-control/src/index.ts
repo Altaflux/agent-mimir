@@ -10,16 +10,16 @@ import { Key, keyboard, mouse, Button, Point } from "@nut-tree-fork/nut-js";
 import sharp from 'sharp';
 import { mkdir, writeFile } from "fs/promises";
 import { join } from "path";
-import { Coordinates, PythonServerControl, TextBlocks } from "./sam.js";
+import { Coordinates, PythonServerControl } from "./sam.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { AdditionalContent, AgentPlugin, PluginFactory, NextMessageUser, PluginContext, AgentSystemMessage } from "@mimir/agent-core/plugins";
 
-type MyAtLeastOneType = 'SOM' | 'COORDINATES';
+
 type DesktopContext = {
     coordinates: Coordinates
 }
 export type DesktopControlOptions = {
-    mouseMode: [MyAtLeastOneType, ...MyAtLeastOneType[]]
+    mouseMode: 'SOM' | 'COORDINATES'
     model?: BaseChatModel
 }
 
@@ -36,9 +36,21 @@ export class DesktopControlPluginFactory implements PluginFactory {
     }
 }
 
-class DesktopControlPlugin extends AgentPlugin {
 
-    private gridSize = 1;
+interface MouseMode {
+    init(): Promise<void>;
+    reset(): Promise<void>;
+    destroy(): Promise<void>;
+
+    getScreenshot(): Promise<{ content: ComplexMessageContent[], finalImage: Buffer }>;
+
+    getTools(): Promise<(AgentTool)[]>;
+
+
+    instructionsMessage(): string;
+
+}
+class SomMouseMode implements MouseMode {
 
     private pythonServer: PythonServerControl = new PythonServerControl();
 
@@ -46,9 +58,154 @@ class DesktopControlPlugin extends AgentPlugin {
         coordinates: [],
     };
 
+    async init(): Promise<void> {
+        await this.pythonServer.init()
+    }
+
+    async reset(): Promise<void> {
+        await this.pythonServer.close()
+    }
+    async destroy(): Promise<void> {
+
+    }
+    instructionsMessage(): string {
+        return `You can also use "moveMouseLocationOnComputerScreenToLabel" to move the mouse to a specific label on the screen.`
+    }
+    async getScreenshot(): Promise<{ content: ComplexMessageContent[], finalImage: Buffer }> {
+        const { screenshot, coordinates } = await this.generateComputerImageForSom();
+
+        const sharpFinalImage = sharp(screenshot);
+        const finalImageMetadata = await sharpFinalImage.metadata();
+        const finalImageResized = await sharpFinalImage.resize({ width: Math.floor(finalImageMetadata.width! * (70 / 100)) }).toBuffer();
+
+
+        const tilesMessage: ComplexMessageContent[] = [
+            {
+                type: "text" as const,
+                text: `Screenshot of the computer's screen. Before you proceed to use the tools, make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks.`
+            },
+            {
+                type: "image" as const,
+                mimeType: "image/jpeg" as const,
+                data: finalImageResized.toString("base64")
+            }
+        ];
+        this.desktopContext.coordinates = coordinates;
+
+        return {
+            finalImage: screenshot,
+            content: [
+                ...tilesMessage,
+            ]
+        }
+    }
+
+    async getTools(): Promise<(AgentTool)[]> {
+        return [new MoveMouseToLabel(this.desktopContext)]
+    }
+
+    async generateComputerImageForSom(): Promise<{ screenshot: Buffer, coordinates: Coordinates }> {
+        await new Promise(r => setTimeout(r, 1000));
+        const computerScreenshot = await getComputerScreenImage(false);
+        const textBlocks = await this.pythonServer.getTextBlocks(computerScreenshot);
+        const somImage = await this.pythonServer.addSam(computerScreenshot, textBlocks);
+        return {
+            screenshot: somImage.screenshot,
+            coordinates: somImage.coordinates
+        }
+    }
+}
+
+class CoordinateMouseMode implements MouseMode {
+
+    async init(): Promise<void> {
+
+    }
+
+    async reset(): Promise<void> {
+
+    }
+
+    async destroy(): Promise<void> {
+
+    }
+    instructionsMessage(): string {
+        return `You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse to a specific grid cell on the screen.`
+    }
+    async getScreenshot(): Promise<{ content: ComplexMessageContent[], finalImage: Buffer }> {
+        const { finalImage, tiled } = await this.generateComputerImageForGrid();
+
+        const sharpTiledImage = sharp(tiled);
+        const finalTiledImageMetadata = await sharpTiledImage.metadata();
+        const finalTiledImageResized = await sharpTiledImage.resize({ width: Math.floor(finalTiledImageMetadata.width! * (70 / 100)) }).toBuffer();
+
+        const tilesMessage: ComplexMessageContent[] = [
+            {
+                type: "text" as const,
+                text: `This image includes a grid of cells with numbers to help you identify the coordinates of the computer screen.If you want to use this coordinates use the "moveMouseLocationOnComputerScreenGridCell" tool to move the mouse to a specific location on the screen.`
+            },
+            {
+                type: "image" as const,
+                mimeType: "image/jpeg" as const,
+                data: finalTiledImageResized.toString("base64")
+
+            }
+        ];
+
+        return {
+            finalImage: finalImage,
+            content: [
+                ...tilesMessage,
+            ]
+        }
+    }
+
+    async getTools() {
+        return [new MoveMouseToCoordinate(998)]
+    }
+
+    async generateComputerImageForGrid(): Promise<{ tiled: Buffer, finalImage: Buffer }> {
+        await new Promise(r => setTimeout(r, 1000));
+        const computerScreenshot = await getComputerScreenImage();
+        const tiles = await getScreenTiles(computerScreenshot);
+        return {
+            tiled: tiles.tiled,
+            finalImage: tiles.originalImage
+        }
+    }
+}
+
+class DesktopControlPlugin extends AgentPlugin {
+
+
+    private readonly mouseMode: MouseMode;
+
+    name?: string | undefined = "desktopControl";
+
     constructor(private context: PluginContext, private options: DesktopControlOptions) {
         super();
+        if (options.mouseMode === "COORDINATES") {
+            this.mouseMode = new CoordinateMouseMode()
+        } else if (options.mouseMode === "SOM") {
+            this.mouseMode = new SomMouseMode()
+        } else {
+            throw new Error("No valid mouse mode.")
+        }
 
+
+    }
+
+
+    async init(): Promise<void> {
+        await this.mouseMode.init()
+    }
+
+    async reset(): Promise<void> {
+        await this.mouseMode.reset()
+    }
+
+    async destroy(): Promise<void> {
+        await this.mouseMode.destroy()
     }
     async getSystemMessages(): Promise<AgentSystemMessage> {
 
@@ -58,22 +215,16 @@ class DesktopControlPlugin extends AgentPlugin {
                 {
                     type: "text",
                     text: `\nComputer Control Instruction:\n You can control the computer by moving the mouse, clicking and typing. Make sure to pay close attention to the details provided in the screenshot image to confirm the outcomes of the actions you take to ensure accurate completion of tasks. 
-You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse to a specific grid cell on the screen.`
+${this.mouseMode.instructionsMessage()}`
                 },
 
             ]
         }
     }
-    async init(): Promise<void> {
-        //    await this.pythonServer.init()
-    }
 
-    async reset(): Promise<void> {
-        //  await this.pythonServer.close()
-    }
 
     async additionalMessageContent(message: NextMessageUser): Promise<AdditionalContent[]> {
-        const { content, finalImage } = await this.generateComputerImageContent();
+        const { content, finalImage } = await this.mouseMode.getScreenshot();
 
         return [
             {
@@ -99,95 +250,18 @@ You can also use "moveMouseLocationOnComputerScreenGridCell" to move the mouse t
         ]
     }
 
-    async generateComputerImagePromptAndUpdateState(): Promise<{ tiled: Buffer, finalImage: Buffer }> {
-        await new Promise(r => setTimeout(r, 1000));
-        const computerScreenshot = await getComputerScreenImage();
-        const tiles = await getScreenTiles(computerScreenshot, true);
-
-        let textBlocks: TextBlocks = []
-        if (this.options.mouseMode.includes('SOM')) {
-            textBlocks = await this.pythonServer.getTextBlocks(tiles.originalImage);
-        }
-
-        const labeledImage = this.options.mouseMode.includes('SOM')
-            ? await this.pythonServer.addSam(tiles.originalImage, textBlocks)
-            : { screenshot: tiles.originalImage, coordinates: [] };
-
-        this.desktopContext.coordinates = labeledImage.coordinates;
 
 
 
-        return {
-            tiled: tiles.tiled,
-            finalImage: labeledImage.screenshot
-        }
-    }
 
-    async generateComputerImageContent(): Promise<{ content: ComplexMessageContent[], finalImage: Buffer }> {
-        const { finalImage, tiled } = await this.generateComputerImagePromptAndUpdateState();
-
-
-        const sharpFinalImage = sharp(finalImage);
-        const finalImageMetadata = await sharpFinalImage.metadata();
-        const finalImageResized = await sharpFinalImage.resize({ width: Math.floor(finalImageMetadata.width! * (70 / 100)) }).toBuffer();
-
-
-        const sharpTiledImage = sharp(tiled);
-        const finalTiledImageMetadata = await sharpTiledImage.metadata();
-        const finalTiledImageResized = await sharpTiledImage.resize({ width: Math.floor(finalTiledImageMetadata.width! * (70 / 100)) }).toBuffer();
-
-
-
-        const tilesMessage: ComplexMessageContent[] = this.options.mouseMode.includes('COORDINATES') ? [
-            {
-                type: "text" as const,
-                text: `This image includes a grid of cells with numbers to help you identify the coordinates of the computer screen.If you want to use this coordinates use the "moveMouseLocationOnComputerScreenGridCell" tool to move the mouse to a specific location on the screen.`
-            },
-            {
-                type: "image" as const,
-                mimeType: "image/jpeg" as const,
-                data: finalTiledImageResized.toString("base64")
-
-            },
-        ] : [
-            {
-                type: "text" as const,
-                text: `Screenshot of the computer's screen. Before you proceed to use the tools, make sure to pay close attention to the details provided in the image to confirm the outcomes of the actions you take to ensure accurate completion of tasks.`
-            },
-            {
-                type: "image" as const,
-                mimeType: "image/jpeg" as const,
-                data: finalImageResized.toString("base64")
-            }
-        ];
-
-
-
-        return {
-            finalImage: finalImage,
-            content: [
-                ...tilesMessage,
-
-            ]
-        }
-    }
 
 
     async tools(): Promise<AgentTool[]> {
-        // const screenshot = async () => { return await this.generateComputerImageContent() };
         const screenshot = async () => { return [] };
-        const mouseTools = [];
-        if (this.options.mouseMode.includes('COORDINATES')) {
-            mouseTools.push(new MoveMouseToCoordinate(screenshot, this.gridSize));
-        }
-        if (this.options.mouseMode.includes('SOM')) {
-
-            mouseTools.push(new MoveMouseToLabel(screenshot, this.desktopContext));
-        }
+        const mouseTools = await this.mouseMode.getTools();
 
         return [
             ...mouseTools,
-            //new GetImageOfDesktop(screenshot),
             new ClickPositionOnDesktop(screenshot),
             new TypeTextOnDesktop(screenshot),
             new TypeOnDesktop(screenshot),
@@ -289,15 +363,13 @@ async function getComputerScreenImage(displayMouse: boolean = true) {
     const mainDisplay = (displays.find((el) => (mainGraphics).deviceName === el.name) ?? displays[0]) as { id: number; name: string, height: number, width: number };
     const screenshotImage = sharp(await screenshot({ screen: mainDisplay.id, format: 'jpg' }));
 
-
-    const imageWithMouse = await addMouse(screenshotImage);
-    const meta = await imageWithMouse.metadata();
+    const imageWithMouse = displayMouse ? await addMouse(screenshotImage) : screenshotImage;
 
     const asBuffer = await imageWithMouse.toBuffer();
     return asBuffer;
 }
 
-async function getScreenTiles(screenshot: Buffer, displayMouse: boolean) {
+async function getScreenTiles(screenshot: Buffer) {
 
     const screenshotImage = sharp(screenshot);
 
@@ -314,7 +386,7 @@ async function getScreenTiles(screenshot: Buffer, displayMouse: boolean) {
 
 class MoveMouseToLabel extends AgentTool {
 
-    constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>, private context: DesktopContext) {
+    constructor(private context: DesktopContext) {
         super();
     }
 
@@ -334,7 +406,6 @@ class MoveMouseToLabel extends AgentTool {
                     type: "text",
                     text: "The label number does not exist, please try again with a different label number.",
                 },
-                ... await this.getScreenFunc()
             ]
 
         }
@@ -353,14 +424,13 @@ class MoveMouseToLabel extends AgentTool {
                 type: "text",
                 text: "The mouse has moved to the new location, please be sure the mouse has moved to the expected location (look at the computer screen image).",
             },
-            ... await this.getScreenFunc()
         ]
     }
 }
 
 class MoveMouseToCoordinate extends AgentTool {
 
-    constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>, private gridSize: number) {
+    constructor(private gridSize: number) {
         super();
     }
 
@@ -381,7 +451,7 @@ class MoveMouseToCoordinate extends AgentTool {
                     type: "text",
                     text: `The tile number must be between 1 and ${this.gridSize}`,
                 },
-                ... await this.getScreenFunc()
+
             ]
         }
 
@@ -396,7 +466,7 @@ class MoveMouseToCoordinate extends AgentTool {
                 type: "text",
                 text: "The mouse has moved to the new location, please make sure the mouse has moved to the correct location (look at the computer screen image), if that is not the case try again using different cell grid number.",
             },
-            ... await this.getScreenFunc()
+
         ]
     }
 
