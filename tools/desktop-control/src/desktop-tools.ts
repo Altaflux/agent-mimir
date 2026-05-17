@@ -113,7 +113,7 @@ export class ScrollScreen extends AgentTool {
 export class TypeOnDesktop extends AgentTool {
     schema = z.object({
         keys: z.array(z.object({
-            key: z.string().describe("The key to type. Keys must be in Upper Cammel Case format, for example 'Enter', 'Backspace', 'Delete', 'PageDown', 'PageUp'."),
+            key: z.string().describe("The key to type. Keys must be in Upper Cammel Case format, for example: 'LeftControl', 'RightControl', 'Enter', 'Backspace', 'Delete', 'PageDown', 'PageUp'."),
             action: z.enum(["typeKey", "pressKey", "releaseKey"]).describe(`The action to perform to a key. You can use any keys (including special keys) that are available in the nut-js library.`),
         })).describe("The keys to type."),
     });
@@ -131,7 +131,8 @@ export class TypeOnDesktop extends AgentTool {
             let keyValue = Key[key.key as keyof typeof Key];
 
             if (!keyValue) {
-                keyValue = Key[key.key.toUpperCase() as keyof typeof Key];
+                const capitalized = `${key.key.charAt(0).toUpperCase()}${key.key.substring(1)}`
+                keyValue = Key[capitalized as keyof typeof Key];
             }
 
             if (!keyValue) {

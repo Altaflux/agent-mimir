@@ -9,6 +9,8 @@ import sharp from 'sharp';
 import { z } from "zod/v4";
 import { MouseMode } from "./mouse-mode.js";
 import { getComputerScreenImage } from "./screen.js";
+import { mkdir, writeFile } from "fs/promises";
+import { join } from "path";
 
 type PixelScreenshotContext = {
     sourceWidth?: number;
@@ -56,6 +58,13 @@ export class PixelMouseMode implements MouseMode {
         this.context.sourceHeight = originalMetadata.height!;
         this.context.resizedWidth = resizedMetadata.width!;
         this.context.resizedHeight = resizedMetadata.height!;
+
+        // const imageOutputDirectory = "C:\\AI\\mimir";
+        // await mkdir(imageOutputDirectory, { recursive: true });
+        
+        // await writeFile(join(imageOutputDirectory, "final-image.jpg"), resizedImage);
+
+
 
         const content: ComplexMessageContent[] = [
             {
