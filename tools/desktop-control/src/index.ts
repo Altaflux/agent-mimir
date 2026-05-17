@@ -4,11 +4,13 @@ import { AdditionalContent, AgentPlugin, PluginFactory, NextMessageUser, PluginC
 import { CoordinateMouseMode } from "./coordinate-mode.js";
 import { ClickPositionOnDesktop, ScrollScreen, TypeOnDesktop, TypeTextOnDesktop } from "./desktop-tools.js";
 import { MouseMode } from "./mouse-mode.js";
+import { PixelMouseMode } from "./pixel-mode.js";
 import { SomMouseMode } from "./som-mode.js";
 
 
 export type DesktopControlOptions = {
-    mouseMode: 'SOM' | 'COORDINATES'
+    mouseMode: 'SOM' | 'COORDINATES' | 'PIXEL'
+    pixelImageWidth?: number
     model?: BaseChatModel
 }
 
@@ -38,6 +40,8 @@ class DesktopControlPlugin extends AgentPlugin {
             this.mouseMode = new CoordinateMouseMode()
         } else if (options.mouseMode === "SOM") {
             this.mouseMode = new SomMouseMode()
+        } else if (options.mouseMode === "PIXEL") {
+            this.mouseMode = new PixelMouseMode({ imageWidth: options.pixelImageWidth ?? 1440 })
         } else {
             throw new Error("No valid mouse mode.")
         }

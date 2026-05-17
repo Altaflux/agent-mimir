@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight, Check, Copy } from "lucide-react";
 import { type ReactNode, useState, useRef, useEffect } from "react";
 
 /** An expandable section with icon + title. Used for tool calls, agent-to-agent, etc. */
-export function CollapsibleSection({ title, icon, children, defaultOpen = false, className }: {
+export function CollapsibleSection({ title, icon, children, defaultOpen = true, className }: {
     title: string;
     icon: ReactNode;
     children: ReactNode;
