@@ -69,8 +69,6 @@ export class TypeTextOnDesktop extends AgentTool {
     protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
 
 
-        await mouse.click(Button.LEFT);
-
         await keyboard.type(arg.keys);
 
         return [
