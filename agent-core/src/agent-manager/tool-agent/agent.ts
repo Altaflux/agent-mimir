@@ -133,7 +133,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
 
                 messageListToSend.push(new HumanMessage({
                     id: messageId,
-                    content: complexResponseToLangchainMessageContent(displayMessage.content)
+                    contentBlocks: complexResponseToLangchainMessageContent(displayMessage.content)
                 }));
                 messageToStore = [new HumanMessage({
                     additional_kwargs: {
