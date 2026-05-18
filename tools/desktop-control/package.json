@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json ",
-    "install": "node scripts/install.js "
+    "install": "node scripts/install.js ",
+    "tool-test": "tsx scripts/tool-test.ts"
   },
   "author": "Altaflux",
   "keywords": [
