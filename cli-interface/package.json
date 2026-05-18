@@ -26,7 +26,7 @@
       "typescript": "^5.9.3"
     },
     "dependencies": {
-      "@langchain/openai": "1.2.5",
+      "@langchain/openai": "1.4.5",
       "@mimir/agent-core": "*",
       "chalk": "^5.2.0",
       "readline": "^1.3.0"

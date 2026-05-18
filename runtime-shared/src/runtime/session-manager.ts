@@ -885,7 +885,6 @@ export class SessionManager {
                     visionSupport: definition.visionSupport,
                     constitution: definition.constitution,
                     plugins: [...(definition.plugins ?? []) as PluginFactory[]],
-                    //codeExecutor: (workspace) => new DockerPythonExecutor({ additionalPackages: [], workspace: workspace }),
                     workspaceFactory
                 });
                 const initialized = await builder.initializeAgent(factory, agentName, definition.communicationWhitelist);

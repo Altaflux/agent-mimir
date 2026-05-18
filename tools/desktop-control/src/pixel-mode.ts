@@ -59,27 +59,28 @@ export class PixelMouseMode implements MouseMode {
         this.context.resizedWidth = resizedMetadata.width!;
         this.context.resizedHeight = resizedMetadata.height!;
 
-        // const imageOutputDirectory = "C:\\AI\\mimir";
-        // await mkdir(imageOutputDirectory, { recursive: true });
-        
-        // await writeFile(join(imageOutputDirectory, "final-image.jpg"), resizedImage);
+        const imageWithPixelGrid = await addPixelGuideGrid(resizedImage, this.context.resizedWidth, this.context.resizedHeight);
 
+        const imageOutputDirectory = "C:\\AI\\mimir";
+        await mkdir(imageOutputDirectory, { recursive: true });
+        
+        await writeFile(join(imageOutputDirectory, "final-image.jpg"), imageWithPixelGrid);
 
 
         const content: ComplexMessageContent[] = [
             {
                 type: "text" as const,
-                text: `Screenshot of the computer's screen resized to ${this.context.resizedWidth}x${this.context.resizedHeight}. Use x/y pixel coordinates from this ${this.context.resizedWidth}x${this.context.resizedHeight} image when calling "moveMouseLocationOnComputerScreenPixel".`
+                text: `Screenshot of the computer's screen resized to ${this.context.resizedWidth}x${this.context.resizedHeight}. Use x/y pixel coordinates from this ${this.context.resizedWidth}x${this.context.resizedHeight} image when calling "moveMouseLocationOnComputerScreenPixel". The thin guide grid marks x pixel values along the top and bottom edges and y pixel values along the left and right edges.`
             },
             {
                 type: "image" as const,
                 mimeType: "image/jpeg" as const,
-                data: resizedImage.toString("base64")
+                data: imageWithPixelGrid.toString("base64")
             }
         ];
 
         return {
-            finalImage: resizedImage,
+            finalImage: imageWithPixelGrid,
             content
         }
     }
@@ -87,6 +88,69 @@ export class PixelMouseMode implements MouseMode {
     async getTools(): Promise<(AgentTool)[]> {
         return [new MoveMouseToPixel(this.context)]
     }
+}
+
+async function addPixelGuideGrid(image: Buffer, width: number, height: number): Promise<Buffer> {
+    const majorStep = chooseGridStep(Math.max(width, height));
+    const minorStep = majorStep / 2;
+    const fontSize = Math.max(10, Math.min(18, Math.floor(width / 70)));
+    const labelPadding = 3;
+    const edgeLabelInset = fontSize + labelPadding;
+    const svgElements: string[] = [];
+
+    for (let x = 0; x < width; x += minorStep) {
+        const isMajor = x % majorStep === 0;
+        svgElements.push(`<line x1="${x}" y1="0" x2="${x}" y2="${height}" stroke="white" stroke-opacity="${isMajor ? 0.35 : 0.18}" stroke-width="${isMajor ? 1 : 0.5}"/>`);
+    }
+
+    for (let y = 0; y < height; y += minorStep) {
+        const isMajor = y % majorStep === 0;
+        svgElements.push(`<line x1="0" y1="${y}" x2="${width}" y2="${y}" stroke="white" stroke-opacity="${isMajor ? 0.35 : 0.18}" stroke-width="${isMajor ? 1 : 0.5}"/>`);
+    }
+
+    for (let x = 0; x < width; x += majorStep) {
+        const labelX = clamp(x, edgeLabelInset, width - edgeLabelInset);
+        svgElements.push(edgeLabel(labelX, fontSize + labelPadding, x.toString(), fontSize, "middle"));
+        svgElements.push(edgeLabel(labelX, height - labelPadding, x.toString(), fontSize, "middle"));
+    }
+
+    for (let y = 0; y < height; y += majorStep) {
+        const labelY = clamp(y, edgeLabelInset, height - edgeLabelInset);
+        svgElements.push(edgeLabel(labelPadding, labelY, y.toString(), fontSize, "start"));
+        svgElements.push(edgeLabel(width - labelPadding, labelY, y.toString(), fontSize, "end"));
+    }
+
+    const overlaySvg = `<svg height="${height}" width="${width}">${svgElements.join('')}</svg>`;
+    return await sharp(image)
+        .composite([{ input: Buffer.from(overlaySvg), top: 0, left: 0 }])
+        .toBuffer();
+}
+
+function edgeLabel(x: number, y: number, text: string, fontSize: number, anchor: "start" | "middle" | "end") {
+    return `<text x="${x}" y="${y}"
+        font-size="${fontSize}"
+        font-family="Arial, Helvetica Neue, sans-serif"
+        font-weight="700"
+        fill="black"
+        stroke="white"
+        stroke-width="2"
+        paint-order="stroke"
+        text-anchor="${anchor}"
+        dominant-baseline="middle">${text}</text>`;
+}
+
+function chooseGridStep(maxDimension: number) {
+    if (maxDimension <= 800) {
+        return 100;
+    }
+    if (maxDimension <= 1400) {
+        return 128;
+    }
+    return 200;
+}
+
+function clamp(value: number, min: number, max: number) {
+    return Math.min(Math.max(value, min), max);
 }
 
 class MoveMouseToPixel extends AgentTool {
@@ -134,7 +198,7 @@ class MoveMouseToPixel extends AgentTool {
         return [
             {
                 type: "text",
-                text: "The mouse has moved to the new pixel location, please make sure the mouse has moved to the correct location (look at the computer screen image), if that is not the case try again using different x/y pixel coordinates.",
+                text: `The mouse has moved to the new pixel location: (x${arg.x},y${arg.y}), please make sure the mouse has moved to your desired location (look at the computer screen image), if that is not the case try again using different x/y pixel coordinates.`,
             },
         ]
     }

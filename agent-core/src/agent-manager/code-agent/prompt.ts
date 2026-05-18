@@ -4,6 +4,7 @@ import { AgentTool } from "../../tools/index.js";
 import { toPythonFunctionName } from "./utils.js";
 import { z } from "zod/v4";
 import { zodToJsonSchema } from "zod-to-json-schema";
+import { toJsonSchema } from "@langchain/core/utils/json_schema";
 
 export function functionPrompt(workspaceDirectory: string): string {
     return `
@@ -63,7 +64,7 @@ function getFunctions(tool: AgentTool) {
         : isZodSchemaV4(tool.outSchema) ? JSON.stringify(z.toJSONSchema(tool.outSchema))
             : isZodSchemaV3(tool.outSchema) ? JSON.stringify(zodToJsonSchema(tool.outSchema))
                 : JSON.stringify(tool.outSchema);
-    const schema = isZodSchemaV4(tool.schema) ? z.toJSONSchema(tool.schema) : isZodSchemaV3(tool.schema) ? zodToJsonSchema(tool.schema) : tool.schema;
+    const schema = toJsonSchema(tool.schema);
     const toolDefinition = `
 - FunctionName: ${toPythonFunctionName(tool.name)}
 - Description: ${tool.description}

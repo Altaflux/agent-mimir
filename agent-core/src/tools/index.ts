@@ -1,19 +1,20 @@
-
-//import { z } from "zod/v4";
 import { z as z3 } from "zod/v3";
 import { z as z4 } from "zod/v4";
 import { ComplexMessageContent } from "../schema.js";
 import { JsonSchema7Type } from "@langchain/core/utils/json_schema";
-import { InferInteropZodInput, InferInteropZodOutput, InteropZodType, isZodSchemaV3, isZodSchemaV4 } from "@langchain/core/utils/types";
-//import {} from "@langchain/core/"
+import { InferInteropZodInput, InferInteropZodOutput, InteropZodType, interopParseAsync } from "@langchain/core/utils/types";
+
 type JSONSchema = Record<string, unknown>;
 export type ToolResponse = ComplexMessageContent[];
 
-export type ToolInputSchemaBase = z3.ZodTypeAny | JsonSchema7Type;
-type ToolOutputType = any;
+export type ToolInputSchemaBase = InteropZodType | JsonSchema7Type;
 
 
-export type ToolInputSchemaOutputType<T> = T extends InteropZodType ? InferInteropZodOutput<T> : T extends JsonSchema7Type ? unknown : never;
+export type ToolInputSchemaOutputType<T> = T extends InteropZodType
+  ? InferInteropZodOutput<T>
+  : T extends JSONSchema
+    ? unknown
+    : never;
 export type ToolInputSchemaInputType<T> = T extends InteropZodType ? InferInteropZodInput<T> : T extends JsonSchema7Type ? unknown : never;
 /**
  * Utility type that resolves the input type of a tool input schema.
@@ -26,16 +27,18 @@ export type ToolInputSchemaInputType<T> = T extends InteropZodType ? InferIntero
  * applying any transforms defined in your schema. If there are no transforms, the input and output
  * types will be the same.
  */
-// export type ToolInputSchemaInputType<T extends ToolInputSchemaBase> = T extends z3.ZodType ? z3.input<T> : T extends JSONSchema ? unknown : never;
 
-
-//export type StructuredToolCallInput<SchemaT extends ToolInputSchemaBase, SchemaInputT = ToolInputSchemaInputType<SchemaT>> = (ToolInputSchemaOutputType<SchemaT> extends string ? string : never) | SchemaInputT;
-export type StructuredToolCallInput<SchemaT = ToolInputSchemaBase, SchemaInputT = ToolInputSchemaInputType<SchemaT>> = (ToolInputSchemaOutputType<SchemaT> extends string ? string : never) | SchemaInputT;
-
+export type StructuredToolCallInput<
+  SchemaT = ToolInputSchemaBase,
+  SchemaInputT = ToolInputSchemaInputType<SchemaT>,
+> =
+  | (ToolInputSchemaOutputType<SchemaT> extends string ? string : never)
+  | SchemaInputT
+  ;
 
 export abstract class AgentTool<
     SchemaT = ToolInputSchemaBase,
-    SchemaOutputT = ToolInputSchemaOutputType<SchemaT>,
+    SchemaOutputT =  ToolInputSchemaOutputType<SchemaT>,
     SchemaInputT = ToolInputSchemaInputType<SchemaT>> {
     abstract schema: SchemaT;
 
@@ -60,18 +63,16 @@ export abstract class AgentTool<
      * @param tags Optional tags for the tool.
      * @returns A Promise that resolves with a string.
      */
-    async call(
-        arg: StructuredToolCallInput<SchemaT, SchemaInputT>,
+    async call<TArg extends StructuredToolCallInput<SchemaT, SchemaInputT>>(
+        arg: TArg,
     ): Promise<ToolResponse> {
-        let parsed;
-        try {
-            parsed = isZodSchemaV3(this.schema) ? await (this.schema as z3.ZodType<SchemaOutputT>).parseAsync(arg)
-                : arg as SchemaOutputT;
-        } catch (e) {
-            throw new Error(
-                `Received tool input did not match expected schema ${JSON.stringify(arg)}`,
+        let parsed: SchemaOutputT;
+          const inputForValidation = arg;
+         parsed = await interopParseAsync(
+            this.schema as InteropZodType,
+            inputForValidation as TArg
             );
-        }
+
 
         let result;
         try {
