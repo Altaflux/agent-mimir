@@ -11,12 +11,13 @@ import exitHook from 'async-exit-hook';
 import { IS_RELEVANT_PROMPT } from "./prompt/relevance-prompt.js";
 import { encode } from "gpt-3-encoder"
 import { chromium, firefox, Browser, Page, webkit, BrowserContext } from 'playwright';
+import { launch as cloakbrowserLaunch } from 'cloakbrowser'
 import { VectorStore } from "@langchain/core/vectorstores";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import { Embeddings } from "@langchain/core/embeddings";
 
 export type PlaywrightDriverOptions = {
-    browserName?: 'chrome' | 'webkit' | 'firefox';
+    browserName?: 'chrome' | 'webkit' | 'firefox' | 'cloakbrowser';
     disableHeadless?: boolean;
 
 }
@@ -258,8 +259,13 @@ export class WebDriverManager {
 }
 const configureBrowser = async (options: PlaywrightDriverOptions) => {
     switch (options.browserName) {
+        case 'cloakbrowser': {
+            const browser = (await cloakbrowserLaunch({ headless: !(options.disableHeadless), }));
+            const browserContext = await browser.newContext({ screen: { height: 1200, width: 1200 }, viewport: { height: 1200, width: 1200 } });
+            const page = await browserContext.newPage();
+            return { page, browser, browserContext }
+        }
         case 'chrome': {
-
             const browser = (await chromium.launch({ headless: !(options.disableHeadless), }));
             const browserContext = await browser.newContext({ screen: { height: 1200, width: 1200 }, viewport: { height: 1200, width: 1200 } });
             const page = await browserContext.newPage();

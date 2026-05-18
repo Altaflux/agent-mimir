@@ -29,6 +29,7 @@
     "jsdom": "28.0.0",
     "sharp": "^0.34.5",
     "playwright": "1.58.2",
+    "cloakbrowser": "0.3.28",
     "turndown": "^7.1.2",
     "gpt-3-encoder": "v1.1.4"
   },
