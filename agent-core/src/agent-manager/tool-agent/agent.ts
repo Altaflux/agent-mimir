@@ -8,7 +8,7 @@ import { AIMessage, BaseMessage, ContentBlock, HumanMessage, RemoveMessage, Syst
 import { BaseCheckpointSaver, Command, END, interrupt, MemorySaver, START, StateGraph, GraphNode, ConditionalEdgeRouter } from "@langchain/langgraph";
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
-import { dividerSystemMessage, humanMessageToInputAgentMessage, lCmessageContentToContent, mergeSystemMessages } from "../message-utils.js";
+import { dividerSystemMessage, humanMessageToInputAgentMessage, lCmessageContentToContent, mergeSystemMessages, toolMessageToInputAgentMessage } from "../message-utils.js";
 import { Agent, WorkspaceFactory } from "../index.js";
 import { AttributeDescriptor, PluginFactory } from "../../plugins/index.js";
 import { toolNodeFunction } from "./tool-node.js"
@@ -142,7 +142,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                         shared_files: inputMessage.sharedFiles,
                     },
                     id: messageId,
-                    contentBlocks: complexResponseToLangchainMessageContent(inputMessage.content)
+                    contentBlocks: complexResponseToLangchainMessageContent(persistentMessage.message.content)
                 })];
 
                 const pluginInputs = await pluginContextProvider.getSystemPromptContext();
@@ -163,7 +163,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                             contentBlocks: complexResponseToLangchainMessageContent([
                                 {
                                     type: "text",
-                                    text: "Tools invoked succesfully (unless a tool call told you it failed or was cancelled), continue please but be sure the results from the tools are correct and what you expected."
+                                    text: "Tools invoked (unless a tool call told you it failed or was cancelled), continue please but be sure the results from the tools are correct and what you expected."
                                 },
                                 ...displayMessage.content
                             ])
@@ -176,7 +176,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                                 persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
                                 original_content: persistentMessage.message.content,
                             },
-                            content: []
+                            contentBlocks: complexResponseToLangchainMessageContent(persistentMessage.message.content)
                         })];
                     }
                 }
