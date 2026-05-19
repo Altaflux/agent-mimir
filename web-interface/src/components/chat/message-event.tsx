@@ -136,7 +136,7 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                     <CollapsibleSection
                         title={title}
                         icon={<Wrench className={event.requiresApproval ? "h-3.5 w-3.5 text-amber-400" : "h-3.5 w-3.5 text-muted-foreground"} />}
-                        defaultOpen={event.requiresApproval}
+                        defaultOpen={true}
                         className={event.requiresApproval ? "border-amber-500/40 bg-amber-500/5 shadow-[0_0_15px_rgba(245,158,11,0.05)]" : "border-border/50 bg-secondary/30"}
                     >
                         <div className="space-y-2">

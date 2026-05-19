@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json ",
-    "install": "node scripts/install.js "
+    "install": "node scripts/install.js ",
+    "tool-test": "tsx scripts/tool-test.ts"
   },
   "author": "Altaflux",
   "keywords": [
@@ -24,8 +25,7 @@
     "systeminformation": "5.30.7",
     "tesseract.js": "^5.0.4",
     "async-exit-hook": "^2.0.1",
-    "env-paths": "^4.0.0",
-    "fuse.js": "7.1.0"
+    "env-paths": "^4.0.0"
   },
   "peerDependencies": {
     "@mimir/agent-core": "*"

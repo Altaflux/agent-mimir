@@ -1,0 +1,53 @@
+{
+    "mode": "PIXEL",
+    "pixelImageWidth": 1024,
+    "steps": [
+        {
+            "action": "prepare"
+        },
+        {
+            "action": "wait",
+            "ms": 500
+        },
+        {
+            "tool": "moveMouseLocationOnComputerScreenPixel",
+            "input": {
+                "x": 130,
+                "y": 30,
+                "reason": "manual test"
+            }
+        },
+        {
+            "tool": "mouseClickOnComputerScreen",
+            "input": {
+                "clickButton": "leftButton",
+                "typeOfClick": "singleClick"
+            }
+        },
+        {
+            "tool": "sendKeybordInputToComputer",
+            "input": {
+                "keys": [
+                    {
+                        "key": "LeftControl",
+                        "action": "pressKey"
+                    },
+                    {
+                        "key": "L",
+                        "action": "typeKey"
+                    },
+                    {
+                        "key": "LeftControl",
+                        "action": "releaseKey"
+                    }
+                ]
+            }
+        },
+        {
+            "tool": "typeTextToComputer",
+            "input": {
+                "keys": "fashionphile.com"
+            }
+        }
+    ]
+}

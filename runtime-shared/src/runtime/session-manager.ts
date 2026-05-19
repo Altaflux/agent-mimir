@@ -34,6 +34,7 @@ import { BaseCheckpointSaver } from "@langchain/langgraph";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import Database from "better-sqlite3";
 import { readHydrationEvents } from "@mimir/agent-core/utils/hydration";
+import { FunctionAgentFactory } from "@mimir/agent-core/agent/tool-agent";
 
 const SESSION_EVENT_CAP = 500;
 const DEFAULT_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
@@ -865,7 +866,18 @@ export class SessionManager {
                 }
 
                 const definition = agentDefinition.definition;
-                const factory = new CodeAgentFactory({
+                // const factory = new CodeAgentFactory({
+                //     description: agentDefinition.description,
+                //     profession: definition.profession,
+                //     model: definition.chatModel,
+                //     checkpointer: checkpointer,
+                //     visionSupport: definition.visionSupport,
+                //     constitution: definition.constitution,
+                //     plugins: [...(definition.plugins ?? []) as PluginFactory[]],
+                //     codeExecutor: (workspace) => new DockerPythonExecutor({ additionalPackages: [], workspace: workspace }),
+                //     workspaceFactory
+                // });
+                const factory = new FunctionAgentFactory({
                     description: agentDefinition.description,
                     profession: definition.profession,
                     model: definition.chatModel,
@@ -873,10 +885,8 @@ export class SessionManager {
                     visionSupport: definition.visionSupport,
                     constitution: definition.constitution,
                     plugins: [...(definition.plugins ?? []) as PluginFactory[]],
-                    codeExecutor: (workspace) => new DockerPythonExecutor({ additionalPackages: [], workspace: workspace }),
                     workspaceFactory
                 });
-
                 const initialized = await builder.initializeAgent(factory, agentName, definition.communicationWhitelist);
 
                 return {
