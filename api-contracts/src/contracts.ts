@@ -57,19 +57,7 @@ export type SessionEvent =
         id: string;
         sessionId: string;
         timestamp: string;
-        type: "agent_to_agent";
-        messageId?: string;
-        sourceAgent: string;
-        destinationAgent: string;
-        message: string;
-        attachments: DownloadableFile[];
-    }
-    | {
-        id: string;
-        sessionId: string;
-        timestamp: string;
         type: "tool_request";
-        destinationAgent: string | undefined;
         payload: ToolRequestPayload;
         requiresApproval: boolean;
     }
@@ -79,7 +67,6 @@ export type SessionEvent =
         timestamp: string;
         type: "agent_response_chunk";
         agentName: string;
-        destinationAgent: string | undefined;
         messageId: string;
         markdownChunk: string;
     }
@@ -89,7 +76,6 @@ export type SessionEvent =
         timestamp: string;
         type: "agent_response";
         agentName: string;
-        destinationAgent?: string;
         messageId: string;
         markdown: string;
         attachments: DownloadableFile[];
@@ -129,6 +115,7 @@ export type ListSessionsResponse = {
 
 export type CreateSessionRequest = {
     name?: string;
+    agentName?: string;
 };
 
 export type CreateSessionResponse = {
@@ -157,14 +144,6 @@ export type ToggleContinuousModeRequest = {
 };
 
 export type ToggleContinuousModeResponse = {
-    session: SessionState;
-};
-
-export type SetActiveAgentRequest = {
-    agentName: string;
-};
-
-export type SetActiveAgentResponse = {
     session: SessionState;
 };
 

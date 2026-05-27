@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bot, Loader2, Zap } from "lucide-react";
+import { Bot, Loader2 } from "lucide-react";
 
 import { useChatSession } from "@/components/chat/use-chat-session";
 import { Sidebar } from "@/components/chat/sidebar";
@@ -9,8 +9,6 @@ import { ChatHeader } from "@/components/chat/chat-header";
 import { MessageEvent } from "@/components/chat/message-event";
 import { ThinkingDots } from "@/components/chat/thinking-dots";
 import { Composer } from "@/components/chat/composer";
-import { CollapsibleSection } from "@/components/chat/shared";
-import { type SessionEvent } from "@/lib/contracts";
 
 /**
  * Root chat application component.
@@ -74,7 +72,18 @@ export function ChatApp() {
                     const name = window.prompt("Enter name for a new conversation:", "New Conversation");
                     if (name === null) return;
 
-                    session.createSession(name).catch((error) => {
+                    const defaultAgent = session.defaultMainAgent ?? session.availableAgentNames[0];
+                    let agentName = defaultAgent;
+                    if (session.availableAgentNames.length > 1) {
+                        const selected = window.prompt(
+                            `Choose a principal agent:\n${session.availableAgentNames.join("\n")}`,
+                            defaultAgent
+                        );
+                        if (selected === null) return;
+                        agentName = selected.trim() || defaultAgent;
+                    }
+
+                    session.createSession(name, agentName).catch((error) => {
                         session.setErrorMessage(error instanceof Error ? error.message : "Failed to create session.");
                     });
                 }}
@@ -94,11 +103,6 @@ export function ChatApp() {
                     onSetContinuousMode={(enabled) => {
                         session.setContinuousMode(enabled).catch((error) => {
                             session.setErrorMessage(error instanceof Error ? error.message : "Could not toggle continuous mode.");
-                        });
-                    }}
-                    onSetActiveAgent={(agentName) => {
-                        session.setActiveAgent(agentName).catch((error) => {
-                            session.setErrorMessage(error instanceof Error ? error.message : "Could not change agent.");
                         });
                     }}
                     onResetSession={() => {
@@ -126,73 +130,9 @@ export function ChatApp() {
                             </div>
                         ) : null}
 
-                        {/* Messages */}
-                        {(() => {
-                            type Block =
-                                | { type: "event"; id: string; event: SessionEvent }
-                                | { type: "sub-chat"; id: string; events: SessionEvent[] };
-
-                            const blocks: Block[] = [];
-                            let inSubChat = false;
-                            let currentSubChatEvents: SessionEvent[] = [];
-
-                            for (const event of session.activeEvents) {
-                                const isMainChatResponse =
-                                    event.type === "user_message" ||
-                                    (event.type === "agent_response" && !event.destinationAgent) ||
-                                    (event.type === "agent_response_chunk" && !event.destinationAgent) ||
-                                    event.type === "reset" ||
-                                    event.type === "error";
-
-                                const isExplicitAgentToAgent =
-                                    event.type === "agent_to_agent" ||
-                                    (event.type === "agent_response" && !!event.destinationAgent) ||
-                                    (event.type === "agent_response_chunk" && !!event.destinationAgent) ||
-                                    (event.type === "tool_request" && !!event.destinationAgent);
-
-                                const stableId = (event as any).messageId || event.id;
-
-                                if (isMainChatResponse) {
-                                    inSubChat = false;
-                                    blocks.push({ type: "event", id: stableId, event });
-                                } else if (isExplicitAgentToAgent) {
-                                    if (!inSubChat) {
-                                        inSubChat = true;
-                                        currentSubChatEvents = [];
-                                        blocks.push({ type: "sub-chat", id: `subchat-${stableId}`, events: currentSubChatEvents });
-                                    }
-                                    currentSubChatEvents.push(event);
-                                } else {
-                                    if (inSubChat) {
-                                        currentSubChatEvents.push(event);
-                                    } else {
-                                        blocks.push({ type: "event", id: stableId, event });
-                                    }
-                                }
-                            }
-
-                            return blocks.map((block) => {
-                                if (block.type === "event") {
-                                    return <MessageEvent key={block.id} event={block.event} />;
-                                } else {
-                                    return (
-                                        <div key={block.id} className="mx-auto max-w-[95%] sm:max-w-[90%] my-2">
-                                            <CollapsibleSection
-                                                title="Agent Communication"
-                                                icon={<Zap className="h-4 w-4 text-emerald-400" />}
-                                                defaultOpen
-                                            >
-                                                <div className="space-y-4 pt-1">
-                                                    {block.events.map((e) => (
-                                                        <MessageEvent key={e.id} event={e} />
-                                                    ))}
-                                                </div>
-                                            </CollapsibleSection>
-                                        </div>
-                                    );
-                                }
-                            });
-                        })()}
+                        {session.activeEvents.map((event) => (
+                            <MessageEvent key={(event as { messageId?: string }).messageId ?? event.id} event={event} />
+                        ))}
 
                         {/* Thinking animation */}
                         {session.isAgentThinking ? <ThinkingDots /> : null}

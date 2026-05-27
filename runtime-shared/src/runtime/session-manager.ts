@@ -29,7 +29,6 @@ import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
 import { SessionStore } from "./session-store.js";
-import { CodeAgentFactory, DockerPythonExecutor } from "@mimir/agent-core/agent/code-agent";
 import { BaseCheckpointSaver } from "@langchain/langgraph";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import Database from "better-sqlite3";
@@ -100,7 +99,6 @@ type SessionRuntime = {
     continuousMode: boolean;
     activeAgentName: string;
     agentNames: string[];
-    agentsByName: Map<string, Agent>;
     orchestrator: MultiAgentCommunicationOrchestrator;
     pendingToolRequest: AgentToolRequestTwo | null;
     eventBuffer: SessionEvent[];
@@ -302,15 +300,25 @@ export class SessionManager {
         return entries.find(([, definition]) => definition.mainAgent)?.[0] ?? entries[0]![0];
     }
 
+    private getPersistedPrincipalAgentName(sessionInfo: PersistedSessionInfo, config: AgentMimirConfig): string | null {
+        const validAgentNames = new Set(Object.keys(config.agents));
+        const discovered = [...sessionInfo.discoveredAgents].filter((agentName) => validAgentNames.has(agentName));
+        if (discovered.length === 1) {
+            return discovered[0]!;
+        }
+
+        return this.getDefaultMainAgentName(config);
+    }
+
     private async buildDiscoveredSessionSummary(sessionInfo: PersistedSessionInfo): Promise<SessionSummary> {
         const { config } = await this.getRuntimeConfig();
-        const defaultMainAgent = this.getDefaultMainAgentName(config) ?? "Unknown";
+        const principalAgentName = this.getPersistedPrincipalAgentName(sessionInfo, config) ?? "Unknown";
         return {
             sessionId: sessionInfo.sessionId,
             name: sessionInfo.name || `Chat ${sessionInfo.sessionId.slice(0, 8)}`,
             createdAt: new Date(sessionInfo.earliestTimestampMs).toISOString(),
             lastActivityAt: new Date(sessionInfo.latestTimestampMs).toISOString(),
-            activeAgentName: defaultMainAgent,
+            activeAgentName: principalAgentName,
             continuousMode: config.continuousMode ?? false,
             hasPendingToolRequest: false
         };
@@ -401,12 +409,11 @@ export class SessionManager {
             return workspace;
         };
 
-        const agents = await this.createAgents(config, checkpointer, orchestratorBuilder, workspaceFactory);
-        const mainAgent =
-            agents.length === 1 ? agents[0]?.agent : agents.find((agentDefinition) => agentDefinition.mainAgent)?.agent;
-        if (!mainAgent) {
-            throw new HttpError(500, "INVALID_CONFIG", "No main agent found in configuration.");
+        const principalAgentName = this.getPersistedPrincipalAgentName(persistedSession, config);
+        if (!principalAgentName) {
+            throw new HttpError(500, "INVALID_CONFIG", "No principal agent found in configuration.");
         }
+        const principal = await this.createAgent(config, checkpointer, orchestratorBuilder, workspaceFactory, principalAgentName);
 
         const session: SessionRuntime = {
             sessionId: persistedSession.sessionId,
@@ -414,10 +421,9 @@ export class SessionManager {
             createdAt: persistedSession.earliestTimestampMs,
             lastActivityAt: persistedSession.latestTimestampMs,
             continuousMode: config.continuousMode ?? false,
-            activeAgentName: mainAgent.name,
-            agentNames: agents.map((entry) => entry.name),
-            agentsByName: new Map(agents.map((entry) => [entry.name, entry.agent])),
-            orchestrator: orchestratorBuilder.build(mainAgent),
+            activeAgentName: principal.agent.name,
+            agentNames: [principal.name],
+            orchestrator: orchestratorBuilder.build(principal.agent),
             pendingToolRequest: null,
             eventBuffer: [],
             subscribers: new Set<SessionListener>(),
@@ -432,23 +438,17 @@ export class SessionManager {
         const hydrationEvents: AgentHydrationEventWithAgent[] = [];
         let sequence = 0;
 
-        for (const agentName of persistedSession.discoveredAgents) {
-            const events = await readHydrationEvents({ sessionId: persistedSession.sessionId, name: agentName, checkpointer: checkpointer });
-            for (const event of events) {
-                hydrationEvents.push({
-                    ...event,
-                    agentName: agentName,
-                    sequence: sequence++,
-                });
-            }
+        const events = await readHydrationEvents({ sessionId: persistedSession.sessionId, name: principal.name, checkpointer: checkpointer });
+        for (const event of events) {
+            hydrationEvents.push({
+                ...event,
+                agentName: principal.name,
+                sequence: sequence++,
+            });
         }
-        const agentsByName = [...persistedSession.discoveredAgents].reduce((left, right) => {
-            left.set(right, { name: right });
-            return left;
-        }, new Map<string, { name: string }>());
-        const replayedConversation = await session.orchestrator.hydrateConversation(hydrationEvents, agentsByName);
+
+        const replayedConversation = await session.orchestrator.hydrateConversation(hydrationEvents);
         await this.applyHydratedConversation(session, replayedConversation);
-        session.activeAgentName = session.orchestrator.currentAgent.name;
         this.sessions.set(session.sessionId, session);
         this.upsertDiscoveredSession(session.sessionId, session.createdAt, session.name);
         this.upsertDiscoveredSession(session.sessionId, session.lastActivityAt);
@@ -492,7 +492,7 @@ export class SessionManager {
             }
 
             if (event.type === "intermediate") {
-                if (event.value.type === "intermediateOutput" && event.value.value.type === "toolResponse") {
+                if (event.value.value.type === "toolResponse") {
                     this.emitEvent(
                         session,
                         {
@@ -507,25 +507,6 @@ export class SessionManager {
                     continue;
                 }
 
-                if (event.value.type !== "agentToAgentMessage") {
-                    continue;
-                }
-
-                const messageId = (event.value.value.content as { id?: string }).id;
-                const attachments = await this.registerSharedFiles(session, event.value.value.content.sharedFiles ?? []);
-                this.emitEvent(
-                    session,
-                    {
-                        type: "agent_to_agent",
-                        messageId,
-                        sourceAgent: event.value.value.sourceAgent,
-                        destinationAgent: event.value.value.destinationAgent,
-                        message: extractAllTextFromComplexResponse(event.value.value.content.content),
-                        attachments
-                    },
-                    { timestamp: event.timestamp, preserveLastActivity: true }
-                );
-                session.pendingToolRequest = null;
                 continue;
             }
 
@@ -535,8 +516,7 @@ export class SessionManager {
                     {
                         type: "tool_request",
                         payload: this.toToolRequestPayload(event.value),
-                        requiresApproval: !session.continuousMode,
-                        destinationAgent: event.value.destinationAgent
+                        requiresApproval: !session.continuousMode
                     },
                     { timestamp: event.timestamp, preserveLastActivity: true }
                 );
@@ -584,7 +564,7 @@ export class SessionManager {
         };
     }
 
-    async createSession(name?: string): Promise<SessionState> {
+    async createSession(name?: string, agentName?: string): Promise<SessionState> {
         await this.ensureDiscovered();
         const sessionId = crypto.randomUUID();
         const { config, checkpointer } = await this.getRuntimeConfig();
@@ -609,18 +589,13 @@ export class SessionManager {
                 return workspace;
             };
 
-            const agents = await this.createAgents(config, checkpointer, orchestratorBuilder, workspaceFactory);
-
-            const mainAgent =
-                agents.length === 1
-                    ? agents[0]?.agent
-                    : agents.find((agentDefinition) => agentDefinition.mainAgent)?.agent;
-
-            if (!mainAgent) {
-                throw new HttpError(500, "INVALID_CONFIG", "No main agent found in configuration.");
+            const principalAgentName = agentName?.trim() || this.getDefaultMainAgentName(config);
+            if (!principalAgentName) {
+                throw new HttpError(500, "INVALID_CONFIG", "No principal agent found in configuration.");
             }
+            const principal = await this.createAgent(config, checkpointer, orchestratorBuilder, workspaceFactory, principalAgentName);
 
-            const activeAgentName = mainAgent.name;
+            const activeAgentName = principal.agent.name;
 
             const finalName = name?.trim() || `Chat ${this.discoveredSessions.size + 1}`;
             this.store?.upsertName(sessionId, finalName);
@@ -632,9 +607,8 @@ export class SessionManager {
                 lastActivityAt: now,
                 continuousMode: config.continuousMode ?? false,
                 activeAgentName,
-                agentNames: agents.map((entry) => entry.name),
-                agentsByName: new Map(agents.map((entry) => [entry.name, entry.agent])),
-                orchestrator: orchestratorBuilder.build(mainAgent),
+                agentNames: [principal.name],
+                orchestrator: orchestratorBuilder.build(principal.agent),
                 pendingToolRequest: null,
                 eventBuffer: [],
                 subscribers: new Set<SessionListener>(),
@@ -724,24 +698,6 @@ export class SessionManager {
         }
 
         session.continuousMode = enabled;
-        session.lastActivityAt = Date.now();
-        this.emitStateChanged(session);
-        return this.toSessionState(session);
-    }
-
-    async setActiveAgent(sessionId: string, activeAgentName: string): Promise<SessionState> {
-        const session = await this.ensureSessionLoaded(sessionId);
-        if (session.running) {
-            throw new HttpError(409, "SESSION_BUSY", "Cannot switch active agent while the session is processing.");
-        }
-
-        const selectedAgent = session.agentsByName.get(activeAgentName);
-        if (!selectedAgent) {
-            throw new HttpError(404, "AGENT_NOT_FOUND", `Agent \"${activeAgentName}\" is not registered for this session.`);
-        }
-
-        session.orchestrator.currentAgent = selectedAgent;
-        session.activeAgentName = activeAgentName;
         session.lastActivityAt = Date.now();
         this.emitStateChanged(session);
         return this.toSessionState(session);
@@ -853,49 +809,50 @@ export class SessionManager {
         return found;
     }
 
-    private async createAgents(
+    private async createAgent(
         config: AgentMimirConfig,
         checkpointer: BaseCheckpointSaver,
         builder: OrchestratorBuilder,
-        workspaceFactory: (agentName: string) => Promise<FileSystemAgentWorkspace>
-    ): Promise<AgentDefinitionRuntime[]> {
-        return await Promise.all(
-            Object.entries(config.agents).map(async ([agentName, agentDefinition]) => {
-                if (!agentDefinition.definition) {
-                    throw new HttpError(500, "INVALID_CONFIG", `Agent \"${agentName}\" has no definition.`);
-                }
+        workspaceFactory: (agentName: string) => Promise<FileSystemAgentWorkspace>,
+        agentName: string
+    ): Promise<AgentDefinitionRuntime> {
+        const agentDefinition = config.agents[agentName];
+        if (!agentDefinition) {
+            throw new HttpError(404, "AGENT_NOT_FOUND", `Agent \"${agentName}\" is not registered in configuration.`);
+        }
+        if (!agentDefinition.definition) {
+            throw new HttpError(500, "INVALID_CONFIG", `Agent \"${agentName}\" has no definition.`);
+        }
 
-                const definition = agentDefinition.definition;
-                // const factory = new CodeAgentFactory({
-                //     description: agentDefinition.description,
-                //     profession: definition.profession,
-                //     model: definition.chatModel,
-                //     checkpointer: checkpointer,
-                //     visionSupport: definition.visionSupport,
-                //     constitution: definition.constitution,
-                //     plugins: [...(definition.plugins ?? []) as PluginFactory[]],
-                //     codeExecutor: (workspace) => new DockerPythonExecutor({ additionalPackages: [], workspace: workspace }),
-                //     workspaceFactory
-                // });
-                const factory = new FunctionAgentFactory({
-                    description: agentDefinition.description,
-                    profession: definition.profession,
-                    model: definition.chatModel,
-                    checkpointer: checkpointer,
-                    visionSupport: definition.visionSupport,
-                    constitution: definition.constitution,
-                    plugins: [...(definition.plugins ?? []) as PluginFactory[]],
-                    workspaceFactory
-                });
-                const initialized = await builder.initializeAgent(factory, agentName, definition.communicationWhitelist);
+        const definition = agentDefinition.definition;
+        // const factory = new CodeAgentFactory({
+        //     description: agentDefinition.description,
+        //     profession: definition.profession,
+        //     model: definition.chatModel,
+        //     checkpointer: checkpointer,
+        //     visionSupport: definition.visionSupport,
+        //     constitution: definition.constitution,
+        //     plugins: [...(definition.plugins ?? []) as PluginFactory[]],
+        //     codeExecutor: (workspace) => new DockerPythonExecutor({ additionalPackages: [], workspace: workspace }),
+        //     workspaceFactory
+        // });
+        const factory = new FunctionAgentFactory({
+            description: agentDefinition.description,
+            profession: definition.profession,
+            model: definition.chatModel,
+            checkpointer: checkpointer,
+            visionSupport: definition.visionSupport,
+            constitution: definition.constitution,
+            plugins: [...(definition.plugins ?? []) as PluginFactory[]],
+            workspaceFactory
+        });
+        const initialized = await builder.initializeAgent(factory, agentName);
 
-                return {
-                    mainAgent: agentDefinition.mainAgent,
-                    name: agentName,
-                    agent: initialized
-                } satisfies AgentDefinitionRuntime;
-            })
-        );
+        return {
+            mainAgent: agentDefinition.mainAgent,
+            name: agentName,
+            agent: initialized
+        } satisfies AgentDefinitionRuntime;
     }
 
     private async validateUploadInput(input: SendMessageInput) {
@@ -1065,8 +1022,7 @@ export class SessionManager {
             this.emitEvent(session, {
                 type: "tool_request",
                 payload: pendingPayload,
-                requiresApproval: !session.continuousMode,
-                destinationAgent: pending.destinationAgent
+                requiresApproval: !session.continuousMode
             });
 
             if (!session.continuousMode) {
@@ -1079,7 +1035,7 @@ export class SessionManager {
     }
 
     private async handleIntermediateResponse(session: SessionRuntime, chainResponse: IntermediateAgentResponse) {
-        if (chainResponse.type === "intermediateOutput" && chainResponse.value.type === "messageChunk") {
+        if (chainResponse.value.type === "messageChunk") {
             const chunkText = extractAllTextFromComplexResponse(chainResponse.value.content);
             if (chunkText.length === 0) {
                 return;
@@ -1089,13 +1045,12 @@ export class SessionManager {
                 type: "agent_response_chunk",
                 agentName: chainResponse.agentName,
                 messageId: chainResponse.value.id,
-                markdownChunk: chunkText,
-                destinationAgent: chainResponse.value.destinationAgent
+                markdownChunk: chunkText
             });
             return;
         }
 
-        if (chainResponse.type === "intermediateOutput" && chainResponse.value.type === "toolResponse") {
+        if (chainResponse.value.type === "toolResponse") {
             this.emitEvent(session, {
                 type: "tool_response",
                 messageId: chainResponse.value.id,
@@ -1105,19 +1060,6 @@ export class SessionManager {
                 response: extractAllTextFromComplexResponse(chainResponse.value.toolResponse.response)
             });
             return;
-        }
-
-        if (chainResponse.type === "agentToAgentMessage") {
-            const messageId = (chainResponse.value.content as { id?: string }).id;
-            const attachments = await this.registerSharedFiles(session, chainResponse.value.content.sharedFiles ?? []);
-            this.emitEvent(session, {
-                type: "agent_to_agent",
-                messageId,
-                sourceAgent: chainResponse.value.sourceAgent,
-                destinationAgent: chainResponse.value.destinationAgent,
-                message: extractAllTextFromComplexResponse(chainResponse.value.content.content),
-                attachments
-            });
         }
     }
 
@@ -1179,7 +1121,6 @@ export class SessionManager {
         }
         if (
             enriched.type === "agent_response" ||
-            enriched.type === "agent_to_agent" ||
             enriched.type === "tool_response" ||
             enriched.type === "tool_request"
         ) {

@@ -10,7 +10,6 @@ export interface ChatHeaderProps {
     sidebarOpen: boolean;
     onToggleSidebar: () => void;
     onSetContinuousMode: (enabled: boolean) => void;
-    onSetActiveAgent: (agentName: string) => void;
     onResetSession: () => void;
 }
 
@@ -20,7 +19,6 @@ export function ChatHeader({
     sidebarOpen,
     onToggleSidebar,
     onSetContinuousMode,
-    onSetActiveAgent,
     onResetSession
 }: ChatHeaderProps) {
     return (
@@ -52,18 +50,6 @@ export function ChatHeader({
                             onCheckedChange={(checked) => onSetContinuousMode(Boolean(checked))}
                         />
                     </label>
-
-                    <select
-                        className="h-8 rounded-lg border border-border bg-secondary px-2 text-xs text-foreground appearance-none cursor-pointer"
-                        value={activeState.activeAgentName}
-                        onChange={(event) => onSetActiveAgent(event.target.value)}
-                    >
-                        {activeState.agentNames.map((agentName) => (
-                            <option key={agentName} value={agentName}>
-                                {agentName}
-                            </option>
-                        ))}
-                    </select>
 
                     <button
                         className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"

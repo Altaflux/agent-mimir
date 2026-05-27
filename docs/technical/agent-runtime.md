@@ -2,12 +2,12 @@
 
 ## End-to-end invocation flow
 
-For both CLI and Discord paths, the effective call path is:
+For the runtime paths, the effective call path is:
 
 ```text
 Input message/command
  -> MultiAgentCommunicationOrchestrator.handleMessage|handleCommand
- -> Current agent (LanggraphAgent)
+ -> Principal agent (LanggraphAgent)
  -> StateGraph stream loop
  -> Intermediate events yielded
  -> Final result (tool request or user response)
@@ -34,24 +34,22 @@ Reset behavior:
 - calls `workspace.reset()`
 - removes all stored messages in graph state for the thread
 
-## Multi-agent routing model
+## Principal-agent runtime
 
 Implemented in `agent-mimir/src/communication/multi-agent.ts`.
 
-Routing mechanism:
+The runtime no longer performs peer-agent routing. A conversation has one
+principal user-facing agent selected when the session is created.
 
-- every created agent gets a helper plugin
-- helper plugin exposes an attribute to set destination agent name
-- if response attribute `destinationAgent` is present:
-  - orchestrator pushes current agent to stack
-  - forwards message to destination agent
-- if no destination:
-  - response goes back to previous agent (stack pop) or user
+Current responsibilities:
 
-Intermediate event types exposed by orchestrator:
+- creates the selected principal agent
+- forwards user messages and commands to that agent
+- forwards intermediate tool responses and message chunks
+- returns final tool requests or user-visible responses
 
-- `intermediateOutput` (tool responses, chunks)
-- `agentToAgentMessage` (routed message event)
+Future sub-agent work should be modeled through plugin/runtime capabilities,
+not through response attributes or a mutable current-agent stack.
 
 ## Code agent graph flow
 
@@ -72,7 +70,6 @@ Conditional edges:
 Special behavior:
 
 - if no content from model, injects "I have completed my task."
-- strips visible output in agent-to-agent contexts to avoid false completion assumptions
 
 ## Tool agent graph flow
 

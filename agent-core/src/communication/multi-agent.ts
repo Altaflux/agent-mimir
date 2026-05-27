@@ -1,130 +1,104 @@
-import { Agent, AgentHydrationEvent, AgentResponse, AgentMessageToolRequest, AgentUserMessageResponse, InputAgentMessage, AgentFactory, CommandRequest, IntermediateAgentMessage, ToolResponseInfo } from "../agent-manager/index.js";
+import {
+    Agent,
+    AgentFactory,
+    AgentHydrationEvent,
+    AgentMessageToolRequest,
+    AgentResponse,
+    CommandRequest,
+    InputAgentMessage,
+    IntermediateAgentMessage,
+    ToolResponseInfo
+} from "../agent-manager/index.js";
 import { ComplexMessageContent } from "../schema.js";
-import { HelpersPluginFactory } from "./helpers.js";
 
-type PendingMessage = {
-    content: InputAgentMessage;
-    fromAgent: string | undefined;
-    toAgent: string | undefined;
-}
-type AgentInvoke = (agent: Agent,) => AsyncGenerator<IntermediateAgentMessage, {
+type AgentInvoke = (agent: Agent) => AsyncGenerator<IntermediateAgentMessage, {
     message: AgentResponse;
 }, unknown>;
 
-
 export type IntermediateOutputType = {
-    type: "toolResponse",
-    id: string,
-    toolResponse: ToolResponseInfo
-} |
-{
-    type: "messageChunk",
-    id: string,
-    destinationAgent: string | undefined,
-    content: ComplexMessageContent[],
+    type: "toolResponse";
+    id: string;
+    toolResponse: ToolResponseInfo;
+} | {
+    type: "messageChunk";
+    id: string;
+    content: ComplexMessageContent[];
 };
 
-export type IntermediateAgentResponse = ({
-    type: "agentToAgentMessage",
-    value: AgentToAgentMessage
-}) |
-{
-    type: "intermediateOutput",
-    agentName: string,
-    value: IntermediateOutputType
+export type IntermediateAgentResponse = {
+    type: "intermediateOutput";
+    agentName: string;
+    value: IntermediateOutputType;
 };
-
-
-export type AgentToAgentMessage = {
-    sourceAgent: string,
-    destinationAgent: string,
-    content: InputAgentMessage
-}
 
 export type HandleMessageResult = ({
-    type: "agentResponse",
-} & AgentUserMessage) | {
-    type: "toolRequest",
-} & AgentToolRequestTwo;
+    type: "agentResponse";
+} & AgentUserMessage) | ({
+    type: "toolRequest";
+} & AgentToolRequestTwo);
 
 export type AgentToolRequestTwo = AgentMessageToolRequest & {
-    callingAgent: string,
-    destinationAgent: string | undefined,
-}
+    callingAgent: string;
+};
 
 export type AgentUserMessage = {
-    content: InputAgentMessage,
-}
+    content: InputAgentMessage;
+};
 
 export type AgentHydrationEventWithAgent = AgentHydrationEvent & {
-    agentName: string,
-    sequence: number,
-}
+    agentName: string;
+    sequence: number;
+};
 
 export type HydratedOrchestratorEvent = {
-    type: "userMessage",
-    timestamp: string,
-    sourceAgent: string,
-    value: InputAgentMessage
+    type: "userMessage";
+    timestamp: string;
+    sourceAgent: string;
+    value: InputAgentMessage;
 } | {
-    type: "intermediate",
-    timestamp: string,
-    value: IntermediateAgentResponse
+    type: "intermediate";
+    timestamp: string;
+    value: IntermediateAgentResponse;
 } | {
-    type: "result",
-    timestamp: string,
-    agentName: string,
-    value: HandleMessageResult
-}
+    type: "result";
+    timestamp: string;
+    agentName: string;
+    value: HandleMessageResult;
+};
 
-const DESTINATION_AGENT_ATTRIBUTE = "destinationAgent";
 export class OrchestratorBuilder {
     private readonly agentManager: Map<string, Agent> = new Map();
 
     constructor(private readonly sessionId: string) {
     }
 
-    /**
-     * Initializes an agent using the provided factory and adds it to the orchestrator.
-     * @param factory The factory to use for creating the agent
-     * @param name The name of the agent
-     * @param communicationWhitelist Optional whitelist of agent names this agent can communicate with
-     * @param additionalPlugins Optional additional plugins to add to the agent
-     * @returns The created agent
-     */
-    async initializeAgent(
-        factory: AgentFactory,
-        name: string,
-        communicationWhitelist?: string[] | boolean
-    ): Promise<Agent> {
-        let whitelist = undefined;
-        if (Array.isArray(communicationWhitelist)) {
-            whitelist = communicationWhitelist;
-        }
-
-        const helpersPlugin = new HelpersPluginFactory({
-            name: name,
-            helperSingleton: this.agentManager,
-            communicationWhitelist: whitelist ?? null,
-            destinationAgentFieldName: DESTINATION_AGENT_ATTRIBUTE
-        });
-
-        const agent = await factory.create(name, [helpersPlugin]);
+    async initializeAgent(factory: AgentFactory, name: string): Promise<Agent> {
+        const agent = await factory.create(name, []);
         this.agentManager.set(name.trim(), agent);
         return agent;
     }
 
-    build(currentAgent: Agent) {
-        return new MultiAgentCommunicationOrchestrator(this.agentManager, currentAgent, this.sessionId);
+    build(principalAgent: Agent) {
+        return new MultiAgentCommunicationOrchestrator(this.agentManager, principalAgent, this.sessionId);
     }
 }
 
+/**
+ * Principal-only agent runtime.
+ *
+ * The historical class name remains during the migration, but this no longer
+ * performs peer-agent routing. A session has one user-facing principal agent;
+ * future sub-agent work should be modeled as plugin/runtime tasks.
+ */
 export class MultiAgentCommunicationOrchestrator {
-    public currentAgent: Agent;
-    private agentStack: Agent[] = [];
+    public readonly currentAgent: Agent;
 
-    constructor(private readonly agentManager: ReadonlyMap<string, Agent>, currentAgent: Agent, private readonly sessionId: string) {
-        this.currentAgent = currentAgent;
+    constructor(
+        private readonly agentManager: ReadonlyMap<string, Agent>,
+        principalAgent: Agent,
+        private readonly sessionId: string
+    ) {
+        this.currentAgent = principalAgent;
     }
 
     getCurrentAgent() {
@@ -147,30 +121,30 @@ export class MultiAgentCommunicationOrchestrator {
         message: InputAgentMessage | null;
         abortSignal?: AbortSignal;
     }, sessionId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
-        return yield* this.doInvocation((agent) => agent.call({ message: args.message, requestAttributes: undefined, sessionId: sessionId, abortSignal: args.abortSignal }), args.abortSignal);
+        return yield* this.doInvocation((agent) => agent.call({
+            message: args.message,
+            requestAttributes: undefined,
+            sessionId,
+            abortSignal: args.abortSignal
+        }));
     }
 
     async* handleCommand(args: {
         command: CommandRequest;
         abortSignal?: AbortSignal;
     }, sessionId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
-        return yield* this.doInvocation((agent) => agent.handleCommand({ command: args.command, sessionId: sessionId, abortSignal: args.abortSignal }), args.abortSignal);
+        return yield* this.doInvocation((agent) => agent.handleCommand({
+            command: args.command,
+            sessionId,
+            abortSignal: args.abortSignal
+        }));
     }
 
-    async hydrateConversation(hydrationEvents: AgentHydrationEventWithAgent[], agentManager: ReadonlyMap<string, { name: string }>): Promise<HydratedOrchestratorEvent[]> {
-
-
+    async hydrateConversation(hydrationEvents: AgentHydrationEventWithAgent[]): Promise<HydratedOrchestratorEvent[]> {
         hydrationEvents.sort((left, right) => this.compareHydrationEvents(left, right));
-        const agentStack: { name: string }[] = [];
-        let currentAgent: { name: string } | undefined = undefined;
 
         const replayed: HydratedOrchestratorEvent[] = [];
         for (const event of hydrationEvents) {
-            const sourceAgent = agentManager.get(event.agentName);
-            if (sourceAgent) {
-                currentAgent = { name: event.agentName };
-            }
-
             if (event.type === "userMessage") {
                 replayed.push({
                     type: "userMessage",
@@ -188,10 +162,9 @@ export class MultiAgentCommunicationOrchestrator {
                     agentName: event.agentName,
                     value: {
                         type: "toolRequest",
-                        destinationAgent: agentStack.at(-1)?.name,
                         callingAgent: event.agentName,
-                        ...event.output,
-                    },
+                        ...event.output
+                    }
                 });
                 continue;
             }
@@ -203,49 +176,20 @@ export class MultiAgentCommunicationOrchestrator {
                     value: {
                         type: "intermediateOutput",
                         agentName: event.agentName,
-                        value: event.output
+                        value: convertIntermediateAgentMessage(event.output)
                     }
                 });
                 continue;
             }
 
-            const routedMessage = this.routeAgentResponse(
-                {
-                    type: "agentResponse",
-                    checkpointId: event.checkpointId,
-                    output: event.output,
-                    responseAttributes: event.responseAttributes,
-                },
-                currentAgent!,
-                agentStack, agentManager
-            );
-            const messageSourceAgent = currentAgent!.name;
-            currentAgent = routedMessage.currentAgent;
-
-            if (routedMessage.conversationComplete) {
-                replayed.push({
-                    type: "result",
-                    timestamp: event.timestamp,
-                    agentName: messageSourceAgent,
-                    value: {
-                        type: "agentResponse",
-                        content: event.output,
-                    },
-                });
-                continue;
-            }
-
             replayed.push({
-                type: "intermediate",
+                type: "result",
                 timestamp: event.timestamp,
+                agentName: event.agentName,
                 value: {
-                    type: "agentToAgentMessage",
-                    value: {
-                        content: event.output,
-                        destinationAgent: currentAgent.name,
-                        sourceAgent: messageSourceAgent,
-                    },
-                },
+                    type: "agentResponse",
+                    content: event.output
+                }
             });
         }
 
@@ -270,144 +214,52 @@ export class MultiAgentCommunicationOrchestrator {
         return left.sequence - right.sequence;
     }
 
-    private async* doInvocation(msg: AgentInvoke, abortSignal?: AbortSignal): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
-        let pendingMessage: PendingMessage | undefined = undefined;
-        while (true) {
+    private async* doInvocation(msg: AgentInvoke): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
+        const generator = msg(this.currentAgent);
+        let result: IteratorResult<IntermediateAgentMessage, {
+            message: AgentResponse;
+        }>;
 
-            let generator = pendingMessage
-                ? this.currentAgent.call({
-                    sessionId: this.sessionId,
-                    requestAttributes: { "messageFromAgent": pendingMessage.fromAgent },
-                    message: {
-                        ...pendingMessage.content,
-                        content: [
-                            {
-                                type: "text",
-                                text: pendingMessage.fromAgent ? `This message is from ${pendingMessage.fromAgent}:\n` : "",
-                            },
-                            ...pendingMessage.content.content,
-                        ]
-                    },
-                    noMessagesInTool: true,
-                    abortSignal: abortSignal
-                })
-                : msg(this.currentAgent);
-
-
-            let result: IteratorResult<IntermediateAgentMessage, {
-                message: AgentResponse;
-            }>;
-            while (!(result = await generator.next()).done) {
-                const intermediateOutputType = convertIntermediateAgentMessage(result.value, this.agentStack.at(-1)?.name);
-                yield {
-                    type: "intermediateOutput",
-                    agentName: this.currentAgent.name,
-                    value: intermediateOutputType
-                };
-            }
-            let graphResponse: AgentResponse = result.value.message;
-
-            if (graphResponse.type == "agentResponse") {
-                const sourceAgent = this.currentAgent.name;
-                const routedMessage: {
-                    conversationComplete: boolean,
-                    currentAgent: Agent,
-                    pendingMessage: PendingMessage | undefined
-                } = this.routeAgentResponse(graphResponse, this.currentAgent, this.agentStack, this.agentManager);
-                this.currentAgent = routedMessage.currentAgent;
-                if (routedMessage.conversationComplete) {
-                    return {
-                        type: "agentResponse",
-                        content: graphResponse.output,
-                    };
-                } else {
-                    pendingMessage = routedMessage.pendingMessage;
-                    yield {
-                        type: "agentToAgentMessage",
-                        value: {
-                            content: graphResponse.output,
-                            destinationAgent: this.currentAgent.name,
-                            sourceAgent: sourceAgent!,
-                        }
-                    }
-                }
-            } else {
-                return {
-                    type: "toolRequest",
-                    callingAgent: this.currentAgent.name,
-                    destinationAgent: this.agentStack.at(-1)?.name,
-                    ...graphResponse.output,
-                }
-            }
-        }
-    }
-
-    private routeAgentResponse<T extends { name: string; }>(graphResponse: AgentUserMessageResponse, currentAgent: T, agentStack: T[], agentList: ReadonlyMap<string, T>): {
-        conversationComplete: boolean,
-        currentAgent: T,
-        pendingMessage: PendingMessage | undefined
-    } {
-
-        const destinationAgentName = graphResponse.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE];
-        if (destinationAgentName && (agentStack.length === 0 || destinationAgentName !== agentStack.at(-1)?.name)) {
-
-            const newAgent = agentList.get(destinationAgentName);
-            if (!newAgent) {
-                return {
-                    conversationComplete: false,
-                    currentAgent: currentAgent,
-                    pendingMessage: {
-                        toAgent: destinationAgentName,
-                        fromAgent: currentAgent.name,
-                        content: {
-                            content: [
-                                { type: "text", text: `Agent ${destinationAgentName} does not exist.` }
-                            ]
-                        },
-                    }
-                };
-            }
-            agentStack.push(currentAgent);
-            return {
-                conversationComplete: false,
-                currentAgent: newAgent,
-                pendingMessage: {
-                    toAgent: newAgent.name,
-                    fromAgent: currentAgent.name,
-                    content: graphResponse.output
-                }
+        while (!(result = await generator.next()).done) {
+            yield {
+                type: "intermediateOutput",
+                agentName: this.currentAgent.name,
+                value: convertIntermediateAgentMessage(result.value)
             };
         }
 
-        const isFinalUser = agentStack.length === 0;
-        const newCurrentAgent = isFinalUser ? currentAgent : agentStack.pop()!;
+        const graphResponse = result.value.message;
+        if (graphResponse.type === "agentResponse") {
+            return {
+                type: "agentResponse",
+                content: graphResponse.output
+            };
+        }
+
         return {
-            conversationComplete: isFinalUser,
-            currentAgent: newCurrentAgent,
-            pendingMessage: {
-                toAgent: undefined,
-                fromAgent: currentAgent.name,
-                content: graphResponse.output,
-            }
+            type: "toolRequest",
+            callingAgent: this.currentAgent.name,
+            ...graphResponse.output
         };
     }
 }
 
-function convertIntermediateAgentMessage(intermediateAgentMessage: IntermediateAgentMessage, agentName: string | undefined): IntermediateOutputType {
+function convertIntermediateAgentMessage(intermediateAgentMessage: IntermediateAgentMessage): IntermediateOutputType {
     if (intermediateAgentMessage.type === "toolResponse") {
         return {
             type: "toolResponse",
             id: intermediateAgentMessage.id,
             toolResponse: intermediateAgentMessage.toolResponse
-        }
+        };
     }
+
     if (intermediateAgentMessage.type === "messageChunk") {
         return {
             type: "messageChunk",
             id: intermediateAgentMessage.id,
-            destinationAgent: intermediateAgentMessage.responseAttributes?.[DESTINATION_AGENT_ATTRIBUTE] ?? agentName,
-            content: intermediateAgentMessage.content,
-        }
+            content: intermediateAgentMessage.content
+        };
     }
-    throw new Error(`Unknown intermediate agent message type: ${(intermediateAgentMessage as any).type}`);
+
+    throw new Error(`Unknown intermediate agent message type: ${(intermediateAgentMessage as { type?: string }).type}`);
 }

@@ -18,10 +18,10 @@ Out of scope for this document set:
 ## High-level runtime topology
 
 ```text
-User (CLI/Discord/LG request)
-   -> Runtime app (agent-mimir-cli | agent-mimir-discord | lg-server)
+User request
+   -> Runtime app
       -> OrchestratorBuilder / MultiAgentCommunicationOrchestrator
-         -> One or more LanggraphAgent instances
+         -> Principal LanggraphAgent instance
             -> StateGraph workflow (LLM node + review node + tool/code node)
                -> Plugins (context, tools, attributes, commands)
                -> Workspace (filesystem-backed by default)
@@ -51,14 +51,17 @@ There are two main agent implementations:
   - Uses XML-tagged code output (`<execution-code>`, `<pip-dependencies-to-install>`)
   - Executes Python through a `CodeToolExecutor`
 
-### 3) Multi-agent orchestration
+### 3) Principal-agent orchestration
 
 `agent-core/src/communication/multi-agent.ts` manages:
 
-- agent registry
-- helper plugin injection per agent (for agent-to-agent messaging)
-- routing between agents based on response attribute `destinationAgent`
+- principal agent creation
 - forwarding intermediate outputs and final responses
+- reset/shutdown for created agent instances
+
+The previous peer-agent communication model has been removed. Sub-agent
+execution is intended to move into plugin/runtime capabilities instead of core
+agent routing.
 
 ### 4) Plugin system
 
@@ -119,7 +122,7 @@ Utility conversion between internal model and LangChain message content is centr
 These patterns are consistent across current implementations:
 
 - Orchestration and execution are separated:
-  - orchestration in `MultiAgentCommunicationOrchestrator`
+  - principal orchestration in `MultiAgentCommunicationOrchestrator`
   - execution in `LanggraphAgent` graphs
 - Plugins are first-class extension points for:
   - tools

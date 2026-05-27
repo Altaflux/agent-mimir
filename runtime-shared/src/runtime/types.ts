@@ -21,7 +21,6 @@ export type AgentDefinition = {
             conversationTokenThreshold?: number;
         };
         langChainTools?: StructuredTool[];
-        communicationWhitelist?: string[] | boolean;
     };
 };
 

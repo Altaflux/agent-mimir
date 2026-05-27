@@ -4,7 +4,7 @@ import { type SessionEvent } from "@/lib/contracts";
 import { formatTime } from "@/lib/api";
 import { Bot, User, Wrench, Zap } from "lucide-react";
 import { MarkdownContent } from "@/components/chat/markdown";
-import { CollapsibleSection, DownloadLinks, ScrollableCodeBlock, CopyButton, ExpandableMessage } from "@/components/chat/shared";
+import { CollapsibleSection, DownloadLinks, ScrollableCodeBlock, CopyButton } from "@/components/chat/shared";
 
 /** Renders a single session event as the appropriate message bubble / section. */
 export function MessageEvent({ event }: { event: SessionEvent }) {
@@ -48,27 +48,14 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                 </div>
                 <div className="min-w-0 flex-1 group">
                     <div className="flex items-center gap-2 mb-1">
-                        {event.destinationAgent ? (
-                            <span className="text-xs font-medium text-muted-foreground">{event.agentName} <span className="text-[10px] text-emerald-500/80 mx-1">→</span> {event.destinationAgent}</span>
-                        ) : (
-                            <span className="text-xs font-medium text-muted-foreground">{event.agentName}</span>
-                        )}
+                        <span className="text-xs font-medium text-muted-foreground">{event.agentName}</span>
                         <span className="text-[10px] text-muted-foreground/60">{formatTime(event.timestamp)}</span>
                         <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
                             <CopyButton text={event.markdown} />
                         </div>
                     </div>
-                    {event.destinationAgent ? (
-                        <ExpandableMessage>
-                            <MarkdownContent>{event.markdown}</MarkdownContent>
-                            <DownloadLinks files={event.attachments} />
-                        </ExpandableMessage>
-                    ) : (
-                        <>
-                            <MarkdownContent>{event.markdown}</MarkdownContent>
-                            <DownloadLinks files={event.attachments} />
-                        </>
-                    )}
+                    <MarkdownContent>{event.markdown}</MarkdownContent>
+                    <DownloadLinks files={event.attachments} />
                 </div>
             </div>
         );
@@ -83,20 +70,10 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                 </div>
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                        {event.destinationAgent ? (
-                            <span className="text-xs font-medium text-muted-foreground">{event.agentName} <span className="text-[10px] text-emerald-500/80 mx-1">→</span> {event.destinationAgent}</span>
-                        ) : (
-                            <span className="text-xs font-medium text-muted-foreground">{event.agentName}</span>
-                        )}
+                        <span className="text-xs font-medium text-muted-foreground">{event.agentName}</span>
                         <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-pulse-glow" title="Streaming..." />
                     </div>
-                    {event.destinationAgent ? (
-                        <ExpandableMessage isStreaming={true}>
-                            <MarkdownContent>{event.markdownChunk}</MarkdownContent>
-                        </ExpandableMessage>
-                    ) : (
-                        <MarkdownContent>{event.markdownChunk}</MarkdownContent>
-                    )}
+                    <MarkdownContent>{event.markdownChunk}</MarkdownContent>
                 </div>
             </div>
         );
@@ -174,30 +151,6 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                             })}
                         </div>
                     </CollapsibleSection>
-                </div>
-            </div>
-        );
-    }
-
-    /* ── Agent-to-Agent ───────────── */
-    if (event.type === "agent_to_agent") {
-        return (
-            <div className="flex items-start gap-3 animate-msg-in">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
-                    <Bot className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <div className="min-w-0 flex-1 group">
-                    <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-medium text-muted-foreground">{event.sourceAgent} <span className="text-[10px] text-emerald-500/80 mx-1">→</span> {event.destinationAgent}</span>
-                        <span className="text-[10px] text-muted-foreground/60">{formatTime(event.timestamp)}</span>
-                        <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-                            <CopyButton text={event.message} />
-                        </div>
-                    </div>
-                    <ExpandableMessage>
-                        <MarkdownContent>{event.message}</MarkdownContent>
-                        <DownloadLinks files={event.attachments} />
-                    </ExpandableMessage>
                 </div>
             </div>
         );

@@ -17,8 +17,6 @@ import type {
     ResetSessionResponse,
     SendMessageResponse,
     SessionEvent,
-    SetActiveAgentRequest,
-    SetActiveAgentResponse,
     ToggleContinuousModeRequest,
     ToggleContinuousModeResponse,
     StopSessionResponse
@@ -32,7 +30,7 @@ import {
     type UploadLimits
 } from "@mimir/runtime-shared/runtime/session-manager";
 import { HttpError, toHttpError } from "@mimir/runtime-shared/runtime/errors";
-import { requireBoolean, requireString } from "@mimir/runtime-shared/runtime/validators";
+import { requireBoolean } from "@mimir/runtime-shared/runtime/validators";
 
 const HEARTBEAT_MS = 15000;
 const DEFAULT_MAX_MULTIPART_FIELDS = 50;
@@ -220,13 +218,6 @@ function enrichSessionEventForClient(event: SessionEvent, publicApiBasePath: str
         };
     }
 
-    if (event.type === "agent_to_agent") {
-        return {
-            ...event,
-            attachments: withAttachmentLinks(event.attachments, event.sessionId, publicApiBasePath)
-        };
-    }
-
     return event;
 }
 
@@ -328,7 +319,7 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
 
             api.post("/sessions", async (request, reply) => {
                 const payload = (request.body ?? {}) as CreateSessionRequest;
-                const session = await sessionManager.createSession(payload.name);
+                const session = await sessionManager.createSession(payload.name, payload.agentName);
                 const response: CreateSessionResponse = { session };
                 reply.status(201).send(response);
             });
@@ -356,14 +347,6 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
                 const enabled = requireBoolean(payload.enabled, "enabled");
                 const session = await sessionManager.setContinuousMode(request.params.sessionId, enabled);
                 const response: ToggleContinuousModeResponse = { session };
-                reply.send(response);
-            });
-
-            api.post<{ Params: { sessionId: string } }>("/sessions/:sessionId/active-agent", async (request, reply) => {
-                const payload = request.body as SetActiveAgentRequest;
-                const agentName = requireString(payload.agentName, "agentName");
-                const session = await sessionManager.setActiveAgent(request.params.sessionId, agentName);
-                const response: SetActiveAgentResponse = { session };
                 reply.send(response);
             });
 

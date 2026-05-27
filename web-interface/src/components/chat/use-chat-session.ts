@@ -2,12 +2,12 @@
 
 import {
     type ApprovalRequest,
+    type BootstrapResponse,
     type CreateSessionResponse,
     type ListSessionsResponse,
     type SessionEvent,
     type SessionState,
     type SessionSummary,
-    type SetActiveAgentResponse,
     type ToggleContinuousModeResponse
 } from "@/lib/contracts";
 import { apiErrorCode, apiErrorMessage, type EventMap, isChatImageFile, type StateMap } from "@/lib/api";
@@ -22,6 +22,8 @@ export function useChatSession() {
     const [sessionStates, setSessionStates] = useState<StateMap>({});
     const [eventsBySession, setEventsBySession] = useState<EventMap>({});
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+    const [availableAgentNames, setAvailableAgentNames] = useState<string[]>([]);
+    const [defaultMainAgent, setDefaultMainAgent] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -82,14 +84,6 @@ export function useChatSession() {
                     return { ...current, [event.sessionId]: [...filtered, event] };
                 }
 
-                if (event.type === "agent_to_agent") {
-                    const filtered = event.messageId
-                        ? existing.filter((e) => !(e.type === "agent_response_chunk" && e.messageId === event.messageId))
-                        : existing;
-                    if (filtered.some((e) => e.id === event.id)) return current;
-                    return { ...current, [event.sessionId]: [...filtered, event] };
-                }
-
                 if (event.type === "tool_response") {
                     const msgId = event.messageId;
                     const filtered = msgId
@@ -121,7 +115,6 @@ export function useChatSession() {
                             timestamp: event.timestamp,
                             type: "agent_response",
                             agentName: event.payload.callingAgent,
-                            destinationAgent: event.destinationAgent,
                             messageId: msgId ?? `${event.id}_msg`,
                             markdown: event.payload.content,
                             attachments: []
@@ -145,6 +138,21 @@ export function useChatSession() {
     );
 
     /* ── API calls ───────────────────────────────────── */
+
+    const refreshBootstrap = useCallback(async () => {
+        const response = await fetch("/api/bootstrap", {
+            method: "GET",
+            cache: "no-store",
+            headers: { "Cache-Control": "no-cache" }
+        });
+        const payload = (await response.json()) as BootstrapResponse | { error?: { message?: string } };
+        if (!response.ok) throw new Error(apiErrorMessage(payload, "Unable to load bootstrap configuration."));
+
+        const success = payload as BootstrapResponse;
+        setAvailableAgentNames(success.availableAgentNames);
+        setDefaultMainAgent(success.defaultMainAgent);
+        return success;
+    }, []);
 
     const refreshSessions = useCallback(async () => {
         const response = await fetch("/api/sessions", {
@@ -209,7 +217,7 @@ export function useChatSession() {
         (async () => {
             setIsLoading(true);
             try {
-                const latest = await refreshSessions();
+                const [, latest] = await Promise.all([refreshBootstrap(), refreshSessions()]);
                 if (latest.length === 0) {
                     setActiveSessionId(null);
                 } else {
@@ -223,7 +231,7 @@ export function useChatSession() {
                 setIsLoading(false);
             }
         })();
-    }, [refreshSessions]);
+    }, [refreshBootstrap, refreshSessions]);
 
     /* ── SSE stream ──────────────────────────────────── */
 
@@ -260,11 +268,14 @@ export function useChatSession() {
     /* ── Action: create session ──────────────────────── */
 
     const createSession = useCallback(
-        async (name?: string) => {
+        async (name?: string, agentName?: string) => {
             const response = await fetch("/api/sessions", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: name?.trim() || undefined })
+                body: JSON.stringify({
+                    name: name?.trim() || undefined,
+                    agentName: agentName?.trim() || undefined
+                })
             });
             const payload = (await response.json()) as CreateSessionResponse | { error?: { message?: string } };
             if (!response.ok) throw new Error(apiErrorMessage(payload, "Unable to create a new session."));
@@ -372,31 +383,6 @@ export function useChatSession() {
         [activeSessionId, recoverFromSessionNotFoundResponse, upsertSessionState]
     );
 
-    /* ── Action: set active agent ────────────────────── */
-
-    const setActiveAgent = useCallback(
-        async (agentName: string) => {
-            if (!activeSessionId) return;
-            setErrorMessage(null);
-            try {
-                const response = await fetch(`/api/sessions/${activeSessionId}/active-agent`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ agentName })
-                });
-                const payload = (await response.json()) as SetActiveAgentResponse | { error?: { message?: string } };
-                if (!response.ok) {
-                    if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) return;
-                    throw new Error(apiErrorMessage(payload, "Failed to switch active agent."));
-                }
-                upsertSessionState((payload as SetActiveAgentResponse).session);
-            } catch (error) {
-                setErrorMessage(error instanceof Error ? error.message : "Failed to switch active agent.");
-            }
-        },
-        [activeSessionId, recoverFromSessionNotFoundResponse, upsertSessionState]
-    );
-
     /* ── Action: reset session ───────────────────────── */
 
     const resetSession = useCallback(async () => {
@@ -486,6 +472,8 @@ export function useChatSession() {
         activeSessionId,
         activeState,
         activeEvents,
+        availableAgentNames,
+        defaultMainAgent,
         isLoading,
         isSubmitting,
         errorMessage,
@@ -500,7 +488,6 @@ export function useChatSession() {
         sendMessage,
         submitApproval,
         setContinuousMode,
-        setActiveAgent,
         resetSession,
         stopSession,
         deleteSession
