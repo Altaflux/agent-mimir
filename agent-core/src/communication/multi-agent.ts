@@ -7,6 +7,7 @@ import {
     CommandRequest,
     InputAgentMessage,
     IntermediateAgentMessage,
+    OutputAgentMessage,
     ToolResponseInfo
 } from "../agent-manager/index.js";
 import { ComplexMessageContent } from "../schema.js";
@@ -42,7 +43,7 @@ export type AgentToolRequestTwo = AgentMessageToolRequest & {
 };
 
 export type AgentUserMessage = {
-    content: InputAgentMessage;
+    content: OutputAgentMessage;
 };
 
 export type AgentHydrationEventWithAgent = AgentHydrationEvent & {
@@ -54,6 +55,7 @@ export type HydratedOrchestratorEvent = {
     type: "userMessage";
     timestamp: string;
     sourceAgent: string;
+    messageId?: string;
     requestAttributes: Record<string, any>;
     value: InputAgentMessage;
 } | {
@@ -152,6 +154,7 @@ export class MultiAgentCommunicationOrchestrator {
                     type: "userMessage",
                     timestamp: event.timestamp,
                     sourceAgent: event.agentName,
+                    messageId: event.messageId,
                     requestAttributes: event.requestAttributes ?? {},
                     value: event.content
                 });

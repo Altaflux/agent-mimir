@@ -90,7 +90,6 @@ describe("Plugin runtime context", () => {
                 value: "hello"
             },
             {
-                taskId: "task-1",
                 toolCallId: "tool-call-1",
                 toolName: "capturing_tool",
                 emitEvent: () => {
@@ -101,7 +100,6 @@ describe("Plugin runtime context", () => {
 
         expect(response).toEqual([{ type: "text", text: "hello" }]);
         expect(tool.context).toMatchObject({
-            taskId: "task-1",
             toolCallId: "tool-call-1",
             toolName: "capturing_tool"
         });
@@ -110,7 +108,7 @@ describe("Plugin runtime context", () => {
     it("uses bound plugin runtime providers for tool-scoped event emission", async () => {
         const emitted: Array<{
             pluginName: string;
-            context: Pick<ToolCallRuntimeContext, "taskId" | "toolCallId" | "toolName">;
+            context: Pick<ToolCallRuntimeContext, "toolCallId" | "toolName">;
             input: Parameters<ToolCallRuntimeContext["emitEvent"]>[0];
         }> = [];
         const pluginRuntime: PluginRuntimeProvider = {
@@ -137,7 +135,6 @@ describe("Plugin runtime context", () => {
                 value: "hello"
             },
             {
-                taskId: "task-1",
                 toolCallId: "tool-call-1",
                 toolName: "event_tool"
             }
@@ -147,7 +144,6 @@ describe("Plugin runtime context", () => {
             {
                 pluginName: "event-plugin",
                 context: {
-                    taskId: "task-1",
                     toolCallId: "tool-call-1",
                     toolName: "event_tool"
                 },

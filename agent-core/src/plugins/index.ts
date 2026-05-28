@@ -72,10 +72,12 @@ export type PluginRuntimeEventInput = {
     body: PluginRuntimeEventBody;
 };
 
+export type PluginNotificationContent = InputAgentMessage;
+
 export type PluginNotificationInput = {
     title: string;
     message?: string;
-    content: InputAgentMessage;
+    content: PluginNotificationContent;
 };
 
 export type PluginNotification = {
@@ -85,7 +87,7 @@ export type PluginNotification = {
     createdAt: number;
     title: string;
     message?: string;
-    content: InputAgentMessage;
+    content: PluginNotificationContent;
     read: boolean;
 };
 

@@ -23,14 +23,39 @@ export type SessionPluginRuntimeSink = {
     emitStateChanged(): void;
 };
 
+export type SessionPluginRuntimePersistence = {
+    saveNotification(notification: PluginNotification, anchorTaskId: string | null): void;
+    markNotificationsRead(notificationIds: string[], readAt: number): void;
+    clearNotifications(): void;
+};
+
+export type SessionPluginRuntimeAccessors = {
+    getCurrentTaskId(): string;
+    getNotificationAnchorTaskId(): string | null;
+    persistence?: SessionPluginRuntimePersistence;
+};
+
 export class SessionPluginRuntimeController implements PluginRuntimeProvider {
     private sink: SessionPluginRuntimeSink | undefined;
     private bufferedEvents: SessionPluginRuntimeEvent[] = [];
     private notifications: PluginNotification[] = [];
+    private persistedNotificationIds = new Set<string>();
+    private accessors: SessionPluginRuntimeAccessors = {
+        getCurrentTaskId: () => "standalone",
+        getNotificationAnchorTaskId: () => null
+    };
 
     constructor(
-        private readonly agentName: string
+        private readonly agentName: string,
+        initialNotifications: PluginNotification[] = []
     ) {
+        this.notifications = [...initialNotifications];
+        this.persistedNotificationIds = new Set(initialNotifications.map((notification) => notification.id));
+    }
+
+    configure(accessors: SessionPluginRuntimeAccessors): void {
+        this.accessors = accessors;
+        this.persistUnstoredNotifications();
     }
 
     attach(sink: SessionPluginRuntimeSink): void {
@@ -85,6 +110,7 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
         }
 
         if (changed) {
+            this.accessors.persistence?.markNotificationsRead(notificationIds, Date.now());
             this.sink?.emitStateChanged();
         }
     }
@@ -95,13 +121,15 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
         }
 
         this.notifications = [];
+        this.persistedNotificationIds.clear();
+        this.accessors.persistence?.clearNotifications();
         this.sink?.emitStateChanged();
     }
 
     private emitToolCallEvent(pluginName: string, source: ToolCallRuntimeSource, input: PluginRuntimeEventInput): void {
         this.emitRuntimeEvent({
             type: "plugin_event",
-            taskId: source.taskId,
+            taskId: this.accessors.getCurrentTaskId(),
             toolCallId: source.toolCallId,
             toolName: source.toolName,
             pluginName,
@@ -124,6 +152,7 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
         };
 
         this.notifications.push(notification);
+        this.persistNotification(notification, this.accessors.getNotificationAnchorTaskId());
         this.emitRuntimeEvent({
             type: "plugin_notification",
             notificationId: notification.id,
@@ -135,6 +164,26 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
         });
         this.sink?.emitStateChanged();
         return notification;
+    }
+
+    private persistUnstoredNotifications(): void {
+        if (!this.accessors.persistence) {
+            return;
+        }
+
+        const anchorTaskId = this.accessors.getNotificationAnchorTaskId();
+        for (const notification of this.notifications) {
+            this.persistNotification(notification, anchorTaskId);
+        }
+    }
+
+    private persistNotification(notification: PluginNotification, anchorTaskId: string | null): void {
+        if (!this.accessors.persistence || this.persistedNotificationIds.has(notification.id)) {
+            return;
+        }
+
+        this.accessors.persistence.saveNotification(notification, anchorTaskId);
+        this.persistedNotificationIds.add(notification.id);
     }
 
     private emitRuntimeEvent(event: SessionPluginRuntimeEvent): void {

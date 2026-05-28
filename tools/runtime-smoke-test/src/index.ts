@@ -120,6 +120,18 @@ class RuntimeSmokeTestTool extends AgentTool {
                 ]
             }
         });
+        const notification2 = await this.runtime.notifications.enqueue({
+            title: "Second notification",
+            message: "Second notification",
+            content: {
+                content: [
+                    {
+                        type: "text",
+                        text: "Second notification",
+                    }
+                ]
+            }
+        });
 
         return [
             {

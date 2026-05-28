@@ -43,12 +43,10 @@ export const pythonToolNodeFunction = (
         const toolCall = (message.tool_calls ?? []).find(t => t.name === "CODE_EXECUTION")!;
         const pythonScript: string = toolCall.args["script"]!;
         const libraries: string[] = toolCall.args["libraries"]!;
-        const taskId = getTaskIdFromState(input);
-
         const toolResponses = new Map<string, ToolOutput>();
 
         const result = await executor.execute(tools, pythonScript, libraries, (wsUrl, tools) => {
-            toolHandler(wsUrl, tools, toolResponses, taskId)
+            toolHandler(wsUrl, tools, toolResponses)
         });
 
         const messageContent = splitByToolResponse(result)
@@ -94,7 +92,7 @@ export const pythonToolNodeFunction = (
 
 
 
-export async function toolHandler(url: string, tools: AgentTool[], toolResponses: Map<string, ToolOutput>, taskId: string) {
+export async function toolHandler(url: string, tools: AgentTool[], toolResponses: Map<string, ToolOutput>) {
     let ws = new WebSocket(url, { perMessageDeflate: false });
     ws.on('open', function open(dc: any, f: any) {
         ws.on('message', async function (data: any) {
@@ -114,7 +112,6 @@ export async function toolHandler(url: string, tools: AgentTool[], toolResponses
                 let output = await tool.invoke(
                     parsedData.request.arguments,
                     {
-                        taskId,
                         toolCallId: parsedData.request.call_id,
                         toolName: parsedData.request.method
                     }
@@ -152,14 +149,6 @@ export async function toolHandler(url: string, tools: AgentTool[], toolResponses
     ws.on('close', function (event) {
         console.log('WebSocket closed:', event);
     });
-}
-
-function getTaskIdFromState(input: typeof MessagesAnnotation.State): string {
-    const requestAttributes = (Array.isArray(input)
-        ? undefined
-        : (input as { requestAttributes?: Record<string, unknown> }).requestAttributes) ?? {};
-    const taskId = requestAttributes["mimirTaskId"];
-    return typeof taskId === "string" && taskId.length > 0 ? taskId : "unknown-task";
 }
 
 type PythonFunctionRequest = {

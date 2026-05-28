@@ -19,7 +19,10 @@ export type MessageContentToolUse = {
  */
 export type AgentMessageToolRequest = { toolCalls: MessageContentToolUse[] } & OutputAgentMessage;
 
-export type OutputAgentMessage = { id: string } & InputAgentMessage
+export type OutputAgentMessage = InputAgentMessage & {
+    /** Unique message identifier assigned by the agent implementation. */
+    id: string
+}
 /**
  * Represents an input message to an agent.
  * Contains the message content and optional shared files.
@@ -65,6 +68,7 @@ export interface Agent {
     call: (args: {
         message: InputAgentMessage | null,
         sessionId: string,
+        checkpointId?: string,
         noMessagesInTool?: boolean,
         requestAttributes?: Record<string, unknown>,
         abortSignal?: AbortSignal
@@ -119,7 +123,7 @@ export type AgentUserMessageResponse = {
     /** Identifies this as an agent response */
     type: "agentResponse",
     /** The message content */
-    output: OutputAgentMessage, //TODO THIS IS MISSING AND ID
+    output: OutputAgentMessage,
     /** Additional attributes for the response */
     responseAttributes: Record<string, string>
 }
@@ -133,6 +137,7 @@ export type AgentHydrationEvent = {
     type: "userMessage",
     timestamp: string,
     checkpointId: string,
+    messageId?: string,
     content: InputAgentMessage,
     requestAttributes: Record<string, any>
 } | {

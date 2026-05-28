@@ -59,6 +59,7 @@ export async function readHydrationEvents(args: { sessionId: string; name: strin
                     type: "userMessage",
                     timestamp,
                     checkpointId,
+                    messageId,
                     content: {
                         content,
                         sharedFiles

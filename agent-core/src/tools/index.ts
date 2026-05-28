@@ -39,7 +39,6 @@ export type StructuredToolCallInput<
   ;
 
 export type ToolCallRuntimeSource = {
-    taskId: string;
     toolCallId: string;
     toolName: string;
 };
@@ -67,7 +66,6 @@ function isToolCallRuntimeContext(value: ToolCallRuntimeContext | ToolCallRuntim
 
 function createNoopToolCallRuntimeContext(toolName: string, source?: Partial<ToolCallRuntimeSource>): ToolCallRuntimeContext {
     return {
-        taskId: source?.taskId ?? "standalone",
         toolCallId: source?.toolCallId ?? "standalone",
         toolName: source?.toolName ?? toolName,
         emitEvent() {

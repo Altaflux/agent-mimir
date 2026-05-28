@@ -28,7 +28,7 @@ import crypto from "crypto";
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
-import { SessionStore } from "./session-store.js";
+import { SessionStore, type StoredPluginRuntimeEvent } from "./session-store.js";
 import { BaseCheckpointSaver } from "@langchain/langgraph";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import Database from "better-sqlite3";
@@ -102,7 +102,7 @@ type SessionRuntime = {
     agentNames: string[];
     orchestrator: MultiAgentCommunicationOrchestrator;
     pluginRuntime: SessionPluginRuntimeController;
-    activeTaskId: string | null;
+    currentTaskId: string | null;
     pendingToolRequest: AgentToolRequestTwo | null;
     eventBuffer: SessionEvent[];
     subscribers: Set<SessionListener>;
@@ -244,10 +244,28 @@ export class SessionManager {
                     this.store = new SessionStore();
                     await this.store.init(configuredRoot);
                     const nameMap = this.store.getAllNames();
+                    const pluginActivity = this.store.getPluginSessionActivity();
 
                     for (const persistedSession of persistedSessions) {
                         persistedSession.name = nameMap.get(persistedSession.sessionId) ?? null;
                         this.discoveredSessions.set(persistedSession.sessionId, persistedSession);
+                    }
+
+                    for (const [sessionId, activity] of pluginActivity) {
+                        const existing = this.discoveredSessions.get(sessionId);
+                        if (existing) {
+                            existing.earliestTimestampMs = Math.min(existing.earliestTimestampMs, activity.earliestTimestampMs);
+                            existing.latestTimestampMs = Math.max(existing.latestTimestampMs, activity.latestTimestampMs);
+                            continue;
+                        }
+
+                        this.discoveredSessions.set(sessionId, {
+                            sessionId,
+                            earliestTimestampMs: activity.earliestTimestampMs,
+                            latestTimestampMs: activity.latestTimestampMs,
+                            discoveredAgents: new Set<string>(),
+                            name: nameMap.get(sessionId) ?? null
+                        });
                     }
                 } catch (error) {
                     console.error("Session discovery failed.", error);
@@ -416,7 +434,11 @@ export class SessionManager {
         if (!principalAgentName) {
             throw new HttpError(500, "INVALID_CONFIG", "No principal agent found in configuration.");
         }
-        const pluginRuntime = new SessionPluginRuntimeController(principalAgentName);
+        const storedNotifications = this.store?.listPluginNotifications(persistedSession.sessionId) ?? [];
+        const pluginRuntime = new SessionPluginRuntimeController(
+            principalAgentName,
+            storedNotifications.map((storedNotification) => storedNotification.notification)
+        );
         const principal = await this.createAgent(config, checkpointer, orchestratorBuilder, workspaceFactory, principalAgentName, pluginRuntime);
 
         const session: SessionRuntime = {
@@ -429,7 +451,7 @@ export class SessionManager {
             agentNames: [principal.name],
             orchestrator: orchestratorBuilder.build(principal.agent),
             pluginRuntime,
-            activeTaskId: null,
+            currentTaskId: null,
             pendingToolRequest: null,
             eventBuffer: [],
             subscribers: new Set<SessionListener>(),
@@ -455,6 +477,7 @@ export class SessionManager {
 
         const replayedConversation = await session.orchestrator.hydrateConversation(hydrationEvents);
         await this.applyHydratedConversation(session, replayedConversation);
+        this.restorePersistedPluginRuntimeEvents(session);
         this.sessions.set(session.sessionId, session);
         this.attachPluginRuntime(session);
         this.upsertDiscoveredSession(session.sessionId, session.createdAt, session.name);
@@ -485,7 +508,8 @@ export class SessionManager {
             }
 
             if (event.type === "userMessage") {
-                hydratedTaskId = this.getHydratedTaskId(session, event.requestAttributes, hydratedTaskIndex++);
+                hydratedTaskId = this.getHydratedTaskId(session, event.requestAttributes, event.messageId, hydratedTaskIndex++);
+                session.currentTaskId = hydratedTaskId;
                 const { workspaceFiles, chatImages } = this.classifyHydratedSharedFiles(event.value.sharedFiles ?? []);
                 const displayText = typeof event.requestAttributes["mimirDisplayText"] === "string"
                     ? event.requestAttributes["mimirDisplayText"]
@@ -507,7 +531,8 @@ export class SessionManager {
 
             if (event.type === "intermediate") {
                 if (event.value.value.type === "toolResponse") {
-                    hydratedTaskId ??= this.getHydratedTaskId(session, {}, hydratedTaskIndex++);
+                    hydratedTaskId ??= this.getHydratedTaskId(session, {}, undefined, hydratedTaskIndex++);
+                    session.currentTaskId = hydratedTaskId;
                     this.emitEvent(
                         session,
                         {
@@ -527,7 +552,8 @@ export class SessionManager {
             }
 
             if (event.value.type === "toolRequest") {
-                hydratedTaskId ??= this.getHydratedTaskId(session, {}, hydratedTaskIndex++);
+                hydratedTaskId ??= this.getHydratedTaskId(session, {}, undefined, hydratedTaskIndex++);
+                session.currentTaskId = hydratedTaskId;
                 this.emitEvent(
                     session,
                     {
@@ -545,7 +571,8 @@ export class SessionManager {
             const text = extractAllTextFromComplexResponse(event.value.content.content);
             const attachments = await this.registerSharedFiles(session, event.value.content.sharedFiles ?? []);
             const responseMessageId = (event.value.content as { id?: string }).id ?? crypto.randomUUID();
-            hydratedTaskId ??= this.getHydratedTaskId(session, {}, hydratedTaskIndex++);
+            hydratedTaskId ??= this.getHydratedTaskId(session, {}, undefined, hydratedTaskIndex++);
+            session.currentTaskId = hydratedTaskId;
             this.emitEvent(
                 session,
                 {
@@ -562,8 +589,95 @@ export class SessionManager {
             hydratedTaskId = null;
         }
 
-        session.activeTaskId = session.pendingToolRequest ? hydratedTaskId : null;
         session.lastActivityAt = latestActivity;
+    }
+
+    private restorePersistedPluginRuntimeEvents(session: SessionRuntime): void {
+        const persistedEvents = this.store?.listPluginRuntimeEvents(session.sessionId) ?? [];
+        for (const persistedEvent of persistedEvents) {
+            this.insertPersistedPluginRuntimeEvent(session, persistedEvent);
+        }
+        this.trimEventBuffer(session);
+    }
+
+    private insertPersistedPluginRuntimeEvent(session: SessionRuntime, persistedEvent: StoredPluginRuntimeEvent): void {
+        const event = persistedEvent.event;
+        if (session.eventBuffer.some((existing) => existing.id === event.id)) {
+            return;
+        }
+
+        if (event.type === "plugin_event") {
+            const toolResponseIndex = session.eventBuffer.findIndex(
+                (existing) =>
+                    existing.type === "tool_response" &&
+                    existing.taskId === event.taskId &&
+                    existing.toolCallId === event.toolCallId
+            );
+            if (toolResponseIndex >= 0) {
+                session.eventBuffer.splice(toolResponseIndex, 0, event);
+                return;
+            }
+
+            const toolRequestIndex = session.eventBuffer.findIndex(
+                (existing) =>
+                    existing.type === "tool_request" &&
+                    existing.taskId === event.taskId &&
+                    existing.payload.toolCalls.some(
+                        (toolCall) =>
+                            toolCall.id === event.toolCallId ||
+                            (toolCall.id === undefined && toolCall.toolName === event.toolName)
+                    )
+            );
+            if (toolRequestIndex >= 0) {
+                session.eventBuffer.splice(toolRequestIndex + 1, 0, event);
+                return;
+            }
+
+            this.insertEventByTimestamp(session, event);
+            return;
+        }
+
+        const anchorTaskId = persistedEvent.anchorTaskId;
+        if (anchorTaskId) {
+            const taskIndex = this.findLastTaskEventIndex(session, anchorTaskId);
+            if (taskIndex >= 0) {
+                session.eventBuffer.splice(taskIndex + 1, 0, event);
+                return;
+            }
+        }
+
+        this.insertEventByTimestamp(session, event);
+    }
+
+    private findLastTaskEventIndex(session: SessionRuntime, taskId: string): number {
+        for (let index = session.eventBuffer.length - 1; index >= 0; index -= 1) {
+            const event = session.eventBuffer[index]!;
+            if ("taskId" in event && event.taskId === taskId) {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private insertEventByTimestamp(session: SessionRuntime, event: SessionEvent): void {
+        const eventTimestampMs = Date.parse(event.timestamp);
+        if (!Number.isFinite(eventTimestampMs)) {
+            session.eventBuffer.push(event);
+            return;
+        }
+
+        const insertIndex = session.eventBuffer.findIndex((existing) => {
+            const existingTimestampMs = Date.parse(existing.timestamp);
+            return Number.isFinite(existingTimestampMs) && existingTimestampMs > eventTimestampMs;
+        });
+
+        if (insertIndex >= 0) {
+            session.eventBuffer.splice(insertIndex, 0, event);
+            return;
+        }
+
+        session.eventBuffer.push(event);
     }
 
     private classifyHydratedSharedFiles(sharedFiles: SharedFile[]): { workspaceFiles: string[]; chatImages: string[] } {
@@ -586,10 +700,14 @@ export class SessionManager {
         };
     }
 
-    private getHydratedTaskId(session: SessionRuntime, requestAttributes: Record<string, unknown>, taskIndex: number): string {
+    private getHydratedTaskId(session: SessionRuntime, requestAttributes: Record<string, unknown>, messageId: string | undefined, taskIndex: number): string {
         const taskId = requestAttributes["mimirTaskId"];
         if (typeof taskId === "string" && taskId.length > 0) {
             return taskId;
+        }
+
+        if (typeof messageId === "string" && messageId.length > 0) {
+            return messageId;
         }
 
         return `hydrated-${session.sessionId}-${taskIndex}`;
@@ -642,7 +760,7 @@ export class SessionManager {
                 agentNames: [principal.name],
                 orchestrator: orchestratorBuilder.build(principal.agent),
                 pluginRuntime,
-                activeTaskId: null,
+                currentTaskId: null,
                 pendingToolRequest: null,
                 eventBuffer: [],
                 subscribers: new Set<SessionListener>(),
@@ -701,8 +819,9 @@ export class SessionManager {
         return await this.withSessionLock(session, async () => {
             await session.orchestrator.reset();
             session.pendingToolRequest = null;
-            session.activeTaskId = null;
+            session.currentTaskId = null;
             session.pluginRuntime.clearNotifications();
+            this.store?.clearPluginRuntimeEvents(session.sessionId);
             session.fileRegistry.clear();
             session.eventBuffer = [];
             await fs.rm(session.uploadDirectory, { recursive: true, force: true }).catch(() => {
@@ -755,7 +874,7 @@ export class SessionManager {
                 throw new HttpError(400, "EMPTY_MESSAGE", "Message text or attachments are required.");
             }
 
-            const taskId = this.beginTask(session);
+            const taskId = this.beginTask(session, crypto.randomUUID());
             this.emitEvent(session, {
                 type: "user_message",
                 taskId,
@@ -792,7 +911,7 @@ export class SessionManager {
 
             const notificationMessage = this.buildNotificationProcessingMessage(notifications);
             const displayText = this.buildNotificationProcessingDisplayText(notifications);
-            const taskId = this.beginTask(session);
+            const taskId = this.beginTask(session, crypto.randomUUID());
             this.emitEvent(session, {
                 type: "user_message",
                 taskId,
@@ -1169,7 +1288,6 @@ export class SessionManager {
                     markdown: text,
                     attachments
                 });
-                this.clearTask(session);
                 return;
             }
 
@@ -1261,22 +1379,21 @@ export class SessionManager {
         };
     }
 
-    private beginTask(session: SessionRuntime): string {
-        const taskId = crypto.randomUUID();
-        session.activeTaskId = taskId;
+    private beginTask(session: SessionRuntime, taskId: string): string {
+        session.currentTaskId = taskId;
         return taskId;
     }
 
     private requireTaskId(session: SessionRuntime): string {
-        if (!session.activeTaskId) {
-            session.activeTaskId = crypto.randomUUID();
+        if (!session.currentTaskId) {
+            throw new Error("No current task id is available for this session.");
         }
 
-        return session.activeTaskId;
+        return session.currentTaskId;
     }
 
-    private clearTask(session: SessionRuntime) {
-        session.activeTaskId = null;
+    private getNotificationAnchorTaskId(session: SessionRuntime): string | null {
+        return session.currentTaskId;
     }
 
     private buildTaskRequestAttributes(session: SessionRuntime, extra: Record<string, unknown> = {}): Record<string, unknown> {
@@ -1287,6 +1404,21 @@ export class SessionManager {
     }
 
     private attachPluginRuntime(session: SessionRuntime) {
+        session.pluginRuntime.configure({
+            getCurrentTaskId: () => this.requireTaskId(session),
+            getNotificationAnchorTaskId: () => this.getNotificationAnchorTaskId(session),
+            persistence: {
+                saveNotification: (notification, anchorTaskId) => {
+                    this.store?.savePluginNotification(session.sessionId, notification, anchorTaskId);
+                },
+                markNotificationsRead: (notificationIds, readAt) => {
+                    this.store?.markPluginNotificationsRead(session.sessionId, notificationIds, readAt);
+                },
+                clearNotifications: () => {
+                    this.store?.clearPluginNotifications(session.sessionId);
+                }
+            }
+        });
         session.pluginRuntime.attach({
             emitEvent: (event) => this.emitEvent(session, event),
             emitStateChanged: () => this.emitStateChanged(session)
@@ -1336,7 +1468,26 @@ export class SessionManager {
         }
 
         session.eventBuffer.push(enriched);
+        this.persistPluginRuntimeEvent(session, enriched);
+        this.trimEventBuffer(session);
 
+        for (const listener of session.subscribers) {
+            listener(enriched);
+        }
+    }
+
+    private persistPluginRuntimeEvent(session: SessionRuntime, event: SessionEvent): void {
+        if (event.type !== "plugin_event" && event.type !== "plugin_notification") {
+            return;
+        }
+
+        this.store?.appendPluginRuntimeEvent(session.sessionId, event, {
+            anchorTaskId: event.type === "plugin_notification" ? this.getNotificationAnchorTaskId(session) : null,
+            retentionLimit: SESSION_EVENT_CAP
+        });
+    }
+
+    private trimEventBuffer(session: SessionRuntime): void {
         let structuralCount = 0;
         for (const e of session.eventBuffer) {
             if (e.type !== "agent_response_chunk") {
@@ -1358,10 +1509,6 @@ export class SessionManager {
         while (session.eventBuffer.length > MAX_BUFFER_SIZE) {
             session.eventBuffer.shift();
         }
-
-        for (const listener of session.subscribers) {
-            listener(enriched);
-        }
     }
 
     private async withSessionLock<T>(session: SessionRuntime, operation: () => Promise<T>): Promise<T> {
@@ -1377,9 +1524,6 @@ export class SessionManager {
             return await operation();
         } catch (error) {
             const normalized = error instanceof HttpError ? error : new HttpError(500, "INTERNAL_ERROR", error instanceof Error ? error.message : "Unexpected error");
-            if (!session.pendingToolRequest) {
-                this.clearTask(session);
-            }
             this.emitEvent(session, {
                 type: "error",
                 message: normalized.message,

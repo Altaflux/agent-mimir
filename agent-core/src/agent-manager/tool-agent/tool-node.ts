@@ -29,7 +29,6 @@ export const toolNodeFunction = (
             throw new Error("ToolNode only accepts AIMessages as input.");
         }
 
-        const taskId = getTaskIdFromState(input);
         const outputs = [];
         for (const call of (message as AIMessage).tool_calls ?? []) {
             const tool = tools.find((tool) => tool.name === call.name);
@@ -42,7 +41,6 @@ export const toolNodeFunction = (
                 }
                 const output = await runWithToolCallRuntimeSource(
                     {
-                        taskId,
                         toolCallId,
                         toolName
                     },
@@ -115,12 +113,4 @@ export function toolsCondition(
     } else {
         return END;
     }
-}
-
-function getTaskIdFromState(input: typeof MessagesAnnotation.State): string {
-    const requestAttributes = (Array.isArray(input)
-        ? undefined
-        : (input as { requestAttributes?: Record<string, unknown> }).requestAttributes) ?? {};
-    const taskId = requestAttributes["mimirTaskId"];
-    return typeof taskId === "string" && taskId.length > 0 ? taskId : "unknown-task";
 }
