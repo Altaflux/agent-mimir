@@ -5,6 +5,7 @@ import {
     type BootstrapResponse,
     type CreateSessionResponse,
     type ListSessionsResponse,
+    type ProcessNotificationsResponse,
     type SessionEvent,
     type SessionState,
     type SessionSummary,
@@ -318,6 +319,32 @@ export function useChatSession() {
         [activeSessionId, isSubmitting, recoverFromSessionNotFoundResponse]
     );
 
+    /* ── Action: process notifications ──────────────── */
+
+    const processNotifications = useCallback(
+        async () => {
+            if (!activeSessionId || isSubmitting) return;
+            setErrorMessage(null);
+            setIsSubmitting(true);
+            try {
+                const response = await fetch(`/api/sessions/${activeSessionId}/notifications/process`, {
+                    method: "POST"
+                });
+                const payload = (await response.json()) as ProcessNotificationsResponse | { error?: { message?: string } };
+                if (!response.ok) {
+                    if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) return;
+                    throw new Error(apiErrorMessage(payload, "Failed to process pending notifications."));
+                }
+                upsertSessionState((payload as ProcessNotificationsResponse).session);
+            } catch (error) {
+                setErrorMessage(error instanceof Error ? error.message : "Failed to process pending notifications.");
+            } finally {
+                setIsSubmitting(false);
+            }
+        },
+        [activeSessionId, isSubmitting, recoverFromSessionNotFoundResponse, upsertSessionState]
+    );
+
     /* ── Action: approval ────────────────────────────── */
 
     const submitApproval = useCallback(
@@ -457,6 +484,7 @@ export function useChatSession() {
 
     const pendingToolRequest = activeState?.pendingToolRequest;
     const hasPendingToolRequest = Boolean(pendingToolRequest);
+    const pendingNotificationCount = activeState?.pendingNotificationCount ?? 0;
 
     const isAgentThinking = useMemo(() => {
         if (!isSubmitting && activeEvents.length > 0) {
@@ -480,12 +508,14 @@ export function useChatSession() {
         sessionLabel,
         isAgentThinking,
         hasPendingToolRequest,
+        pendingNotificationCount,
 
         /* Actions */
         setActiveSessionId,
         setErrorMessage,
         createSession,
         sendMessage,
+        processNotifications,
         submitApproval,
         setContinuousMode,
         resetSession,

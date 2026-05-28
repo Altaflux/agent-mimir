@@ -10,7 +10,7 @@ import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { dividerSystemMessage, humanMessageToInputAgentMessage, lCmessageContentToContent, mergeSystemMessages, toolMessageToInputAgentMessage } from "../message-utils.js";
 import { Agent, WorkspaceFactory } from "../index.js";
-import { AttributeDescriptor, PluginFactory } from "../../plugins/index.js";
+import { AttributeDescriptor, createPluginContext, NOOP_PLUGIN_RUNTIME_PROVIDER, PluginFactory, PluginRuntimeProvider } from "../../plugins/index.js";
 import { toolNodeFunction } from "./tool-node.js"
 import { aiMessageToMimirAiMessage, langChainHumanMessageToMimirHumanMessage, langChainToolMessageToMimirToolMessage } from "./utils.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
@@ -34,6 +34,8 @@ export type CreateAgentArgs = {
     model: BaseChatModel,
     /** Optional array of plugin factories to extend agent functionality */
     plugins?: PluginFactory[],
+    /** Optional runtime bridge used by plugins to emit events and notifications */
+    pluginRuntime?: PluginRuntimeProvider,
     /** Optional constitution defining agent behavior guidelines */
     constitution?: string,
     /** Optional vision support type */
@@ -53,15 +55,16 @@ export async function createLgAgent(config: CreateAgentArgs) {
     const model = config.model;
     const workspace = await config.workspaceFactory(shortName);
     const allPluginFactories = (config.plugins ?? []);
+    const pluginRuntime = config.pluginRuntime ?? NOOP_PLUGIN_RUNTIME_PROVIDER;
     const fieldMapper = new ResponseFieldMapper();
     const toolPlugins: PluginFactory[] = [];
     toolPlugins.push(new WorkspacePluginFactory());
     if (config.visionSupport) {
         toolPlugins.push(new ViewPluginFactory());
     }
-    const allCreatedPlugins = await Promise.all([...allPluginFactories, ...toolPlugins].map(async factory => await factory.create({
-        workspace: workspace,
-    })));
+    const allCreatedPlugins = await Promise.all([...allPluginFactories, ...toolPlugins].map(async factory =>
+        await factory.create(createPluginContext(workspace, pluginRuntime, factory.name))
+    ));
 
 
     const allTools = (await Promise.all(allCreatedPlugins.map(async plugin => await plugin.tools()))).flat();

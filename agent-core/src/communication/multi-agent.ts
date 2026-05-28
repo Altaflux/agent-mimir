@@ -54,6 +54,7 @@ export type HydratedOrchestratorEvent = {
     type: "userMessage";
     timestamp: string;
     sourceAgent: string;
+    requestAttributes: Record<string, any>;
     value: InputAgentMessage;
 } | {
     type: "intermediate";
@@ -119,11 +120,12 @@ export class MultiAgentCommunicationOrchestrator {
 
     async* handleMessage(args: {
         message: InputAgentMessage | null;
+        requestAttributes?: Record<string, unknown>;
         abortSignal?: AbortSignal;
     }, sessionId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
         return yield* this.doInvocation((agent) => agent.call({
             message: args.message,
-            requestAttributes: undefined,
+            requestAttributes: args.requestAttributes,
             sessionId,
             abortSignal: args.abortSignal
         }));
@@ -150,6 +152,7 @@ export class MultiAgentCommunicationOrchestrator {
                     type: "userMessage",
                     timestamp: event.timestamp,
                     sourceAgent: event.agentName,
+                    requestAttributes: event.requestAttributes,
                     value: event.content
                 });
                 continue;

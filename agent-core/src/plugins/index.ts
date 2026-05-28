@@ -42,6 +42,105 @@ export type AgentCommand = {
  */
 export type PluginContext = {
     workspace: AgentWorkspace,
+    runtime: PluginRuntimeContext,
+}
+
+export type PluginRuntimeEventVisibility = "user" | "debug";
+
+export type PluginRuntimeEventScope = {
+    taskId?: string;
+    [key: string]: string | undefined;
+};
+
+export type PluginRuntimeEventBody =
+    | {
+        type: "status";
+        message: string;
+        title?: string;
+        level?: "info" | "warning" | "error";
+    }
+    | {
+        type: "message";
+        message: string;
+        title?: string;
+    }
+    | {
+        type: "progress";
+        label?: string;
+        message?: string;
+        current?: number;
+        total?: number;
+    };
+
+export type PluginRuntimeEventInput = {
+    visibility?: PluginRuntimeEventVisibility;
+    scope?: PluginRuntimeEventScope;
+    body: PluginRuntimeEventBody;
+};
+
+export type PluginNotificationInput = {
+    title: string;
+    message?: string;
+    content: InputAgentMessage;
+};
+
+export type PluginNotification = {
+    id: string;
+    pluginName: string;
+    agentName: string;
+    createdAt: string;
+    title: string;
+    message?: string;
+    content: InputAgentMessage;
+    read: boolean;
+};
+
+export type PluginNotificationInbox = {
+    enqueue(input: PluginNotificationInput): Promise<PluginNotification>,
+};
+
+export type PluginRuntimeContext = {
+    emitEvent(input: PluginRuntimeEventInput): void | Promise<void>,
+    notifications: PluginNotificationInbox,
+};
+
+export type PluginRuntimeProvider = {
+    forPlugin(pluginName: string): PluginRuntimeContext,
+};
+
+export const NOOP_PLUGIN_RUNTIME_PROVIDER: PluginRuntimeProvider = {
+    forPlugin(pluginName: string): PluginRuntimeContext {
+        return {
+            emitEvent() {
+                return;
+            },
+            notifications: {
+                async enqueue(input) {
+                    return {
+                        id: "noop",
+                        pluginName,
+                        agentName: "unknown",
+                        createdAt: new Date().toISOString(),
+                        title: input.title,
+                        message: input.message,
+                        content: input.content,
+                        read: false
+                    };
+                }
+            }
+        };
+    }
+};
+
+export function createPluginContext(
+    workspace: AgentWorkspace,
+    runtimeProvider: PluginRuntimeProvider,
+    pluginName: string
+): PluginContext {
+    return {
+        workspace,
+        runtime: runtimeProvider.forPlugin(pluginName)
+    };
 }
 
 

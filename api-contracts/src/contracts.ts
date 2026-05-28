@@ -30,7 +30,35 @@ export type SessionSummary = {
 export type SessionState = SessionSummary & {
     agentNames: string[];
     pendingToolRequest?: ToolRequestPayload;
+    pendingNotificationCount: number;
 };
+
+export type PluginRuntimeEventVisibility = "user" | "debug";
+
+export type PluginRuntimeEventScope = {
+    taskId?: string;
+    [key: string]: string | undefined;
+};
+
+export type PluginRuntimeEventBody =
+    | {
+        type: "status";
+        message: string;
+        title?: string;
+        level?: "info" | "warning" | "error";
+    }
+    | {
+        type: "message";
+        message: string;
+        title?: string;
+    }
+    | {
+        type: "progress";
+        label?: string;
+        message?: string;
+        current?: number;
+        total?: number;
+    };
 
 export type SessionEvent =
     | {
@@ -91,6 +119,29 @@ export type SessionEvent =
         id: string;
         sessionId: string;
         timestamp: string;
+        type: "plugin_event";
+        pluginName: string;
+        agentName: string;
+        visibility: PluginRuntimeEventVisibility;
+        scope?: PluginRuntimeEventScope;
+        body: PluginRuntimeEventBody;
+    }
+    | {
+        id: string;
+        sessionId: string;
+        timestamp: string;
+        type: "plugin_notification";
+        notificationId: string;
+        pluginName: string;
+        agentName: string;
+        title: string;
+        message?: string;
+        unreadCount: number;
+    }
+    | {
+        id: string;
+        sessionId: string;
+        timestamp: string;
         type: "reset";
         message: string;
     }
@@ -127,6 +178,10 @@ export type DeleteSessionResponse = {
 };
 
 export type SendMessageResponse = {
+    session: SessionState;
+};
+
+export type ProcessNotificationsResponse = {
     session: SessionState;
 };
 

@@ -1,5 +1,5 @@
 import { Agent } from "./index.js";
-import { PluginFactory } from "../plugins/index.js";
+import { PluginFactory, PluginRuntimeProvider } from "../plugins/index.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { WorkspaceFactory } from "./index.js";
 import { BaseCheckpointSaver } from "@langchain/langgraph";
@@ -27,6 +27,8 @@ export interface AgentConfig {
     plugins: PluginFactory[],
 
     checkpointer?: BaseCheckpointSaver
+
+    pluginRuntime?: PluginRuntimeProvider
 }
 
 /**

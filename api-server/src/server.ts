@@ -14,6 +14,7 @@ import type {
     DownloadableFile,
     DeleteSessionResponse,
     ListSessionsResponse,
+    ProcessNotificationsResponse,
     ResetSessionResponse,
     SendMessageResponse,
     SessionEvent,
@@ -358,6 +359,12 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
 
                 const session = await sessionManager.submitApproval(request.params.sessionId, payload);
                 const response: ApprovalResponse = { session };
+                reply.send(response);
+            });
+
+            api.post<{ Params: { sessionId: string } }>("/sessions/:sessionId/notifications/process", async (request, reply) => {
+                const session = await sessionManager.processNotifications(request.params.sessionId);
+                const response: ProcessNotificationsResponse = { session };
                 reply.send(response);
             });
 

@@ -21,7 +21,7 @@ import {
     OrchestratorBuilder
 } from "@mimir/agent-core/communication/multi-agent";
 import { FileSystemAgentWorkspace } from "@mimir/agent-core/nodejs";
-import { PluginFactory } from "@mimir/agent-core/plugins";
+import { PluginFactory, PluginNotification, PluginRuntimeProvider } from "@mimir/agent-core/plugins";
 import { ComplexMessageContent } from "@mimir/agent-core/schema";
 import { extractAllTextFromComplexResponse } from "@mimir/agent-core/utils/format";
 import crypto from "crypto";
@@ -34,6 +34,7 @@ import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import Database from "better-sqlite3";
 import { readHydrationEvents } from "@mimir/agent-core/utils/hydration";
 import { FunctionAgentFactory } from "@mimir/agent-core/agent/tool-agent";
+import { SessionPluginRuntimeController } from "./plugin-runtime.js";
 
 const SESSION_EVENT_CAP = 500;
 const DEFAULT_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
@@ -100,6 +101,7 @@ type SessionRuntime = {
     activeAgentName: string;
     agentNames: string[];
     orchestrator: MultiAgentCommunicationOrchestrator;
+    pluginRuntime: SessionPluginRuntimeController;
     pendingToolRequest: AgentToolRequestTwo | null;
     eventBuffer: SessionEvent[];
     subscribers: Set<SessionListener>;
@@ -413,7 +415,8 @@ export class SessionManager {
         if (!principalAgentName) {
             throw new HttpError(500, "INVALID_CONFIG", "No principal agent found in configuration.");
         }
-        const principal = await this.createAgent(config, checkpointer, orchestratorBuilder, workspaceFactory, principalAgentName);
+        const pluginRuntime = new SessionPluginRuntimeController(principalAgentName);
+        const principal = await this.createAgent(config, checkpointer, orchestratorBuilder, workspaceFactory, principalAgentName, pluginRuntime);
 
         const session: SessionRuntime = {
             sessionId: persistedSession.sessionId,
@@ -424,6 +427,7 @@ export class SessionManager {
             activeAgentName: principal.agent.name,
             agentNames: [principal.name],
             orchestrator: orchestratorBuilder.build(principal.agent),
+            pluginRuntime,
             pendingToolRequest: null,
             eventBuffer: [],
             subscribers: new Set<SessionListener>(),
@@ -450,6 +454,7 @@ export class SessionManager {
         const replayedConversation = await session.orchestrator.hydrateConversation(hydrationEvents);
         await this.applyHydratedConversation(session, replayedConversation);
         this.sessions.set(session.sessionId, session);
+        this.attachPluginRuntime(session);
         this.upsertDiscoveredSession(session.sessionId, session.createdAt, session.name);
         this.upsertDiscoveredSession(session.sessionId, session.lastActivityAt);
     }
@@ -477,11 +482,14 @@ export class SessionManager {
 
             if (event.type === "userMessage") {
                 const { workspaceFiles, chatImages } = this.classifyHydratedSharedFiles(event.value.sharedFiles ?? []);
+                const displayText = typeof event.requestAttributes["mimirDisplayText"] === "string"
+                    ? event.requestAttributes["mimirDisplayText"]
+                    : extractAllTextFromComplexResponse(event.value.content);
                 this.emitEvent(
                     session,
                     {
                         type: "user_message",
-                        text: extractAllTextFromComplexResponse(event.value.content),
+                        text: displayText,
                         workspaceFiles,
                         chatImages
                     },
@@ -593,7 +601,8 @@ export class SessionManager {
             if (!principalAgentName) {
                 throw new HttpError(500, "INVALID_CONFIG", "No principal agent found in configuration.");
             }
-            const principal = await this.createAgent(config, checkpointer, orchestratorBuilder, workspaceFactory, principalAgentName);
+            const pluginRuntime = new SessionPluginRuntimeController(principalAgentName);
+            const principal = await this.createAgent(config, checkpointer, orchestratorBuilder, workspaceFactory, principalAgentName, pluginRuntime);
 
             const activeAgentName = principal.agent.name;
 
@@ -609,6 +618,7 @@ export class SessionManager {
                 activeAgentName,
                 agentNames: [principal.name],
                 orchestrator: orchestratorBuilder.build(principal.agent),
+                pluginRuntime,
                 pendingToolRequest: null,
                 eventBuffer: [],
                 subscribers: new Set<SessionListener>(),
@@ -622,6 +632,7 @@ export class SessionManager {
 
             this.sessions.set(sessionId, session);
             this.upsertDiscoveredSession(sessionId, now, finalName);
+            this.attachPluginRuntime(session);
             this.emitStateChanged(session);
             return this.toSessionState(session);
         } catch (error) {
@@ -666,6 +677,7 @@ export class SessionManager {
         return await this.withSessionLock(session, async () => {
             await session.orchestrator.reset();
             session.pendingToolRequest = null;
+            session.pluginRuntime.clearNotifications();
             session.fileRegistry.clear();
             session.eventBuffer = [];
             await fs.rm(session.uploadDirectory, { recursive: true, force: true }).catch(() => {
@@ -727,6 +739,52 @@ export class SessionManager {
 
             let generator = session.orchestrator.handleMessage({ message: agentInput, abortSignal: session.abortController?.signal }, session.sessionId);
             await this.consumeGenerator(session, generator);
+            this.emitStateChanged(session);
+            return this.toSessionState(session);
+        });
+    }
+
+    async processNotifications(sessionId: string): Promise<SessionState> {
+        const session = await this.ensureSessionLoaded(sessionId);
+        return await this.withSessionLock(session, async () => {
+            if (session.pendingToolRequest) {
+                throw new HttpError(409, "PENDING_APPROVAL", "A tool approval decision is required before processing notifications.");
+            }
+
+            const notifications = session.pluginRuntime.listUnread();
+            if (notifications.length === 0) {
+                throw new HttpError(409, "NO_PENDING_NOTIFICATIONS", "There are no pending plugin notifications to process.");
+            }
+
+            const notificationMessage = this.buildNotificationProcessingMessage(notifications);
+            const displayText = this.buildNotificationProcessingDisplayText(notifications);
+            this.emitEvent(session, {
+                type: "user_message",
+                text: displayText,
+                workspaceFiles: (notificationMessage.sharedFiles ?? []).map((sharedFile) => sharedFile.fileName),
+                chatImages: []
+            });
+
+            await session.pluginRuntime.forPlugin("runtime").emitEvent({
+                body: {
+                    type: "status",
+                    title: "Notification processing",
+                    message: "The principal agent is processing pending plugin notifications."
+                }
+            });
+
+            const generator = session.orchestrator.handleMessage(
+                {
+                    message: notificationMessage,
+                    requestAttributes: {
+                        mimirDisplayText: displayText
+                    },
+                    abortSignal: session.abortController?.signal
+                },
+                session.sessionId
+            );
+            await this.consumeGenerator(session, generator);
+            session.pluginRuntime.markRead(notifications.map((notification) => notification.id));
             this.emitStateChanged(session);
             return this.toSessionState(session);
         });
@@ -814,7 +872,8 @@ export class SessionManager {
         checkpointer: BaseCheckpointSaver,
         builder: OrchestratorBuilder,
         workspaceFactory: (agentName: string) => Promise<FileSystemAgentWorkspace>,
-        agentName: string
+        agentName: string,
+        pluginRuntime: PluginRuntimeProvider
     ): Promise<AgentDefinitionRuntime> {
         const agentDefinition = config.agents[agentName];
         if (!agentDefinition) {
@@ -844,7 +903,8 @@ export class SessionManager {
             visionSupport: definition.visionSupport,
             constitution: definition.constitution,
             plugins: [...(definition.plugins ?? []) as PluginFactory[]],
-            workspaceFactory
+            workspaceFactory,
+            pluginRuntime
         });
         const initialized = await builder.initializeAgent(factory, agentName);
 
@@ -937,6 +997,61 @@ export class SessionManager {
             workspaceFileNames,
             chatImageNames
         };
+    }
+
+    private buildNotificationProcessingMessage(notifications: PluginNotification[]): InputAgentMessage {
+        const content: ComplexMessageContent[] = [
+            {
+                type: "text",
+                text:
+                    "The user explicitly asked you to process these pending plugin notifications.\n\n" +
+                    "Review the notifications below and decide what action, if any, should be taken. " +
+                    "These notifications are not part of a new user request beyond this explicit processing action.\n\n"
+            }
+        ];
+        const sharedFiles: SharedFile[] = [];
+        const seenSharedFiles = new Set<string>();
+
+        notifications.forEach((notification, index) => {
+            const header = [
+                `Notification ${index + 1}`,
+                `Plugin: ${notification.pluginName}`,
+                `Title: ${notification.title}`,
+                notification.message ? `Message: ${notification.message}` : undefined,
+                "Content:"
+            ].filter(Boolean).join("\n");
+
+            content.push({ type: "text", text: `${header}\n` });
+            if (notification.content.content.length > 0) {
+                content.push(...notification.content.content);
+            } else {
+                content.push({ type: "text", text: "(No additional content.)" });
+            }
+            content.push({ type: "text", text: "\n\n" });
+
+            for (const sharedFile of notification.content.sharedFiles ?? []) {
+                const key = `${sharedFile.fileName}\n${sharedFile.url}`;
+                if (seenSharedFiles.has(key)) {
+                    continue;
+                }
+                seenSharedFiles.add(key);
+                sharedFiles.push(sharedFile);
+            }
+        });
+
+        return {
+            content,
+            sharedFiles
+        };
+    }
+
+    private buildNotificationProcessingDisplayText(notifications: PluginNotification[]): string {
+        if (notifications.length === 1) {
+            const notification = notifications[0]!;
+            return `Process plugin notification: ${notification.title}`;
+        }
+
+        return `Process ${notifications.length} pending plugin notifications`;
     }
 
     private async resolveUploadByteLength(upload: UploadInput): Promise<number> {
@@ -1096,6 +1211,13 @@ export class SessionManager {
         };
     }
 
+    private attachPluginRuntime(session: SessionRuntime) {
+        session.pluginRuntime.attach({
+            emitEvent: (event) => this.emitEvent(session, event),
+            emitStateChanged: () => this.emitStateChanged(session)
+        });
+    }
+
     private emitStateChanged(session: SessionRuntime) {
         this.emitEvent(session, {
             type: "state_changed",
@@ -1219,7 +1341,8 @@ export class SessionManager {
         return {
             ...this.toSessionSummary(session),
             agentNames: [...session.agentNames],
-            pendingToolRequest: session.pendingToolRequest ? this.toToolRequestPayload(session.pendingToolRequest) : undefined
+            pendingToolRequest: session.pendingToolRequest ? this.toToolRequestPayload(session.pendingToolRequest) : undefined,
+            pendingNotificationCount: session.pluginRuntime.unreadCount()
         };
     }
 
@@ -1285,6 +1408,7 @@ export class SessionManager {
         this.sessions.delete(session.sessionId);
         this.sessionHydrationPromises.delete(session.sessionId);
         session.subscribers.clear();
+        session.pluginRuntime.detach();
         await session.orchestrator.shutDown();
     }
 

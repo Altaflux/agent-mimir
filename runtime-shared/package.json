@@ -38,6 +38,7 @@
     },
     "scripts": {
         "build": "tsc",
+        "test": "tsx --test src/**/*.test.ts",
         "dev": "tsx watch src/index.ts"
     },
     "dependencies": {

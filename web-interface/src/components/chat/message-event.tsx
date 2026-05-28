@@ -2,7 +2,7 @@
 
 import { type SessionEvent } from "@/lib/contracts";
 import { formatTime } from "@/lib/api";
-import { Bot, User, Wrench, Zap } from "lucide-react";
+import { Bell, Bot, Radio, User, Wrench } from "lucide-react";
 import { MarkdownContent } from "@/components/chat/markdown";
 import { CollapsibleSection, DownloadLinks, ScrollableCodeBlock, CopyButton } from "@/components/chat/shared";
 
@@ -151,6 +151,67 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                             })}
                         </div>
                     </CollapsibleSection>
+                </div>
+            </div>
+        );
+    }
+
+    /* ── Plugin runtime event ─────── */
+    if (event.type === "plugin_event") {
+        const body = event.body;
+        const title = body.type === "progress"
+            ? body.label ?? "Plugin progress"
+            : body.title ?? (body.type === "status" ? "Plugin status" : "Plugin message");
+        const detail = body.type === "progress"
+            ? [
+                body.message,
+                body.current !== undefined && body.total !== undefined ? `${body.current}/${body.total}` : undefined
+            ].filter(Boolean).join(" ")
+            : body.message;
+
+        return (
+            <div className="flex items-start gap-3 animate-msg-in">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+                    <Radio className="h-4 w-4 text-cyan-500" />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-3 py-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-medium text-muted-foreground">{event.pluginName}</span>
+                            <span className="text-[10px] text-muted-foreground/60">{formatTime(event.timestamp)}</span>
+                            {event.scope?.taskId ? (
+                                <span className="rounded bg-secondary/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                    {event.scope.taskId}
+                                </span>
+                            ) : null}
+                        </div>
+                        <p className="mt-1 text-sm font-medium text-foreground">{title}</p>
+                        {detail ? <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{detail}</p> : null}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    /* ── Plugin notification ──────── */
+    if (event.type === "plugin_notification") {
+        return (
+            <div className="flex items-start gap-3 animate-msg-in">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+                    <Bell className="h-4 w-4 text-cyan-500" />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-3 py-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-medium text-muted-foreground">{event.pluginName}</span>
+                            <span className="text-[10px] text-muted-foreground/60">{formatTime(event.timestamp)}</span>
+                            <span className="rounded bg-secondary/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                {event.unreadCount} unread
+                            </span>
+                        </div>
+                        <p className="mt-1 text-sm font-medium text-foreground">{event.title}</p>
+                        {event.message ? <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{event.message}</p> : null}
+                    </div>
                 </div>
             </div>
         );

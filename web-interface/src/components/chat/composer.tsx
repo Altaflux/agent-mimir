@@ -4,15 +4,17 @@ import { type ApprovalRequest } from "@/lib/contracts";
 import { fileFingerprint } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowUp, Loader2, Paperclip, Square, Wrench, X } from "lucide-react";
+import { ArrowUp, Bell, Loader2, Paperclip, Square, Wrench, X } from "lucide-react";
 import { type DragEvent, useCallback, useEffect, useRef, useState } from "react";
 
 export interface ComposerProps {
     activeSessionId: string | null;
     isSubmitting: boolean;
     hasPendingToolRequest: boolean;
+    pendingNotificationCount: number;
     errorMessage: string | null;
     onSendMessage: (message: string, files: File[]) => void;
+    onProcessNotifications: () => void;
     onSubmitApproval: (action: ApprovalRequest["action"], feedback?: string) => void;
     onClearError: () => void;
     onStopSession: () => void;
@@ -22,8 +24,10 @@ export function Composer({
     activeSessionId,
     isSubmitting,
     hasPendingToolRequest,
+    pendingNotificationCount,
     errorMessage,
     onSendMessage,
+    onProcessNotifications,
     onSubmitApproval,
     onClearError,
     onStopSession
@@ -125,6 +129,28 @@ export function Composer({
     return (
         <div className="shrink-0 border-t border-border/20 bg-background">
             <div className="mx-auto max-w-3xl px-4 py-3 space-y-2">
+                {pendingNotificationCount > 0 ? (
+                    <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-3 animate-msg-in">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <Bell className="h-4 w-4 text-cyan-400" />
+                            <span className="min-w-0 flex-1 text-sm font-medium text-foreground">
+                                {pendingNotificationCount === 1
+                                    ? "1 plugin notification is waiting"
+                                    : `${pendingNotificationCount} plugin notifications are waiting`}
+                            </span>
+                            <Button
+                                size="sm"
+                                onClick={onProcessNotifications}
+                                disabled={!activeSessionId || isSubmitting || hasPendingToolRequest}
+                                className="rounded-lg"
+                            >
+                                {isSubmitting ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
+                                Process
+                            </Button>
+                        </div>
+                    </div>
+                ) : null}
+
                 {/* Approval bar */}
                 {hasPendingToolRequest ? (
                     <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 animate-msg-in">

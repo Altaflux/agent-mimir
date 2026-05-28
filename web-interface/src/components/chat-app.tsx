@@ -143,10 +143,16 @@ export function ChatApp() {
                     activeSessionId={session.activeSessionId}
                     isSubmitting={session.isSubmitting}
                     hasPendingToolRequest={session.hasPendingToolRequest}
+                    pendingNotificationCount={session.pendingNotificationCount}
                     errorMessage={session.errorMessage}
                     onSendMessage={(text, files) => {
                         session.sendMessage(text, files).catch((error) => {
                             session.setErrorMessage(error instanceof Error ? error.message : "Failed to send message.");
+                        });
+                    }}
+                    onProcessNotifications={() => {
+                        session.processNotifications().catch((error) => {
+                            session.setErrorMessage(error instanceof Error ? error.message : "Notification processing failed.");
                         });
                     }}
                     onSubmitApproval={(action, feedback) => {
