@@ -904,13 +904,13 @@ export class SessionManager {
                 throw new HttpError(409, "PENDING_APPROVAL", "A tool approval decision is required before processing notifications.");
             }
 
-            const notifications = session.pluginRuntime.listUnread();
-            if (notifications.length === 0) {
+            const notification = session.pluginRuntime.nextUnread();
+            if (!notification) {
                 throw new HttpError(409, "NO_PENDING_NOTIFICATIONS", "There are no pending plugin notifications to process.");
             }
 
-            const notificationMessage = this.buildNotificationProcessingMessage(notifications);
-            const displayText = this.buildNotificationProcessingDisplayText(notifications);
+            const notificationMessage = this.buildNotificationProcessingMessage(notification);
+            const displayText = this.buildNotificationProcessingDisplayText(notification);
             const taskId = this.beginTask(session, crypto.randomUUID());
             this.emitEvent(session, {
                 type: "user_message",
@@ -931,7 +931,7 @@ export class SessionManager {
                 session.sessionId
             );
             await this.consumeGenerator(session, generator);
-            session.pluginRuntime.markRead(notifications.map((notification) => notification.id));
+            session.pluginRuntime.markRead([notification.id]);
             this.emitStateChanged(session);
             return this.toSessionState(session);
         });
@@ -1156,45 +1156,42 @@ export class SessionManager {
         };
     }
 
-    private buildNotificationProcessingMessage(notifications: PluginNotification[]): InputAgentMessage {
+    private buildNotificationProcessingMessage(notification: PluginNotification): InputAgentMessage {
         const content: ComplexMessageContent[] = [
             {
                 type: "text",
                 text:
-                    "The user explicitly asked you to process these pending plugin notifications.\n\n" +
-                    "Review the notifications below and decide what action, if any, should be taken. " +
-                    "These notifications are not part of a new user request beyond this explicit processing action.\n\n"
+                    "The user explicitly asked you to process this pending plugin notification.\n\n" +
+                    "Review the notification below and decide what action, if any, should be taken. " +
+                    "This notification is not part of a new user request beyond this explicit processing action.\n\n"
             }
         ];
         const sharedFiles: SharedFile[] = [];
         const seenSharedFiles = new Set<string>();
 
-        notifications.forEach((notification, index) => {
-            const header = [
-                `Notification ${index + 1}`,
-                `Plugin: ${notification.pluginName}`,
-                `Title: ${notification.title}`,
-                notification.message ? `Message: ${notification.message}` : undefined,
-                "Content:"
-            ].filter(Boolean).join("\n");
+        const header = [
+            `Plugin: ${notification.pluginName}`,
+            `Title: ${notification.title}`,
+            notification.message ? `Message: ${notification.message}` : undefined,
+            "Content:"
+        ].filter(Boolean).join("\n");
 
-            content.push({ type: "text", text: `${header}\n` });
-            if (notification.content.content.length > 0) {
-                content.push(...notification.content.content);
-            } else {
-                content.push({ type: "text", text: "(No additional content.)" });
-            }
-            content.push({ type: "text", text: "\n\n" });
+        content.push({ type: "text", text: `${header}\n` });
+        if (notification.content.content.length > 0) {
+            content.push(...notification.content.content);
+        } else {
+            content.push({ type: "text", text: "(No additional content.)" });
+        }
+        content.push({ type: "text", text: "\n\n" });
 
-            for (const sharedFile of notification.content.sharedFiles ?? []) {
-                const key = `${sharedFile.fileName}\n${sharedFile.url}`;
-                if (seenSharedFiles.has(key)) {
-                    continue;
-                }
-                seenSharedFiles.add(key);
-                sharedFiles.push(sharedFile);
+        for (const sharedFile of notification.content.sharedFiles ?? []) {
+            const key = `${sharedFile.fileName}\n${sharedFile.url}`;
+            if (seenSharedFiles.has(key)) {
+                continue;
             }
-        });
+            seenSharedFiles.add(key);
+            sharedFiles.push(sharedFile);
+        }
 
         return {
             content,
@@ -1202,13 +1199,8 @@ export class SessionManager {
         };
     }
 
-    private buildNotificationProcessingDisplayText(notifications: PluginNotification[]): string {
-        if (notifications.length === 1) {
-            const notification = notifications[0]!;
-            return `Process plugin notification: ${notification.title}`;
-        }
-
-        return `Process ${notifications.length} pending plugin notifications`;
+    private buildNotificationProcessingDisplayText(notification: PluginNotification): string {
+        return `Process plugin notification: ${notification.title}`;
     }
 
     private async resolveUploadByteLength(upload: UploadInput): Promise<number> {

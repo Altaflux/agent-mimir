@@ -145,7 +145,7 @@ export function Composer({
                                 className="rounded-lg"
                             >
                                 {isSubmitting ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
-                                Process
+                                Process next
                             </Button>
                         </div>
                     </div>

@@ -99,6 +99,10 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
         return this.notifications.filter((notification) => !notification.read);
     }
 
+    nextUnread(): PluginNotification | null {
+        return this.notifications.find((notification) => !notification.read) ?? null;
+    }
+
     markRead(notificationIds: string[]): void {
         const ids = new Set(notificationIds);
         let changed = false;

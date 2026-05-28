@@ -108,6 +108,35 @@ test("markRead clears unread counts without losing historical notifications", as
     assert.equal(sinkState.stateChangeCount, 2);
 });
 
+test("nextUnread returns one notification at a time in inbox order", async () => {
+    const controller = new SessionPluginRuntimeController("Principal");
+    const first = await controller.forPlugin("subagents").notifications.enqueue({
+        title: "First",
+        content: {
+            content: [{ type: "text", text: "first" }]
+        }
+    });
+    const second = await controller.forPlugin("timer").notifications.enqueue({
+        title: "Second",
+        content: {
+            content: [{ type: "text", text: "second" }]
+        }
+    });
+
+    assert.equal(controller.nextUnread()?.id, first.id);
+
+    controller.markRead([first.id]);
+
+    assert.equal(controller.nextUnread()?.id, second.id);
+    assert.equal(controller.unreadCount(), 1);
+});
+
+test("nextUnread returns null when there are no unread notifications", () => {
+    const controller = new SessionPluginRuntimeController("Principal");
+
+    assert.equal(controller.nextUnread(), null);
+});
+
 test("notifications enqueued before persistence is configured are saved with the runtime anchor", async () => {
     const controller = new SessionPluginRuntimeController("Principal");
     const notification = await controller.forPlugin("subagents").notifications.enqueue({
