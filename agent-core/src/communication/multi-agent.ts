@@ -152,7 +152,7 @@ export class MultiAgentCommunicationOrchestrator {
                     type: "userMessage",
                     timestamp: event.timestamp,
                     sourceAgent: event.agentName,
-                    requestAttributes: event.requestAttributes,
+                    requestAttributes: event.requestAttributes ?? {},
                     value: event.content
                 });
                 continue;

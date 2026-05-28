@@ -1,5 +1,4 @@
 import { AgentPlugin, PluginContext, PluginFactory, AgentCommand, AgentSystemMessage } from "@mimir/agent-core/plugins";
-import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod/v4";
 import { spawn } from 'child_process';
 import os from 'os';
@@ -104,7 +103,7 @@ This interpreter DOES have access to all the files in your workspace which can b
 
     name = "pythonCodeInterpreter";
 
-    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
+    protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
         const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'python-code-interpreter-'));
 
         if (this.workDirectory) {

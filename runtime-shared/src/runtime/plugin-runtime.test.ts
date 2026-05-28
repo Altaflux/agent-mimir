@@ -54,9 +54,13 @@ test("enqueue stores unread notifications and emits notification events", async 
     });
 });
 
-test("runtime events emitted before attach are buffered and flushed", async () => {
+test("tool call runtime events emitted before attach are buffered and flushed", async () => {
     const controller = new SessionPluginRuntimeController("Principal");
-    await controller.forPlugin("timer").emitEvent({
+    await controller.forToolCall("timer", {
+        taskId: "task-1",
+        toolCallId: "tool-call-1",
+        toolName: "timer_tool"
+    }).emitEvent({
         body: {
             type: "status",
             message: "Timer fired"
@@ -69,10 +73,12 @@ test("runtime events emitted before attach are buffered and flushed", async () =
     assert.equal(events.length, 1);
     assert.deepEqual(events[0], {
         type: "plugin_event",
+        taskId: "task-1",
+        toolCallId: "tool-call-1",
+        toolName: "timer_tool",
         pluginName: "timer",
         agentName: "Principal",
         visibility: "user",
-        scope: undefined,
         body: {
             type: "status",
             message: "Timer fired"

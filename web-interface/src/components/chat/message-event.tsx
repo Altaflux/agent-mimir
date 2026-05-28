@@ -179,11 +179,15 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="text-xs font-medium text-muted-foreground">{event.pluginName}</span>
                             <span className="text-[10px] text-muted-foreground/60">{formatTime(event.timestamp)}</span>
-                            {event.scope?.taskId ? (
-                                <span className="rounded bg-secondary/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                                    {event.scope.taskId}
-                                </span>
-                            ) : null}
+                            <span className="rounded bg-secondary/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                {event.toolName}
+                            </span>
+                            <span className="rounded bg-secondary/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                task {event.taskId}
+                            </span>
+                            <span className="rounded bg-secondary/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                call {event.toolCallId}
+                            </span>
                         </div>
                         <p className="mt-1 text-sm font-medium text-foreground">{title}</p>
                         {detail ? <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{detail}</p> : null}

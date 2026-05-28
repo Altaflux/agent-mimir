@@ -62,12 +62,17 @@ export async function createLgAgent(config: CreateAgentArgs) {
     if (config.visionSupport) {
         toolPlugins.push(new ViewPluginFactory());
     }
-    const allCreatedPlugins = await Promise.all([...allPluginFactories, ...toolPlugins].map(async factory =>
-        await factory.create(createPluginContext(workspace, pluginRuntime, factory.name))
+    const createdPluginEntries = await Promise.all([...allPluginFactories, ...toolPlugins].map(async factory => ({
+        factory,
+        plugin: await factory.create(createPluginContext(workspace, pluginRuntime, factory.name))
+    })
     ));
+    const allCreatedPlugins = createdPluginEntries.map(entry => entry.plugin);
 
 
-    const allTools = (await Promise.all(allCreatedPlugins.map(async plugin => await plugin.tools()))).flat();
+    const allTools = (await Promise.all(createdPluginEntries.map(async entry =>
+        (await entry.plugin.tools()).map(tool => tool.bindPluginRuntime(entry.factory.name, pluginRuntime))
+    ))).flat();
 
     const langChainTools = allTools.map(t => new MimirToolToLangchainTool(t));
     const modelWithTools = model.bindTools!(langChainTools);

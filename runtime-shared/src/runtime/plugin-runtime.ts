@@ -6,6 +6,7 @@ import type {
     PluginRuntimeEventInput,
     PluginRuntimeProvider
 } from "@mimir/agent-core/plugins";
+import type { ToolCallRuntimeContext, ToolCallRuntimeSource } from "@mimir/agent-core/tools";
 import crypto from "crypto";
 
 type SessionPluginRuntimeEvent = Extract<
@@ -52,10 +53,16 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
 
     forPlugin(pluginName: string): PluginRuntimeContext {
         return {
-            emitEvent: (input) => this.emitPluginEvent(pluginName, input),
             notifications: {
                 enqueue: (input) => this.enqueueNotification(pluginName, input)
             }
+        };
+    }
+
+    forToolCall(pluginName: string, source: ToolCallRuntimeSource): ToolCallRuntimeContext {
+        return {
+            ...source,
+            emitEvent: (input) => this.emitToolCallEvent(pluginName, source, input)
         };
     }
 
@@ -91,13 +98,15 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
         this.sink?.emitStateChanged();
     }
 
-    private emitPluginEvent(pluginName: string, input: PluginRuntimeEventInput): void {
+    private emitToolCallEvent(pluginName: string, source: ToolCallRuntimeSource, input: PluginRuntimeEventInput): void {
         this.emitRuntimeEvent({
             type: "plugin_event",
+            taskId: source.taskId,
+            toolCallId: source.toolCallId,
+            toolName: source.toolName,
             pluginName,
             agentName: this.agentName,
             visibility: input.visibility ?? "user",
-            scope: input.scope,
             body: input.body
         });
     }

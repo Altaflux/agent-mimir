@@ -1,6 +1,6 @@
 import { AgentMessageToolRequest, AgentWorkspace, InputAgentMessage } from "../agent-manager/index.js";
 import { ComplexMessageContent } from "../schema.js";
-import { AgentTool } from "../tools/index.js";
+import { AgentTool, type ToolCallRuntimeContext, type ToolCallRuntimeSource } from "../tools/index.js";
 
 /** 
  * Represents a message response from the AI agent containing a tool request.
@@ -47,11 +47,6 @@ export type PluginContext = {
 
 export type PluginRuntimeEventVisibility = "user" | "debug";
 
-export type PluginRuntimeEventScope = {
-    taskId?: string;
-    [key: string]: string | undefined;
-};
-
 export type PluginRuntimeEventBody =
     | {
         type: "status";
@@ -74,7 +69,6 @@ export type PluginRuntimeEventBody =
 
 export type PluginRuntimeEventInput = {
     visibility?: PluginRuntimeEventVisibility;
-    scope?: PluginRuntimeEventScope;
     body: PluginRuntimeEventBody;
 };
 
@@ -100,20 +94,17 @@ export type PluginNotificationInbox = {
 };
 
 export type PluginRuntimeContext = {
-    emitEvent(input: PluginRuntimeEventInput): void | Promise<void>,
     notifications: PluginNotificationInbox,
 };
 
 export type PluginRuntimeProvider = {
     forPlugin(pluginName: string): PluginRuntimeContext,
+    forToolCall(pluginName: string, source: ToolCallRuntimeSource): ToolCallRuntimeContext,
 };
 
 export const NOOP_PLUGIN_RUNTIME_PROVIDER: PluginRuntimeProvider = {
     forPlugin(pluginName: string): PluginRuntimeContext {
         return {
-            emitEvent() {
-                return;
-            },
             notifications: {
                 async enqueue(input) {
                     return {
@@ -127,6 +118,14 @@ export const NOOP_PLUGIN_RUNTIME_PROVIDER: PluginRuntimeProvider = {
                         read: false
                     };
                 }
+            }
+        };
+    },
+    forToolCall(_pluginName: string, source: ToolCallRuntimeSource): ToolCallRuntimeContext {
+        return {
+            ...source,
+            emitEvent() {
+                return;
             }
         };
     }

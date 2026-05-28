@@ -1,5 +1,4 @@
 
-import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { By } from 'selenium-webdriver';
 import { WebDriverManager } from "./driver-manager.js";
 import { z } from "zod";
@@ -16,7 +15,7 @@ export class WebBrowserTool extends AgentTool {
     constructor(private toolManager: WebDriverManager) {
         super();
     }
-    protected async _call(inputs: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
+    protected async _call(inputs: z.input<this["schema"]>): Promise<ToolResponse> {
         const { url, keywords, searchDescription } = inputs;
         let formattedBaseUrl = url;
         if (!formattedBaseUrl.startsWith("http://") && !formattedBaseUrl.startsWith("https://")) {
@@ -49,7 +48,7 @@ export class ClickWebSiteLinkOrButton extends AgentTool {
     constructor(private toolManager: WebDriverManager) {
         super();
     }
-    protected async _call(inputs: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
+    protected async _call(inputs: z.input<this["schema"]>): Promise<ToolResponse> {
         if (!this.toolManager.currentPage) {
             return [
                 {
@@ -216,7 +215,7 @@ export class AskSiteQuestion extends AgentTool {
     constructor(private toolManager: WebDriverManager) {
         super();
     }
-    protected async _call(inputs: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
+    protected async _call(inputs: z.input<this["schema"]>): Promise<ToolResponse> {
         if (!this.toolManager.currentPage) {
 
             return [
@@ -227,7 +226,7 @@ export class AskSiteQuestion extends AgentTool {
             ]
         }
         const { keywords, searchDescription } = inputs;
-        const result = await this.toolManager.obtainSummaryOfPage(keywords.join(' '), searchDescription, runManager);
+        const result = await this.toolManager.obtainSummaryOfPage(keywords.join(' '), searchDescription);
 
         return [
             {

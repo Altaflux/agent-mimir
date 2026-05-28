@@ -102,6 +102,7 @@ type SessionRuntime = {
     agentNames: string[];
     orchestrator: MultiAgentCommunicationOrchestrator;
     pluginRuntime: SessionPluginRuntimeController;
+    activeTaskId: string | null;
     pendingToolRequest: AgentToolRequestTwo | null;
     eventBuffer: SessionEvent[];
     subscribers: Set<SessionListener>;
@@ -428,6 +429,7 @@ export class SessionManager {
             agentNames: [principal.name],
             orchestrator: orchestratorBuilder.build(principal.agent),
             pluginRuntime,
+            activeTaskId: null,
             pendingToolRequest: null,
             eventBuffer: [],
             subscribers: new Set<SessionListener>(),
@@ -473,6 +475,8 @@ export class SessionManager {
 
     private async applyHydratedConversation(session: SessionRuntime, events: HydratedOrchestratorEvent[]) {
         let latestActivity = session.lastActivityAt;
+        let hydratedTaskId: string | null = null;
+        let hydratedTaskIndex = 0;
 
         for (const event of events) {
             const parsedTimestamp = Date.parse(event.timestamp);
@@ -481,6 +485,7 @@ export class SessionManager {
             }
 
             if (event.type === "userMessage") {
+                hydratedTaskId = this.getHydratedTaskId(session, event.requestAttributes, hydratedTaskIndex++);
                 const { workspaceFiles, chatImages } = this.classifyHydratedSharedFiles(event.value.sharedFiles ?? []);
                 const displayText = typeof event.requestAttributes["mimirDisplayText"] === "string"
                     ? event.requestAttributes["mimirDisplayText"]
@@ -489,6 +494,7 @@ export class SessionManager {
                     session,
                     {
                         type: "user_message",
+                        taskId: hydratedTaskId,
                         text: displayText,
                         workspaceFiles,
                         chatImages
@@ -501,10 +507,12 @@ export class SessionManager {
 
             if (event.type === "intermediate") {
                 if (event.value.value.type === "toolResponse") {
+                    hydratedTaskId ??= this.getHydratedTaskId(session, {}, hydratedTaskIndex++);
                     this.emitEvent(
                         session,
                         {
                             type: "tool_response",
+                            taskId: hydratedTaskId,
                             agentName: event.value.agentName,
                             toolName: event.value.value.toolResponse.name,
                             toolCallId: event.value.value.toolResponse.id,
@@ -519,10 +527,12 @@ export class SessionManager {
             }
 
             if (event.value.type === "toolRequest") {
+                hydratedTaskId ??= this.getHydratedTaskId(session, {}, hydratedTaskIndex++);
                 this.emitEvent(
                     session,
                     {
                         type: "tool_request",
+                        taskId: hydratedTaskId,
                         payload: this.toToolRequestPayload(event.value),
                         requiresApproval: !session.continuousMode
                     },
@@ -535,10 +545,12 @@ export class SessionManager {
             const text = extractAllTextFromComplexResponse(event.value.content.content);
             const attachments = await this.registerSharedFiles(session, event.value.content.sharedFiles ?? []);
             const responseMessageId = (event.value.content as { id?: string }).id ?? crypto.randomUUID();
+            hydratedTaskId ??= this.getHydratedTaskId(session, {}, hydratedTaskIndex++);
             this.emitEvent(
                 session,
                 {
                     type: "agent_response",
+                    taskId: hydratedTaskId,
                     agentName: event.agentName,
                     messageId: responseMessageId,
                     markdown: text,
@@ -547,8 +559,10 @@ export class SessionManager {
                 { timestamp: event.timestamp, preserveLastActivity: true }
             );
             session.pendingToolRequest = null;
+            hydratedTaskId = null;
         }
 
+        session.activeTaskId = session.pendingToolRequest ? hydratedTaskId : null;
         session.lastActivityAt = latestActivity;
     }
 
@@ -570,6 +584,15 @@ export class SessionManager {
             workspaceFiles,
             chatImages
         };
+    }
+
+    private getHydratedTaskId(session: SessionRuntime, requestAttributes: Record<string, unknown>, taskIndex: number): string {
+        const taskId = requestAttributes["mimirTaskId"];
+        if (typeof taskId === "string" && taskId.length > 0) {
+            return taskId;
+        }
+
+        return `hydrated-${session.sessionId}-${taskIndex}`;
     }
 
     async createSession(name?: string, agentName?: string): Promise<SessionState> {
@@ -619,6 +642,7 @@ export class SessionManager {
                 agentNames: [principal.name],
                 orchestrator: orchestratorBuilder.build(principal.agent),
                 pluginRuntime,
+                activeTaskId: null,
                 pendingToolRequest: null,
                 eventBuffer: [],
                 subscribers: new Set<SessionListener>(),
@@ -677,6 +701,7 @@ export class SessionManager {
         return await this.withSessionLock(session, async () => {
             await session.orchestrator.reset();
             session.pendingToolRequest = null;
+            session.activeTaskId = null;
             session.pluginRuntime.clearNotifications();
             session.fileRegistry.clear();
             session.eventBuffer = [];
@@ -730,14 +755,23 @@ export class SessionManager {
                 throw new HttpError(400, "EMPTY_MESSAGE", "Message text or attachments are required.");
             }
 
+            const taskId = this.beginTask(session);
             this.emitEvent(session, {
                 type: "user_message",
+                taskId,
                 text: input.text,
                 workspaceFiles: workspaceFileNames,
                 chatImages: chatImageNames
             });
 
-            let generator = session.orchestrator.handleMessage({ message: agentInput, abortSignal: session.abortController?.signal }, session.sessionId);
+            let generator = session.orchestrator.handleMessage(
+                {
+                    message: agentInput,
+                    requestAttributes: this.buildTaskRequestAttributes(session),
+                    abortSignal: session.abortController?.signal
+                },
+                session.sessionId
+            );
             await this.consumeGenerator(session, generator);
             this.emitStateChanged(session);
             return this.toSessionState(session);
@@ -758,27 +792,21 @@ export class SessionManager {
 
             const notificationMessage = this.buildNotificationProcessingMessage(notifications);
             const displayText = this.buildNotificationProcessingDisplayText(notifications);
+            const taskId = this.beginTask(session);
             this.emitEvent(session, {
                 type: "user_message",
+                taskId,
                 text: displayText,
                 workspaceFiles: (notificationMessage.sharedFiles ?? []).map((sharedFile) => sharedFile.fileName),
                 chatImages: []
             });
 
-            await session.pluginRuntime.forPlugin("runtime").emitEvent({
-                body: {
-                    type: "status",
-                    title: "Notification processing",
-                    message: "The principal agent is processing pending plugin notifications."
-                }
-            });
-
             const generator = session.orchestrator.handleMessage(
                 {
                     message: notificationMessage,
-                    requestAttributes: {
+                    requestAttributes: this.buildTaskRequestAttributes(session, {
                         mimirDisplayText: displayText
-                    },
+                    }),
                     abortSignal: session.abortController?.signal
                 },
                 session.sessionId
@@ -800,6 +828,7 @@ export class SessionManager {
 
             session.pendingToolRequest = null;
             this.emitStateChanged(session);
+            const taskId = this.requireTaskId(session);
 
             if (request.action === "disapprove") {
                 const feedback = request.feedback?.trim();
@@ -809,6 +838,7 @@ export class SessionManager {
 
                 this.emitEvent(session, {
                     type: "user_message",
+                    taskId,
                     text: feedback,
                     workspaceFiles: [],
                     chatImages: []
@@ -819,13 +849,21 @@ export class SessionManager {
                         message: {
                             content: [{ type: "text", text: feedback }],
                             sharedFiles: []
-                        }
+                        },
+                        requestAttributes: this.buildTaskRequestAttributes(session)
                     },
                     session.sessionId
                 );
                 await this.consumeGenerator(session, generator);
             } else {
-                const generator = session.orchestrator.handleMessage({ message: null, abortSignal: session.abortController?.signal }, session.sessionId);
+                const generator = session.orchestrator.handleMessage(
+                    {
+                        message: null,
+                        requestAttributes: this.buildTaskRequestAttributes(session),
+                        abortSignal: session.abortController?.signal
+                    },
+                    session.sessionId
+                );
                 await this.consumeGenerator(session, generator);
             }
 
@@ -1112,6 +1150,7 @@ export class SessionManager {
         generator: AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void>
     ) {
         let result: IteratorResult<IntermediateAgentResponse, HandleMessageResult>;
+        const taskId = this.requireTaskId(session);
 
         while (true) {
             while (!(result = await generator.next()).done) {
@@ -1124,11 +1163,13 @@ export class SessionManager {
                 const responseMessageId = (result.value.content as { id?: string }).id ?? crypto.randomUUID();
                 this.emitEvent(session, {
                     type: "agent_response",
+                    taskId,
                     agentName: session.orchestrator.currentAgent.name,
                     messageId: responseMessageId,
                     markdown: text,
                     attachments
                 });
+                this.clearTask(session);
                 return;
             }
 
@@ -1136,6 +1177,7 @@ export class SessionManager {
             const pendingPayload = this.toToolRequestPayload(pending);
             this.emitEvent(session, {
                 type: "tool_request",
+                taskId,
                 payload: pendingPayload,
                 requiresApproval: !session.continuousMode
             });
@@ -1145,7 +1187,13 @@ export class SessionManager {
                 return;
             }
 
-            generator = session.orchestrator.handleMessage({ message: null }, session.sessionId);
+            generator = session.orchestrator.handleMessage(
+                {
+                    message: null,
+                    requestAttributes: this.buildTaskRequestAttributes(session)
+                },
+                session.sessionId
+            );
         }
     }
 
@@ -1158,6 +1206,7 @@ export class SessionManager {
 
             this.emitEvent(session, {
                 type: "agent_response_chunk",
+                taskId: this.requireTaskId(session),
                 agentName: chainResponse.agentName,
                 messageId: chainResponse.value.id,
                 markdownChunk: chunkText
@@ -1168,6 +1217,7 @@ export class SessionManager {
         if (chainResponse.value.type === "toolResponse") {
             this.emitEvent(session, {
                 type: "tool_response",
+                taskId: this.requireTaskId(session),
                 messageId: chainResponse.value.id,
                 agentName: chainResponse.agentName,
                 toolName: chainResponse.value.toolResponse.name,
@@ -1208,6 +1258,31 @@ export class SessionManager {
                 toolName: toolCall.toolName,
                 input: toolCall.input
             }))
+        };
+    }
+
+    private beginTask(session: SessionRuntime): string {
+        const taskId = crypto.randomUUID();
+        session.activeTaskId = taskId;
+        return taskId;
+    }
+
+    private requireTaskId(session: SessionRuntime): string {
+        if (!session.activeTaskId) {
+            session.activeTaskId = crypto.randomUUID();
+        }
+
+        return session.activeTaskId;
+    }
+
+    private clearTask(session: SessionRuntime) {
+        session.activeTaskId = null;
+    }
+
+    private buildTaskRequestAttributes(session: SessionRuntime, extra: Record<string, unknown> = {}): Record<string, unknown> {
+        return {
+            ...extra,
+            mimirTaskId: this.requireTaskId(session)
         };
     }
 
@@ -1302,6 +1377,9 @@ export class SessionManager {
             return await operation();
         } catch (error) {
             const normalized = error instanceof HttpError ? error : new HttpError(500, "INTERNAL_ERROR", error instanceof Error ? error.message : "Unexpected error");
+            if (!session.pendingToolRequest) {
+                this.clearTask(session);
+            }
             this.emitEvent(session, {
                 type: "error",
                 message: normalized.message,

@@ -5,7 +5,7 @@ import {
     type PluginFactory,
     type PluginRuntimeContext
 } from "@mimir/agent-core/plugins";
-import { AgentTool, type ToolResponse } from "@mimir/agent-core/tools";
+import { AgentTool, type ToolCallRuntimeContext, type ToolResponse } from "@mimir/agent-core/tools";
 import { z } from "zod/v4";
 
 export class RuntimeSmokeTestPluginFactory implements PluginFactory {
@@ -62,7 +62,7 @@ class RuntimeSmokeTestTool extends AgentTool {
         super();
     }
 
-    protected async _call(input: z.output<this["schema"]>): Promise<ToolResponse> {
+    protected async _call(input: z.output<this["schema"]>, context: ToolCallRuntimeContext): Promise<ToolResponse> {
         const label = input.label?.trim() || "runtime smoke test";
         const steps = input.steps ?? 3;
         const delayMs = input.delayMs ?? 250;
@@ -72,20 +72,24 @@ class RuntimeSmokeTestTool extends AgentTool {
             `The runtime smoke-test tool finished the run named "${label}". ` +
             "This notification exists only to verify manual inbox processing.";
 
-        await this.runtime.emitEvent({
+        await context.emitEvent({
             body: {
                 type: "status",
                 title: "Runtime smoke test",
                 message: `Starting "${label}".`
             }
         });
+        await context.emitEvent({
+            body: {
+                type: "message",
+                title: "Title:::Message from the tool call",
+                message: `Message:::Starting "${label}".`
+            }
+        });
 
         for (let index = 1; index <= steps; index += 1) {
             await wait(delayMs);
-            await this.runtime.emitEvent({
-                scope: {
-                    taskId: label
-                },
+            await context.emitEvent({
                 body: {
                     type: "progress",
                     label,
@@ -96,7 +100,7 @@ class RuntimeSmokeTestTool extends AgentTool {
             });
         }
 
-        await this.runtime.emitEvent({
+        await context.emitEvent({
             body: {
                 type: "message",
                 title: "Runtime smoke test",

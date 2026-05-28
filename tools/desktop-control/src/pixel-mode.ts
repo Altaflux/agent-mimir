@@ -1,5 +1,4 @@
 import { ComplexMessageContent } from "@mimir/agent-core/schema";
-import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { AgentTool } from "@mimir/agent-core/tools";
 import { ToolResponse } from "@mimir/agent-core/tools";
 import screenshot from 'screenshot-desktop';
@@ -168,7 +167,7 @@ class MoveMouseToPixel extends AgentTool {
     name: string = "moveMouseLocationOnComputerScreenPixel";
     description: string = "Move the mouse to a location using x/y pixel coordinates from the resized screenshot image.";
 
-    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
+    protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
         const { sourceWidth, sourceHeight, resizedWidth, resizedHeight } = this.context;
         if (!sourceWidth || !sourceHeight || !resizedWidth || !resizedHeight) {
             return [

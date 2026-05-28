@@ -12,6 +12,7 @@ import z from "zod";
 
 
 export const AgentState = new StateSchema({
+    requestAttributes: z.record(z.string(), z.any()),
     responseAttributes: z.record(z.string(), z.any()),
     noMessagesInTool: z.boolean(),
     messages: MessagesValue
@@ -51,10 +52,11 @@ export class LanggraphAgent implements Agent {
         let graphInput: any = null;
         const state = await this.graph.getState({ ...stateConfig, configurable: { thread_id: `${args.sessionId}#${this.name}` } });
         if (state.next.length > 0 && state.next[0] === "human_review_node") {
+            const update = { requestAttributes: args.requestAttributes ?? {} };
             if (args.message) {
-                graphInput = new Command({ resume: { type: "response", args: extractAllTextFromComplexResponse(args.message.content) } satisfies HumanResponse })
+                graphInput = new Command({ resume: { type: "response", args: extractAllTextFromComplexResponse(args.message.content) } satisfies HumanResponse, update })
             } else {
-                graphInput = new Command({ resume: { type: "accept", args: null } satisfies HumanResponse })
+                graphInput = new Command({ resume: { type: "accept", args: null } satisfies HumanResponse, update })
             }
 
         }

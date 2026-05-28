@@ -10,7 +10,6 @@ import { AgentCommand, AgentSystemMessage, CommandContent, AgentPlugin, PluginFa
 import { AgentTool, ToolResponse } from "@mimir/agent-core/tools";
 import { ComplexMessageContent } from "@mimir/agent-core/schema";
 import { z } from 'zod';
-import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { loadMcpTools } from "@langchain/mcp-adapters";
 import { LangchainToolToMimirTool } from "@mimir/agent-core/tools/langchain";
 
@@ -240,7 +239,7 @@ class McpResourceTool extends AgentTool {
         super()
 
     }
-    protected async _call(arg: any, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
+    protected async _call(arg: any): Promise<ToolResponse> {
         let client = this.clients.find(c => c.clientName === arg.mcpServer)!;
         try {
             const resource = await client.client.readResource({

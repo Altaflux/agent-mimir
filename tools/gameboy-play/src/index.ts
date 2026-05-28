@@ -1,4 +1,3 @@
-import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod";
 
 import { ToolResponse } from "@mimir/agent-core/tools";
@@ -75,7 +74,7 @@ class GameboyControllerPlugin extends AgentTool {
         this.controller = controller;
     }
 
-    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
+    protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
         if (arg.stepsToTake && ["up", "down", "left", "right"].includes(arg.action)) {
             for (let i = 0; i < arg.stepsToTake; i++) {
                 await this.controller.pressButton(arg.action, 100);
