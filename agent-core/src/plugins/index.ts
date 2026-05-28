@@ -82,7 +82,7 @@ export type PluginNotification = {
     id: string;
     pluginName: string;
     agentName: string;
-    createdAt: string;
+    createdAt: number;
     title: string;
     message?: string;
     content: InputAgentMessage;
@@ -111,7 +111,7 @@ export const NOOP_PLUGIN_RUNTIME_PROVIDER: PluginRuntimeProvider = {
                         id: "noop",
                         pluginName,
                         agentName: "unknown",
-                        createdAt: new Date().toISOString(),
+                        createdAt: Date.now(),
                         title: input.title,
                         message: input.message,
                         content: input.content,

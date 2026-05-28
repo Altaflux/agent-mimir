@@ -54,7 +54,7 @@ describe("Plugin runtime context", () => {
                     id: "notification-1",
                     pluginName: "capturing",
                     agentName: "Agent",
-                    createdAt: "2026-01-01T00:00:00.000Z",
+                    createdAt: 1767225600000,
                     title: input.title,
                     message: input.message,
                     content: input.content,

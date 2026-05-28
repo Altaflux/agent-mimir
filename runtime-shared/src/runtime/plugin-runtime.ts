@@ -116,7 +116,7 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
             id: crypto.randomUUID(),
             pluginName,
             agentName: this.agentName,
-            createdAt: new Date().toISOString(),
+            createdAt: Date.now(),
             title: input.title,
             message: input.message,
             content: input.content,
