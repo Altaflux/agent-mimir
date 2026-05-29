@@ -145,6 +145,7 @@ export type SessionEvent =
         agentName: string;
         title: string;
         summary?: string;
+        deduplicationId?: string;
         unreadCount: number;
     }
     | {

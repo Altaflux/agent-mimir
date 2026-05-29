@@ -111,6 +111,7 @@ class RuntimeSmokeTestTool extends AgentTool {
         const notification = await this.runtime.notifications.enqueue({
             title: notificationTitle,
             summary: notificationSummary,
+            deduplicationId: "423654",
             content: {
                 content: [
                     {
@@ -121,6 +122,7 @@ class RuntimeSmokeTestTool extends AgentTool {
             }
         });
         const notification2 = await this.runtime.notifications.enqueue({
+            deduplicationId: "423654",
             title: "Second notification",
             summary: "Second notification",
             content: {

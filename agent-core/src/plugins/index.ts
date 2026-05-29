@@ -77,6 +77,7 @@ export type PluginNotificationContent = InputAgentMessage;
 export type PluginNotificationInput = {
     title: string;
     summary?: string;
+    deduplicationId?: string;
     content: PluginNotificationContent;
 };
 
@@ -87,6 +88,7 @@ export type PluginNotification = {
     createdAt: number;
     title: string;
     summary?: string;
+    deduplicationId?: string;
     content: PluginNotificationContent;
 };
 
@@ -115,6 +117,7 @@ export const NOOP_PLUGIN_RUNTIME_PROVIDER: PluginRuntimeProvider = {
                         createdAt: Date.now(),
                         title: input.title,
                         summary: input.summary,
+                        deduplicationId: input.deduplicationId,
                         content: input.content
                     };
                 }

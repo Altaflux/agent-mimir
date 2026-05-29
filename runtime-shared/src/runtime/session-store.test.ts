@@ -65,6 +65,7 @@ function notification(overrides: Partial<PluginNotification> = {}): PluginNotifi
         createdAt: 1779962460000,
         title: "Worker complete",
         summary: "Worker has a result.",
+        deduplicationId: "worker-complete",
         content: {
             content: [{ type: "text", text: "result body" }],
             sharedFiles: [{ fileName: "result.txt", url: "/tmp/result.txt" }]
@@ -111,6 +112,7 @@ test("plugin notifications persist pending notification content in creation orde
         assert.equal(storedNotifications[0]?.notification.id, "notification-1");
         assert.equal(storedNotifications[1]?.notification.id, "notification-2");
         assert.equal(storedNotifications[0]?.notification.createdAt, 1779962460000);
+        assert.equal(storedNotifications[0]?.notification.deduplicationId, "worker-complete");
         assert.deepEqual(storedNotifications[0]?.notification.content, earlier.content);
 
         store.deletePluginNotifications("session-1", [earlier.id]);

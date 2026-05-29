@@ -60,12 +60,15 @@ export class SessionStore {
                 created_at INTEGER NOT NULL,
                 title TEXT NOT NULL,
                 summary TEXT,
+                deduplication_id TEXT,
                 content_json TEXT NOT NULL,
                 PRIMARY KEY (session_id, notification_id)
             );
 
             CREATE INDEX IF NOT EXISTS idx_plugin_notifications_session_created
                 ON plugin_notifications(session_id, created_at, notification_id);
+            CREATE INDEX IF NOT EXISTS idx_plugin_notifications_session_deduplication
+                ON plugin_notifications(session_id, deduplication_id);
         `);
     }
 
@@ -223,14 +226,16 @@ export class SessionStore {
                 created_at,
                 title,
                 summary,
+                deduplication_id,
                 content_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(session_id, notification_id) DO UPDATE SET
                 plugin_name = excluded.plugin_name,
                 agent_name = excluded.agent_name,
                 created_at = excluded.created_at,
                 title = excluded.title,
                 summary = excluded.summary,
+                deduplication_id = excluded.deduplication_id,
                 content_json = excluded.content_json
         `).run(
             sessionId,
@@ -240,6 +245,7 @@ export class SessionStore {
             notification.createdAt,
             notification.title,
             notification.summary ?? null,
+            notification.deduplicationId ?? null,
             JSON.stringify(notification.content)
         );
     }
@@ -257,6 +263,7 @@ export class SessionStore {
                 created_at,
                 title,
                 summary,
+                deduplication_id,
                 content_json
             FROM plugin_notifications
             WHERE session_id = ?
@@ -268,6 +275,7 @@ export class SessionStore {
             created_at: number;
             title: string;
             summary: string | null;
+            deduplication_id: string | null;
             content_json: string;
         }>;
 
@@ -279,6 +287,7 @@ export class SessionStore {
                 createdAt: row.created_at,
                 title: row.title,
                 summary: row.summary ?? undefined,
+                deduplicationId: row.deduplication_id ?? undefined,
                 content: JSON.parse(row.content_json)
             }
         }));

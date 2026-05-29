@@ -49,6 +49,7 @@ test("enqueue stores unread notifications and emits notification events", async 
         agentName: "Principal",
         title: "Worker complete",
         summary: "Worker has a result.",
+        deduplicationId: undefined,
         unreadCount: 1
     });
 });
@@ -123,6 +124,57 @@ test("nextUnread returns one notification at a time in inbox order", async () =>
 
     assert.equal(controller.nextUnread()?.id, second.id);
     assert.equal(controller.unreadCount(), 1);
+});
+
+test("enqueue discards duplicate pending notifications by deduplication id", async () => {
+    const controller = new SessionPluginRuntimeController("Principal");
+    const sinkState = createSink();
+    controller.attach(sinkState.sink);
+
+    const first = await controller.forPlugin("subagents").notifications.enqueue({
+        title: "First",
+        deduplicationId: "worker-1",
+        content: {
+            content: [{ type: "text", text: "first" }]
+        }
+    });
+    const duplicate = await controller.forPlugin("subagents").notifications.enqueue({
+        title: "Duplicate",
+        deduplicationId: "worker-1",
+        content: {
+            content: [{ type: "text", text: "duplicate" }]
+        }
+    });
+
+    assert.equal(duplicate.id, first.id);
+    assert.equal(controller.unreadCount(), 1);
+    assert.equal(controller.nextUnread()?.title, "First");
+    assert.equal(sinkState.events.length, 1);
+    assert.equal(sinkState.stateChangeCount, 1);
+});
+
+test("deduplication ids can be reused after pending notification removal", async () => {
+    const controller = new SessionPluginRuntimeController("Principal");
+    const first = await controller.forPlugin("subagents").notifications.enqueue({
+        title: "First",
+        deduplicationId: "worker-1",
+        content: {
+            content: [{ type: "text", text: "first" }]
+        }
+    });
+    controller.remove([first.id]);
+
+    const next = await controller.forPlugin("subagents").notifications.enqueue({
+        title: "Next",
+        deduplicationId: "worker-1",
+        content: {
+            content: [{ type: "text", text: "next" }]
+        }
+    });
+
+    assert.notEqual(next.id, first.id);
+    assert.equal(controller.unreadCount(), 1);
+    assert.equal(controller.nextUnread()?.title, "Next");
 });
 
 test("nextUnread returns null when there are no unread notifications", () => {

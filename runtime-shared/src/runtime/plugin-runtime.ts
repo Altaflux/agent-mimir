@@ -136,6 +136,16 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
     }
 
     private async enqueueNotification(pluginName: string, input: PluginNotificationInput): Promise<PluginNotification> {
+        const deduplicationId = this.normalizeDeduplicationId(input.deduplicationId);
+        if (deduplicationId) {
+            const existingNotification = this.notifications.find(
+                (notification) => notification.deduplicationId === deduplicationId
+            );
+            if (existingNotification) {
+                return existingNotification;
+            }
+        }
+
         const notification: PluginNotification = {
             id: crypto.randomUUID(),
             pluginName,
@@ -143,6 +153,7 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
             createdAt: Date.now(),
             title: input.title,
             summary: input.summary,
+            deduplicationId,
             content: input.content
         };
 
@@ -155,10 +166,20 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
             agentName: this.agentName,
             title: notification.title,
             summary: notification.summary,
+            deduplicationId: notification.deduplicationId,
             unreadCount: this.unreadCount()
         });
         this.sink?.emitStateChanged();
         return notification;
+    }
+
+    private normalizeDeduplicationId(deduplicationId: string | undefined): string | undefined {
+        if (typeof deduplicationId !== "string") {
+            return undefined;
+        }
+
+        const trimmed = deduplicationId.trim();
+        return trimmed.length > 0 ? trimmed : undefined;
     }
 
     private persistUnstoredNotifications(): void {
