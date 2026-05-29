@@ -43,7 +43,6 @@ describe("Plugin runtime context", () => {
 
         expect(notification.pluginName).toBe("unit-test");
         expect(notification.title).toBe("No-op notification");
-        expect(notification.read).toBe(false);
         expect("emitEvent" in runtime).toBe(false);
     });
 
@@ -57,8 +56,7 @@ describe("Plugin runtime context", () => {
                     createdAt: 1767225600000,
                     title: input.title,
                     summary: input.summary,
-                    content: input.content,
-                    read: false
+                    content: input.content
                 })
             }
         };

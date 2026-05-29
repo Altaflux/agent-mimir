@@ -215,9 +215,6 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                                 {event.toolName}
                             </span>
                             <span className="rounded bg-secondary/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                                task {event.taskId}
-                            </span>
-                            <span className="rounded bg-secondary/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
                                 call {event.toolCallId}
                             </span>
                         </div>

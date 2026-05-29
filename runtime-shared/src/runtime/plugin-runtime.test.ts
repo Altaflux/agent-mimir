@@ -39,7 +39,6 @@ test("enqueue stores unread notifications and emits notification events", async 
 
     assert.equal(notification.pluginName, "subagents");
     assert.equal(notification.agentName, "Principal");
-    assert.equal(notification.read, false);
     assert.equal(controller.unreadCount(), 1);
     assert.equal(sinkState.stateChangeCount, 1);
     assert.equal(sinkState.events.length, 1);
@@ -56,10 +55,6 @@ test("enqueue stores unread notifications and emits notification events", async 
 
 test("tool call runtime events emitted before attach are buffered and flushed", async () => {
     const controller = new SessionPluginRuntimeController("Principal");
-    controller.configure({
-        getCurrentTaskId: () => "task-1",
-        getNotificationAnchorTaskId: () => null
-    });
     await controller.forToolCall("timer", {
         toolCallId: "tool-call-1",
         toolName: "timer_tool"
@@ -76,7 +71,6 @@ test("tool call runtime events emitted before attach are buffered and flushed", 
     assert.equal(events.length, 1);
     assert.deepEqual(events[0], {
         type: "plugin_event",
-        taskId: "task-1",
         toolCallId: "tool-call-1",
         toolName: "timer_tool",
         pluginName: "timer",
@@ -89,7 +83,7 @@ test("tool call runtime events emitted before attach are buffered and flushed", 
     });
 });
 
-test("markRead clears unread counts without losing historical notifications", async () => {
+test("remove clears pending notifications", async () => {
     const controller = new SessionPluginRuntimeController("Principal");
     const sinkState = createSink();
     controller.attach(sinkState.sink);
@@ -101,7 +95,7 @@ test("markRead clears unread counts without losing historical notifications", as
         }
     });
 
-    controller.markRead([notification.id]);
+    controller.remove([notification.id]);
 
     assert.equal(controller.unreadCount(), 0);
     assert.equal(controller.listUnread().length, 0);
@@ -125,7 +119,7 @@ test("nextUnread returns one notification at a time in inbox order", async () =>
 
     assert.equal(controller.nextUnread()?.id, first.id);
 
-    controller.markRead([first.id]);
+    controller.remove([first.id]);
 
     assert.equal(controller.nextUnread()?.id, second.id);
     assert.equal(controller.unreadCount(), 1);
@@ -137,7 +131,7 @@ test("nextUnread returns null when there are no unread notifications", () => {
     assert.equal(controller.nextUnread(), null);
 });
 
-test("notifications enqueued before persistence is configured are saved with the runtime anchor", async () => {
+test("notifications enqueued before persistence is configured are saved as pending notifications", async () => {
     const controller = new SessionPluginRuntimeController("Principal");
     const notification = await controller.forPlugin("subagents").notifications.enqueue({
         title: "Early notification",
@@ -145,16 +139,14 @@ test("notifications enqueued before persistence is configured are saved with the
             content: [{ type: "text", text: "ready" }]
         }
     });
-    const saved: Array<{ id: string; anchorTaskId: string | null }> = [];
+    const saved: string[] = [];
 
     controller.configure({
-        getCurrentTaskId: () => "task-1",
-        getNotificationAnchorTaskId: () => "root-message-1",
         persistence: {
-            saveNotification(persistedNotification, anchorTaskId) {
-                saved.push({ id: persistedNotification.id, anchorTaskId });
+            saveNotification(persistedNotification) {
+                saved.push(persistedNotification.id);
             },
-            markNotificationsRead() {
+            deleteNotifications() {
                 return;
             },
             clearNotifications() {
@@ -163,21 +155,19 @@ test("notifications enqueued before persistence is configured are saved with the
         }
     });
 
-    assert.deepEqual(saved, [{ id: notification.id, anchorTaskId: "root-message-1" }]);
+    assert.deepEqual(saved, [notification.id]);
 });
 
-test("markRead persists read state with an epoch timestamp", async () => {
+test("remove deletes pending notification persistence rows", async () => {
     const controller = new SessionPluginRuntimeController("Principal");
-    let readCall: { ids: string[]; readAt: number } | undefined;
+    let deletedIds: string[] | undefined;
     controller.configure({
-        getCurrentTaskId: () => "task-1",
-        getNotificationAnchorTaskId: () => null,
         persistence: {
             saveNotification() {
                 return;
             },
-            markNotificationsRead(notificationIds, readAt) {
-                readCall = { ids: notificationIds, readAt };
+            deleteNotifications(notificationIds) {
+                deletedIds = notificationIds;
             },
             clearNotifications() {
                 return;
@@ -192,9 +182,7 @@ test("markRead persists read state with an epoch timestamp", async () => {
         }
     });
 
-    controller.markRead([notification.id]);
+    controller.remove([notification.id]);
 
-    assert.deepEqual(readCall?.ids, [notification.id]);
-    assert.equal(typeof readCall?.readAt, "number");
-    assert.ok((readCall?.readAt ?? 0) > 0);
+    assert.deepEqual(deletedIds, [notification.id]);
 });

@@ -73,7 +73,6 @@ export type SessionEvent =
         sessionId: string;
         timestamp: string;
         type: "user_message";
-        taskId: string;
         origin: UserMessageOrigin;
         text: string;
         workspaceFiles: string[];
@@ -84,7 +83,6 @@ export type SessionEvent =
         sessionId: string;
         timestamp: string;
         type: "tool_response";
-        taskId: string;
         messageId?: string;
         agentName: string;
         toolName: string;
@@ -96,7 +94,6 @@ export type SessionEvent =
         sessionId: string;
         timestamp: string;
         type: "tool_request";
-        taskId: string;
         payload: ToolRequestPayload;
         requiresApproval: boolean;
     }
@@ -105,7 +102,6 @@ export type SessionEvent =
         sessionId: string;
         timestamp: string;
         type: "agent_response_chunk";
-        taskId: string;
         agentName: string;
         messageId: string;
         markdownChunk: string;
@@ -115,7 +111,6 @@ export type SessionEvent =
         sessionId: string;
         timestamp: string;
         type: "agent_response";
-        taskId: string;
         agentName: string;
         messageId: string;
         markdown: string;
@@ -133,7 +128,6 @@ export type SessionEvent =
         sessionId: string;
         timestamp: string;
         type: "plugin_event";
-        taskId: string;
         toolCallId: string;
         toolName: string;
         pluginName: string;

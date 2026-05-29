@@ -29,7 +29,6 @@ function createNotification(overrides: Partial<PluginNotification> = {}): Plugin
             content: [{ type: "text", text: "result body" }],
             sharedFiles: [{ fileName: "result.txt", url: "/tmp/result.txt" }]
         },
-        read: false,
         ...overrides
     };
 }

@@ -24,14 +24,12 @@ export type SessionPluginRuntimeSink = {
 };
 
 export type SessionPluginRuntimePersistence = {
-    saveNotification(notification: PluginNotification, anchorTaskId: string | null): void;
-    markNotificationsRead(notificationIds: string[], readAt: number): void;
+    saveNotification(notification: PluginNotification): void;
+    deleteNotifications(notificationIds: string[]): void;
     clearNotifications(): void;
 };
 
 export type SessionPluginRuntimeAccessors = {
-    getCurrentTaskId(): string;
-    getNotificationAnchorTaskId(): string | null;
     persistence?: SessionPluginRuntimePersistence;
 };
 
@@ -40,10 +38,7 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
     private bufferedEvents: SessionPluginRuntimeEvent[] = [];
     private notifications: PluginNotification[] = [];
     private persistedNotificationIds = new Set<string>();
-    private accessors: SessionPluginRuntimeAccessors = {
-        getCurrentTaskId: () => "standalone",
-        getNotificationAnchorTaskId: () => null
-    };
+    private accessors: SessionPluginRuntimeAccessors = {};
 
     constructor(
         private readonly agentName: string,
@@ -92,29 +87,27 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
     }
 
     unreadCount(): number {
-        return this.notifications.filter((notification) => !notification.read).length;
+        return this.notifications.length;
     }
 
     listUnread(): PluginNotification[] {
-        return this.notifications.filter((notification) => !notification.read);
+        return [...this.notifications];
     }
 
     nextUnread(): PluginNotification | null {
-        return this.notifications.find((notification) => !notification.read) ?? null;
+        return this.notifications[0] ?? null;
     }
 
-    markRead(notificationIds: string[]): void {
+    remove(notificationIds: string[]): void {
         const ids = new Set(notificationIds);
-        let changed = false;
-        for (const notification of this.notifications) {
-            if (!notification.read && ids.has(notification.id)) {
-                notification.read = true;
-                changed = true;
-            }
-        }
+        const previousCount = this.notifications.length;
+        this.notifications = this.notifications.filter((notification) => !ids.has(notification.id));
 
-        if (changed) {
-            this.accessors.persistence?.markNotificationsRead(notificationIds, Date.now());
+        if (this.notifications.length !== previousCount) {
+            for (const id of ids) {
+                this.persistedNotificationIds.delete(id);
+            }
+            this.accessors.persistence?.deleteNotifications(notificationIds);
             this.sink?.emitStateChanged();
         }
     }
@@ -133,7 +126,6 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
     private emitToolCallEvent(pluginName: string, source: ToolCallRuntimeSource, input: PluginRuntimeEventInput): void {
         this.emitRuntimeEvent({
             type: "plugin_event",
-            taskId: this.accessors.getCurrentTaskId(),
             toolCallId: source.toolCallId,
             toolName: source.toolName,
             pluginName,
@@ -151,12 +143,11 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
             createdAt: Date.now(),
             title: input.title,
             summary: input.summary,
-            content: input.content,
-            read: false
+            content: input.content
         };
 
         this.notifications.push(notification);
-        this.persistNotification(notification, this.accessors.getNotificationAnchorTaskId());
+        this.persistNotification(notification);
         this.emitRuntimeEvent({
             type: "plugin_notification",
             notificationId: notification.id,
@@ -175,18 +166,17 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
             return;
         }
 
-        const anchorTaskId = this.accessors.getNotificationAnchorTaskId();
         for (const notification of this.notifications) {
-            this.persistNotification(notification, anchorTaskId);
+            this.persistNotification(notification);
         }
     }
 
-    private persistNotification(notification: PluginNotification, anchorTaskId: string | null): void {
+    private persistNotification(notification: PluginNotification): void {
         if (!this.accessors.persistence || this.persistedNotificationIds.has(notification.id)) {
             return;
         }
 
-        this.accessors.persistence.saveNotification(notification, anchorTaskId);
+        this.accessors.persistence.saveNotification(notification);
         this.persistedNotificationIds.add(notification.id);
     }
 

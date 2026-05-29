@@ -115,7 +115,6 @@ export function useChatSession() {
                             sessionId: event.sessionId,
                             timestamp: event.timestamp,
                             type: "agent_response",
-                            taskId: event.taskId,
                             agentName: event.payload.callingAgent,
                             messageId: msgId ?? `${event.id}_msg`,
                             markdown: event.payload.content,

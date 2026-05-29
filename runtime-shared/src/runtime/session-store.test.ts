@@ -26,7 +26,6 @@ function pluginEvent(overrides: Partial<Extract<SessionEvent, { type: "plugin_ev
         sessionId: "session-1",
         timestamp: "2026-05-28T10:00:00.000Z",
         type: "plugin_event",
-        taskId: "root-message-1",
         toolCallId: "tool-call-1",
         toolName: "runtime_smoke",
         pluginName: "runtime-smoke-test",
@@ -70,74 +69,63 @@ function notification(overrides: Partial<PluginNotification> = {}): PluginNotifi
             content: [{ type: "text", text: "result body" }],
             sharedFiles: [{ fileName: "result.txt", url: "/tmp/result.txt" }]
         },
-        read: false,
         ...overrides
     };
 }
 
-test("plugin runtime events persist with task and tool origin", async () => {
+test("plugin runtime events persist with tool origin", async () => {
     await withStore((store) => {
         const event = pluginEvent();
 
-        store.appendPluginRuntimeEvent("session-1", event, {
-            anchorTaskId: null,
-            retentionLimit: 10
-        });
+        store.appendPluginRuntimeEvent("session-1", event, { retentionLimit: 10 });
 
         const storedEvents = store.listPluginRuntimeEvents("session-1");
         assert.equal(storedEvents.length, 1);
-        assert.equal(storedEvents[0]?.anchorTaskId, null);
         assert.deepEqual(storedEvents[0]?.event, event);
         assert.ok((storedEvents[0]?.sequence ?? 0) > 0);
     });
 });
 
-test("plugin notification events persist with their runtime-owned anchor", async () => {
+test("plugin notification events persist without notification anchors", async () => {
     await withStore((store) => {
         const event = pluginNotificationEvent();
 
-        store.appendPluginRuntimeEvent("session-1", event, {
-            anchorTaskId: "root-message-1",
-            retentionLimit: 10
-        });
+        store.appendPluginRuntimeEvent("session-1", event, { retentionLimit: 10 });
 
         const storedEvents = store.listPluginRuntimeEvents("session-1");
         assert.equal(storedEvents.length, 1);
-        assert.equal(storedEvents[0]?.anchorTaskId, "root-message-1");
         assert.deepEqual(storedEvents[0]?.event, event);
     });
 });
 
-test("plugin notifications persist epoch createdAt, read state, content, and anchor", async () => {
+test("plugin notifications persist pending notification content in creation order", async () => {
     await withStore((store) => {
-        const unread = notification();
+        const later = notification({ id: "notification-2", createdAt: 1779962470000, title: "Later" });
+        const earlier = notification({ id: "notification-1", createdAt: 1779962460000, title: "Earlier" });
 
-        store.savePluginNotification("session-1", unread, "root-message-1");
+        store.savePluginNotification("session-1", later);
+        store.savePluginNotification("session-1", earlier);
         let storedNotifications = store.listPluginNotifications("session-1");
 
-        assert.equal(storedNotifications.length, 1);
-        assert.equal(storedNotifications[0]?.anchorTaskId, "root-message-1");
-        assert.equal(storedNotifications[0]?.readAt, null);
+        assert.equal(storedNotifications.length, 2);
+        assert.equal(storedNotifications[0]?.notification.id, "notification-1");
+        assert.equal(storedNotifications[1]?.notification.id, "notification-2");
         assert.equal(storedNotifications[0]?.notification.createdAt, 1779962460000);
-        assert.equal(storedNotifications[0]?.notification.read, false);
-        assert.deepEqual(storedNotifications[0]?.notification.content, unread.content);
+        assert.deepEqual(storedNotifications[0]?.notification.content, earlier.content);
 
-        store.markPluginNotificationsRead("session-1", [unread.id], 1779962500000);
+        store.deletePluginNotifications("session-1", [earlier.id]);
         storedNotifications = store.listPluginNotifications("session-1");
 
-        assert.equal(storedNotifications[0]?.notification.read, true);
-        assert.equal(storedNotifications[0]?.readAt, 1779962500000);
+        assert.equal(storedNotifications.length, 1);
+        assert.equal(storedNotifications[0]?.notification.id, "notification-2");
     });
 });
 
 test("plugin persistence contributes to discovery activity and clears on delete", async () => {
     await withStore((store) => {
         store.upsertName("session-1", "Plugin session");
-        store.appendPluginRuntimeEvent("session-1", pluginEvent(), {
-            anchorTaskId: null,
-            retentionLimit: 10
-        });
-        store.savePluginNotification("session-1", notification(), null);
+        store.appendPluginRuntimeEvent("session-1", pluginEvent(), { retentionLimit: 10 });
+        store.savePluginNotification("session-1", notification());
 
         const activity = store.getPluginSessionActivity().get("session-1");
         assert.ok(activity);

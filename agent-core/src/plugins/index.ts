@@ -88,7 +88,6 @@ export type PluginNotification = {
     title: string;
     summary?: string;
     content: PluginNotificationContent;
-    read: boolean;
 };
 
 export type PluginNotificationInbox = {
@@ -116,8 +115,7 @@ export const NOOP_PLUGIN_RUNTIME_PROVIDER: PluginRuntimeProvider = {
                         createdAt: Date.now(),
                         title: input.title,
                         summary: input.summary,
-                        content: input.content,
-                        read: false
+                        content: input.content
                     };
                 }
             }

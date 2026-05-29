@@ -6,13 +6,10 @@ import type { PluginNotification } from "@mimir/agent-core/plugins";
 
 export type StoredPluginRuntimeEvent = {
     sequence: number;
-    anchorTaskId: string | null;
     event: Extract<SessionEvent, { type: "plugin_event" | "plugin_notification" }>;
 };
 
 export type StoredPluginNotification = {
-    anchorTaskId: string | null;
-    readAt: number | null;
     notification: PluginNotification;
 };
 
@@ -42,20 +39,18 @@ export class SessionStore {
                 timestamp TEXT NOT NULL,
                 timestamp_ms INTEGER NOT NULL,
                 type TEXT NOT NULL,
-                task_id TEXT,
                 tool_call_id TEXT,
                 tool_name TEXT,
                 notification_id TEXT,
                 plugin_name TEXT NOT NULL,
                 agent_name TEXT NOT NULL,
-                anchor_task_id TEXT,
                 payload_json TEXT NOT NULL
             );
 
             CREATE INDEX IF NOT EXISTS idx_plugin_runtime_events_session_sequence
                 ON plugin_runtime_events(session_id, sequence);
-            CREATE INDEX IF NOT EXISTS idx_plugin_runtime_events_tool_anchor
-                ON plugin_runtime_events(session_id, task_id, tool_call_id);
+            CREATE INDEX IF NOT EXISTS idx_plugin_runtime_events_tool_call
+                ON plugin_runtime_events(session_id, tool_call_id);
 
             CREATE TABLE IF NOT EXISTS plugin_notifications (
                 session_id TEXT NOT NULL,
@@ -66,16 +61,11 @@ export class SessionStore {
                 title TEXT NOT NULL,
                 summary TEXT,
                 content_json TEXT NOT NULL,
-                read INTEGER NOT NULL,
-                read_at INTEGER,
-                anchor_task_id TEXT,
                 PRIMARY KEY (session_id, notification_id)
             );
 
-            CREATE INDEX IF NOT EXISTS idx_plugin_notifications_session_read
-                ON plugin_notifications(session_id, read);
-            CREATE INDEX IF NOT EXISTS idx_plugin_notifications_session_anchor
-                ON plugin_notifications(session_id, anchor_task_id);
+            CREATE INDEX IF NOT EXISTS idx_plugin_notifications_session_created
+                ON plugin_notifications(session_id, created_at, notification_id);
         `);
     }
 
@@ -152,7 +142,7 @@ export class SessionStore {
     appendPluginRuntimeEvent(
         sessionId: string,
         event: Extract<SessionEvent, { type: "plugin_event" | "plugin_notification" }>,
-        options: { anchorTaskId?: string | null; retentionLimit: number }
+        options: { retentionLimit: number }
     ): void {
         if (!this.db) {
             return;
@@ -160,7 +150,6 @@ export class SessionStore {
 
         const timestampMs = Date.parse(event.timestamp);
         const normalizedTimestampMs = Number.isFinite(timestampMs) ? timestampMs : Date.now();
-        const anchorTaskId = options.anchorTaskId ?? null;
 
         this.db.prepare(`
             INSERT INTO plugin_runtime_events (
@@ -169,15 +158,13 @@ export class SessionStore {
                 timestamp,
                 timestamp_ms,
                 type,
-                task_id,
                 tool_call_id,
                 tool_name,
                 notification_id,
                 plugin_name,
                 agent_name,
-                anchor_task_id,
                 payload_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(event_id) DO NOTHING
         `).run(
             event.id,
@@ -185,13 +172,11 @@ export class SessionStore {
             event.timestamp,
             normalizedTimestampMs,
             event.type,
-            event.type === "plugin_event" ? event.taskId : null,
             event.type === "plugin_event" ? event.toolCallId : null,
             event.type === "plugin_event" ? event.toolName : null,
             event.type === "plugin_notification" ? event.notificationId : null,
             event.pluginName,
             event.agentName,
-            anchorTaskId,
             JSON.stringify(event)
         );
 
@@ -204,15 +189,14 @@ export class SessionStore {
         }
 
         const rows = this.db.prepare(`
-            SELECT sequence, anchor_task_id, payload_json
+            SELECT sequence, payload_json
             FROM plugin_runtime_events
             WHERE session_id = ?
             ORDER BY sequence ASC
-        `).all(sessionId) as { sequence: number; anchor_task_id: string | null; payload_json: string }[];
+        `).all(sessionId) as { sequence: number; payload_json: string }[];
 
         return rows.map((row) => ({
             sequence: row.sequence,
-            anchorTaskId: row.anchor_task_id,
             event: JSON.parse(row.payload_json) as Extract<SessionEvent, { type: "plugin_event" | "plugin_notification" }>
         }));
     }
@@ -225,7 +209,7 @@ export class SessionStore {
         this.db.prepare("DELETE FROM plugin_runtime_events WHERE session_id = ?").run(sessionId);
     }
 
-    savePluginNotification(sessionId: string, notification: PluginNotification, anchorTaskId: string | null): void {
+    savePluginNotification(sessionId: string, notification: PluginNotification): void {
         if (!this.db) {
             return;
         }
@@ -239,21 +223,15 @@ export class SessionStore {
                 created_at,
                 title,
                 summary,
-                content_json,
-                read,
-                read_at,
-                anchor_task_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                content_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(session_id, notification_id) DO UPDATE SET
                 plugin_name = excluded.plugin_name,
                 agent_name = excluded.agent_name,
                 created_at = excluded.created_at,
                 title = excluded.title,
                 summary = excluded.summary,
-                content_json = excluded.content_json,
-                read = excluded.read,
-                read_at = excluded.read_at,
-                anchor_task_id = excluded.anchor_task_id
+                content_json = excluded.content_json
         `).run(
             sessionId,
             notification.id,
@@ -262,10 +240,7 @@ export class SessionStore {
             notification.createdAt,
             notification.title,
             notification.summary ?? null,
-            JSON.stringify(notification.content),
-            notification.read ? 1 : 0,
-            null,
-            anchorTaskId
+            JSON.stringify(notification.content)
         );
     }
 
@@ -282,10 +257,7 @@ export class SessionStore {
                 created_at,
                 title,
                 summary,
-                content_json,
-                read,
-                read_at,
-                anchor_task_id
+                content_json
             FROM plugin_notifications
             WHERE session_id = ?
             ORDER BY created_at ASC, notification_id ASC
@@ -297,14 +269,9 @@ export class SessionStore {
             title: string;
             summary: string | null;
             content_json: string;
-            read: number;
-            read_at: number | null;
-            anchor_task_id: string | null;
         }>;
 
         return rows.map((row) => ({
-            anchorTaskId: row.anchor_task_id,
-            readAt: row.read_at,
             notification: {
                 id: row.notification_id,
                 pluginName: row.plugin_name,
@@ -312,25 +279,20 @@ export class SessionStore {
                 createdAt: row.created_at,
                 title: row.title,
                 summary: row.summary ?? undefined,
-                content: JSON.parse(row.content_json),
-                read: row.read === 1
+                content: JSON.parse(row.content_json)
             }
         }));
     }
 
-    markPluginNotificationsRead(sessionId: string, notificationIds: string[], readAt: number): void {
+    deletePluginNotifications(sessionId: string, notificationIds: string[]): void {
         if (!this.db || notificationIds.length === 0) {
             return;
         }
 
-        const update = this.db.prepare(`
-            UPDATE plugin_notifications
-            SET read = 1, read_at = ?
-            WHERE session_id = ? AND notification_id = ?
-        `);
+        const remove = this.db.prepare("DELETE FROM plugin_notifications WHERE session_id = ? AND notification_id = ?");
         const transaction = this.db.transaction((ids: string[]) => {
             for (const id of ids) {
-                update.run(readAt, sessionId, id);
+                remove.run(sessionId, id);
             }
         });
         transaction(notificationIds);

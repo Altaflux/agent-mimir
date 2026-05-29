@@ -16,7 +16,7 @@ describe("readHydrationEvents", () => {
                         ts: "2026-05-28T10:00:00.000Z",
                         channel_values: {
                             requestAttributes: {
-                                runtimeTaskId: "task-1"
+                                runtimeTraceId: "trace-1"
                             },
                             messages: [
                                 new HumanMessage({
@@ -43,7 +43,7 @@ describe("readHydrationEvents", () => {
             return;
         }
         expect(event.messageId).toBe("human-message-1");
-        expect(event.requestAttributes).toEqual({ runtimeTaskId: "task-1" });
+        expect(event.requestAttributes).toEqual({ runtimeTraceId: "trace-1" });
         expect(event.input).toEqual({
             type: "user_message",
             message: {
