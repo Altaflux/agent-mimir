@@ -40,7 +40,7 @@ export function materializeAgentInput(input: AgentInput): MaterializedAgentInput
             message: input.message,
             additionalKwargs: {
                 sharedFiles: input.message.sharedFiles,
-                runtimeInputKind: input.type
+                runtimeInput: input
             }
         };
     }
@@ -50,13 +50,7 @@ export function materializeAgentInput(input: AgentInput): MaterializedAgentInput
         message,
         additionalKwargs: {
             sharedFiles: message.sharedFiles,
-            runtimeInputKind: input.type,
-            runtimeNotification: {
-                notificationId: input.notification.notificationId,
-                pluginName: input.notification.pluginName,
-                title: input.notification.title,
-                message: input.notification.message
-            }
+            runtimeInput: input
         }
     };
 }

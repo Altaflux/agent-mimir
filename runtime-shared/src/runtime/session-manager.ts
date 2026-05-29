@@ -11,7 +11,7 @@ import {
 import { getConfig } from "./config.js";
 import { HttpError } from "./errors.js";
 import type { AgentMimirConfig } from "./types.js";
-import { Agent, AgentInput, InputAgentMessage, SharedFile } from "@mimir/agent-core/agent";
+import { Agent, AgentInput, AgentNotificationInput, InputAgentMessage, SharedFile } from "@mimir/agent-core/agent";
 import {
     AgentHydrationEventWithAgent,
     AgentToolRequestTwo,
@@ -511,20 +511,16 @@ export class SessionManager {
             if (event.type === "userMessage") {
                 hydratedTaskId = this.getHydratedTaskId(session, event.requestAttributes, event.messageId, hydratedTaskIndex++);
                 session.currentTaskId = hydratedTaskId;
-                const { workspaceFiles, chatImages } = this.classifyHydratedSharedFiles(event.value.sharedFiles ?? []);
-                const runtimeDisplayText = event.requestAttributes["runtimeDisplayText"] ?? event.requestAttributes["mimirDisplayText"];
-                const displayText = typeof runtimeDisplayText === "string"
-                    ? runtimeDisplayText
-                    : extractAllTextFromComplexResponse(event.value.content);
+                const presentation = this.getHydratedInputPresentation(event.input);
                 this.emitEvent(
                     session,
                     {
                         type: "user_message",
                         taskId: hydratedTaskId,
-                        origin: this.getHydratedMessageOrigin(event.requestAttributes),
-                        text: displayText,
-                        workspaceFiles,
-                        chatImages
+                        origin: presentation.origin,
+                        text: presentation.text,
+                        workspaceFiles: presentation.workspaceFiles,
+                        chatImages: presentation.chatImages
                     },
                     { timestamp: event.timestamp, preserveLastActivity: true }
                 );
@@ -704,7 +700,7 @@ export class SessionManager {
     }
 
     private getHydratedTaskId(session: SessionRuntime, requestAttributes: Record<string, unknown>, messageId: string | undefined, taskIndex: number): string {
-        const taskId = requestAttributes["runtimeTaskId"] ?? requestAttributes["mimirTaskId"];
+        const taskId = requestAttributes["runtimeTaskId"];
         if (typeof taskId === "string" && taskId.length > 0) {
             return taskId;
         }
@@ -716,38 +712,37 @@ export class SessionManager {
         return `hydrated-${session.sessionId}-${taskIndex}`;
     }
 
-    private buildNotificationMessageOrigin(notification: PluginNotification): UserMessageOrigin {
+    private getHydratedInputPresentation(input: AgentInput): {
+        origin: UserMessageOrigin;
+        text: string;
+        workspaceFiles: string[];
+        chatImages: string[];
+    } {
+        if (input.type === "plugin_notification") {
+            return {
+                origin: this.buildNotificationMessageOrigin(input.notification),
+                text: this.buildNotificationProcessingDisplayText(input.notification),
+                workspaceFiles: (input.notification.content.sharedFiles ?? []).map((sharedFile) => sharedFile.fileName),
+                chatImages: []
+            };
+        }
+
+        const { workspaceFiles, chatImages } = this.classifyHydratedSharedFiles(input.message.sharedFiles ?? []);
         return {
-            type: "plugin_notification",
-            notificationId: notification.id,
-            pluginName: notification.pluginName,
-            title: notification.title,
-            message: notification.message
+            origin: { type: "user" },
+            text: extractAllTextFromComplexResponse(input.message.content),
+            workspaceFiles,
+            chatImages
         };
     }
 
-    private getHydratedMessageOrigin(requestAttributes: Record<string, unknown>): UserMessageOrigin {
-        const origin = requestAttributes["runtimeMessageOrigin"] ?? requestAttributes["mimirMessageOrigin"];
-        if (!origin || typeof origin !== "object") {
-            return { type: "user" };
-        }
-
-        const maybeOrigin = origin as Record<string, unknown>;
-        if (
-            maybeOrigin.type !== "plugin_notification" ||
-            typeof maybeOrigin.notificationId !== "string" ||
-            typeof maybeOrigin.pluginName !== "string" ||
-            typeof maybeOrigin.title !== "string"
-        ) {
-            return { type: "user" };
-        }
-
+    private buildNotificationMessageOrigin(notification: AgentNotificationInput): UserMessageOrigin {
         return {
             type: "plugin_notification",
-            notificationId: maybeOrigin.notificationId,
-            pluginName: maybeOrigin.pluginName,
-            title: maybeOrigin.title,
-            message: typeof maybeOrigin.message === "string" ? maybeOrigin.message : undefined
+            notificationId: notification.notificationId,
+            pluginName: notification.pluginName,
+            title: notification.title,
+            message: notification.message
         };
     }
 
@@ -952,25 +947,21 @@ export class SessionManager {
             }
 
             const notificationInput = this.buildNotificationAgentInput(notification);
-            const displayText = this.buildNotificationProcessingDisplayText(notification);
-            const origin = this.buildNotificationMessageOrigin(notification);
+            const notificationPresentation = this.getHydratedInputPresentation(notificationInput);
             const taskId = this.beginTask(session, crypto.randomUUID());
             this.emitEvent(session, {
                 type: "user_message",
                 taskId,
-                origin,
-                text: displayText,
-                workspaceFiles: (notification.content.sharedFiles ?? []).map((sharedFile) => sharedFile.fileName),
-                chatImages: []
+                origin: notificationPresentation.origin,
+                text: notificationPresentation.text,
+                workspaceFiles: notificationPresentation.workspaceFiles,
+                chatImages: notificationPresentation.chatImages
             });
 
             const generator = session.orchestrator.handleMessage(
                 {
                     input: notificationInput,
-                    requestAttributes: this.buildTaskRequestAttributes(session, {
-                        runtimeDisplayText: displayText,
-                        runtimeMessageOrigin: origin
-                    }),
+                    requestAttributes: this.buildTaskRequestAttributes(session),
                     abortSignal: session.abortController?.signal
                 },
                 session.sessionId
@@ -1218,7 +1209,7 @@ export class SessionManager {
         };
     }
 
-    private buildNotificationProcessingDisplayText(notification: PluginNotification): string {
+    private buildNotificationProcessingDisplayText(notification: AgentNotificationInput): string {
         return `Process plugin notification: ${notification.title}`;
     }
 
@@ -1407,9 +1398,8 @@ export class SessionManager {
         return session.currentTaskId;
     }
 
-    private buildTaskRequestAttributes(session: SessionRuntime, extra: Record<string, unknown> = {}): Record<string, unknown> {
+    private buildTaskRequestAttributes(session: SessionRuntime): Record<string, unknown> {
         return {
-            ...extra,
             runtimeTaskId: this.requireTaskId(session)
         };
     }

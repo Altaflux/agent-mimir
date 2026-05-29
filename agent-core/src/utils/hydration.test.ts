@@ -44,6 +44,13 @@ describe("readHydrationEvents", () => {
         }
         expect(event.messageId).toBe("human-message-1");
         expect(event.requestAttributes).toEqual({ runtimeTaskId: "task-1" });
+        expect(event.input).toEqual({
+            type: "user_message",
+            message: {
+                content: [{ type: "text", text: "Hello" }],
+                sharedFiles: []
+            }
+        });
         expect(event.content).toEqual({
             content: [{ type: "text", text: "Hello" }],
             sharedFiles: []
@@ -51,7 +58,20 @@ describe("readHydrationEvents", () => {
         expect("id" in event.content).toBe(false);
     });
 
-    it("hydrates plugin notification origin from message metadata when request attributes are missing", async () => {
+    it("hydrates plugin notification input from message metadata without request attribute synthesis", async () => {
+        const runtimeInput = {
+            type: "plugin_notification",
+            notification: {
+                notificationId: "notification-1",
+                pluginName: "runtime-smoke-test",
+                title: "Worker complete",
+                message: "Worker has a result.",
+                content: {
+                    content: [{ type: "text" as const, text: "Original notification content" }],
+                    sharedFiles: [{ fileName: "result.txt", url: "/tmp/result.txt" }]
+                }
+            }
+        } as const;
         const checkpointer = {
             async *list() {
                 yield {
@@ -67,14 +87,9 @@ describe("readHydrationEvents", () => {
                             messages: [
                                 new HumanMessage({
                                     id: "human-message-1",
-                                    content: "Notification body",
+                                    content: "LLM notification prompt",
                                     additional_kwargs: {
-                                        runtimeInputKind: "plugin_notification",
-                                        runtimeNotification: {
-                                            notificationId: "notification-1",
-                                            pluginName: "runtime-smoke-test",
-                                            title: "Worker complete"
-                                        }
+                                        runtimeInput
                                     }
                                 })
                             ]
@@ -96,14 +111,11 @@ describe("readHydrationEvents", () => {
         if (event.type !== "userMessage") {
             return;
         }
-        expect(event.requestAttributes).toEqual({
-            runtimeMessageOrigin: {
-                type: "plugin_notification",
-                notificationId: "notification-1",
-                pluginName: "runtime-smoke-test",
-                title: "Worker complete",
-                message: undefined
-            }
+        expect(event.requestAttributes).toEqual({});
+        expect(event.input).toEqual(runtimeInput);
+        expect(event.content).toEqual({
+            content: [{ type: "text", text: "Original notification content" }],
+            sharedFiles: [{ fileName: "result.txt", url: "/tmp/result.txt" }]
         });
     });
 });

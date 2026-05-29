@@ -30,15 +30,6 @@ test("hydrated task ids prefer runtimeTaskId over human message ids", () => {
     assert.equal(taskId, "runtime-task-1");
 });
 
-test("hydrated task ids fall back to old mimirTaskId", () => {
-    const manager = new SessionManager({ cleanupIntervalMs: 60_000 }) as unknown as HydratedTaskIdAccessor;
-
-    assert.equal(
-        manager.getHydratedTaskId({ sessionId: "session-1" }, { mimirTaskId: "legacy-task-1" }, "human-message-1", 0),
-        "legacy-task-1"
-    );
-});
-
 test("hydrated task ids fall back to human message id and then stable generated ids", () => {
     const manager = new SessionManager({ cleanupIntervalMs: 60_000 }) as unknown as HydratedTaskIdAccessor;
 

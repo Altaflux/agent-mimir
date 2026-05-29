@@ -1,7 +1,7 @@
 import { BaseCheckpointSaver, CheckpointTuple } from "@langchain/langgraph";
-import { AgentHydrationEvent, AgentMessageToolRequest, SharedFile } from "../agent-manager/index.js";
+import { AgentHydrationEvent, AgentInput, AgentMessageToolRequest, InputAgentMessage, SharedFile } from "../agent-manager/index.js";
 import { AIMessage, BaseMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
-import { lCmessageContentToContent, readRuntimeNotification } from "../agent-manager/message-utils.js";
+import { getHumanMessageSharedFiles, lCmessageContentToContent, readRuntimeInput } from "../agent-manager/message-utils.js";
 import { extractAllTextFromComplexResponse } from "./format.js";
 import { v4 } from "uuid";
 
@@ -43,7 +43,7 @@ export async function readHydrationEvents(args: { sessionId: string; name: strin
             if (HumanMessage.isInstance(message)) {
                 const content = lCmessageContentToContent(message.contentBlocks);
                 const messageText = extractAllTextFromComplexResponse(content).trim();
-                const sharedFiles = (message.additional_kwargs?.shared_files as SharedFile[] | undefined) ?? [];
+                const sharedFiles = getHumanMessageSharedFiles(message);
                 const isForwardedMessage = messageText.startsWith("This message is from ");
                 const isSyntheticMessage = typeof message.id === "string" && message.id.startsWith("do-not-render-");
 
@@ -55,16 +55,22 @@ export async function readHydrationEvents(args: { sessionId: string; name: strin
                     continue;
                 }
 
+                const input = readRuntimeInput(message) ?? {
+                    type: "user_message",
+                    message: {
+                        content,
+                        sharedFiles
+                    }
+                } satisfies AgentInput;
+
                 events.push({
                     type: "userMessage",
                     timestamp,
                     checkpointId,
                     messageId,
-                    content: {
-                        content,
-                        sharedFiles
-                    },
-                    requestAttributes: withMessageRuntimeRequestAttributes(requestAttributes, message)
+                    input,
+                    content: getHydratedInputContent(input),
+                    requestAttributes
                 });
                 continue;
             }
@@ -132,21 +138,10 @@ export async function readHydrationEvents(args: { sessionId: string; name: strin
     return events;
 }
 
-function withMessageRuntimeRequestAttributes(requestAttributes: Record<string, any>, message: HumanMessage): Record<string, any> {
-    if (requestAttributes["runtimeMessageOrigin"] || requestAttributes["mimirMessageOrigin"]) {
-        return requestAttributes;
+function getHydratedInputContent(input: AgentInput): InputAgentMessage {
+    if (input.type === "user_message") {
+        return input.message;
     }
 
-    const notification = readRuntimeNotification(message);
-    if (!notification) {
-        return requestAttributes;
-    }
-
-    return {
-        ...requestAttributes,
-        runtimeMessageOrigin: {
-            type: "plugin_notification",
-            ...notification
-        }
-    };
+    return input.notification.content;
 }

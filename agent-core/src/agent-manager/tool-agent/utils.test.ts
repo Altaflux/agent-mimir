@@ -8,12 +8,17 @@ describe("langChainHumanMessageToMimirHumanMessage", () => {
             content: "Notification body",
             additional_kwargs: {
                 sharedFiles: [{ fileName: "result.txt", url: "/tmp/result.txt" }],
-                runtimeInputKind: "plugin_notification",
-                runtimeNotification: {
-                    notificationId: "notification-1",
-                    pluginName: "runtime-smoke-test",
-                    title: "Worker complete",
-                    message: "Worker has a result."
+                runtimeInput: {
+                    type: "plugin_notification",
+                    notification: {
+                        notificationId: "notification-1",
+                        pluginName: "runtime-smoke-test",
+                        title: "Worker complete",
+                        message: "Worker has a result.",
+                        content: {
+                            content: [{ type: "text", text: "Original notification content" }]
+                        }
+                    }
                 }
             }
         });

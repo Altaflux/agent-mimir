@@ -1,6 +1,6 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { AiResponseMessage, NextMessagePluginNotification, NextMessageToolResponse, NextMessageUser } from "../../plugins/index.js";
-import { getHumanMessageSharedFiles, lCmessageContentToContent, readRuntimeInputKind, readRuntimeNotification } from "../message-utils.js";
+import { getHumanMessageSharedFiles, lCmessageContentToContent, readRuntimeInput } from "../message-utils.js";
 import {  MessageContentToolUse, ToolResponseInfo } from "../index.js";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { v4 } from "uuid";
@@ -19,12 +19,14 @@ export function langChainHumanMessageToMimirHumanMessage(message: HumanMessage):
     sharedFiles: getHumanMessageSharedFiles(message),
     content: lCmessageContentToContent(message.contentBlocks)
   };
-  const inputKind = readRuntimeInputKind(message);
-  const notification = readRuntimeNotification(message);
-  if (inputKind === "plugin_notification" && notification) {
+  const runtimeInput = readRuntimeInput(message);
+  if (runtimeInput?.type === "plugin_notification") {
     return {
       type: "PLUGIN_NOTIFICATION",
-      ...notification,
+      notificationId: runtimeInput.notification.notificationId,
+      pluginName: runtimeInput.notification.pluginName,
+      title: runtimeInput.notification.title,
+      message: runtimeInput.notification.message,
       ...base
     };
   }

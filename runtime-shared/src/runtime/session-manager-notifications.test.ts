@@ -1,15 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { AgentInput } from "@mimir/agent-core/agent";
+import type { AgentInput, AgentNotificationInput } from "@mimir/agent-core/agent";
 import type { PluginNotification } from "@mimir/agent-core/plugins";
 import type { UserMessageOrigin } from "../contracts.js";
 import { SessionManager } from "./session-manager.js";
 
 type NotificationProcessingAccessor = {
     buildNotificationAgentInput(notification: PluginNotification): AgentInput;
-    buildNotificationProcessingDisplayText(notification: PluginNotification): string;
-    buildNotificationMessageOrigin(notification: PluginNotification): UserMessageOrigin;
-    getHydratedMessageOrigin(requestAttributes: Record<string, unknown>): UserMessageOrigin;
+    buildNotificationProcessingDisplayText(notification: AgentNotificationInput): string;
+    buildNotificationMessageOrigin(notification: AgentNotificationInput): UserMessageOrigin;
+    getHydratedInputPresentation(input: AgentInput): {
+        origin: UserMessageOrigin;
+        text: string;
+        workspaceFiles: string[];
+        chatImages: string[];
+    };
 };
 
 function createNotification(overrides: Partial<PluginNotification> = {}): PluginNotification {
@@ -47,17 +52,21 @@ test("notification processing passes one first-class notification input", () => 
 
 test("notification processing display text names the single notification", () => {
     const manager = new SessionManager({ cleanupIntervalMs: 60_000 }) as unknown as NotificationProcessingAccessor;
+    const input = manager.buildNotificationAgentInput(createNotification({ title: "Timer fired" }));
+    assert.equal(input.type, "plugin_notification");
 
     assert.equal(
-        manager.buildNotificationProcessingDisplayText(createNotification({ title: "Timer fired" })),
+        manager.buildNotificationProcessingDisplayText(input.notification),
         "Process plugin notification: Timer fired"
     );
 });
 
 test("notification message origin exposes full notification metadata", () => {
     const manager = new SessionManager({ cleanupIntervalMs: 60_000 }) as unknown as NotificationProcessingAccessor;
+    const input = manager.buildNotificationAgentInput(createNotification());
+    assert.equal(input.type, "plugin_notification");
 
-    assert.deepEqual(manager.buildNotificationMessageOrigin(createNotification()), {
+    assert.deepEqual(manager.buildNotificationMessageOrigin(input.notification), {
         type: "plugin_notification",
         notificationId: "notification-1",
         pluginName: "runtime-smoke-test",
@@ -66,58 +75,20 @@ test("notification message origin exposes full notification metadata", () => {
     });
 });
 
-test("hydrated notification message origin is restored from request attributes", () => {
+test("hydrated notification presentation is derived from first-class input", () => {
     const manager = new SessionManager({ cleanupIntervalMs: 60_000 }) as unknown as NotificationProcessingAccessor;
+    const input = manager.buildNotificationAgentInput(createNotification());
 
-    assert.deepEqual(
-        manager.getHydratedMessageOrigin({
-            runtimeMessageOrigin: {
-                type: "plugin_notification",
-                notificationId: "notification-1",
-                pluginName: "runtime-smoke-test",
-                title: "Worker complete",
-                message: "Worker has a result."
-            }
-        }),
-        {
+    assert.deepEqual(manager.getHydratedInputPresentation(input), {
+        origin: {
             type: "plugin_notification",
             notificationId: "notification-1",
             pluginName: "runtime-smoke-test",
             title: "Worker complete",
             message: "Worker has a result."
-        }
-    );
-
-    assert.deepEqual(
-        manager.getHydratedMessageOrigin({
-            mimirMessageOrigin: {
-                type: "plugin_notification",
-                notificationId: "old-notification",
-                pluginName: "legacy-plugin",
-                title: "Legacy notification"
-            }
-        }),
-        {
-            type: "plugin_notification",
-            notificationId: "old-notification",
-            pluginName: "legacy-plugin",
-            title: "Legacy notification",
-            message: undefined
-        }
-    );
-});
-
-test("hydrated message origin falls back to user when missing or malformed", () => {
-    const manager = new SessionManager({ cleanupIntervalMs: 60_000 }) as unknown as NotificationProcessingAccessor;
-
-    assert.deepEqual(manager.getHydratedMessageOrigin({}), { type: "user" });
-    assert.deepEqual(
-        manager.getHydratedMessageOrigin({
-            runtimeMessageOrigin: {
-                type: "plugin_notification",
-                pluginName: "runtime-smoke-test"
-            }
-        }),
-        { type: "user" }
-    );
+        },
+        text: "Process plugin notification: Worker complete",
+        workspaceFiles: ["result.txt"],
+        chatImages: []
+    });
 });

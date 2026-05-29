@@ -156,6 +156,7 @@ export type AgentHydrationEvent = {
     timestamp: string,
     checkpointId: string,
     messageId?: string,
+    input: AgentInput,
     content: InputAgentMessage,
     requestAttributes: Record<string, any>
 } | {

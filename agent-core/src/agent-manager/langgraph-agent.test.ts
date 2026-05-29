@@ -1,27 +1,29 @@
 import { describe, expect, it } from "@jest/globals";
 import { extractAllTextFromComplexResponse } from "../utils/format.js";
+import type { AgentInput } from "./index.js";
 import { materializeAgentInput } from "./langgraph-agent.js";
 
 describe("materializeAgentInput", () => {
     it("keeps user messages unchanged with neutral runtime metadata", () => {
-        const materialized = materializeAgentInput({
-            type: "user_message",
+        const input = {
+            type: "user_message" as const,
             message: {
-                content: [{ type: "text", text: "Hello" }],
+                content: [{ type: "text" as const, text: "Hello" }],
                 sharedFiles: [{ fileName: "notes.txt", url: "/tmp/notes.txt" }]
             }
-        });
+        };
+        const materialized = materializeAgentInput(input);
 
         expect(materialized.message.content).toEqual([{ type: "text", text: "Hello" }]);
         expect(materialized.additionalKwargs).toEqual({
             sharedFiles: [{ fileName: "notes.txt", url: "/tmp/notes.txt" }],
-            runtimeInputKind: "user_message"
+            runtimeInput: input
         });
     });
 
     it("turns plugin notifications into explicit automated-notification prompts", () => {
-        const materialized = materializeAgentInput({
-            type: "plugin_notification",
+        const input = {
+            type: "plugin_notification" as const,
             notification: {
                 notificationId: "notification-1",
                 pluginName: "runtime-smoke-test",
@@ -32,7 +34,8 @@ describe("materializeAgentInput", () => {
                     sharedFiles: [{ fileName: "result.txt", url: "/tmp/result.txt" }]
                 }
             }
-        });
+        } satisfies AgentInput;
+        const materialized = materializeAgentInput(input);
 
         const text = extractAllTextFromComplexResponse(materialized.message.content);
         expect(text).toMatch(/process this pending plugin notification/i);
@@ -44,13 +47,7 @@ describe("materializeAgentInput", () => {
         expect(materialized.message.sharedFiles).toEqual([{ fileName: "result.txt", url: "/tmp/result.txt" }]);
         expect(materialized.additionalKwargs).toEqual({
             sharedFiles: [{ fileName: "result.txt", url: "/tmp/result.txt" }],
-            runtimeInputKind: "plugin_notification",
-            runtimeNotification: {
-                notificationId: "notification-1",
-                pluginName: "runtime-smoke-test",
-                title: "Worker complete",
-                message: "Worker has a result."
-            }
+            runtimeInput: input
         });
     });
 });

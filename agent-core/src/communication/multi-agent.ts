@@ -58,6 +58,7 @@ export type HydratedOrchestratorEvent = {
     sourceAgent: string;
     messageId?: string;
     requestAttributes: Record<string, any>;
+    input: AgentInput;
     value: InputAgentMessage;
 } | {
     type: "intermediate";
@@ -157,6 +158,7 @@ export class MultiAgentCommunicationOrchestrator {
                     sourceAgent: event.agentName,
                     messageId: event.messageId,
                     requestAttributes: event.requestAttributes ?? {},
+                    input: event.input,
                     value: event.content
                 });
                 continue;
