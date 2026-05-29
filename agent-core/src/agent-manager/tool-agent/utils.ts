@@ -1,7 +1,7 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
-import { AiResponseMessage, NextMessageToolResponse, NextMessageUser } from "../../plugins/index.js";
-import { lCmessageContentToContent } from "../message-utils.js";
-import {  MessageContentToolUse, SharedFile, ToolResponseInfo } from "../index.js";
+import { AiResponseMessage, NextMessagePluginNotification, NextMessageToolResponse, NextMessageUser } from "../../plugins/index.js";
+import { getHumanMessageSharedFiles, lCmessageContentToContent, readRuntimeInputKind, readRuntimeNotification } from "../message-utils.js";
+import {  MessageContentToolUse, ToolResponseInfo } from "../index.js";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import { v4 } from "uuid";
 
@@ -14,13 +14,24 @@ export function langChainToolMessageToMimirToolMessage(message: ToolMessage): Ne
   };
 }
 
-export function langChainHumanMessageToMimirHumanMessage(message: HumanMessage): NextMessageUser {
+export function langChainHumanMessageToMimirHumanMessage(message: HumanMessage): NextMessageUser | NextMessagePluginNotification {
+  const base = {
+    sharedFiles: getHumanMessageSharedFiles(message),
+    content: lCmessageContentToContent(message.contentBlocks)
+  };
+  const inputKind = readRuntimeInputKind(message);
+  const notification = readRuntimeNotification(message);
+  if (inputKind === "plugin_notification" && notification) {
+    return {
+      type: "PLUGIN_NOTIFICATION",
+      ...notification,
+      ...base
+    };
+  }
+
   return {
     type: "USER_MESSAGE",
-    sharedFiles: [
-      ...(message.additional_kwargs?.["sharedFiles"] as SharedFile[] ?? [])
-    ],
-    content: lCmessageContentToContent(message.contentBlocks)
+    ...base
   };
 }
 

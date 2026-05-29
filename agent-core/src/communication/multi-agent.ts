@@ -2,6 +2,7 @@ import {
     Agent,
     AgentFactory,
     AgentHydrationEvent,
+    AgentInput,
     AgentMessageToolRequest,
     AgentResponse,
     CommandRequest,
@@ -121,12 +122,12 @@ export class MultiAgentCommunicationOrchestrator {
     }
 
     async* handleMessage(args: {
-        message: InputAgentMessage | null;
+        input: AgentInput | null;
         requestAttributes?: Record<string, unknown>;
         abortSignal?: AbortSignal;
     }, sessionId: string): AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void> {
         return yield* this.doInvocation((agent) => agent.call({
-            message: args.message,
+            input: args.input,
             requestAttributes: args.requestAttributes,
             sessionId,
             abortSignal: args.abortSignal

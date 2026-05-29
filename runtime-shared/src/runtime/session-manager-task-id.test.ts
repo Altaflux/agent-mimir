@@ -17,17 +17,26 @@ type TaskIdentityAccessor = HydratedTaskIdAccessor & {
     getNotificationAnchorTaskId(session: { currentTaskId: string | null }): string | null;
 };
 
-test("hydrated task ids prefer mimirTaskId over human message ids", () => {
+test("hydrated task ids prefer runtimeTaskId over human message ids", () => {
     const manager = new SessionManager({ cleanupIntervalMs: 60_000 }) as unknown as HydratedTaskIdAccessor;
 
     const taskId = manager.getHydratedTaskId(
         { sessionId: "session-1" },
-        { mimirTaskId: "runtime-task-1" },
+        { runtimeTaskId: "runtime-task-1" },
         "human-message-1",
         0
     );
 
     assert.equal(taskId, "runtime-task-1");
+});
+
+test("hydrated task ids fall back to old mimirTaskId", () => {
+    const manager = new SessionManager({ cleanupIntervalMs: 60_000 }) as unknown as HydratedTaskIdAccessor;
+
+    assert.equal(
+        manager.getHydratedTaskId({ sessionId: "session-1" }, { mimirTaskId: "legacy-task-1" }, "human-message-1", 0),
+        "legacy-task-1"
+    );
 });
 
 test("hydrated task ids fall back to human message id and then stable generated ids", () => {

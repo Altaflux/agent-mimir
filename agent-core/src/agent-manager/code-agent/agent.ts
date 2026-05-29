@@ -6,7 +6,7 @@ import { AIMessage, BaseMessage, ContentBlock, HumanMessage, RemoveMessage, Syst
 import { BaseCheckpointSaver, Command, ConditionalEdgeRouter, END, GraphNode, interrupt, MemorySaver, START, StateGraph } from "@langchain/langgraph";
 import { v4 } from "uuid";
 import { extractResponseOutputXml, ResponseFieldMapper } from "../../utils/instruction-mapper.js";
-import { dividerSystemMessage, humanMessageToInputAgentMessage, lCmessageContentToContent, mergeSystemMessages, toolMessageToInputAgentMessage } from "./../message-utils.js";
+import { dividerSystemMessage, lCmessageContentToContent, mergeSystemMessages, runtimeInputAdditionalKwargs, toolMessageToInputAgentMessage } from "./../message-utils.js";
 import { Agent, AgentWorkspace, WorkspaceFactory } from "./../index.js";
 import { createPluginContext, NOOP_PLUGIN_RUNTIME_PROVIDER, PluginFactory, PluginRuntimeProvider } from "../../plugins/index.js";
 import { aiMessageToMimirAiMessage, getExecutionCodeContentRegex, getLibrariesContentRegex, langChainToolMessageToMimirHumanMessage, toPythonFunctionName } from "./utils.js";
@@ -150,8 +150,8 @@ export async function createLgAgent(config: CreateAgentArgs) {
             })
 
 
-            if (nextMessage.type === "USER_MESSAGE") {
-                const inputMessage = humanMessageToInputAgentMessage(lastMessage as HumanMessage);
+            if (nextMessage.type === "USER_MESSAGE" || nextMessage.type === "PLUGIN_NOTIFICATION") {
+                const inputMessage = nextMessage;
                 await workspaceManager.loadFiles(inputMessage.sharedFiles ?? []);
                 const { displayMessage, persistentMessage } = await pluginContextProvider.additionalMessageContent(inputMessage);
                 displayMessage.content = trimAndSanitizeMessageContent(displayMessage.content);
@@ -164,6 +164,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
                 }));
                 messageToStore = [new HumanMessage({
                     additional_kwargs: {
+                        ...runtimeInputAdditionalKwargs(lastMessage as HumanMessage),
                         persistentMessageRetentionPolicy: persistentMessage.retentionPolicy,
                         original_content: persistentMessage.message.content,
                         shared_files: inputMessage.sharedFiles,

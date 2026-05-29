@@ -113,8 +113,11 @@ describe("MultiAgentCommunicationOrchestrator", () => {
         const orchestrator = builder.build(principal);
 
         const generator = orchestrator.handleMessage({
-            message: {
-                content: [{ type: "text", text: "Hello" }]
+            input: {
+                type: "user_message",
+                message: {
+                    content: [{ type: "text", text: "Hello" }]
+                }
             }
         }, "session-1");
 

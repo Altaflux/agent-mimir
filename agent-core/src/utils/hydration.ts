@@ -1,7 +1,7 @@
 import { BaseCheckpointSaver, CheckpointTuple } from "@langchain/langgraph";
 import { AgentHydrationEvent, AgentMessageToolRequest, SharedFile } from "../agent-manager/index.js";
 import { AIMessage, BaseMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
-import { lCmessageContentToContent } from "../agent-manager/message-utils.js";
+import { lCmessageContentToContent, readRuntimeNotification } from "../agent-manager/message-utils.js";
 import { extractAllTextFromComplexResponse } from "./format.js";
 import { v4 } from "uuid";
 
@@ -64,7 +64,7 @@ export async function readHydrationEvents(args: { sessionId: string; name: strin
                         content,
                         sharedFiles
                     },
-                    requestAttributes: requestAttributes
+                    requestAttributes: withMessageRuntimeRequestAttributes(requestAttributes, message)
                 });
                 continue;
             }
@@ -130,4 +130,23 @@ export async function readHydrationEvents(args: { sessionId: string; name: strin
     }
 
     return events;
+}
+
+function withMessageRuntimeRequestAttributes(requestAttributes: Record<string, any>, message: HumanMessage): Record<string, any> {
+    if (requestAttributes["runtimeMessageOrigin"] || requestAttributes["mimirMessageOrigin"]) {
+        return requestAttributes;
+    }
+
+    const notification = readRuntimeNotification(message);
+    if (!notification) {
+        return requestAttributes;
+    }
+
+    return {
+        ...requestAttributes,
+        runtimeMessageOrigin: {
+            type: "plugin_notification",
+            ...notification
+        }
+    };
 }

@@ -1,7 +1,7 @@
-import { CompiledStateGraph, Command, StateDefinition, StateSchema, MessagesValue, BaseCheckpointSaver, CheckpointTuple } from "@langchain/langgraph";
+import { CompiledStateGraph, Command, StateDefinition, StateSchema, MessagesValue, BaseCheckpointSaver } from "@langchain/langgraph";
 import { AgentCommand, AgentPlugin } from "../plugins/index.js";
-import { Agent, AgentHydrationEvent, AgentMessageToolRequest, AgentResponse, AgentUserMessageResponse, AgentWorkspace, CommandRequest, InputAgentMessage, IntermediateAgentMessage, SharedFile } from "./index.js";
-import { AIMessage, AIMessageChunk, BaseMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
+import { Agent, AgentHydrationEvent, AgentInput, AgentMessageToolRequest, AgentNotificationInput, AgentResponse, AgentUserMessageResponse, AgentWorkspace, CommandRequest, InputAgentMessage, IntermediateAgentMessage, SharedFile } from "./index.js";
+import { AIMessage, BaseMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { v4 } from "uuid";
 import { complexResponseToLangchainMessageContent, extractAllTextFromComplexResponse } from "../utils/format.js";
 import { commandContentToBaseMessage, lCmessageContentToContent } from "./message-utils.js";
@@ -29,6 +29,82 @@ export type LanggraphAgentArgs = {
     fieldMapper: ResponseFieldMapper
 }
 
+type MaterializedAgentInput = {
+    message: InputAgentMessage;
+    additionalKwargs: Record<string, unknown>;
+};
+
+export function materializeAgentInput(input: AgentInput): MaterializedAgentInput {
+    if (input.type === "user_message") {
+        return {
+            message: input.message,
+            additionalKwargs: {
+                sharedFiles: input.message.sharedFiles,
+                runtimeInputKind: input.type
+            }
+        };
+    }
+
+    const message = buildNotificationProcessingMessage(input.notification);
+    return {
+        message,
+        additionalKwargs: {
+            sharedFiles: message.sharedFiles,
+            runtimeInputKind: input.type,
+            runtimeNotification: {
+                notificationId: input.notification.notificationId,
+                pluginName: input.notification.pluginName,
+                title: input.notification.title,
+                message: input.notification.message
+            }
+        }
+    };
+}
+
+function buildNotificationProcessingMessage(notification: AgentNotificationInput): InputAgentMessage {
+    const content: InputAgentMessage["content"] = [
+        {
+            type: "text",
+            text:
+                "The user explicitly asked you to process this pending plugin notification.\n\n" +
+                "This is an automated plugin notification delivered because the user clicked process; " +
+                "it is not direct user-authored chat text.\n\n" +
+                "Review the notification below and decide what action, if any, should be taken. " +
+                "This notification is not part of a new user request beyond this explicit processing action.\n\n"
+        }
+    ];
+    const sharedFiles: SharedFile[] = [];
+    const seenSharedFiles = new Set<string>();
+    const header = [
+        `Plugin: ${notification.pluginName}`,
+        `Title: ${notification.title}`,
+        notification.message ? `Message: ${notification.message}` : undefined,
+        "Content:"
+    ].filter(Boolean).join("\n");
+
+    content.push({ type: "text", text: `${header}\n` });
+    if (notification.content.content.length > 0) {
+        content.push(...notification.content.content);
+    } else {
+        content.push({ type: "text", text: "(No additional content.)" });
+    }
+    content.push({ type: "text", text: "\n\n" });
+
+    for (const sharedFile of notification.content.sharedFiles ?? []) {
+        const key = `${sharedFile.fileName}\n${sharedFile.url}`;
+        if (seenSharedFiles.has(key)) {
+            continue;
+        }
+        seenSharedFiles.add(key);
+        sharedFiles.push(sharedFile);
+    }
+
+    return {
+        content,
+        sharedFiles
+    };
+}
+
 
 export class LanggraphAgent implements Agent {
     name: string;
@@ -44,7 +120,7 @@ export class LanggraphAgent implements Agent {
         this.commands = args.commands;
         this.graph = args.graph;
     }
-    async *call(args: { message: InputAgentMessage | null; sessionId: string, checkpointId?: string; noMessagesInTool?: boolean; requestAttributes?: Record<string, unknown>; abortSignal?: AbortSignal }): AsyncGenerator<IntermediateAgentMessage, { message: AgentResponse; checkpointId: string; }, unknown> {
+    async *call(args: { input: AgentInput | null; sessionId: string, checkpointId?: string; noMessagesInTool?: boolean; requestAttributes?: Record<string, unknown>; abortSignal?: AbortSignal }): AsyncGenerator<IntermediateAgentMessage, { message: AgentResponse; checkpointId: string; }, unknown> {
 
         let stateConfig = {
             streamMode: ["messages" as const, "values" as const],
@@ -53,21 +129,21 @@ export class LanggraphAgent implements Agent {
         const state = await this.graph.getState({ ...stateConfig, configurable: { thread_id: `${args.sessionId}#${this.name}` } });
         if (state.next.length > 0 && state.next[0] === "human_review_node") {
             const update = { requestAttributes: args.requestAttributes ?? {} };
-            if (args.message) {
-                graphInput = new Command({ resume: { type: "response", args: extractAllTextFromComplexResponse(args.message.content) } satisfies HumanResponse, update })
+            if (args.input) {
+                const { message } = materializeAgentInput(args.input);
+                graphInput = new Command({ resume: { type: "response", args: extractAllTextFromComplexResponse(message.content) } satisfies HumanResponse, update })
             } else {
                 graphInput = new Command({ resume: { type: "accept", args: null } satisfies HumanResponse, update })
             }
 
         }
         else {
-            graphInput = args.message != null ? {
+            const materializedInput = args.input ? materializeAgentInput(args.input) : null;
+            graphInput = materializedInput ? {
                 messages: [new HumanMessage({
                     id: v4(),
-                    content: complexResponseToLangchainMessageContent(args.message.content),
-                    additional_kwargs: {
-                        sharedFiles: args.message.sharedFiles
-                    }
+                    content: complexResponseToLangchainMessageContent(materializedInput.message.content),
+                    additional_kwargs: materializedInput.additionalKwargs
                 })],
                 requestAttributes: args.requestAttributes ?? {},
                 responseAttributes: {},

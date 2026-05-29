@@ -1,4 +1,4 @@
-import { AgentMessageToolRequest, AgentWorkspace, InputAgentMessage } from "../agent-manager/index.js";
+import type { AgentMessageToolRequest, AgentNotificationInput, AgentWorkspace, InputAgentMessage } from "../agent-manager/index.js";
 import { ComplexMessageContent } from "../schema.js";
 import { AgentTool, type ToolCallRuntimeContext, type ToolCallRuntimeSource } from "../tools/index.js";
 
@@ -148,14 +148,24 @@ export function createPluginContext(
 
 /** 
  * Represents the next message in the conversation flow.
- * Can be either a user message or a tool response.
+ * Can be a user message, plugin notification, or tool response.
  */
-export type NextMessage = NextMessageUser | NextMessageToolResponse;
+export type NextMessage = NextMessageInput | NextMessageToolResponse;
+
+export type NextMessageInput = NextMessageUser | NextMessagePluginNotification;
 
 /** 
  * Represents a user message in the conversation flow.
  */
 export type NextMessageUser = InputAgentMessage & { type: "USER_MESSAGE" }
+
+export type NextMessagePluginNotification = InputAgentMessage & {
+    type: "PLUGIN_NOTIFICATION",
+    notificationId: AgentNotificationInput["notificationId"],
+    pluginName: AgentNotificationInput["pluginName"],
+    title: AgentNotificationInput["title"],
+    message?: AgentNotificationInput["message"],
+}
 
 /** 
  * Represents a tool's response message in the conversation flow.
@@ -225,10 +235,10 @@ export abstract class AgentPlugin {
     }
 
     /**
-     * Adds additional content to the user's message.
+     * Adds additional content to an incoming user or plugin-notification message.
      * @returns Array of additional content to be added
      */
-    async additionalMessageContent(message: InputAgentMessage): Promise<AdditionalContent[]> {
+    async additionalMessageContent(message: InputAgentMessage | NextMessageInput): Promise<AdditionalContent[]> {
         return [];
     }
 

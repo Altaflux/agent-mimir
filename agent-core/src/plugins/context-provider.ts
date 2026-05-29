@@ -1,7 +1,7 @@
 import { InputAgentMessage } from "../agent-manager/index.js";
 import { ComplexMessageContent } from "../schema.js";
 import { isEmptyMessageContent } from "../utils/format.js";
-import { AgentPlugin } from "./index.js";
+import { AgentPlugin, type NextMessageInput } from "./index.js";
 
 
 const PROMPT = `
@@ -100,7 +100,7 @@ export class PluginContextProvider {
      * the `displayMessage` and the `persistentMessage` (with its associated
      * `retentionPolicy`).
      */
-    async additionalMessageContent(message: InputAgentMessage): Promise<RetentionAwareMessageContent> {
+    async additionalMessageContent(message: InputAgentMessage | NextMessageInput): Promise<RetentionAwareMessageContent> {
         return await addAdditionalContentToUserMessage(message, this.plugins);
     }
 }
@@ -195,7 +195,7 @@ export class PluginContextProvider {
  *
  * The `displayMessage` would contain: `[originalUserContent, headerPluginA, txt1, spacing1]`
  */
-async function addAdditionalContentToUserMessage(message: InputAgentMessage, plugins: AgentPlugin[]) {
+async function addAdditionalContentToUserMessage(message: InputAgentMessage | NextMessageInput, plugins: AgentPlugin[]) {
 
     const namedPlugins: AgentPlugin[] = [];
     const namelessPlugins: AgentPlugin[] = [];

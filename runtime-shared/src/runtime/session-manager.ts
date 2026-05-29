@@ -11,7 +11,7 @@ import {
 import { getConfig } from "./config.js";
 import { HttpError } from "./errors.js";
 import type { AgentMimirConfig } from "./types.js";
-import { Agent, InputAgentMessage, SharedFile } from "@mimir/agent-core/agent";
+import { Agent, AgentInput, InputAgentMessage, SharedFile } from "@mimir/agent-core/agent";
 import {
     AgentHydrationEventWithAgent,
     AgentToolRequestTwo,
@@ -512,8 +512,9 @@ export class SessionManager {
                 hydratedTaskId = this.getHydratedTaskId(session, event.requestAttributes, event.messageId, hydratedTaskIndex++);
                 session.currentTaskId = hydratedTaskId;
                 const { workspaceFiles, chatImages } = this.classifyHydratedSharedFiles(event.value.sharedFiles ?? []);
-                const displayText = typeof event.requestAttributes["mimirDisplayText"] === "string"
-                    ? event.requestAttributes["mimirDisplayText"]
+                const runtimeDisplayText = event.requestAttributes["runtimeDisplayText"] ?? event.requestAttributes["mimirDisplayText"];
+                const displayText = typeof runtimeDisplayText === "string"
+                    ? runtimeDisplayText
                     : extractAllTextFromComplexResponse(event.value.content);
                 this.emitEvent(
                     session,
@@ -703,7 +704,7 @@ export class SessionManager {
     }
 
     private getHydratedTaskId(session: SessionRuntime, requestAttributes: Record<string, unknown>, messageId: string | undefined, taskIndex: number): string {
-        const taskId = requestAttributes["mimirTaskId"];
+        const taskId = requestAttributes["runtimeTaskId"] ?? requestAttributes["mimirTaskId"];
         if (typeof taskId === "string" && taskId.length > 0) {
             return taskId;
         }
@@ -726,7 +727,7 @@ export class SessionManager {
     }
 
     private getHydratedMessageOrigin(requestAttributes: Record<string, unknown>): UserMessageOrigin {
-        const origin = requestAttributes["mimirMessageOrigin"];
+        const origin = requestAttributes["runtimeMessageOrigin"] ?? requestAttributes["mimirMessageOrigin"];
         if (!origin || typeof origin !== "object") {
             return { type: "user" };
         }
@@ -923,7 +924,10 @@ export class SessionManager {
 
             let generator = session.orchestrator.handleMessage(
                 {
-                    message: agentInput,
+                    input: {
+                        type: "user_message",
+                        message: agentInput
+                    },
                     requestAttributes: this.buildTaskRequestAttributes(session),
                     abortSignal: session.abortController?.signal
                 },
@@ -947,7 +951,7 @@ export class SessionManager {
                 throw new HttpError(409, "NO_PENDING_NOTIFICATIONS", "There are no pending plugin notifications to process.");
             }
 
-            const notificationMessage = this.buildNotificationProcessingMessage(notification);
+            const notificationInput = this.buildNotificationAgentInput(notification);
             const displayText = this.buildNotificationProcessingDisplayText(notification);
             const origin = this.buildNotificationMessageOrigin(notification);
             const taskId = this.beginTask(session, crypto.randomUUID());
@@ -956,16 +960,16 @@ export class SessionManager {
                 taskId,
                 origin,
                 text: displayText,
-                workspaceFiles: (notificationMessage.sharedFiles ?? []).map((sharedFile) => sharedFile.fileName),
+                workspaceFiles: (notification.content.sharedFiles ?? []).map((sharedFile) => sharedFile.fileName),
                 chatImages: []
             });
 
             const generator = session.orchestrator.handleMessage(
                 {
-                    message: notificationMessage,
+                    input: notificationInput,
                     requestAttributes: this.buildTaskRequestAttributes(session, {
-                        mimirDisplayText: displayText,
-                        mimirMessageOrigin: origin
+                        runtimeDisplayText: displayText,
+                        runtimeMessageOrigin: origin
                     }),
                     abortSignal: session.abortController?.signal
                 },
@@ -1007,9 +1011,12 @@ export class SessionManager {
 
                 const generator = session.orchestrator.handleMessage(
                     {
-                        message: {
-                            content: [{ type: "text", text: feedback }],
-                            sharedFiles: []
+                        input: {
+                            type: "user_message",
+                            message: {
+                                content: [{ type: "text", text: feedback }],
+                                sharedFiles: []
+                            }
                         },
                         requestAttributes: this.buildTaskRequestAttributes(session)
                     },
@@ -1019,7 +1026,7 @@ export class SessionManager {
             } else {
                 const generator = session.orchestrator.handleMessage(
                     {
-                        message: null,
+                        input: null,
                         requestAttributes: this.buildTaskRequestAttributes(session),
                         abortSignal: session.abortController?.signal
                     },
@@ -1198,48 +1205,16 @@ export class SessionManager {
         };
     }
 
-    private buildNotificationProcessingMessage(notification: PluginNotification): InputAgentMessage {
-        const content: ComplexMessageContent[] = [
-            {
-                type: "text",
-                text:
-                    "The user explicitly asked you to process this pending plugin notification.\n\n" +
-                    "This is an automated plugin notification delivered because the user clicked process; " +
-                    "it is not direct user-authored chat text.\n\n" +
-                    "Review the notification below and decide what action, if any, should be taken. " +
-                    "This notification is not part of a new user request beyond this explicit processing action.\n\n"
-            }
-        ];
-        const sharedFiles: SharedFile[] = [];
-        const seenSharedFiles = new Set<string>();
-
-        const header = [
-            `Plugin: ${notification.pluginName}`,
-            `Title: ${notification.title}`,
-            notification.message ? `Message: ${notification.message}` : undefined,
-            "Content:"
-        ].filter(Boolean).join("\n");
-
-        content.push({ type: "text", text: `${header}\n` });
-        if (notification.content.content.length > 0) {
-            content.push(...notification.content.content);
-        } else {
-            content.push({ type: "text", text: "(No additional content.)" });
-        }
-        content.push({ type: "text", text: "\n\n" });
-
-        for (const sharedFile of notification.content.sharedFiles ?? []) {
-            const key = `${sharedFile.fileName}\n${sharedFile.url}`;
-            if (seenSharedFiles.has(key)) {
-                continue;
-            }
-            seenSharedFiles.add(key);
-            sharedFiles.push(sharedFile);
-        }
-
+    private buildNotificationAgentInput(notification: PluginNotification): AgentInput {
         return {
-            content,
-            sharedFiles
+            type: "plugin_notification",
+            notification: {
+                notificationId: notification.id,
+                pluginName: notification.pluginName,
+                title: notification.title,
+                message: notification.message,
+                content: notification.content
+            }
         };
     }
 
@@ -1343,7 +1318,7 @@ export class SessionManager {
 
             generator = session.orchestrator.handleMessage(
                 {
-                    message: null,
+                    input: null,
                     requestAttributes: this.buildTaskRequestAttributes(session)
                 },
                 session.sessionId
@@ -1435,7 +1410,7 @@ export class SessionManager {
     private buildTaskRequestAttributes(session: SessionRuntime, extra: Record<string, unknown> = {}): Record<string, unknown> {
         return {
             ...extra,
-            mimirTaskId: this.requireTaskId(session)
+            runtimeTaskId: this.requireTaskId(session)
         };
     }
 

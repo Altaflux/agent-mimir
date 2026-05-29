@@ -34,6 +34,24 @@ export type InputAgentMessage = {
     sharedFiles?: SharedFile[]
 };
 
+export type AgentNotificationInput = {
+    notificationId: string;
+    pluginName: string;
+    title: string;
+    message?: string;
+    content: InputAgentMessage;
+};
+
+export type AgentInput =
+    | {
+        type: "user_message";
+        message: InputAgentMessage;
+    }
+    | {
+        type: "plugin_notification";
+        notification: AgentNotificationInput;
+    };
+
 export type SharedFile = {
     /** URL where the file can be accessed */
     url: string,
@@ -60,13 +78,13 @@ export interface Agent {
     description: string,
     /**
      * Primary method for interacting with the agent.
-     * Processes input messages and generates responses or tool requests.
-     * @param args.message - The input message to process, can be null
+     * Processes input and generates responses or tool requests.
+     * @param args.input - The input to process, can be null for continuation
      * @param args.noMessagesInTool - Optional flag to prevent message processing in tools
      * @returns AsyncGenerator yielding tool responses and final agent response
      */
     call: (args: {
-        message: InputAgentMessage | null,
+        input: AgentInput | null,
         sessionId: string,
         checkpointId?: string,
         noMessagesInTool?: boolean,
