@@ -52,7 +52,7 @@ function pluginNotificationEvent(
         pluginName: "runtime-smoke-test",
         agentName: "Principal",
         title: "Worker complete",
-        message: "Worker has a result.",
+        summary: "Worker has a result.",
         unreadCount: 1,
         ...overrides
     };
@@ -65,7 +65,7 @@ function notification(overrides: Partial<PluginNotification> = {}): PluginNotifi
         agentName: "Principal",
         createdAt: 1779962460000,
         title: "Worker complete",
-        message: "Worker has a result.",
+        summary: "Worker has a result.",
         content: {
             content: [{ type: "text", text: "result body" }],
             sharedFiles: [{ fileName: "result.txt", url: "/tmp/result.txt" }]

@@ -76,7 +76,7 @@ export type PluginNotificationContent = InputAgentMessage;
 
 export type PluginNotificationInput = {
     title: string;
-    message?: string;
+    summary?: string;
     content: PluginNotificationContent;
 };
 
@@ -86,7 +86,7 @@ export type PluginNotification = {
     agentName: string;
     createdAt: number;
     title: string;
-    message?: string;
+    summary?: string;
     content: PluginNotificationContent;
     read: boolean;
 };
@@ -115,7 +115,7 @@ export const NOOP_PLUGIN_RUNTIME_PROVIDER: PluginRuntimeProvider = {
                         agentName: "unknown",
                         createdAt: Date.now(),
                         title: input.title,
-                        message: input.message,
+                        summary: input.summary,
                         content: input.content,
                         read: false
                     };
@@ -164,7 +164,7 @@ export type NextMessagePluginNotification = InputAgentMessage & {
     notificationId: AgentNotificationInput["notificationId"],
     pluginName: AgentNotificationInput["pluginName"],
     title: AgentNotificationInput["title"],
-    message?: AgentNotificationInput["message"],
+    summary?: AgentNotificationInput["summary"],
 }
 
 /** 

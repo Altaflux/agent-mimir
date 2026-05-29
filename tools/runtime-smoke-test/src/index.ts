@@ -54,7 +54,7 @@ class RuntimeSmokeTestTool extends AgentTool {
         steps: z.number().int().min(1).max(10).optional().describe("Number of progress events to emit."),
         delayMs: z.number().int().min(0).max(2000).optional().describe("Delay between progress events in milliseconds."),
         notificationTitle: z.string().optional().describe("Title for the queued notification."),
-        notificationMessage: z.string().optional().describe("Optional notification summary message."),
+        notificationSummary: z.string().optional().describe("Optional notification summary."),
         notificationContent: z.string().optional().describe("Content the principal agent should receive when notifications are processed.")
     });
 
@@ -67,7 +67,7 @@ class RuntimeSmokeTestTool extends AgentTool {
         const steps = input.steps ?? 3;
         const delayMs = input.delayMs ?? 250;
         const notificationTitle = input.notificationTitle?.trim() || `Smoke test complete: ${label}`;
-        const notificationMessage = input.notificationMessage?.trim() || "A dummy runtime notification was queued.";
+        const notificationSummary = input.notificationSummary?.trim() || "A dummy runtime notification was queued.";
         const notificationContent = input.notificationContent?.trim() ||
             `The runtime smoke-test tool finished the run named "${label}". ` +
             "This notification exists only to verify manual inbox processing.";
@@ -110,7 +110,7 @@ class RuntimeSmokeTestTool extends AgentTool {
 
         const notification = await this.runtime.notifications.enqueue({
             title: notificationTitle,
-            message: notificationMessage,
+            summary: notificationSummary,
             content: {
                 content: [
                     {
@@ -122,7 +122,7 @@ class RuntimeSmokeTestTool extends AgentTool {
         });
         const notification2 = await this.runtime.notifications.enqueue({
             title: "Second notification",
-            message: "Second notification",
+            summary: "Second notification",
             content: {
                 content: [
                     {

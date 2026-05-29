@@ -26,7 +26,7 @@ export function langChainHumanMessageToMimirHumanMessage(message: HumanMessage):
       notificationId: runtimeInput.notification.notificationId,
       pluginName: runtimeInput.notification.pluginName,
       title: runtimeInput.notification.title,
-      message: runtimeInput.notification.message,
+      summary: runtimeInput.notification.summary,
       ...base
     };
   }

@@ -14,7 +14,7 @@ describe("langChainHumanMessageToMimirHumanMessage", () => {
                         notificationId: "notification-1",
                         pluginName: "runtime-smoke-test",
                         title: "Worker complete",
-                        message: "Worker has a result.",
+                        summary: "Worker has a result.",
                         content: {
                             content: [{ type: "text", text: "Original notification content" }]
                         }
@@ -28,7 +28,7 @@ describe("langChainHumanMessageToMimirHumanMessage", () => {
             notificationId: "notification-1",
             pluginName: "runtime-smoke-test",
             title: "Worker complete",
-            message: "Worker has a result.",
+            summary: "Worker has a result.",
             content: [{ type: "text", text: "Notification body" }],
             sharedFiles: [{ fileName: "result.txt", url: "/tmp/result.txt" }]
         });

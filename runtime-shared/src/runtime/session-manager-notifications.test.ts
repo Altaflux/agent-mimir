@@ -24,7 +24,7 @@ function createNotification(overrides: Partial<PluginNotification> = {}): Plugin
         agentName: "Principal",
         createdAt: 1779962460000,
         title: "Worker complete",
-        message: "Worker has a result.",
+        summary: "Worker has a result.",
         content: {
             content: [{ type: "text", text: "result body" }],
             sharedFiles: [{ fileName: "result.txt", url: "/tmp/result.txt" }]
@@ -44,7 +44,7 @@ test("notification processing passes one first-class notification input", () => 
             notificationId: "notification-1",
             pluginName: "runtime-smoke-test",
             title: "Worker complete",
-            message: "Worker has a result.",
+            summary: "Worker has a result.",
             content: notification.content
         }
     });
@@ -71,7 +71,7 @@ test("notification message origin exposes full notification metadata", () => {
         notificationId: "notification-1",
         pluginName: "runtime-smoke-test",
         title: "Worker complete",
-        message: "Worker has a result."
+        summary: "Worker has a result."
     });
 });
 
@@ -85,7 +85,7 @@ test("hydrated notification presentation is derived from first-class input", () 
             notificationId: "notification-1",
             pluginName: "runtime-smoke-test",
             title: "Worker complete",
-            message: "Worker has a result."
+            summary: "Worker has a result."
         },
         text: "Process plugin notification: Worker complete",
         workspaceFiles: ["result.txt"],

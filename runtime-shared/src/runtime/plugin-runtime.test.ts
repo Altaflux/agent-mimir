@@ -31,7 +31,7 @@ test("enqueue stores unread notifications and emits notification events", async 
 
     const notification = await controller.forPlugin("subagents").notifications.enqueue({
         title: "Worker complete",
-        message: "Worker has a result.",
+        summary: "Worker has a result.",
         content: {
             content: [{ type: "text", text: "result body" }]
         }
@@ -49,7 +49,7 @@ test("enqueue stores unread notifications and emits notification events", async 
         pluginName: "subagents",
         agentName: "Principal",
         title: "Worker complete",
-        message: "Worker has a result.",
+        summary: "Worker has a result.",
         unreadCount: 1
     });
 });

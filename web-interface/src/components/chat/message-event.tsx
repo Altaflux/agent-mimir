@@ -28,7 +28,7 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                                 </span>
                             </div>
                             <p className="mt-1 text-sm font-medium text-foreground">{event.origin.title}</p>
-                            {event.origin.message ? <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{event.origin.message}</p> : null}
+                            {event.origin.summary ? <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{event.origin.summary}</p> : null}
                             <div className="group mt-2 flex items-start justify-between gap-4 rounded-lg bg-background/40 px-3 py-2">
                                 <p className="whitespace-pre-wrap text-sm text-foreground">{event.text || "(No text)"}</p>
                                 {event.text ? <div className="mt-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"><CopyButton text={event.text} /></div> : null}
@@ -246,7 +246,7 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                             </span>
                         </div>
                         <p className="mt-1 text-sm font-medium text-foreground">{event.title}</p>
-                        {event.message ? <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{event.message}</p> : null}
+                        {event.summary ? <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{event.summary}</p> : null}
                     </div>
                 </div>
             </div>

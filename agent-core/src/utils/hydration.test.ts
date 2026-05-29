@@ -65,7 +65,7 @@ describe("readHydrationEvents", () => {
                 notificationId: "notification-1",
                 pluginName: "runtime-smoke-test",
                 title: "Worker complete",
-                message: "Worker has a result.",
+                summary: "Worker has a result.",
                 content: {
                     content: [{ type: "text" as const, text: "Original notification content" }],
                     sharedFiles: [{ fileName: "result.txt", url: "/tmp/result.txt" }]

@@ -64,7 +64,7 @@ export class SessionStore {
                 agent_name TEXT NOT NULL,
                 created_at INTEGER NOT NULL,
                 title TEXT NOT NULL,
-                message TEXT,
+                summary TEXT,
                 content_json TEXT NOT NULL,
                 read INTEGER NOT NULL,
                 read_at INTEGER,
@@ -238,7 +238,7 @@ export class SessionStore {
                 agent_name,
                 created_at,
                 title,
-                message,
+                summary,
                 content_json,
                 read,
                 read_at,
@@ -249,7 +249,7 @@ export class SessionStore {
                 agent_name = excluded.agent_name,
                 created_at = excluded.created_at,
                 title = excluded.title,
-                message = excluded.message,
+                summary = excluded.summary,
                 content_json = excluded.content_json,
                 read = excluded.read,
                 read_at = excluded.read_at,
@@ -261,7 +261,7 @@ export class SessionStore {
             notification.agentName,
             notification.createdAt,
             notification.title,
-            notification.message ?? null,
+            notification.summary ?? null,
             JSON.stringify(notification.content),
             notification.read ? 1 : 0,
             null,
@@ -281,7 +281,7 @@ export class SessionStore {
                 agent_name,
                 created_at,
                 title,
-                message,
+                summary,
                 content_json,
                 read,
                 read_at,
@@ -295,7 +295,7 @@ export class SessionStore {
             agent_name: string;
             created_at: number;
             title: string;
-            message: string | null;
+            summary: string | null;
             content_json: string;
             read: number;
             read_at: number | null;
@@ -311,7 +311,7 @@ export class SessionStore {
                 agentName: row.agent_name,
                 createdAt: row.created_at,
                 title: row.title,
-                message: row.message ?? undefined,
+                summary: row.summary ?? undefined,
                 content: JSON.parse(row.content_json),
                 read: row.read === 1
             }

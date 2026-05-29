@@ -28,7 +28,7 @@ describe("materializeAgentInput", () => {
                 notificationId: "notification-1",
                 pluginName: "runtime-smoke-test",
                 title: "Worker complete",
-                message: "Worker has a result.",
+                summary: "Worker has a result.",
                 content: {
                     content: [{ type: "text", text: "result body" }],
                     sharedFiles: [{ fileName: "result.txt", url: "/tmp/result.txt" }]
@@ -43,6 +43,7 @@ describe("materializeAgentInput", () => {
         expect(text).toMatch(/not direct user-authored chat text/i);
         expect(text).toMatch(/Plugin: runtime-smoke-test/);
         expect(text).toMatch(/Title: Worker complete/);
+        expect(text).toMatch(/Summary: Worker has a result/);
         expect(text).toMatch(/result body/);
         expect(materialized.message.sharedFiles).toEqual([{ fileName: "result.txt", url: "/tmp/result.txt" }]);
         expect(materialized.additionalKwargs).toEqual({

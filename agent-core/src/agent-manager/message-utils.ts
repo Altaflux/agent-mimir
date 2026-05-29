@@ -113,7 +113,7 @@ export function readRuntimeInput(message: HumanMessage): AgentInput | undefined 
             notificationId: notification.notificationId,
             pluginName: notification.pluginName,
             title: notification.title,
-            message: typeof notification.message === "string" ? notification.message : undefined,
+            summary: typeof notification.summary === "string" ? notification.summary : undefined,
             content: notification.content
         }
     };

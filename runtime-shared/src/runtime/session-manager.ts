@@ -742,7 +742,7 @@ export class SessionManager {
             notificationId: notification.notificationId,
             pluginName: notification.pluginName,
             title: notification.title,
-            message: notification.message
+            summary: notification.summary
         };
     }
 
@@ -1203,7 +1203,7 @@ export class SessionManager {
                 notificationId: notification.id,
                 pluginName: notification.pluginName,
                 title: notification.title,
-                message: notification.message,
+                summary: notification.summary,
                 content: notification.content
             }
         };

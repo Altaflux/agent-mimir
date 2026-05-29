@@ -150,7 +150,7 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
             agentName: this.agentName,
             createdAt: Date.now(),
             title: input.title,
-            message: input.message,
+            summary: input.summary,
             content: input.content,
             read: false
         };
@@ -163,7 +163,7 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
             pluginName,
             agentName: this.agentName,
             title: notification.title,
-            message: notification.message,
+            summary: notification.summary,
             unreadCount: this.unreadCount()
         });
         this.sink?.emitStateChanged();

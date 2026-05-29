@@ -38,7 +38,7 @@ export type AgentNotificationInput = {
     notificationId: string;
     pluginName: string;
     title: string;
-    message?: string;
+    summary?: string;
     content: InputAgentMessage;
 };
 

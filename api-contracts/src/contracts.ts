@@ -64,7 +64,7 @@ export type UserMessageOrigin =
         notificationId: string;
         pluginName: string;
         title: string;
-        message?: string;
+        summary?: string;
     };
 
 export type SessionEvent =
@@ -150,7 +150,7 @@ export type SessionEvent =
         pluginName: string;
         agentName: string;
         title: string;
-        message?: string;
+        summary?: string;
         unreadCount: number;
     }
     | {

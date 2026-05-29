@@ -56,7 +56,7 @@ describe("Plugin runtime context", () => {
                     agentName: "Agent",
                     createdAt: 1767225600000,
                     title: input.title,
-                    message: input.message,
+                    summary: input.summary,
                     content: input.content,
                     read: false
                 })

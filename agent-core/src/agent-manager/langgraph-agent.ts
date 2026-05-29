@@ -72,7 +72,7 @@ function buildNotificationProcessingMessage(notification: AgentNotificationInput
     const header = [
         `Plugin: ${notification.pluginName}`,
         `Title: ${notification.title}`,
-        notification.message ? `Message: ${notification.message}` : undefined,
+        notification.summary ? `Summary: ${notification.summary}` : undefined,
         "Content:"
     ].filter(Boolean).join("\n");
 
