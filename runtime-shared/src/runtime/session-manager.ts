@@ -5,7 +5,8 @@ import {
     SessionEvent,
     SessionState,
     SessionSummary,
-    ToolRequestPayload
+    ToolRequestPayload,
+    UserMessageOrigin
 } from "../contracts.js";
 import { getConfig } from "./config.js";
 import { HttpError } from "./errors.js";
@@ -519,6 +520,7 @@ export class SessionManager {
                     {
                         type: "user_message",
                         taskId: hydratedTaskId,
+                        origin: this.getHydratedMessageOrigin(event.requestAttributes),
                         text: displayText,
                         workspaceFiles,
                         chatImages
@@ -713,6 +715,41 @@ export class SessionManager {
         return `hydrated-${session.sessionId}-${taskIndex}`;
     }
 
+    private buildNotificationMessageOrigin(notification: PluginNotification): UserMessageOrigin {
+        return {
+            type: "plugin_notification",
+            notificationId: notification.id,
+            pluginName: notification.pluginName,
+            title: notification.title,
+            message: notification.message
+        };
+    }
+
+    private getHydratedMessageOrigin(requestAttributes: Record<string, unknown>): UserMessageOrigin {
+        const origin = requestAttributes["mimirMessageOrigin"];
+        if (!origin || typeof origin !== "object") {
+            return { type: "user" };
+        }
+
+        const maybeOrigin = origin as Record<string, unknown>;
+        if (
+            maybeOrigin.type !== "plugin_notification" ||
+            typeof maybeOrigin.notificationId !== "string" ||
+            typeof maybeOrigin.pluginName !== "string" ||
+            typeof maybeOrigin.title !== "string"
+        ) {
+            return { type: "user" };
+        }
+
+        return {
+            type: "plugin_notification",
+            notificationId: maybeOrigin.notificationId,
+            pluginName: maybeOrigin.pluginName,
+            title: maybeOrigin.title,
+            message: typeof maybeOrigin.message === "string" ? maybeOrigin.message : undefined
+        };
+    }
+
     async createSession(name?: string, agentName?: string): Promise<SessionState> {
         await this.ensureDiscovered();
         const sessionId = crypto.randomUUID();
@@ -878,6 +915,7 @@ export class SessionManager {
             this.emitEvent(session, {
                 type: "user_message",
                 taskId,
+                origin: { type: "user" },
                 text: input.text,
                 workspaceFiles: workspaceFileNames,
                 chatImages: chatImageNames
@@ -911,10 +949,12 @@ export class SessionManager {
 
             const notificationMessage = this.buildNotificationProcessingMessage(notification);
             const displayText = this.buildNotificationProcessingDisplayText(notification);
+            const origin = this.buildNotificationMessageOrigin(notification);
             const taskId = this.beginTask(session, crypto.randomUUID());
             this.emitEvent(session, {
                 type: "user_message",
                 taskId,
+                origin,
                 text: displayText,
                 workspaceFiles: (notificationMessage.sharedFiles ?? []).map((sharedFile) => sharedFile.fileName),
                 chatImages: []
@@ -924,7 +964,8 @@ export class SessionManager {
                 {
                     message: notificationMessage,
                     requestAttributes: this.buildTaskRequestAttributes(session, {
-                        mimirDisplayText: displayText
+                        mimirDisplayText: displayText,
+                        mimirMessageOrigin: origin
                     }),
                     abortSignal: session.abortController?.signal
                 },
@@ -958,6 +999,7 @@ export class SessionManager {
                 this.emitEvent(session, {
                     type: "user_message",
                     taskId,
+                    origin: { type: "user" },
                     text: feedback,
                     workspaceFiles: [],
                     chatImages: []
@@ -1162,6 +1204,8 @@ export class SessionManager {
                 type: "text",
                 text:
                     "The user explicitly asked you to process this pending plugin notification.\n\n" +
+                    "This is an automated plugin notification delivered because the user clicked process; " +
+                    "it is not direct user-authored chat text.\n\n" +
                     "Review the notification below and decide what action, if any, should be taken. " +
                     "This notification is not part of a new user request beyond this explicit processing action.\n\n"
             }

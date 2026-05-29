@@ -55,6 +55,18 @@ export type PluginRuntimeEventBody =
         total?: number;
     };
 
+export type UserMessageOrigin =
+    | {
+        type: "user";
+    }
+    | {
+        type: "plugin_notification";
+        notificationId: string;
+        pluginName: string;
+        title: string;
+        message?: string;
+    };
+
 export type SessionEvent =
     | {
         id: string;
@@ -62,6 +74,7 @@ export type SessionEvent =
         timestamp: string;
         type: "user_message";
         taskId: string;
+        origin: UserMessageOrigin;
         text: string;
         workspaceFiles: string[];
         chatImages: string[];

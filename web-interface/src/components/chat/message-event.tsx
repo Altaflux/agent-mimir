@@ -12,6 +12,38 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
 
     /* ── User message ─────────────── */
     if (event.type === "user_message") {
+        if (event.origin.type === "plugin_notification") {
+            return (
+                <div className="flex items-start gap-3 animate-msg-in">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+                        <Bell className="h-4 w-4 text-cyan-500" />
+                    </div>
+                    <div className="min-w-0 max-w-[80%] flex-1">
+                        <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-3 py-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs font-medium text-muted-foreground">{event.origin.pluginName}</span>
+                                <span className="text-[10px] text-muted-foreground/60">{formatTime(event.timestamp)}</span>
+                                <span className="rounded bg-secondary/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                    notification
+                                </span>
+                            </div>
+                            <p className="mt-1 text-sm font-medium text-foreground">{event.origin.title}</p>
+                            {event.origin.message ? <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{event.origin.message}</p> : null}
+                            <div className="group mt-2 flex items-start justify-between gap-4 rounded-lg bg-background/40 px-3 py-2">
+                                <p className="whitespace-pre-wrap text-sm text-foreground">{event.text || "(No text)"}</p>
+                                {event.text ? <div className="mt-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"><CopyButton text={event.text} /></div> : null}
+                            </div>
+                            {event.workspaceFiles.length > 0 ? (
+                                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                                    Files: {event.workspaceFiles.join(", ")}
+                                </p>
+                            ) : null}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
         return (
             <div className="flex justify-end animate-msg-in">
                 <div className="max-w-[80%] flex items-start gap-2.5">
