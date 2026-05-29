@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Loader2 } from "lucide-react";
 
 import { useChatSession } from "@/components/chat/use-chat-session";
 import { Sidebar } from "@/components/chat/sidebar";
 import { ChatHeader } from "@/components/chat/chat-header";
-import { MessageEvent } from "@/components/chat/message-event";
+import { MessageEvent, type RenderableSessionEvent, type ToolRequestWithPluginEvents } from "@/components/chat/message-event";
 import { ThinkingDots } from "@/components/chat/thinking-dots";
 import { Composer } from "@/components/chat/composer";
+import { type SessionEvent } from "@/lib/contracts";
+
+type ToolCallPayload = Extract<SessionEvent, { type: "tool_request" }>["payload"]["toolCalls"][number];
 
 /**
  * Root chat application component.
@@ -19,13 +22,14 @@ export function ChatApp() {
     const session = useChatSession();
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const conversationScrollRef = useRef<HTMLDivElement | null>(null);
+    const renderEvents = useMemo(() => embedPluginEventsInToolRequests(session.activeEvents), [session.activeEvents]);
 
     /* Auto-scroll to bottom when new events arrive */
     useEffect(() => {
         const container = conversationScrollRef.current;
         if (!container) return;
         container.scrollTo({ top: container.scrollHeight, behavior: "auto" });
-    }, [session.activeEvents, session.activeSessionId]);
+    }, [renderEvents, session.activeSessionId]);
 
     /* ── Loading screen ──────────────────────────────── */
 
@@ -130,7 +134,7 @@ export function ChatApp() {
                             </div>
                         ) : null}
 
-                        {session.activeEvents.map((event) => (
+                        {renderEvents.map((event) => (
                             <MessageEvent key={(event as { messageId?: string }).messageId ?? event.id} event={event} />
                         ))}
 
@@ -170,4 +174,65 @@ export function ChatApp() {
             </div>
         </main>
     );
+}
+
+function embedPluginEventsInToolRequests(events: SessionEvent[]): RenderableSessionEvent[] {
+    const renderEvents: RenderableSessionEvent[] = [];
+    const toolRequestsByCallId = new Map<string, ToolRequestWithPluginEvents>();
+    const embeddedPluginEventIds = new Set<string>();
+
+    for (const event of events) {
+        if (event.type !== "tool_request") {
+            renderEvents.push(event);
+            continue;
+        }
+
+        const toolRequest: ToolRequestWithPluginEvents = {
+            ...event,
+            pluginEventsByToolCallId: {}
+        };
+        renderEvents.push(toolRequest);
+
+        for (const call of event.payload.toolCalls) {
+            for (const toolCallId of getRenderableToolCallIds(call)) {
+                toolRequestsByCallId.set(toolCallId, toolRequest);
+            }
+        }
+    }
+
+    for (const event of events) {
+        if (event.type !== "plugin_event") {
+            continue;
+        }
+
+        const toolRequest = toolRequestsByCallId.get(event.toolCallId);
+        if (!toolRequest) {
+            continue;
+        }
+
+        const existingEvents = toolRequest.pluginEventsByToolCallId[event.toolCallId] ?? [];
+        toolRequest.pluginEventsByToolCallId[event.toolCallId] = [...existingEvents, event];
+        embeddedPluginEventIds.add(event.id);
+    }
+
+    return renderEvents.filter((event) => event.type !== "plugin_event" || !embeddedPluginEventIds.has(event.id));
+}
+
+function getRenderableToolCallIds(call: ToolCallPayload): string[] {
+    if (call.id) {
+        return [call.id];
+    }
+
+    try {
+        const parsed = JSON.parse(call.input);
+        if (!Array.isArray(parsed)) {
+            return [];
+        }
+
+        return parsed
+            .map((item) => item && typeof item === "object" ? (item as { id?: unknown }).id : undefined)
+            .filter((id): id is string => typeof id === "string" && id.length > 0);
+    } catch {
+        return [];
+    }
 }

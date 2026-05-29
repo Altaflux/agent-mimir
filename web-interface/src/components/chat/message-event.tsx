@@ -6,8 +6,20 @@ import { Bell, Bot, Radio, User, Wrench } from "lucide-react";
 import { MarkdownContent } from "@/components/chat/markdown";
 import { CollapsibleSection, DownloadLinks, ScrollableCodeBlock, CopyButton } from "@/components/chat/shared";
 
+type PluginRuntimeEvent = Extract<SessionEvent, { type: "plugin_event" }>;
+type ToolRequestEvent = Extract<SessionEvent, { type: "tool_request" }>;
+type ToolCallPayload = ToolRequestEvent["payload"]["toolCalls"][number];
+
+export type ToolRequestWithPluginEvents = ToolRequestEvent & {
+    pluginEventsByToolCallId: Record<string, PluginRuntimeEvent[]>;
+};
+
+export type RenderableSessionEvent =
+    | Exclude<SessionEvent, ToolRequestEvent>
+    | ToolRequestWithPluginEvents;
+
 /** Renders a single session event as the appropriate message bubble / section. */
-export function MessageEvent({ event }: { event: SessionEvent }) {
+export function MessageEvent({ event }: { event: RenderableSessionEvent }) {
     if (event.type === "state_changed") return null;
 
     /* ── User message ─────────────── */
@@ -150,6 +162,7 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                     >
                         <div className="space-y-2">
                             {event.payload.toolCalls.map((call, index) => {
+                                const pluginEvents = getToolCallPluginEvents(event, call);
                                 if (call.toolName === "CODE_EXECUTION") {
                                     try {
                                         const parsed = JSON.parse(call.input);
@@ -166,6 +179,7 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                                                     <MarkdownContent>
                                                         {`\`\`\`python\n${parsed.script}\n\`\`\``}
                                                     </MarkdownContent>
+                                                    <ToolCallPluginEvents events={pluginEvents} />
                                                 </div>
                                             );
                                         }
@@ -178,6 +192,7 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
                                     <div key={`${event.id}-${index}`} className="border-t border-border/30 pt-2">
                                         <p className="text-xs font-semibold text-foreground mb-1">{call.toolName}</p>
                                         <ScrollableCodeBlock text={call.input} />
+                                        <ToolCallPluginEvents events={pluginEvents} />
                                     </div>
                                 );
                             })}
@@ -190,16 +205,7 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
 
     /* ── Plugin runtime event ─────── */
     if (event.type === "plugin_event") {
-        const body = event.body;
-        const title = body.type === "progress"
-            ? body.label ?? "Plugin progress"
-            : body.title ?? (body.type === "status" ? "Plugin status" : "Plugin message");
-        const detail = body.type === "progress"
-            ? [
-                body.message,
-                body.current !== undefined && body.total !== undefined ? `${body.current}/${body.total}` : undefined
-            ].filter(Boolean).join(" ")
-            : body.message;
+        const { title, detail } = pluginRuntimeEventDisplay(event);
 
         return (
             <div className="flex items-start gap-3 animate-msg-in">
@@ -270,4 +276,77 @@ export function MessageEvent({ event }: { event: SessionEvent }) {
             </div>
         </div>
     );
+}
+
+function getToolCallPluginEvents(event: ToolRequestWithPluginEvents, call: ToolCallPayload): PluginRuntimeEvent[] {
+    const events = getRenderableToolCallIds(call).flatMap((toolCallId) => event.pluginEventsByToolCallId[toolCallId] ?? []);
+    return [...new Map(events.map((event) => [event.id, event])).values()];
+}
+
+function getRenderableToolCallIds(call: ToolCallPayload): string[] {
+    if (call.id) {
+        return [call.id];
+    }
+
+    try {
+        const parsed = JSON.parse(call.input);
+        if (!Array.isArray(parsed)) {
+            return [];
+        }
+
+        return parsed
+            .map((item) => item && typeof item === "object" ? (item as { id?: unknown }).id : undefined)
+            .filter((id): id is string => typeof id === "string" && id.length > 0);
+    } catch {
+        return [];
+    }
+}
+
+function ToolCallPluginEvents({ events }: { events: PluginRuntimeEvent[] }) {
+    if (events.length === 0) {
+        return null;
+    }
+
+    return (
+        <div className="mt-3 rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Radio className="h-3.5 w-3.5 text-cyan-500" />
+                <span className="text-xs font-medium text-muted-foreground">
+                    Tool events
+                </span>
+                <span className="rounded bg-secondary/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                    {events.length}
+                </span>
+            </div>
+            <div className="space-y-2">
+                {events.map((event) => {
+                    const { title, detail } = pluginRuntimeEventDisplay(event);
+                    return (
+                        <div key={event.id} className="border-t border-cyan-500/15 pt-2 first:border-t-0 first:pt-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-sm font-medium text-foreground">{title}</p>
+                                <span className="text-[10px] text-muted-foreground/60">{formatTime(event.timestamp)}</span>
+                            </div>
+                            {detail ? <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{detail}</p> : null}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+function pluginRuntimeEventDisplay(event: PluginRuntimeEvent): { title: string; detail: string } {
+    const body = event.body;
+    const title = body.type === "progress"
+        ? body.label ?? "Plugin progress"
+        : body.title ?? (body.type === "status" ? "Plugin status" : "Plugin message");
+    const detail = body.type === "progress"
+        ? [
+            body.message,
+            body.current !== undefined && body.total !== undefined ? `${body.current}/${body.total}` : undefined
+        ].filter(Boolean).join(" ")
+        : body.message;
+
+    return { title, detail };
 }

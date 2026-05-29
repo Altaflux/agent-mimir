@@ -1,6 +1,6 @@
 import { CompiledStateGraph, Command, StateDefinition, StateSchema, MessagesValue, BaseCheckpointSaver } from "@langchain/langgraph";
 import { AgentCommand, AgentPlugin } from "../plugins/index.js";
-import { Agent, AgentHydrationEvent, AgentInput, AgentMessageToolRequest, AgentNotificationInput, AgentResponse, AgentUserMessageResponse, AgentWorkspace, CommandRequest, InputAgentMessage, IntermediateAgentMessage, SharedFile } from "./index.js";
+import { Agent, AgentHydrationEvent, AgentInput, AgentMessageToolRequest, AgentNotificationInput, AgentResponse, AgentUserMessageResponse, AgentWorkspace, CommandRequest, InputAgentMessage, IntermediateAgentMessage, MessageContentToolUse, SharedFile } from "./index.js";
 import { AIMessage, BaseMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { v4 } from "uuid";
 import { complexResponseToLangchainMessageContent, extractAllTextFromComplexResponse } from "../utils/format.js";
@@ -303,12 +303,7 @@ export class LanggraphAgent implements Agent {
                     output: {
                         content: lCmessageContentToContent(lastMessage.contentBlocks),
                         id: lastMessage.id ?? "",
-                        toolCalls: [
-                            {
-                                toolName: interruptVal.action_request.action,
-                                input: JSON.stringify(interruptVal.action_request.args, null, 2)
-                            }
-                        ]
+                        toolCalls: materializeInterruptedToolCalls(interruptVal)
                     } satisfies AgentMessageToolRequest,
                     responseAttributes: responseAttributes
                 }
@@ -325,5 +320,40 @@ export class LanggraphAgent implements Agent {
             } satisfies AgentUserMessageResponse
         }
     }
+}
 
+function materializeInterruptedToolCalls(interrupt: HumanInterrupt): MessageContentToolUse[] {
+    const { action, args } = interrupt.action_request;
+    if (Array.isArray(args)) {
+        const toolCalls = args
+            .map((toolCall) => materializeToolCallFromUnknown(toolCall))
+            .filter((toolCall): toolCall is MessageContentToolUse => toolCall !== null);
+        if (toolCalls.length > 0) {
+            return toolCalls;
+        }
+    }
+
+    return [
+        {
+            toolName: action,
+            input: JSON.stringify(args, null, 2)
+        }
+    ];
+}
+
+function materializeToolCallFromUnknown(value: unknown): MessageContentToolUse | null {
+    if (!value || typeof value !== "object") {
+        return null;
+    }
+
+    const toolCall = value as { name?: unknown; args?: unknown; id?: unknown };
+    if (typeof toolCall.name !== "string" || toolCall.name.length === 0) {
+        return null;
+    }
+
+    return {
+        id: typeof toolCall.id === "string" && toolCall.id.length > 0 ? toolCall.id : undefined,
+        toolName: toolCall.name,
+        input: JSON.stringify(toolCall.args ?? {}, null, 2)
+    };
 }
