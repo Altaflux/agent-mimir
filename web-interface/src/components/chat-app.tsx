@@ -9,6 +9,7 @@ import { ChatHeader } from "@/components/chat/chat-header";
 import { MessageEvent, type RenderableSessionEvent, type ToolRequestWithPluginEvents } from "@/components/chat/message-event";
 import { ThinkingDots } from "@/components/chat/thinking-dots";
 import { Composer } from "@/components/chat/composer";
+import { PluginStatePanel } from "@/components/chat/plugin-state-panel";
 import { type SessionEvent } from "@/lib/contracts";
 
 type ToolCallPayload = Extract<SessionEvent, { type: "tool_request" }>["payload"]["toolCalls"][number];
@@ -21,6 +22,7 @@ type ToolCallPayload = Extract<SessionEvent, { type: "tool_request" }>["payload"
 export function ChatApp() {
     const session = useChatSession();
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [pluginStatePanelOpen, setPluginStatePanelOpen] = useState(false);
     const conversationScrollRef = useRef<HTMLDivElement | null>(null);
     const renderEvents = useMemo(() => embedPluginEventsInToolRequests(session.activeEvents), [session.activeEvents]);
 
@@ -98,78 +100,90 @@ export function ChatApp() {
                 }}
             />
 
-            <div className="flex flex-1 flex-col min-w-0">
-                <ChatHeader
-                    sessionLabel={session.sessionLabel}
-                    activeState={session.activeState}
-                    sidebarOpen={sidebarOpen}
-                    onToggleSidebar={() => setSidebarOpen((o) => !o)}
-                    onSetContinuousMode={(enabled) => {
-                        session.setContinuousMode(enabled).catch((error) => {
-                            session.setErrorMessage(error instanceof Error ? error.message : "Could not toggle continuous mode.");
-                        });
-                    }}
-                    onResetSession={() => {
-                        session.resetSession().catch((error) => {
-                            session.setErrorMessage(error instanceof Error ? error.message : "Could not reset session.");
-                        });
-                    }}
-                />
+            <div className="relative flex flex-1 min-w-0">
+                <div className="flex min-w-0 flex-1 flex-col">
+                    <ChatHeader
+                        sessionLabel={session.sessionLabel}
+                        activeState={session.activeState}
+                        sidebarOpen={sidebarOpen}
+                        pluginStateCount={session.activePluginStates.length}
+                        pluginStatePanelOpen={pluginStatePanelOpen}
+                        onToggleSidebar={() => setSidebarOpen((o) => !o)}
+                        onTogglePluginStatePanel={() => setPluginStatePanelOpen((o) => !o)}
+                        onSetContinuousMode={(enabled) => {
+                            session.setContinuousMode(enabled).catch((error) => {
+                                session.setErrorMessage(error instanceof Error ? error.message : "Could not toggle continuous mode.");
+                            });
+                        }}
+                        onResetSession={() => {
+                            session.resetSession().catch((error) => {
+                                session.setErrorMessage(error instanceof Error ? error.message : "Could not reset session.");
+                            });
+                        }}
+                    />
 
-                {/* ── Chat messages ──────────────────────── */}
-                <div ref={conversationScrollRef} className="flex-1 overflow-y-auto overscroll-contain">
-                    <div className="mx-auto max-w-3xl px-4 py-6 space-y-5">
-                        {/* Empty state */}
-                        {session.activeEvents.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-24 text-center">
-                                <Bot className="h-12 w-12 text-muted-foreground/40 mb-4" />
-                                <h2 className="text-lg font-heading font-semibold text-foreground/80 mb-1">
-                                    {session.activeSessionId ? "Start a conversation" : "Create a conversation"}
-                                </h2>
-                                <p className="text-sm text-muted-foreground max-w-sm">
-                                    {session.activeSessionId
-                                        ? "Send a message to begin chatting with your agent."
-                                        : "Click the + button in the sidebar to create your first conversation."}
-                                </p>
-                            </div>
-                        ) : null}
+                    {/* ── Chat messages ──────────────────────── */}
+                    <div ref={conversationScrollRef} className="flex-1 overflow-y-auto overscroll-contain">
+                        <div className="mx-auto max-w-3xl px-4 py-6 space-y-5">
+                            {/* Empty state */}
+                            {session.activeEvents.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-24 text-center">
+                                    <Bot className="h-12 w-12 text-muted-foreground/40 mb-4" />
+                                    <h2 className="text-lg font-heading font-semibold text-foreground/80 mb-1">
+                                        {session.activeSessionId ? "Start a conversation" : "Create a conversation"}
+                                    </h2>
+                                    <p className="text-sm text-muted-foreground max-w-sm">
+                                        {session.activeSessionId
+                                            ? "Send a message to begin chatting with your agent."
+                                            : "Click the + button in the sidebar to create your first conversation."}
+                                    </p>
+                                </div>
+                            ) : null}
 
-                        {renderEvents.map((event) => (
-                            <MessageEvent key={(event as { messageId?: string }).messageId ?? event.id} event={event} />
-                        ))}
+                            {renderEvents.map((event) => (
+                                <MessageEvent key={(event as { messageId?: string }).messageId ?? event.id} event={event} />
+                            ))}
 
-                        {/* Thinking animation */}
-                        {session.isAgentThinking ? <ThinkingDots /> : null}
+                            {/* Thinking animation */}
+                            {session.isAgentThinking ? <ThinkingDots /> : null}
+                        </div>
                     </div>
+
+                    <Composer
+                        activeSessionId={session.activeSessionId}
+                        isSubmitting={session.isSubmitting}
+                        hasPendingToolRequest={session.hasPendingToolRequest}
+                        pendingNotificationCount={session.pendingNotificationCount}
+                        errorMessage={session.errorMessage}
+                        onSendMessage={(text, files) => {
+                            session.sendMessage(text, files).catch((error) => {
+                                session.setErrorMessage(error instanceof Error ? error.message : "Failed to send message.");
+                            });
+                        }}
+                        onProcessNotifications={() => {
+                            session.processNotifications().catch((error) => {
+                                session.setErrorMessage(error instanceof Error ? error.message : "Notification processing failed.");
+                            });
+                        }}
+                        onSubmitApproval={(action, feedback) => {
+                            session.submitApproval(action, feedback).catch((error) => {
+                                session.setErrorMessage(error instanceof Error ? error.message : "Approval failed.");
+                            });
+                        }}
+                        onClearError={() => session.setErrorMessage(null)}
+                        onStopSession={() => {
+                            session.stopSession().catch((error) => {
+                                session.setErrorMessage(error instanceof Error ? error.message : "Stop failed.");
+                            });
+                        }}
+                    />
                 </div>
 
-                <Composer
-                    activeSessionId={session.activeSessionId}
-                    isSubmitting={session.isSubmitting}
-                    hasPendingToolRequest={session.hasPendingToolRequest}
-                    pendingNotificationCount={session.pendingNotificationCount}
-                    errorMessage={session.errorMessage}
-                    onSendMessage={(text, files) => {
-                        session.sendMessage(text, files).catch((error) => {
-                            session.setErrorMessage(error instanceof Error ? error.message : "Failed to send message.");
-                        });
-                    }}
-                    onProcessNotifications={() => {
-                        session.processNotifications().catch((error) => {
-                            session.setErrorMessage(error instanceof Error ? error.message : "Notification processing failed.");
-                        });
-                    }}
-                    onSubmitApproval={(action, feedback) => {
-                        session.submitApproval(action, feedback).catch((error) => {
-                            session.setErrorMessage(error instanceof Error ? error.message : "Approval failed.");
-                        });
-                    }}
-                    onClearError={() => session.setErrorMessage(null)}
-                    onStopSession={() => {
-                        session.stopSession().catch((error) => {
-                            session.setErrorMessage(error instanceof Error ? error.message : "Stop failed.");
-                        });
-                    }}
+                <PluginStatePanel
+                    sessionId={session.activeSessionId}
+                    states={session.activePluginStates}
+                    open={pluginStatePanelOpen}
+                    onClose={() => setPluginStatePanelOpen(false)}
                 />
             </div>
         </main>

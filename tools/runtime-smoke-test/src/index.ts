@@ -22,7 +22,13 @@ class RuntimeSmokeTestPlugin extends AgentPlugin {
     constructor(private readonly runtime: PluginRuntimeContext) {
         super();
     }
+    async init(): Promise<void> {
 
+        await this.runtime.events.emit({
+            type: "STATE",
+            markdown: "HOLA MUNDO"
+        })
+    }
     async getSystemMessages(): Promise<AgentSystemMessage> {
         return {
             content: [
@@ -98,6 +104,33 @@ class RuntimeSmokeTestTool extends AgentTool {
                     total: steps
                 }
             });
+
+
+            await this.runtime.events.emit({
+                type: "STATE",
+                markdown:
+                    `## Runtime smoke test\n\n` +
+                    `Current run: **${label}**\n\n` +
+                    `Progress: ${index}/${steps}\n\n` +
+                    `![Runtime smoke state](asset://smoke-state)`,
+                assets: [
+                    {
+                        id: "smoke-state",
+                        fileName: "runtime-smoke-state.svg",
+                        contentType: "image/svg+xml",
+                        bytes: Buffer.from(
+                            `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="180" viewBox="0 0 640 180">` +
+                            `<rect width="640" height="180" rx="18" fill="#0f172a"/>` +
+                            `<rect x="24" y="24" width="592" height="132" rx="12" fill="#0e7490" opacity="0.25"/>` +
+                            `<text x="40" y="78" fill="#e2e8f0" font-size="28" font-family="Arial, sans-serif">Runtime smoke test</text>` +
+                            `<text x="40" y="120" fill="#67e8f9" font-size="20" font-family="Arial, sans-serif">${escapeSvg(label)} complete</text>` +
+                            `</svg>`
+                        )
+                    }
+                ]
+            });
+
+
         }
 
         await context.emitEvent({
@@ -107,6 +140,12 @@ class RuntimeSmokeTestTool extends AgentTool {
                 message: `Finished "${label}" and queued a notification.`
             }
         });
+
+        await this.runtime.events.emit({
+            type: "LOG",
+            text: `Runtime smoke test "${label}" emitted ${steps} tool events.`
+        });
+
 
         const notification = await this.runtime.notifications.enqueue({
             title: notificationTitle,
@@ -121,20 +160,6 @@ class RuntimeSmokeTestTool extends AgentTool {
                 ]
             }
         });
-        const notification2 = await this.runtime.notifications.enqueue({
-            deduplicationId: "423654",
-            title: "Second notification",
-            summary: "Second notification",
-            content: {
-                content: [
-                    {
-                        type: "text",
-                        text: "Second notification",
-                    }
-                ]
-            }
-        });
-
         return [
             {
                 type: "text",
@@ -154,4 +179,12 @@ async function wait(delayMs: number): Promise<void> {
     }
 
     await new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+function escapeSvg(value: string): string {
+    return value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
 }

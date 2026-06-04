@@ -44,6 +44,7 @@ describe("Plugin runtime context", () => {
         expect(notification.pluginName).toBe("unit-test");
         expect(notification.title).toBe("No-op notification");
         expect("emitEvent" in runtime).toBe(false);
+        await Promise.resolve(runtime.events.emit({ type: "LOG", text: "hello" }));
     });
 
     it("builds plugin contexts with plugin-specific runtime contexts", () => {
@@ -58,6 +59,11 @@ describe("Plugin runtime context", () => {
                     summary: input.summary,
                     content: input.content
                 })
+            },
+            events: {
+                emit: () => {
+                    return;
+                }
             }
         };
         const requestedPluginNames: string[] = [];

@@ -2,16 +2,22 @@ import type { SessionEvent } from "../contracts.js";
 import type {
     PluginNotification,
     PluginNotificationInput,
+    PluginEventInput,
     PluginRuntimeContext,
     PluginRuntimeEventInput,
     PluginRuntimeProvider
 } from "@mimir/agent-core/plugins";
 import type { ToolCallRuntimeContext, ToolCallRuntimeSource } from "@mimir/agent-core/tools";
 import crypto from "crypto";
+import type {
+    DiskPluginStateStore,
+    PluginStateAssetFile,
+    StoredPluginStateDetail
+} from "./plugin-state-store.js";
 
 type SessionPluginRuntimeEvent = Extract<
     SessionEvent,
-    { type: "plugin_event" | "plugin_notification" }
+    { type: "plugin_event" | "plugin_notification" | "plugin_state" | "plugin_log" }
 > extends infer T
     ? T extends unknown
         ? Omit<T, "id" | "sessionId" | "timestamp">
@@ -31,6 +37,7 @@ export type SessionPluginRuntimePersistence = {
 
 export type SessionPluginRuntimeAccessors = {
     persistence?: SessionPluginRuntimePersistence;
+    stateStore?: DiskPluginStateStore;
 };
 
 export class SessionPluginRuntimeController implements PluginRuntimeProvider {
@@ -75,6 +82,9 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
         return {
             notifications: {
                 enqueue: (input) => this.enqueueNotification(pluginName, input)
+            },
+            events: {
+                emit: (input) => this.emitPluginEvent(pluginName, input)
             }
         };
     }
@@ -123,6 +133,26 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
         this.sink?.emitStateChanged();
     }
 
+    async clearPluginStates(): Promise<void> {
+        await this.accessors.stateStore?.clear();
+    }
+
+    async listPluginStates() {
+        return await this.accessors.stateStore?.listStates() ?? [];
+    }
+
+    async readPluginState(pluginName: string): Promise<StoredPluginStateDetail | null> {
+        return await this.accessors.stateStore?.readState(pluginName) ?? null;
+    }
+
+    async resolvePluginStateAsset(
+        pluginName: string,
+        revision: string,
+        assetId: string
+    ): Promise<PluginStateAssetFile | null> {
+        return await this.accessors.stateStore?.resolveAsset(pluginName, revision, assetId) ?? null;
+    }
+
     private emitToolCallEvent(pluginName: string, source: ToolCallRuntimeSource, input: PluginRuntimeEventInput): void {
         this.emitRuntimeEvent({
             type: "plugin_event",
@@ -132,6 +162,37 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
             agentName: this.agentName,
             visibility: input.visibility ?? "user",
             body: input.body
+        });
+    }
+
+    private async emitPluginEvent(pluginName: string, input: PluginEventInput): Promise<void> {
+        if (input.type === "LOG") {
+            this.emitRuntimeEvent(
+                {
+                    type: "plugin_log",
+                    pluginName,
+                    agentName: this.agentName,
+                    text: input.text
+                },
+                { bufferBeforeAttach: false }
+            );
+            return;
+        }
+
+        const summary = await this.accessors.stateStore?.writeState(pluginName, this.agentName, {
+            markdown: input.markdown,
+            assets: input.assets
+        });
+        if (!summary) {
+            return;
+        }
+
+        this.emitRuntimeEvent({
+            type: "plugin_state",
+            pluginName: summary.pluginName,
+            agentName: summary.agentName,
+            updatedAt: summary.updatedAt,
+            revision: summary.revision
         });
     }
 
@@ -201,9 +262,14 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
         this.persistedNotificationIds.add(notification.id);
     }
 
-    private emitRuntimeEvent(event: SessionPluginRuntimeEvent): void {
+    private emitRuntimeEvent(
+        event: SessionPluginRuntimeEvent,
+        options: { bufferBeforeAttach?: boolean } = {}
+    ): void {
         if (!this.sink) {
-            this.bufferedEvents.push(event);
+            if (options.bufferBeforeAttach ?? true) {
+                this.bufferedEvents.push(event);
+            }
             return;
         }
 

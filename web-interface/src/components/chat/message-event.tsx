@@ -21,6 +21,7 @@ export type RenderableSessionEvent =
 /** Renders a single session event as the appropriate message bubble / section. */
 export function MessageEvent({ event }: { event: RenderableSessionEvent }) {
     if (event.type === "state_changed") return null;
+    if (event.type === "plugin_state" || event.type === "plugin_log") return null;
 
     /* ── User message ─────────────── */
     if (event.type === "user_message") {

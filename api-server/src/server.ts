@@ -13,6 +13,8 @@ import type {
     CreateSessionResponse,
     DownloadableFile,
     DeleteSessionResponse,
+    GetPluginStateResponse,
+    ListPluginStatesResponse,
     ListSessionsResponse,
     ProcessNotificationsResponse,
     ResetSessionResponse,
@@ -367,6 +369,54 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
                 const response: ProcessNotificationsResponse = { session };
                 reply.send(response);
             });
+
+            api.get<{ Params: { sessionId: string } }>("/sessions/:sessionId/plugin-states", async (request, reply) => {
+                const states = await sessionManager.listPluginStates(request.params.sessionId);
+                const response: ListPluginStatesResponse = { states };
+                reply.header("Cache-Control", "no-store");
+                reply.send(response);
+            });
+
+            api.get<{ Params: { sessionId: string; pluginName: string } }>(
+                "/sessions/:sessionId/plugin-states/:pluginName",
+                async (request, reply) => {
+                    const state = await sessionManager.getPluginState(
+                        request.params.sessionId,
+                        request.params.pluginName,
+                        publicApiBasePath
+                    );
+                    const response: GetPluginStateResponse = { state };
+                    reply.header("Cache-Control", "no-store");
+                    reply.send(response);
+                }
+            );
+
+            api.get<{
+                Params: {
+                    sessionId: string;
+                    pluginName: string;
+                    revision: string;
+                    assetId: string;
+                };
+            }>(
+                "/sessions/:sessionId/plugin-states/:pluginName/assets/:revision/:assetId",
+                async (request, reply) => {
+                    const asset = await sessionManager.resolvePluginStateAsset(
+                        request.params.sessionId,
+                        request.params.pluginName,
+                        request.params.revision,
+                        request.params.assetId
+                    );
+                    const fileStats = await fs.stat(asset.absolutePath);
+                    const stream = createReadStream(asset.absolutePath);
+                    const safeFileName = asset.fileName.replaceAll('"', "");
+                    return reply
+                        .header("Content-Disposition", `inline; filename=\"${safeFileName}\"`)
+                        .header("Content-Length", String(fileStats.size))
+                        .type(asset.contentType || inferMimeType(asset.fileName))
+                        .send(stream);
+                }
+            );
 
             api.post<{ Params: { sessionId: string } }>("/sessions/:sessionId/message", async (request, reply) => {
                 if (!request.isMultipart()) {

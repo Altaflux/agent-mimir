@@ -4,8 +4,11 @@ import {
     type ApprovalRequest,
     type BootstrapResponse,
     type CreateSessionResponse,
+    type ListPluginStatesResponse,
     type ListSessionsResponse,
     type ProcessNotificationsResponse,
+    type PluginStateSummary,
+    type ResetSessionResponse,
     type SessionEvent,
     type SessionState,
     type SessionSummary,
@@ -22,6 +25,7 @@ export function useChatSession() {
     const [sessions, setSessions] = useState<SessionSummary[]>([]);
     const [sessionStates, setSessionStates] = useState<StateMap>({});
     const [eventsBySession, setEventsBySession] = useState<EventMap>({});
+    const [pluginStatesBySession, setPluginStatesBySession] = useState<Record<string, PluginStateSummary[]>>({});
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
     const [availableAgentNames, setAvailableAgentNames] = useState<string[]>([]);
     const [defaultMainAgent, setDefaultMainAgent] = useState<string | null>(null);
@@ -31,6 +35,7 @@ export function useChatSession() {
 
     const activeState = activeSessionId ? sessionStates[activeSessionId] : undefined;
     const activeEvents = activeSessionId ? eventsBySession[activeSessionId] ?? [] : [];
+    const activePluginStates = activeSessionId ? pluginStatesBySession[activeSessionId] ?? [] : [];
 
     /* ── Session helpers ─────────────────────────────── */
 
@@ -50,8 +55,35 @@ export function useChatSession() {
         [upsertSessionSummary]
     );
 
+    const upsertPluginStateSummary = useCallback((event: Extract<SessionEvent, { type: "plugin_state" }>) => {
+        setPluginStatesBySession((current) => {
+            const existing = current[event.sessionId] ?? [];
+            const nextState: PluginStateSummary = {
+                pluginName: event.pluginName,
+                agentName: event.agentName,
+                updatedAt: event.updatedAt,
+                revision: event.revision
+            };
+            const next = [...existing.filter((state) => state.pluginName !== event.pluginName), nextState];
+            next.sort((left, right) => left.pluginName.localeCompare(right.pluginName));
+            return {
+                ...current,
+                [event.sessionId]: next
+            };
+        });
+    }, []);
+
     const appendEvent = useCallback(
         (event: SessionEvent) => {
+            if (event.type === "plugin_log") {
+                return;
+            }
+
+            if (event.type === "plugin_state") {
+                upsertPluginStateSummary(event);
+                return;
+            }
+
             setEventsBySession((current) => {
                 const existing = current[event.sessionId] ?? [];
 
@@ -135,7 +167,7 @@ export function useChatSession() {
                 upsertSessionState(event.state);
             }
         },
-        [upsertSessionState]
+        [upsertPluginStateSummary, upsertSessionState]
     );
 
     /* ── API calls ───────────────────────────────────── */
@@ -181,6 +213,13 @@ export function useChatSession() {
             }
             return next;
         });
+        setPluginStatesBySession((c) => {
+            const next: Record<string, PluginStateSummary[]> = {};
+            for (const [id, states] of Object.entries(c)) {
+                if (validIds.has(id)) next[id] = states;
+            }
+            return next;
+        });
         return success.sessions;
     }, []);
 
@@ -212,6 +251,28 @@ export function useChatSession() {
         [recoverFromMissingSession]
     );
 
+    const refreshPluginStates = useCallback(async (sessionId: string) => {
+        const response = await fetch(`/api/sessions/${sessionId}/plugin-states`, {
+            method: "GET",
+            cache: "no-store",
+            headers: { "Cache-Control": "no-cache" }
+        });
+        const payload = (await response.json()) as ListPluginStatesResponse | { error?: { message?: string } };
+        if (!response.ok) {
+            if (await recoverFromSessionNotFoundResponse(sessionId, response, payload)) {
+                return [];
+            }
+            throw new Error(apiErrorMessage(payload, "Unable to load plugin states."));
+        }
+
+        const states = (payload as ListPluginStatesResponse).states;
+        setPluginStatesBySession((current) => ({
+            ...current,
+            [sessionId]: states
+        }));
+        return states;
+    }, [recoverFromSessionNotFoundResponse]);
+
     /* ── Initial load ────────────────────────────────── */
 
     useEffect(() => {
@@ -233,6 +294,13 @@ export function useChatSession() {
             }
         })();
     }, [refreshBootstrap, refreshSessions]);
+
+    useEffect(() => {
+        if (!activeSessionId) return;
+        refreshPluginStates(activeSessionId).catch((error) => {
+            setErrorMessage(error instanceof Error ? error.message : "Unable to load plugin states.");
+        });
+    }, [activeSessionId, refreshPluginStates]);
 
     /* ── SSE stream ──────────────────────────────────── */
 
@@ -422,10 +490,15 @@ export function useChatSession() {
                 if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) return;
                 throw new Error(apiErrorMessage(payload, "Failed to reset session."));
             }
+            upsertSessionState((payload as ResetSessionResponse).session);
+            setPluginStatesBySession((current) => ({
+                ...current,
+                [activeSessionId]: []
+            }));
         } catch (error) {
             setErrorMessage(error instanceof Error ? error.message : "Failed to reset session.");
         }
-    }, [activeSessionId, recoverFromSessionNotFoundResponse]);
+    }, [activeSessionId, recoverFromSessionNotFoundResponse, upsertSessionState]);
 
     /* ── Action: stop session ───────────────────────── */
 
@@ -461,6 +534,10 @@ export function useChatSession() {
                     return rest;
                 });
                 setEventsBySession((c) => {
+                    const { [sessionId]: _, ...rest } = c;
+                    return rest;
+                });
+                setPluginStatesBySession((c) => {
                     const { [sessionId]: _, ...rest } = c;
                     return rest;
                 });
@@ -500,6 +577,7 @@ export function useChatSession() {
         activeSessionId,
         activeState,
         activeEvents,
+        activePluginStates,
         availableAgentNames,
         defaultMainAgent,
         isLoading,

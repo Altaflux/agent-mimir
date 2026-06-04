@@ -2,13 +2,16 @@
 
 import { type SessionState } from "@/lib/contracts";
 import { Switch } from "@/components/ui/switch";
-import { Menu, RefreshCw, Zap } from "lucide-react";
+import { Menu, PanelRightOpen, RefreshCw, Zap } from "lucide-react";
 
 export interface ChatHeaderProps {
     sessionLabel: string;
     activeState: SessionState | undefined;
     sidebarOpen: boolean;
+    pluginStateCount: number;
+    pluginStatePanelOpen: boolean;
     onToggleSidebar: () => void;
+    onTogglePluginStatePanel: () => void;
     onSetContinuousMode: (enabled: boolean) => void;
     onResetSession: () => void;
 }
@@ -17,7 +20,10 @@ export function ChatHeader({
     sessionLabel,
     activeState,
     sidebarOpen,
+    pluginStateCount,
+    pluginStatePanelOpen,
     onToggleSidebar,
+    onTogglePluginStatePanel,
     onSetContinuousMode,
     onResetSession
 }: ChatHeaderProps) {
@@ -42,6 +48,19 @@ export function ChatHeader({
 
             {activeState ? (
                 <div className="flex items-center gap-2 shrink-0">
+                    <button
+                        className="relative rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                        onClick={onTogglePluginStatePanel}
+                        title={pluginStatePanelOpen ? "Close plugin state panel" : "Open plugin state panel"}
+                    >
+                        <PanelRightOpen className="h-4 w-4" />
+                        {pluginStateCount > 0 ? (
+                            <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-cyan-500 px-1 text-center text-[10px] font-medium leading-4 text-background">
+                                {pluginStateCount}
+                            </span>
+                        ) : null}
+                    </button>
+
                     <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
                         <Zap className="h-3.5 w-3.5" />
                         <span className="hidden sm:inline">Auto</span>

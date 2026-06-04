@@ -9,6 +9,15 @@ type NotificationProcessingAccessor = {
     buildNotificationAgentInput(notification: PluginNotification): AgentInput;
     buildNotificationProcessingDisplayText(notification: AgentNotificationInput): string;
     buildNotificationMessageOrigin(notification: AgentNotificationInput): UserMessageOrigin;
+    rewritePluginStateAssetUrls(
+        markdown: string,
+        args: {
+            sessionId: string;
+            pluginName: string;
+            revision: string;
+            publicApiBasePath: string;
+        }
+    ): string;
     getHydratedInputPresentation(input: AgentInput): {
         origin: UserMessageOrigin;
         text: string;
@@ -90,4 +99,18 @@ test("hydrated notification presentation is derived from first-class input", () 
         workspaceFiles: ["result.txt"],
         chatImages: []
     });
+});
+
+test("plugin state markdown rewrites asset references to session asset urls", () => {
+    const manager = new SessionManager({ cleanupIntervalMs: 60_000 }) as unknown as NotificationProcessingAccessor;
+
+    assert.equal(
+        manager.rewritePluginStateAssetUrls("![Shot](asset://screenshot_1)", {
+            sessionId: "session-1",
+            pluginName: "browser plugin",
+            revision: "revision-1",
+            publicApiBasePath: "/api"
+        }),
+        "![Shot](/api/sessions/session-1/plugin-states/browser%20plugin/assets/revision-1/screenshot_1)"
+    );
 });

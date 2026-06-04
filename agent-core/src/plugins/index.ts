@@ -96,8 +96,39 @@ export type PluginNotificationInbox = {
     enqueue(input: PluginNotificationInput): Promise<PluginNotification>,
 };
 
+export type PluginStateAssetInput = {
+    id: string,
+    fileName?: string,
+    contentType?: string,
+} & (
+    | {
+        bytes: Buffer | Uint8Array,
+        filePath?: never,
+    }
+    | {
+        filePath: string,
+        bytes?: never,
+    }
+);
+
+export type PluginEventInput =
+    | {
+        type: "STATE",
+        markdown: string,
+        assets?: PluginStateAssetInput[],
+    }
+    | {
+        type: "LOG",
+        text: string,
+    };
+
+export type PluginEventRuntime = {
+    emit(input: PluginEventInput): void | Promise<void>,
+};
+
 export type PluginRuntimeContext = {
     notifications: PluginNotificationInbox,
+    events: PluginEventRuntime,
 };
 
 export type PluginRuntimeProvider = {
@@ -120,6 +151,11 @@ export const NOOP_PLUGIN_RUNTIME_PROVIDER: PluginRuntimeProvider = {
                         deduplicationId: input.deduplicationId,
                         content: input.content
                     };
+                }
+            },
+            events: {
+                emit() {
+                    return;
                 }
             }
         };

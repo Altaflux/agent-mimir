@@ -33,6 +33,17 @@ export type SessionState = SessionSummary & {
     pendingNotificationCount: number;
 };
 
+export type PluginStateSummary = {
+    pluginName: string;
+    agentName: string;
+    updatedAt: string;
+    revision: string;
+};
+
+export type PluginStateDetail = PluginStateSummary & {
+    markdown: string;
+};
+
 export type PluginRuntimeEventVisibility = "user" | "debug";
 
 export type PluginRuntimeEventBody =
@@ -152,6 +163,25 @@ export type SessionEvent =
         id: string;
         sessionId: string;
         timestamp: string;
+        type: "plugin_state";
+        pluginName: string;
+        agentName: string;
+        updatedAt: string;
+        revision: string;
+    }
+    | {
+        id: string;
+        sessionId: string;
+        timestamp: string;
+        type: "plugin_log";
+        pluginName: string;
+        agentName: string;
+        text: string;
+    }
+    | {
+        id: string;
+        sessionId: string;
+        timestamp: string;
         type: "reset";
         message: string;
     }
@@ -193,6 +223,14 @@ export type SendMessageResponse = {
 
 export type ProcessNotificationsResponse = {
     session: SessionState;
+};
+
+export type ListPluginStatesResponse = {
+    states: PluginStateSummary[];
+};
+
+export type GetPluginStateResponse = {
+    state: PluginStateDetail;
 };
 
 export type ApprovalRequest = {

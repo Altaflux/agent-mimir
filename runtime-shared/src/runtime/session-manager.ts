@@ -2,6 +2,8 @@ import {
     ApprovalRequest,
     BootstrapResponse,
     DownloadableFile,
+    PluginStateDetail,
+    PluginStateSummary,
     SessionEvent,
     SessionState,
     SessionSummary,
@@ -36,6 +38,7 @@ import Database from "better-sqlite3";
 import { readHydrationEvents } from "@mimir/agent-core/utils/hydration";
 import { FunctionAgentFactory } from "@mimir/agent-core/agent/tool-agent";
 import { SessionPluginRuntimeController } from "./plugin-runtime.js";
+import { DiskPluginStateStore } from "./plugin-state-store.js";
 
 const SESSION_EVENT_CAP = 500;
 const DEFAULT_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
@@ -60,6 +63,15 @@ type SessionFileRecord = {
 type SessionEventPayload = {
     [K in SessionEvent["type"]]: Omit<Extract<SessionEvent, { type: K }>, "id" | "sessionId" | "timestamp">;
 }[SessionEvent["type"]];
+
+type PluginRuntimeSessionEventType = "plugin_event" | "plugin_notification" | "plugin_state" | "plugin_log";
+
+type PluginRuntimeSessionEventPayload = {
+    [K in PluginRuntimeSessionEventType]: Omit<
+        Extract<SessionEvent, { type: K }>,
+        "id" | "sessionId" | "timestamp"
+    >;
+}[PluginRuntimeSessionEventType];
 
 type UploadInputBase = {
     fileName: string;
@@ -130,6 +142,12 @@ type PersistedSessionInfo = {
 type EmitEventOptions = {
     timestamp?: string;
     preserveLastActivity?: boolean;
+};
+
+type PluginStateAssetFileRecord = {
+    absolutePath: string;
+    fileName: string;
+    contentType: string;
 };
 
 export type SessionSubscription = {
@@ -439,6 +457,9 @@ export class SessionManager {
             principalAgentName,
             storedNotifications.map((storedNotification) => storedNotification.notification)
         );
+        const pluginStateStore = new DiskPluginStateStore(path.join(workingRoot, "_plugin_state"));
+        await pluginStateStore.clear();
+        this.configurePluginRuntimeStorage(persistedSession.sessionId, pluginRuntime, pluginStateStore);
         const principal = await this.createAgent(config, checkpointer, orchestratorBuilder, workspaceFactory, principalAgentName, pluginRuntime);
 
         const session: SessionRuntime = {
@@ -723,6 +744,9 @@ export class SessionManager {
                 throw new HttpError(500, "INVALID_CONFIG", "No principal agent found in configuration.");
             }
             const pluginRuntime = new SessionPluginRuntimeController(principalAgentName);
+            const pluginStateStore = new DiskPluginStateStore(path.join(workingRoot, "_plugin_state"));
+            await pluginStateStore.clear();
+            this.configurePluginRuntimeStorage(sessionId, pluginRuntime, pluginStateStore);
             const principal = await this.createAgent(config, checkpointer, orchestratorBuilder, workspaceFactory, principalAgentName, pluginRuntime);
 
             const activeAgentName = principal.agent.name;
@@ -799,6 +823,7 @@ export class SessionManager {
             await session.orchestrator.reset();
             session.pendingToolRequest = null;
             session.pluginRuntime.clearNotifications();
+            await session.pluginRuntime.clearPluginStates();
             this.store?.clearPluginRuntimeEvents(session.sessionId);
             session.fileRegistry.clear();
             session.eventBuffer = [];
@@ -999,6 +1024,59 @@ export class SessionManager {
         return found;
     }
 
+    async listPluginStates(sessionId: string): Promise<PluginStateSummary[]> {
+        const session = await this.ensureSessionLoaded(sessionId);
+        return await session.pluginRuntime.listPluginStates();
+    }
+
+    async getPluginState(
+        sessionId: string,
+        pluginName: string,
+        publicApiBasePath: string
+    ): Promise<PluginStateDetail> {
+        const session = await this.ensureSessionLoaded(sessionId);
+        const state = await session.pluginRuntime.readPluginState(pluginName);
+        if (!state) {
+            throw new HttpError(404, "PLUGIN_STATE_NOT_FOUND", `Plugin state for "${pluginName}" was not found.`);
+        }
+
+        return {
+            pluginName: state.pluginName,
+            agentName: state.agentName,
+            updatedAt: state.updatedAt,
+            revision: state.revision,
+            markdown: this.rewritePluginStateAssetUrls(state.markdown, {
+                sessionId,
+                pluginName: state.pluginName,
+                revision: state.revision,
+                publicApiBasePath
+            })
+        };
+    }
+
+    async resolvePluginStateAsset(
+        sessionId: string,
+        pluginName: string,
+        revision: string,
+        assetId: string
+    ): Promise<PluginStateAssetFileRecord> {
+        const session = await this.ensureSessionLoaded(sessionId);
+        const asset = await session.pluginRuntime.resolvePluginStateAsset(pluginName, revision, assetId);
+        if (!asset) {
+            throw new HttpError(404, "PLUGIN_STATE_ASSET_NOT_FOUND", "Plugin state asset was not found.");
+        }
+
+        const exists = await fs
+            .access(asset.absolutePath, fs.constants.F_OK)
+            .then(() => true)
+            .catch(() => false);
+        if (!exists) {
+            throw new HttpError(404, "PLUGIN_STATE_ASSET_NOT_FOUND", "Plugin state asset no longer exists.");
+        }
+
+        return asset;
+    }
+
     private async createAgent(
         config: AgentMimirConfig,
         checkpointer: BaseCheckpointSaver,
@@ -1146,6 +1224,24 @@ export class SessionManager {
 
     private buildNotificationProcessingDisplayText(notification: AgentNotificationInput): string {
         return `Process plugin notification: ${notification.title}`;
+    }
+
+    private rewritePluginStateAssetUrls(
+        markdown: string,
+        args: {
+            sessionId: string;
+            pluginName: string;
+            revision: string;
+            publicApiBasePath: string;
+        }
+    ): string {
+        return markdown.replace(/asset:\/\/([A-Za-z0-9._-]+)/g, (_match, assetId: string) => {
+            const sessionId = encodeURIComponent(args.sessionId);
+            const pluginName = encodeURIComponent(args.pluginName);
+            const revision = encodeURIComponent(args.revision);
+            const encodedAssetId = encodeURIComponent(assetId);
+            return `${args.publicApiBasePath}/sessions/${sessionId}/plugin-states/${pluginName}/assets/${revision}/${encodedAssetId}`;
+        });
     }
 
     private async resolveUploadByteLength(upload: UploadInput): Promise<number> {
@@ -1310,22 +1406,30 @@ export class SessionManager {
         };
     }
 
-    private attachPluginRuntime(session: SessionRuntime) {
-        session.pluginRuntime.configure({
+    private configurePluginRuntimeStorage(
+        sessionId: string,
+        pluginRuntime: SessionPluginRuntimeController,
+        pluginStateStore: DiskPluginStateStore
+    ): void {
+        pluginRuntime.configure({
+            stateStore: pluginStateStore,
             persistence: {
                 saveNotification: (notification) => {
-                    this.store?.savePluginNotification(session.sessionId, notification);
+                    this.store?.savePluginNotification(sessionId, notification);
                 },
                 deleteNotifications: (notificationIds) => {
-                    this.store?.deletePluginNotifications(session.sessionId, notificationIds);
+                    this.store?.deletePluginNotifications(sessionId, notificationIds);
                 },
                 clearNotifications: () => {
-                    this.store?.clearPluginNotifications(session.sessionId);
+                    this.store?.clearPluginNotifications(sessionId);
                 }
             }
         });
+    }
+
+    private attachPluginRuntime(session: SessionRuntime) {
         session.pluginRuntime.attach({
-            emitEvent: (event) => this.emitEvent(session, event),
+            emitEvent: (event) => this.emitPluginRuntimeEvent(session, event),
             emitStateChanged: () => this.emitStateChanged(session)
         });
     }
@@ -1335,6 +1439,31 @@ export class SessionManager {
             type: "state_changed",
             state: this.toSessionState(session)
         });
+    }
+
+    private emitPluginRuntimeEvent(
+        session: SessionRuntime,
+        event: PluginRuntimeSessionEventPayload
+    ): void {
+        if (event.type === "plugin_state" || event.type === "plugin_log") {
+            this.emitTransientEvent(session, event);
+            return;
+        }
+
+        this.emitEvent(session, event);
+    }
+
+    private emitTransientEvent(session: SessionRuntime, event: SessionEventPayload, options: EmitEventOptions = {}) {
+        const enriched = {
+            ...event,
+            id: crypto.randomUUID(),
+            sessionId: session.sessionId,
+            timestamp: options.timestamp ?? new Date().toISOString()
+        } as unknown as SessionEvent;
+
+        for (const listener of session.subscribers) {
+            listener(enriched);
+        }
     }
 
     private emitEvent(session: SessionRuntime, event: SessionEventPayload, options: EmitEventOptions = {}) {
@@ -1535,6 +1664,7 @@ export class SessionManager {
         this.sessionHydrationPromises.delete(session.sessionId);
         session.subscribers.clear();
         session.pluginRuntime.detach();
+        await session.pluginRuntime.clearPluginStates();
         await session.orchestrator.shutDown();
     }
 

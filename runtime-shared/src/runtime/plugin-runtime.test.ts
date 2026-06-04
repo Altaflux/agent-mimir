@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { SessionPluginRuntimeController, type SessionPluginRuntimeSink } from "./plugin-runtime.js";
+import { DiskPluginStateStore } from "./plugin-state-store.js";
+import { promises as fs } from "fs";
+import os from "os";
+import path from "path";
 
 type RuntimeEventPayload = Parameters<SessionPluginRuntimeSink["emitEvent"]>[0];
 
@@ -22,6 +26,17 @@ function createSink() {
             }
         }
     };
+}
+
+async function withTempStateStore<T>(run: (store: DiskPluginStateStore, directory: string) => Promise<T>): Promise<T> {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "mimir-plugin-state-"));
+    const store = new DiskPluginStateStore(directory);
+    await store.clear();
+    try {
+        return await run(store, directory);
+    } finally {
+        await fs.rm(directory, { recursive: true, force: true });
+    }
 }
 
 test("enqueue stores unread notifications and emits notification events", async () => {
@@ -81,6 +96,114 @@ test("tool call runtime events emitted before attach are buffered and flushed", 
             type: "status",
             message: "Timer fired"
         }
+    });
+});
+
+test("plugin STATE writes disk state and emits summary events", async () => {
+    await withTempStateStore(async (stateStore) => {
+        const controller = new SessionPluginRuntimeController("Principal");
+        const sinkState = createSink();
+        controller.configure({ stateStore });
+        controller.attach(sinkState.sink);
+
+        await controller.forPlugin("browser").events.emit({
+            type: "STATE",
+            markdown: "# Browser\n\n![Current page](asset://screenshot)",
+            assets: [
+                {
+                    id: "screenshot",
+                    fileName: "page.png",
+                    contentType: "image/png",
+                    bytes: Buffer.from("image-bytes")
+                }
+            ]
+        });
+
+        assert.equal(sinkState.events.length, 1);
+        assert.equal(sinkState.events[0]?.type, "plugin_state");
+        assert.equal(sinkState.events[0]?.pluginName, "browser");
+
+        const states = await controller.listPluginStates();
+        assert.equal(states.length, 1);
+        assert.equal(states[0]?.pluginName, "browser");
+
+        const detail = await controller.readPluginState("browser");
+        assert.equal(detail?.markdown, "# Browser\n\n![Current page](asset://screenshot)");
+
+        const asset = await controller.resolvePluginStateAsset("browser", states[0]!.revision, "screenshot");
+        assert.equal(asset?.fileName, "page.png");
+        assert.equal(asset?.contentType, "image/png");
+        assert.equal(await fs.readFile(asset!.absolutePath, "utf8"), "image-bytes");
+    });
+});
+
+test("plugin STATE replaces previous state and assets", async () => {
+    await withTempStateStore(async (stateStore) => {
+        const controller = new SessionPluginRuntimeController("Principal");
+        controller.configure({ stateStore });
+
+        await controller.forPlugin("tasks").events.emit({
+            type: "STATE",
+            markdown: "first",
+            assets: [{ id: "first", bytes: Buffer.from("first") }]
+        });
+        const first = (await controller.listPluginStates())[0]!;
+
+        await controller.forPlugin("tasks").events.emit({
+            type: "STATE",
+            markdown: "second",
+            assets: [{ id: "second", bytes: Buffer.from("second") }]
+        });
+        const second = (await controller.listPluginStates())[0]!;
+
+        assert.notEqual(second.revision, first.revision);
+        assert.equal((await controller.readPluginState("tasks"))?.markdown, "second");
+        assert.equal(await controller.resolvePluginStateAsset("tasks", first.revision, "first"), null);
+        assert.equal((await controller.resolvePluginStateAsset("tasks", second.revision, "second"))?.fileName, "second");
+    });
+});
+
+test("plugin LOG emits live only and is not buffered", async () => {
+    const controller = new SessionPluginRuntimeController("Principal");
+
+    await controller.forPlugin("logger").events.emit({
+        type: "LOG",
+        text: "before attach"
+    });
+
+    const sinkState = createSink();
+    controller.attach(sinkState.sink);
+    assert.equal(sinkState.events.length, 0);
+
+    await controller.forPlugin("logger").events.emit({
+        type: "LOG",
+        text: "after attach"
+    });
+
+    assert.deepEqual(sinkState.events, [
+        {
+            type: "plugin_log",
+            pluginName: "logger",
+            agentName: "Principal",
+            text: "after attach"
+        }
+    ]);
+});
+
+test("clearPluginStates removes disk state", async () => {
+    await withTempStateStore(async (stateStore) => {
+        const controller = new SessionPluginRuntimeController("Principal");
+        controller.configure({ stateStore });
+
+        await controller.forPlugin("tasks").events.emit({
+            type: "STATE",
+            markdown: "pending"
+        });
+        assert.equal((await controller.listPluginStates()).length, 1);
+
+        await controller.clearPluginStates();
+
+        assert.equal((await controller.listPluginStates()).length, 0);
     });
 });
 
