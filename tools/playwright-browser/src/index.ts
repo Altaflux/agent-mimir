@@ -3,7 +3,7 @@ import { WebDriverManager } from "./driver-manager.js";
 import { WebBrowserOptions } from "./driver-manager.js";
 import { Embeddings } from "@langchain/core/embeddings";
 import { WebBrowserTool, PassValueToInput, ClickWebSiteLinkOrButton, ScrollTool } from "./tools.js";
-import { AgentPlugin, PluginContext, PluginFactory, AdditionalContent, NextMessageUser, NextMessage } from "@mimir/agent-core/plugins";
+import { AgentPlugin, PluginContext, PluginFactory, AdditionalContent, NextMessageUser, NextMessage, PluginRuntimeContext } from "@mimir/agent-core/plugins";
 import { AgentTool } from "@mimir/agent-core/tools";
 import { BaseLanguageModel } from "@langchain/core/language_models/base";
 import sharp from "sharp";
@@ -21,7 +21,7 @@ export class WebBrowserPluginFactory implements PluginFactory {
     }
 
     async create(context: PluginContext): Promise<AgentPlugin> {
-        return new WebBrowserPlugin(this.config, this.model, this.embeddings, context);
+        return new WebBrowserPlugin(context.runtime, this.config, this.model, this.embeddings, context);
     }
 
 }
@@ -31,7 +31,7 @@ class WebBrowserPlugin extends AgentPlugin {
     driverManager: WebDriverManager;
     toolList: AgentTool[];
 
-    constructor(private config: WebBrowserOptions, model: BaseLanguageModel, embeddings: Embeddings, private context: PluginContext) {
+    constructor(private readonly runtime: PluginRuntimeContext, private config: WebBrowserOptions, model: BaseLanguageModel, embeddings: Embeddings, private context: PluginContext) {
         super();
         this.driverManager = new WebDriverManager(config, model, embeddings);
         this.toolList = [
@@ -63,6 +63,26 @@ class WebBrowserPlugin extends AgentPlugin {
         const result = await this.driverManager.obtainSummaryOfPage("", "");
         const resultWithoutIds = removeIdAttribute(result);
         const currentScrollBlock = await this.driverManager.calculateCurrentScrollBlock();
+
+
+        await this.runtime.events.emit({
+            type: "STATE",
+            markdown:
+                `## Current browser view:\n\n` +
+                `![Current browser view](asset://smoke-state)\n\n` +
+                `## List of all labels view:\n\n` +
+                "```" + JSON.stringify(Object.fromEntries(this.driverManager.interactableElements)) + "```\n\n\n" +
+                `## Markdown view:\n\n` +
+                "" + result + "",
+            assets: [
+                {
+                    id: "smoke-state",
+                    fileName: "browser.png",
+                    contentType: "image/png",
+                    bytes: imageWithLabels
+                }
+            ]
+        });
 
         return [
             {
@@ -106,7 +126,7 @@ class WebBrowserPlugin extends AgentPlugin {
                     {
                         type: "image",
                         mimeType: "image/png",
-                        data: resizedImaged.toString("base64")
+                        data: imageWithLabels.toString("base64")
                     }
                 ]
             },

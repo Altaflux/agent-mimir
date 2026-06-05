@@ -1,9 +1,10 @@
 "use client";
 
 import { MarkdownContent } from "@/components/chat/markdown";
+import { CopyButton } from "@/components/chat/shared";
 import { formatTime } from "@/lib/api";
 import type { GetPluginStateResponse, PluginStateDetail, PluginStateSummary } from "@/lib/contracts";
-import { PanelRightClose, Puzzle, RefreshCw } from "lucide-react";
+import { Maximize2, Minimize2, PanelRightClose, Puzzle, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 type PluginStatePanelProps = {
@@ -17,17 +18,31 @@ export function PluginStatePanel({ sessionId, states, open, onClose }: PluginSta
     const [detailsByPlugin, setDetailsByPlugin] = useState<Record<string, PluginStateDetail>>({});
     const [loadingByPlugin, setLoadingByPlugin] = useState<Record<string, boolean>>({});
     const [errorsByPlugin, setErrorsByPlugin] = useState<Record<string, string>>({});
+    const [expandedPluginName, setExpandedPluginName] = useState<string | null>(null);
 
     const stateKey = useMemo(
         () => states.map((state) => `${state.pluginName}:${state.revision}`).join("|"),
         [states]
     );
+    const expandedState = expandedPluginName
+        ? states.find((state) => state.pluginName === expandedPluginName) ?? null
+        : null;
+    const expandedDetail = expandedState ? detailsByPlugin[expandedState.pluginName] : undefined;
+    const expandedError = expandedState ? errorsByPlugin[expandedState.pluginName] : undefined;
+    const expandedLoading = expandedState ? loadingByPlugin[expandedState.pluginName] : false;
 
     useEffect(() => {
         setDetailsByPlugin({});
         setLoadingByPlugin({});
         setErrorsByPlugin({});
+        setExpandedPluginName(null);
     }, [sessionId]);
+
+    useEffect(() => {
+        if (expandedPluginName && !states.some((state) => state.pluginName === expandedPluginName)) {
+            setExpandedPluginName(null);
+        }
+    }, [expandedPluginName, states]);
 
     useEffect(() => {
         if (!open || !sessionId) {
@@ -90,8 +105,12 @@ export function PluginStatePanel({ sessionId, states, open, onClose }: PluginSta
         return null;
     }
 
+    const panelWidthClass = expandedState
+        ? "w-[min(44rem,calc(100vw-1rem))] md:w-[48vw] xl:w-[44rem]"
+        : "w-[min(24rem,calc(100vw-2rem))] md:w-80";
+
     return (
-        <aside className="absolute right-0 top-0 z-30 flex h-full w-[min(24rem,calc(100vw-2rem))] flex-col border-l border-border/40 bg-background shadow-2xl md:relative md:z-auto md:w-80 md:shadow-none">
+        <aside className={`absolute right-0 top-0 z-30 flex h-full ${panelWidthClass} flex-col border-l border-border/40 bg-background shadow-2xl transition-[width] duration-200 md:relative md:z-auto md:shadow-none`}>
             <div className="flex items-center gap-2 border-b border-border/30 px-3 py-2.5">
                 <Puzzle className="h-4 w-4 text-cyan-500" />
                 <div className="min-w-0 flex-1">
@@ -102,18 +121,69 @@ export function PluginStatePanel({ sessionId, states, open, onClose }: PluginSta
                 </div>
                 <button
                     className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                    onClick={onClose}
+                    onClick={() => {
+                        setExpandedPluginName(null);
+                        onClose();
+                    }}
                     title="Close plugin state panel"
                 >
                     <PanelRightClose className="h-4 w-4" />
                 </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-3 py-3">
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
                 {!sessionId ? (
                     <p className="text-sm text-muted-foreground">Create or select a conversation to view plugin state.</p>
                 ) : states.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No plugin state has been emitted for this session.</p>
+                ) : expandedState ? (
+                    <div className="flex min-h-full flex-col">
+                        <div className="mb-3 flex items-start gap-2 rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2">
+                            <button
+                                className="mt-0.5 rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                                onClick={() => setExpandedPluginName(null)}
+                                title="Collapse expanded plugin state"
+                            >
+                                <Minimize2 className="h-4 w-4" />
+                            </button>
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-semibold text-foreground">{expandedState.pluginName}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    {expandedState.agentName} · {formatTime(expandedState.updatedAt)}
+                                </p>
+                            </div>
+                            {expandedDetail ? <CopyButton text={expandedDetail.markdown} /> : null}
+                            {expandedLoading ? <RefreshCw className="mt-2 h-3.5 w-3.5 animate-spin text-muted-foreground" /> : null}
+                        </div>
+
+                        <div className="min-w-0 flex-1 rounded-lg border border-border/50 bg-secondary/20 px-4 py-3">
+                            {expandedError ? (
+                                <p className="rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1.5 text-xs text-red-300">
+                                    {expandedError}
+                                </p>
+                            ) : expandedDetail ? (
+                                <MarkdownContent>{expandedDetail.markdown}</MarkdownContent>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">Loading state...</p>
+                            )}
+                        </div>
+
+                        {states.length > 1 ? (
+                            <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border/30 pt-3">
+                                {states.map((state) => (
+                                    <button
+                                        key={state.pluginName}
+                                        className={`rounded-md px-2 py-1 text-xs transition-colors ${state.pluginName === expandedState.pluginName
+                                            ? "bg-cyan-500/20 text-foreground"
+                                            : "bg-secondary/60 text-muted-foreground hover:bg-accent hover:text-foreground"}`}
+                                        onClick={() => setExpandedPluginName(state.pluginName)}
+                                    >
+                                        {state.pluginName}
+                                    </button>
+                                ))}
+                            </div>
+                        ) : null}
+                    </div>
                 ) : (
                     <div className="space-y-3">
                         {states.map((state) => {
@@ -134,6 +204,13 @@ export function PluginStatePanel({ sessionId, states, open, onClose }: PluginSta
                                             </p>
                                         </div>
                                         {isLoading ? <RefreshCw className="mt-0.5 h-3.5 w-3.5 animate-spin text-muted-foreground" /> : null}
+                                        <button
+                                            className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                                            onClick={() => setExpandedPluginName(state.pluginName)}
+                                            title={`Expand ${state.pluginName} state`}
+                                        >
+                                            <Maximize2 className="h-3.5 w-3.5" />
+                                        </button>
                                     </div>
 
                                     {error ? (
@@ -141,7 +218,9 @@ export function PluginStatePanel({ sessionId, states, open, onClose }: PluginSta
                                             {error}
                                         </p>
                                     ) : detail ? (
-                                        <MarkdownContent>{detail.markdown}</MarkdownContent>
+                                        <div className="max-h-60 overflow-hidden">
+                                            <MarkdownContent>{detail.markdown}</MarkdownContent>
+                                        </div>
                                     ) : (
                                         <p className="text-xs text-muted-foreground">Loading state...</p>
                                     )}

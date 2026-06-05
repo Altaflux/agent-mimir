@@ -98,7 +98,19 @@ export function htmlToMarkdown(htmlDoc: Document) {
                 var titlePart = title ? ' "' + title + '"' : '';
                 return src ? '![' + alt + ']' + '(' + '...' + src.slice(-15) + titlePart + ')' : '';
             }
-        }).addRule('removePicture', {
+        })
+        .addRule('formatDataLink', {
+            filter: (d)=> { return d.matches('[x-interactableId]') },
+            replacement: function (content, node, options) {
+                let element = node as HTMLElement;
+                const description = getInputorLinkInfo(htmlDoc, element);
+                if (description) {
+                    return `<a ${buildAttribute("id", element.getAttribute('x-interactableId'))}>${description}</a>`
+                }
+                return element.outerHTML;
+            }
+        })
+        .addRule('removePicture', {
             filter: ['picture'],
             replacement: function () {
                 return "";
