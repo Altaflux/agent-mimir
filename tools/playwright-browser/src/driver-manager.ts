@@ -95,6 +95,11 @@ export class WebDriverManager {
         const title = await driver.title();
         return title;
     }
+    async getUrl(): Promise<string> {
+        let driver = await this.getBrowser();
+        const url = driver.url();
+        return url;
+    }
 
     async navigateToUrl(url: string) {
         let driver = await this.getBrowser();

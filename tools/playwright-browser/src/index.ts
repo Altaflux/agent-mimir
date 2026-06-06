@@ -56,6 +56,7 @@ class WebBrowserPlugin extends AgentPlugin {
         const screenshot = await this.driverManager.getScreenshot();
         await this.driverManager.refreshPageState();
         const title = await this.driverManager.getTitle();
+        const url = await this.driverManager.getUrl()
         const realDimensions = await this.driverManager.getScreenDimensions();
         const resizedImaged = await resizeToDimensions(Buffer.from(screenshot, "base64"), realDimensions);
         const imageWithLabels = await addLabels(resizedImaged, this.driverManager.interactableElements);
@@ -70,10 +71,12 @@ class WebBrowserPlugin extends AgentPlugin {
             markdown:
                 `## Current browser view:\n\n` +
                 `![Current browser view](asset://smoke-state)\n\n` +
+                `## Current URL:\n\n` +
+                "````\n" + url + "\n````\n\n\n" +
                 `## List of all labels view:\n\n` +
-                "```" + JSON.stringify(Object.fromEntries(this.driverManager.interactableElements)) + "```\n\n\n" +
+                "````\n" + JSON.stringify(Object.fromEntries(this.driverManager.interactableElements)) + "\n````\n\n\n" +
                 `## Markdown view:\n\n` +
-                "" + result + "",
+                "````\n" + result + "\n````",
             assets: [
                 {
                     id: "smoke-state",
@@ -121,7 +124,7 @@ class WebBrowserPlugin extends AgentPlugin {
                 content: [
                     {
                         type: "text",
-                        text: `The following image is a screenshot of the browser which is currently at page ${title}:`
+                        text: `The following image is a screenshot of the browser which is currently at page "${title}" and the browser URL is: "${url}":`
                     },
                     {
                         type: "image",
