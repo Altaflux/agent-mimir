@@ -97,7 +97,7 @@ async function findAllRelevantElements(doc: Element, driver: Page, document: Doc
 
 
     const htmlElementInformation: {
-        id: string, xpath: string, type: RelevantElement, location: { top: number, left: number, isViewable: boolean }
+        id: string, xpath: string, type: RelevantElement, location: { top: number, left: number, bottom: number, right: number, isViewable: boolean }
     }[] = ((await driver.evaluate(async (elements) => {
         function isElementUnderOverlay(element: Element) {
             const rect = element.getBoundingClientRect();
@@ -126,9 +126,12 @@ async function findAllRelevantElements(doc: Element, driver: Page, document: Doc
 
         function getOffset(el: Element) {
             const rect = el.getBoundingClientRect();
+
             const scrollOffset = document.documentElement.scrollTop || document.body.scrollTop;
             return {
                 left: rect.left,
+                bottom: rect.bottom,
+                right: rect.right,
                 top: rect.top //+ scrollOffset - elements.scrollPosition
             };
         }
@@ -142,10 +145,13 @@ async function findAllRelevantElements(doc: Element, driver: Page, document: Doc
             //webDriverElement.scrollIntoView({ behavior: "instant", block: "center", inline: "nearest" });
             const rect = getOffset(webDriverElement);
             const isViewable = !isElementUnderOverlay(webDriverElement) && isElementClickable(webDriverElement) && elementIsVisibleInViewport(webDriverElement);
+            //const isViewable = true
     
             return {
                 ...info,
                 location: {
+                    bottom: rect.bottom,
+                    right: rect.right,
                     top: rect.top,
                     left: rect.left,
                     isViewable: isViewable
@@ -175,6 +181,7 @@ async function findAllRelevantElements(doc: Element, driver: Page, document: Doc
             }
         }
     }
+    //return elements;
     return elements.filter((e) => e.location.isViewable);
 
 }
@@ -187,6 +194,9 @@ export type InteractableElement = {
     location: {
         top: number;
         left: number;
+        bottom: number,
+        right: number,
+        isViewable: boolean,
     }
 }
 export async function extractHtml(html: string, driver: Page,) {

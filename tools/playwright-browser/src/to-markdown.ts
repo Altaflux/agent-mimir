@@ -37,7 +37,9 @@ function getInputorLinkInfo(document: ParentNode, element: Element) {
     if (!isEmptyOrSpaces(element.getAttribute('placeholder')?.trim() ?? null)) {
         return element.getAttribute('placeholder')?.trim() ?? null;
     }
-    
+    if (!isEmptyOrSpaces(element.getAttribute('value')?.trim() ?? null)) {
+        return element.getAttribute('value')?.trim() ?? null;
+    }
     return null;
 }
 
@@ -61,7 +63,7 @@ export function htmlToMarkdown(htmlDoc: Document) {
                 let element = node as HTMLElement;
                 const description = getInputorLinkInfo(htmlDoc, element);
                 if (description) {
-                    return `<a ${buildAttribute("id", element.getAttribute('x-interactableId'))}>${description}</a>`
+                    return `<a ${buildAttribute("x-interactableId", element.getAttribute('x-interactableId'))}>${description}</a>`
                 }
                 return "";
             }
@@ -71,7 +73,7 @@ export function htmlToMarkdown(htmlDoc: Document) {
                 let element = node as HTMLElement;
                 const description = getInputorLinkInfo(htmlDoc, element);
                 if (description) {
-                    return `<button ${buildAttribute("type", element.getAttribute('type'), "button")} ${buildAttribute("id", element.getAttribute('x-interactableId'))}>${description}</button>`
+                    return `<button ${buildAttribute("type", element.getAttribute('type'), "button")} ${buildAttribute("x-interactableId", element.getAttribute('x-interactableId'))}>${description}</button>`
                 }
                 return "";
                 
@@ -82,7 +84,7 @@ export function htmlToMarkdown(htmlDoc: Document) {
                 let element = node as HTMLElement;
                 const description = getInputorLinkInfo(htmlDoc, element);
                 if (description) {
-                    return `<textarea ${buildAttribute("aria-label", description)} ${buildAttribute("id", element.getAttribute('x-interactableId'))}>${description}</textarea>`
+                    return `<textarea ${buildAttribute("aria-label", description)} ${buildAttribute("x-interactableId", element.getAttribute('x-interactableId'))}>${description}</textarea>`
                 }
                 return "";
             }
@@ -105,9 +107,15 @@ export function htmlToMarkdown(htmlDoc: Document) {
                 let element = node as HTMLElement;
                 const description = getInputorLinkInfo(htmlDoc, element);
                 if (description) {
-                    return `<a ${buildAttribute("id", element.getAttribute('x-interactableId'))}>${description}</a>`
+                    return `<a ${buildAttribute("x-interactableId", element.getAttribute('x-interactableId'))}>${description}</a>`
                 }
                 return element.outerHTML;
+            }
+        })
+        .addRule('removeStyle', {
+            filter: ['style'],
+            replacement: function () {
+                return "";
             }
         })
         .addRule('removePicture', {
@@ -126,9 +134,10 @@ export function htmlToMarkdown(htmlDoc: Document) {
                 let element = node as HTMLElement;
                 const description = getInputorLinkInfo(htmlDoc, element);
                 if (description) {
-                    return `<input ${buildAttribute("type", element.getAttribute('type'), "text")} ${buildAttribute("aria-label", description)} ${buildAttribute("name", element.getAttribute('name'))}  ${buildAttribute("id", element.getAttribute('x-interactableId'))}></input>`
+                    return `<input ${buildAttribute("type", element.getAttribute('type'), "text")} ${buildAttribute("aria-label", description)} ${buildAttribute("name", element.getAttribute('name'))}  ${buildAttribute("x-interactableId", element.getAttribute('x-interactableId'))}></input>`
                 }
-                return "";
+                
+                return element.outerHTML;
             }
         });
 
