@@ -3,26 +3,43 @@ import type {
     PluginNotification,
     PluginNotificationInput,
     PluginEventInput,
+    PluginRuntimeBinding,
     PluginRuntimeContext,
     PluginRuntimeEventInput,
-    PluginRuntimeProvider
+    PluginRuntimeProvider,
 } from "@mimir/agent-core/plugins";
-import type { ToolCallRuntimeContext, ToolCallRuntimeSource } from "@mimir/agent-core/tools";
+import type { ToolCallRuntimeSource } from "@mimir/agent-core/tools";
 import crypto from "crypto";
 import type {
     DiskPluginStateStore,
     PluginStateAssetFile,
-    StoredPluginStateDetail
+    StoredPluginStateDetail,
 } from "./plugin-state-store.js";
 
-type SessionPluginRuntimeEvent = Extract<
+type SessionPluginRuntimeEvent =
+    Extract<
     SessionEvent,
-    { type: "plugin_event" | "plugin_notification" | "plugin_state" | "plugin_log" }
+        {
+            type:
+                | "plugin_event"
+                | "plugin_notification"
+                | "plugin_state"
+                | "plugin_log";
+        }
 > extends infer T
     ? T extends unknown
         ? Omit<T, "id" | "sessionId" | "timestamp">
         : never
     : never;
+
+type PluginRuntimeIdentity = {
+    pluginInstanceId: string;
+    pluginName: string;
+};
+
+export type RuntimePluginNotification = PluginNotification & {
+    pluginInstanceId: string;
+};
 
 export type SessionPluginRuntimeSink = {
     emitEvent(event: SessionPluginRuntimeEvent): void;
@@ -30,7 +47,7 @@ export type SessionPluginRuntimeSink = {
 };
 
 export type SessionPluginRuntimePersistence = {
-    saveNotification(notification: PluginNotification): void;
+    saveNotification(notification: RuntimePluginNotification): void;
     deleteNotifications(notificationIds: string[]): void;
     clearNotifications(): void;
 };
@@ -43,16 +60,18 @@ export type SessionPluginRuntimeAccessors = {
 export class SessionPluginRuntimeController implements PluginRuntimeProvider {
     private sink: SessionPluginRuntimeSink | undefined;
     private bufferedEvents: SessionPluginRuntimeEvent[] = [];
-    private notifications: PluginNotification[] = [];
+    private notifications: RuntimePluginNotification[] = [];
     private persistedNotificationIds = new Set<string>();
     private accessors: SessionPluginRuntimeAccessors = {};
 
     constructor(
         private readonly agentName: string,
-        initialNotifications: PluginNotification[] = []
+        initialNotifications: RuntimePluginNotification[] = [],
     ) {
         this.notifications = [...initialNotifications];
-        this.persistedNotificationIds = new Set(initialNotifications.map((notification) => notification.id));
+        this.persistedNotificationIds = new Set(
+            initialNotifications.map((notification) => notification.id),
+        );
     }
 
     configure(accessors: SessionPluginRuntimeAccessors): void {
@@ -78,21 +97,29 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
         this.sink = undefined;
     }
 
-    forPlugin(pluginName: string): PluginRuntimeContext {
+    bindPlugin(pluginName: string): PluginRuntimeBinding {
+        const identity: PluginRuntimeIdentity = {
+            pluginInstanceId: crypto.randomUUID(),
+            pluginName,
+        };
+
         return {
+            runtime: {
             notifications: {
-                enqueue: (input) => this.enqueueNotification(pluginName, input)
+                    enqueue: (input) =>
+                        this.enqueueNotification(identity, input),
             },
             events: {
-                emit: (input) => this.emitPluginEvent(pluginName, input)
-            }
-        };
-    }
-
-    forToolCall(pluginName: string, source: ToolCallRuntimeSource): ToolCallRuntimeContext {
-        return {
+                    emit: (input) => this.emitPluginEvent(identity, input),
+                },
+            },
+            toolRuntime: {
+                forToolCall: (source) => ({
             ...source,
-            emitEvent: (input) => this.emitToolCallEvent(pluginName, source, input)
+                    emitEvent: (input) =>
+                        this.emitToolCallEvent(identity, source, input),
+                }),
+            },
         };
     }
 
@@ -101,17 +128,22 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
     }
 
     listUnread(): PluginNotification[] {
-        return [...this.notifications];
+        return this.notifications.map((notification) =>
+            this.toPluginNotification(notification),
+        );
     }
 
     nextUnread(): PluginNotification | null {
-        return this.notifications[0] ?? null;
+        const notification = this.notifications[0];
+        return notification ? this.toPluginNotification(notification) : null;
     }
 
     remove(notificationIds: string[]): void {
         const ids = new Set(notificationIds);
         const previousCount = this.notifications.length;
-        this.notifications = this.notifications.filter((notification) => !ids.has(notification.id));
+        this.notifications = this.notifications.filter(
+            (notification) => !ids.has(notification.id),
+        );
 
         if (this.notifications.length !== previousCount) {
             for (const id of ids) {
@@ -138,84 +170,119 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
     }
 
     async listPluginStates() {
-        return await this.accessors.stateStore?.listStates() ?? [];
+        return (await this.accessors.stateStore?.listStates()) ?? [];
     }
 
-    async readPluginState(pluginName: string): Promise<StoredPluginStateDetail | null> {
-        return await this.accessors.stateStore?.readState(pluginName) ?? null;
+    async readPluginState(
+        pluginInstanceId: string,
+    ): Promise<StoredPluginStateDetail | null> {
+        return (
+            (await this.accessors.stateStore?.readState(pluginInstanceId)) ??
+            null
+        );
     }
 
     async resolvePluginStateAsset(
-        pluginName: string,
+        pluginInstanceId: string,
         revision: string,
-        assetId: string
+        assetId: string,
     ): Promise<PluginStateAssetFile | null> {
-        return await this.accessors.stateStore?.resolveAsset(pluginName, revision, assetId) ?? null;
+        return (
+            (await this.accessors.stateStore?.resolveAsset(
+                pluginInstanceId,
+                revision,
+                assetId,
+            )) ?? null
+        );
     }
 
-    private emitToolCallEvent(pluginName: string, source: ToolCallRuntimeSource, input: PluginRuntimeEventInput): void {
+    private emitToolCallEvent(
+        identity: PluginRuntimeIdentity,
+        source: ToolCallRuntimeSource,
+        input: PluginRuntimeEventInput,
+    ): void {
         this.emitRuntimeEvent({
             type: "plugin_event",
             toolCallId: source.toolCallId,
             toolName: source.toolName,
-            pluginName,
+            pluginInstanceId: identity.pluginInstanceId,
+            pluginName: identity.pluginName,
             agentName: this.agentName,
             visibility: input.visibility ?? "user",
-            body: input.body
+            body: input.body,
         });
     }
 
-    private async emitPluginEvent(pluginName: string, input: PluginEventInput): Promise<void> {
+    private async emitPluginEvent(
+        identity: PluginRuntimeIdentity,
+        input: PluginEventInput,
+    ): Promise<void> {
         if (input.type === "LOG") {
             this.emitRuntimeEvent(
                 {
                     type: "plugin_log",
-                    pluginName,
+                    pluginInstanceId: identity.pluginInstanceId,
+                    pluginName: identity.pluginName,
                     agentName: this.agentName,
-                    text: input.text
+                    text: input.text,
                 },
-                { bufferBeforeAttach: false }
+                { bufferBeforeAttach: false },
             );
             return;
         }
 
-        const summary = await this.accessors.stateStore?.writeState(pluginName, this.agentName, {
+        const summary = await this.accessors.stateStore?.writeState(
+            identity.pluginInstanceId,
+            identity.pluginName,
+            this.agentName,
+            {
             markdown: input.markdown,
-            assets: input.assets
-        });
+                assets: input.assets,
+            },
+        );
         if (!summary) {
             return;
         }
 
         this.emitRuntimeEvent({
             type: "plugin_state",
+            pluginInstanceId: summary.pluginInstanceId,
             pluginName: summary.pluginName,
             agentName: summary.agentName,
             updatedAt: summary.updatedAt,
-            revision: summary.revision
+            revision: summary.revision,
         });
     }
 
-    private async enqueueNotification(pluginName: string, input: PluginNotificationInput): Promise<PluginNotification> {
-        const deduplicationId = this.normalizeDeduplicationId(input.deduplicationId);
+    private async enqueueNotification(
+        identity: PluginRuntimeIdentity,
+        input: PluginNotificationInput,
+    ): Promise<PluginNotification> {
+        const deduplicationId = this.normalizeDeduplicationId(
+            input.deduplicationId,
+        );
         if (deduplicationId) {
             const existingNotification = this.notifications.find(
-                (notification) => notification.deduplicationId === deduplicationId
+                (notification) =>
+                    notification.pluginInstanceId ===
+                        identity.pluginInstanceId &&
+                    notification.deduplicationId === deduplicationId,
             );
             if (existingNotification) {
-                return existingNotification;
+                return this.toPluginNotification(existingNotification);
             }
         }
 
-        const notification: PluginNotification = {
+        const notification: RuntimePluginNotification = {
             id: crypto.randomUUID(),
-            pluginName,
+            pluginInstanceId: identity.pluginInstanceId,
+            pluginName: identity.pluginName,
             agentName: this.agentName,
             createdAt: Date.now(),
             title: input.title,
             summary: input.summary,
             deduplicationId,
-            content: input.content
+            content: input.content,
         };
 
         this.notifications.push(notification);
@@ -223,18 +290,21 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
         this.emitRuntimeEvent({
             type: "plugin_notification",
             notificationId: notification.id,
-            pluginName,
+            pluginInstanceId: identity.pluginInstanceId,
+            pluginName: identity.pluginName,
             agentName: this.agentName,
             title: notification.title,
             summary: notification.summary,
             deduplicationId: notification.deduplicationId,
-            unreadCount: this.unreadCount()
+            unreadCount: this.unreadCount(),
         });
         this.sink?.emitStateChanged();
-        return notification;
+        return this.toPluginNotification(notification);
     }
 
-    private normalizeDeduplicationId(deduplicationId: string | undefined): string | undefined {
+    private normalizeDeduplicationId(
+        deduplicationId: string | undefined,
+    ): string | undefined {
         if (typeof deduplicationId !== "string") {
             return undefined;
         }
@@ -253,8 +323,11 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
         }
     }
 
-    private persistNotification(notification: PluginNotification): void {
-        if (!this.accessors.persistence || this.persistedNotificationIds.has(notification.id)) {
+    private persistNotification(notification: RuntimePluginNotification): void {
+        if (
+            !this.accessors.persistence ||
+            this.persistedNotificationIds.has(notification.id)
+        ) {
             return;
         }
 
@@ -262,9 +335,17 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
         this.persistedNotificationIds.add(notification.id);
     }
 
+    private toPluginNotification(
+        notification: RuntimePluginNotification,
+    ): PluginNotification {
+        const { pluginInstanceId: _pluginInstanceId, ...publicNotification } =
+            notification;
+        return publicNotification;
+    }
+
     private emitRuntimeEvent(
         event: SessionPluginRuntimeEvent,
-        options: { bufferBeforeAttach?: boolean } = {}
+        options: { bufferBeforeAttach?: boolean } = {},
     ): void {
         if (!this.sink) {
             if (options.bufferBeforeAttach ?? true) {

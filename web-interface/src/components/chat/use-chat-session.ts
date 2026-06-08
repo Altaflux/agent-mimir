@@ -12,9 +12,15 @@ import {
     type SessionEvent,
     type SessionState,
     type SessionSummary,
-    type ToggleContinuousModeResponse
+    type ToggleContinuousModeResponse,
 } from "@/lib/contracts";
-import { apiErrorCode, apiErrorMessage, type EventMap, isChatImageFile, type StateMap } from "@/lib/api";
+import {
+    apiErrorCode,
+    apiErrorMessage,
+    type EventMap,
+    isChatImageFile,
+    type StateMap,
+} from "@/lib/api";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 /**
@@ -25,50 +31,82 @@ export function useChatSession() {
     const [sessions, setSessions] = useState<SessionSummary[]>([]);
     const [sessionStates, setSessionStates] = useState<StateMap>({});
     const [eventsBySession, setEventsBySession] = useState<EventMap>({});
-    const [pluginStatesBySession, setPluginStatesBySession] = useState<Record<string, PluginStateSummary[]>>({});
+    const [pluginStatesBySession, setPluginStatesBySession] = useState<
+        Record<string, PluginStateSummary[]>
+    >({});
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-    const [availableAgentNames, setAvailableAgentNames] = useState<string[]>([]);
-    const [defaultMainAgent, setDefaultMainAgent] = useState<string | null>(null);
+    const [availableAgentNames, setAvailableAgentNames] = useState<string[]>(
+        [],
+    );
+    const [defaultAgentName, setDefaultAgentName] = useState<string | null>(
+        null,
+    );
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-    const activeState = activeSessionId ? sessionStates[activeSessionId] : undefined;
-    const activeEvents = activeSessionId ? eventsBySession[activeSessionId] ?? [] : [];
-    const activePluginStates = activeSessionId ? pluginStatesBySession[activeSessionId] ?? [] : [];
+    const activeState = activeSessionId
+        ? sessionStates[activeSessionId]
+        : undefined;
+    const activeEvents = activeSessionId
+        ? (eventsBySession[activeSessionId] ?? [])
+        : [];
+    const activePluginStates = activeSessionId
+        ? (pluginStatesBySession[activeSessionId] ?? [])
+        : [];
 
     /* ── Session helpers ─────────────────────────────── */
 
     const upsertSessionSummary = useCallback((summary: SessionSummary) => {
         setSessions((current) => {
-            const next = [...current.filter((e) => e.sessionId !== summary.sessionId), summary];
-            next.sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
+            const next = [
+                ...current.filter((e) => e.sessionId !== summary.sessionId),
+                summary,
+            ];
+            next.sort((a, b) =>
+                b.lastActivityAt.localeCompare(a.lastActivityAt),
+            );
             return next;
         });
     }, []);
 
     const upsertSessionState = useCallback(
         (state: SessionState) => {
-            setSessionStates((current) => ({ ...current, [state.sessionId]: state }));
+            setSessionStates((current) => ({
+                ...current,
+                [state.sessionId]: state,
+            }));
             upsertSessionSummary(state);
         },
-        [upsertSessionSummary]
+        [upsertSessionSummary],
     );
 
     const upsertPluginStateSummary = useCallback((event: Extract<SessionEvent, { type: "plugin_state" }>) => {
         setPluginStatesBySession((current) => {
             const existing = current[event.sessionId] ?? [];
             const nextState: PluginStateSummary = {
+                pluginInstanceId: event.pluginInstanceId,
                 pluginName: event.pluginName,
                 agentName: event.agentName,
                 updatedAt: event.updatedAt,
-                revision: event.revision
+                revision: event.revision,
             };
-            const next = [...existing.filter((state) => state.pluginName !== event.pluginName), nextState];
-            next.sort((left, right) => left.pluginName.localeCompare(right.pluginName));
+            const next = [
+                ...existing.filter((state) => state.pluginInstanceId !== event.pluginInstanceId),
+                nextState,
+            ];
+            next.sort((left, right) => {
+                const pluginNameComparison = left.pluginName.localeCompare(right.pluginName);
+                if (pluginNameComparison !== 0) return pluginNameComparison;
+
+                const agentNameComparison = left.agentName.localeCompare(right.agentName);
+                if (agentNameComparison !== 0) return agentNameComparison;
+
+                return left.pluginInstanceId.localeCompare(right.pluginInstanceId);
+            });
             return {
                 ...current,
-                [event.sessionId]: next
+                [event.sessionId]: next,
             };
         });
     }, []);
@@ -88,42 +126,75 @@ export function useChatSession() {
                 const existing = current[event.sessionId] ?? [];
 
                 if (event.type === "agent_response_chunk") {
-                    if (existing.some((e) => e.type === "agent_response" && e.messageId === event.messageId)) {
+                    if (
+                        existing.some(
+                            (e) =>
+                                e.type === "agent_response" &&
+                                e.messageId === event.messageId,
+                        )
+                    ) {
                         return current;
                     }
                     const idx = existing.findIndex(
-                        (e) => e.type === "agent_response_chunk" && e.messageId === event.messageId
+                        (e) =>
+                            e.type === "agent_response_chunk" &&
+                            e.messageId === event.messageId,
                     );
                     if (idx >= 0) {
-                        const prev = existing[idx] as Extract<SessionEvent, { type: "agent_response_chunk" }>;
-                        const merged: Extract<SessionEvent, { type: "agent_response_chunk" }> = {
+                        const prev = existing[idx] as Extract<
+                            SessionEvent,
+                            { type: "agent_response_chunk" }
+                        >;
+                        const merged: Extract<
+                            SessionEvent,
+                            { type: "agent_response_chunk" }
+                        > = {
                             ...prev,
                             id: event.id,
                             timestamp: event.timestamp,
-                            markdownChunk: `${prev.markdownChunk}${event.markdownChunk}`
+                            markdownChunk: `${prev.markdownChunk}${event.markdownChunk}`,
                         };
                         const events = [...existing];
                         events[idx] = merged;
                         return { ...current, [event.sessionId]: events };
                     }
-                    return { ...current, [event.sessionId]: [...existing, event] };
+                    return {
+                        ...current,
+                        [event.sessionId]: [...existing, event],
+                    };
                 }
 
                 if (event.type === "agent_response") {
                     const filtered = existing.filter(
-                        (e) => !(e.type === "agent_response_chunk" && e.messageId === event.messageId)
+                        (e) =>
+                            !(
+                                e.type === "agent_response_chunk" &&
+                                e.messageId === event.messageId
+                            ),
                     );
                     if (filtered.some((e) => e.id === event.id)) return current;
-                    return { ...current, [event.sessionId]: [...filtered, event] };
+                    return {
+                        ...current,
+                        [event.sessionId]: [...filtered, event],
+                    };
                 }
 
                 if (event.type === "tool_response") {
                     const msgId = event.messageId;
                     const filtered = msgId
-                        ? existing.filter((e) => !(e.type === "agent_response_chunk" && e.messageId === msgId))
+                        ? existing.filter(
+                              (e) =>
+                                  !(
+                                      e.type === "agent_response_chunk" &&
+                                      e.messageId === msgId
+                                  ),
+                          )
                         : existing;
                     if (filtered.some((e) => e.id === event.id)) return current;
-                    return { ...current, [event.sessionId]: [...filtered, event] };
+                    return {
+                        ...current,
+                        [event.sessionId]: [...filtered, event],
+                    };
                 }
 
                 if (event.type === "tool_request") {
@@ -132,17 +203,31 @@ export function useChatSession() {
                     const msgId = event.payload.messageId;
                     if (msgId) {
                         nextEvents = existing.filter(
-                            (e) => !(e.type === "agent_response_chunk" && e.messageId === msgId)
+                            (e) =>
+                                !(
+                                    e.type === "agent_response_chunk" &&
+                                    e.messageId === msgId
+                                ),
                         );
                     } else {
                         nextEvents = existing.filter(
-                            (e) => !(e.type === "agent_response_chunk" && e.agentName === event.payload.callingAgent)
+                            (e) =>
+                                !(
+                                    e.type === "agent_response_chunk" &&
+                                    e.agentName === event.payload.callingAgent
+                                ),
                         );
                     }
 
                     // Synthesize an agent_response for the text strictly before the tool call so it persists across hydration!
-                    if (event.payload.content && event.payload.content.trim().length > 0) {
-                        const syntheticResponse: Extract<SessionEvent, { type: "agent_response" }> = {
+                    if (
+                        event.payload.content &&
+                        event.payload.content.trim().length > 0
+                    ) {
+                        const syntheticResponse: Extract<
+                            SessionEvent,
+                            { type: "agent_response" }
+                        > = {
                             id: `${event.id}_text`,
                             sessionId: event.sessionId,
                             timestamp: event.timestamp,
@@ -150,13 +235,17 @@ export function useChatSession() {
                             agentName: event.payload.callingAgent,
                             messageId: msgId ?? `${event.id}_msg`,
                             markdown: event.payload.content,
-                            attachments: []
+                            attachments: [],
                         };
                         nextEvents = [...nextEvents, syntheticResponse];
                     }
 
-                    if (nextEvents.some((e) => e.id === event.id)) return current;
-                    return { ...current, [event.sessionId]: [...nextEvents, event] };
+                    if (nextEvents.some((e) => e.id === event.id))
+                        return current;
+                    return {
+                        ...current,
+                        [event.sessionId]: [...nextEvents, event],
+                    };
                 }
 
                 if (existing.some((e) => e.id === event.id)) return current;
@@ -167,7 +256,7 @@ export function useChatSession() {
                 upsertSessionState(event.state);
             }
         },
-        [upsertPluginStateSummary, upsertSessionState]
+        [upsertPluginStateSummary, upsertSessionState],
     );
 
     /* ── API calls ───────────────────────────────────── */
@@ -176,14 +265,22 @@ export function useChatSession() {
         const response = await fetch("/api/bootstrap", {
             method: "GET",
             cache: "no-store",
-            headers: { "Cache-Control": "no-cache" }
+            headers: { "Cache-Control": "no-cache" },
         });
-        const payload = (await response.json()) as BootstrapResponse | { error?: { message?: string } };
-        if (!response.ok) throw new Error(apiErrorMessage(payload, "Unable to load bootstrap configuration."));
+        const payload = (await response.json()) as
+            | BootstrapResponse
+            | { error?: { message?: string } };
+        if (!response.ok)
+            throw new Error(
+                apiErrorMessage(
+                    payload,
+                    "Unable to load bootstrap configuration.",
+                ),
+            );
 
         const success = payload as BootstrapResponse;
         setAvailableAgentNames(success.availableAgentNames);
-        setDefaultMainAgent(success.defaultMainAgent);
+        setDefaultAgentName(success.defaultAgentName);
         return success;
     }, []);
 
@@ -191,10 +288,15 @@ export function useChatSession() {
         const response = await fetch("/api/sessions", {
             method: "GET",
             cache: "no-store",
-            headers: { "Cache-Control": "no-cache" }
+            headers: { "Cache-Control": "no-cache" },
         });
-        const payload = (await response.json()) as ListSessionsResponse | { error?: { message?: string } };
-        if (!response.ok) throw new Error(apiErrorMessage(payload, "Unable to load sessions."));
+        const payload = (await response.json()) as
+            | ListSessionsResponse
+            | { error?: { message?: string } };
+        if (!response.ok)
+            throw new Error(
+                apiErrorMessage(payload, "Unable to load sessions."),
+            );
 
         const success = payload as ListSessionsResponse;
         setSessions(success.sessions);
@@ -229,49 +331,72 @@ export function useChatSession() {
             if (latest.some((s) => s.sessionId === missingId)) return missingId;
             if (latest.length === 0) {
                 setActiveSessionId(null);
-                setErrorMessage(`Session "${missingId}" was not found. Create a new conversation.`);
+                setErrorMessage(
+                    `Session "${missingId}" was not found. Create a new conversation.`,
+                );
                 return null;
             }
             const fallback = latest[0]!;
             setActiveSessionId(fallback.sessionId);
-            setErrorMessage(`Session "${missingId}" was not found. Switched to "${fallback.name}".`);
+            setErrorMessage(
+                `Session "${missingId}" was not found. Switched to "${fallback.name}".`,
+            );
             return fallback.sessionId;
         },
-        [refreshSessions]
+        [refreshSessions],
     );
 
     const recoverFromSessionNotFoundResponse = useCallback(
         async (sessionId: string, response: Response, payload: unknown) => {
-            if (response.status === 404 && apiErrorCode(payload) === "SESSION_NOT_FOUND") {
+            if (
+                response.status === 404 &&
+                apiErrorCode(payload) === "SESSION_NOT_FOUND"
+            ) {
                 await recoverFromMissingSession(sessionId);
                 return true;
             }
             return false;
         },
-        [recoverFromMissingSession]
+        [recoverFromMissingSession],
     );
 
-    const refreshPluginStates = useCallback(async (sessionId: string) => {
-        const response = await fetch(`/api/sessions/${sessionId}/plugin-states`, {
+    const refreshPluginStates = useCallback(
+        async (sessionId: string) => {
+            const response = await fetch(
+                `/api/sessions/${sessionId}/plugin-states`,
+                {
             method: "GET",
             cache: "no-store",
-            headers: { "Cache-Control": "no-cache" }
-        });
-        const payload = (await response.json()) as ListPluginStatesResponse | { error?: { message?: string } };
+                    headers: { "Cache-Control": "no-cache" },
+                },
+            );
+            const payload = (await response.json()) as
+                | ListPluginStatesResponse
+                | { error?: { message?: string } };
         if (!response.ok) {
-            if (await recoverFromSessionNotFoundResponse(sessionId, response, payload)) {
+                if (
+                    await recoverFromSessionNotFoundResponse(
+                        sessionId,
+                        response,
+                        payload,
+                    )
+                ) {
                 return [];
             }
-            throw new Error(apiErrorMessage(payload, "Unable to load plugin states."));
+                throw new Error(
+                    apiErrorMessage(payload, "Unable to load plugin states."),
+                );
         }
 
         const states = (payload as ListPluginStatesResponse).states;
         setPluginStatesBySession((current) => ({
             ...current,
-            [sessionId]: states
+                [sessionId]: states,
         }));
         return states;
-    }, [recoverFromSessionNotFoundResponse]);
+        },
+        [recoverFromSessionNotFoundResponse],
+    );
 
     /* ── Initial load ────────────────────────────────── */
 
@@ -279,16 +404,25 @@ export function useChatSession() {
         (async () => {
             setIsLoading(true);
             try {
-                const [, latest] = await Promise.all([refreshBootstrap(), refreshSessions()]);
+                const [, latest] = await Promise.all([
+                    refreshBootstrap(),
+                    refreshSessions(),
+                ]);
                 if (latest.length === 0) {
                     setActiveSessionId(null);
                 } else {
                     setActiveSessionId((c) =>
-                        c && latest.some((s) => s.sessionId === c) ? c : latest[0]!.sessionId
+                        c && latest.some((s) => s.sessionId === c)
+                            ? c
+                            : latest[0]!.sessionId,
                     );
                 }
             } catch (error) {
-                setErrorMessage(error instanceof Error ? error.message : "Failed to initialize the chat.");
+                setErrorMessage(
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to initialize the chat.",
+                );
             } finally {
                 setIsLoading(false);
             }
@@ -298,7 +432,11 @@ export function useChatSession() {
     useEffect(() => {
         if (!activeSessionId) return;
         refreshPluginStates(activeSessionId).catch((error) => {
-            setErrorMessage(error instanceof Error ? error.message : "Unable to load plugin states.");
+            setErrorMessage(
+                error instanceof Error
+                    ? error.message
+                    : "Unable to load plugin states.",
+            );
         });
     }, [activeSessionId, refreshPluginStates]);
 
@@ -306,7 +444,9 @@ export function useChatSession() {
 
     useEffect(() => {
         if (!activeSessionId) return;
-        const eventSource = new EventSource(`/api/sessions/${activeSessionId}/stream`);
+        const eventSource = new EventSource(
+            `/api/sessions/${activeSessionId}/stream`,
+        );
 
         eventSource.onmessage = (event) => {
             try {
@@ -324,7 +464,11 @@ export function useChatSession() {
         eventSource.onerror = () => {
             eventSource.close();
             recoverFromMissingSession(activeSessionId).catch((err) => {
-                setErrorMessage(err instanceof Error ? err.message : "Failed to recover session state.");
+                setErrorMessage(
+                    err instanceof Error
+                        ? err.message
+                        : "Failed to recover session state.",
+                );
             });
         };
 
@@ -343,17 +487,22 @@ export function useChatSession() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     name: name?.trim() || undefined,
-                    agentName: agentName?.trim() || undefined
-                })
+                    agentName: agentName?.trim() || undefined,
+                }),
             });
-            const payload = (await response.json()) as CreateSessionResponse | { error?: { message?: string } };
-            if (!response.ok) throw new Error(apiErrorMessage(payload, "Unable to create a new session."));
+            const payload = (await response.json()) as
+                | CreateSessionResponse
+                | { error?: { message?: string } };
+            if (!response.ok)
+                throw new Error(
+                    apiErrorMessage(payload, "Unable to create a new session."),
+                );
             const success = payload as CreateSessionResponse;
             upsertSessionState(success.session);
             setActiveSessionId(success.session.sessionId);
             return success.session;
         },
-        [upsertSessionState]
+        [upsertSessionState],
     );
 
     /* ── Action: send message ────────────────────────── */
@@ -366,59 +515,103 @@ export function useChatSession() {
             try {
                 const formData = new FormData();
                 formData.append("message", text);
-                for (const file of files) formData.append("workspaceFiles", file);
-                for (const image of files.filter(isChatImageFile)) formData.append("chatImages", image);
+                for (const file of files)
+                    formData.append("workspaceFiles", file);
+                for (const image of files.filter(isChatImageFile))
+                    formData.append("chatImages", image);
 
-                const response = await fetch(`/api/sessions/${activeSessionId}/message`, {
+                const response = await fetch(
+                    `/api/sessions/${activeSessionId}/message`,
+                    {
                     method: "POST",
-                    body: formData
-                });
+                        body: formData,
+                    },
+                );
                 const payload = await response.json();
                 if (!response.ok) {
-                    if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) return;
-                    throw new Error(apiErrorMessage(payload, "Message failed."));
+                    if (
+                        await recoverFromSessionNotFoundResponse(
+                            activeSessionId,
+                            response,
+                            payload,
+                        )
+                    )
+                        return;
+                    throw new Error(
+                        apiErrorMessage(payload, "Message failed."),
+                    );
                 }
             } catch (error) {
-                setErrorMessage(error instanceof Error ? error.message : "Message failed.");
+                setErrorMessage(
+                    error instanceof Error ? error.message : "Message failed.",
+                );
             } finally {
                 setIsSubmitting(false);
             }
         },
-        [activeSessionId, isSubmitting, recoverFromSessionNotFoundResponse]
+        [activeSessionId, isSubmitting, recoverFromSessionNotFoundResponse],
     );
 
     /* ── Action: process notifications ──────────────── */
 
-    const processNotifications = useCallback(
-        async () => {
+    const processNotifications = useCallback(async () => {
             if (!activeSessionId || isSubmitting) return;
             setErrorMessage(null);
             setIsSubmitting(true);
             try {
-                const response = await fetch(`/api/sessions/${activeSessionId}/notifications/process`, {
-                    method: "POST"
-                });
-                const payload = (await response.json()) as ProcessNotificationsResponse | { error?: { message?: string } };
+            const response = await fetch(
+                `/api/sessions/${activeSessionId}/notifications/process`,
+                {
+                    method: "POST",
+                },
+            );
+            const payload = (await response.json()) as
+                | ProcessNotificationsResponse
+                | { error?: { message?: string } };
                 if (!response.ok) {
-                    if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) return;
-                    throw new Error(apiErrorMessage(payload, "Failed to process pending notifications."));
+                if (
+                    await recoverFromSessionNotFoundResponse(
+                        activeSessionId,
+                        response,
+                        payload,
+                    )
+                )
+                    return;
+                throw new Error(
+                    apiErrorMessage(
+                        payload,
+                        "Failed to process pending notifications.",
+                    ),
+                );
                 }
-                upsertSessionState((payload as ProcessNotificationsResponse).session);
+            upsertSessionState(
+                (payload as ProcessNotificationsResponse).session,
+            );
             } catch (error) {
-                setErrorMessage(error instanceof Error ? error.message : "Failed to process pending notifications.");
+            setErrorMessage(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to process pending notifications.",
+            );
             } finally {
                 setIsSubmitting(false);
             }
-        },
-        [activeSessionId, isSubmitting, recoverFromSessionNotFoundResponse, upsertSessionState]
-    );
+    }, [
+        activeSessionId,
+        isSubmitting,
+        recoverFromSessionNotFoundResponse,
+        upsertSessionState,
+    ]);
 
     /* ── Action: approval ────────────────────────────── */
 
     const submitApproval = useCallback(
         async (action: ApprovalRequest["action"], feedback?: string) => {
             if (!activeSessionId) return;
-            if (action === "disapprove" && (!feedback || feedback.trim().length === 0)) {
+            if (
+                action === "disapprove" &&
+                (!feedback || feedback.trim().length === 0)
+            ) {
                 setErrorMessage("Disapproval requires a feedback message.");
                 return;
             }
@@ -427,30 +620,53 @@ export function useChatSession() {
             setSessionStates((current) => {
                 const state = current[activeSessionId];
                 if (!state) return current;
-                return { ...current, [activeSessionId]: { ...state, pendingToolRequest: undefined } };
+                return {
+                    ...current,
+                    [activeSessionId]: {
+                        ...state,
+                        pendingToolRequest: undefined,
+                    },
+                };
             });
             try {
-                const response = await fetch(`/api/sessions/${activeSessionId}/approval`, {
+                const response = await fetch(
+                    `/api/sessions/${activeSessionId}/approval`,
+                    {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         action,
-                        feedback: action === "disapprove" ? feedback : undefined
-                    } satisfies ApprovalRequest)
-                });
+                            feedback:
+                                action === "disapprove" ? feedback : undefined,
+                        } satisfies ApprovalRequest),
+                    },
+                );
                 const payload = await response.json();
                 if (!response.ok) {
-                    if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) return;
-                    throw new Error(apiErrorMessage(payload, "Failed to submit approval."));
+                    if (
+                        await recoverFromSessionNotFoundResponse(
+                            activeSessionId,
+                            response,
+                            payload,
+                        )
+                    )
+                        return;
+                    throw new Error(
+                        apiErrorMessage(payload, "Failed to submit approval."),
+                    );
                 }
                 upsertSessionState(payload.session);
             } catch (error) {
-                setErrorMessage(error instanceof Error ? error.message : "Approval request failed.");
+                setErrorMessage(
+                    error instanceof Error
+                        ? error.message
+                        : "Approval request failed.",
+                );
             } finally {
                 setIsSubmitting(false);
             }
         },
-        [activeSessionId, recoverFromSessionNotFoundResponse]
+        [activeSessionId, recoverFromSessionNotFoundResponse],
     );
 
     /* ── Action: continuous mode ─────────────────────── */
@@ -460,22 +676,49 @@ export function useChatSession() {
             if (!activeSessionId) return;
             setErrorMessage(null);
             try {
-                const response = await fetch(`/api/sessions/${activeSessionId}/continuous-mode`, {
+                const response = await fetch(
+                    `/api/sessions/${activeSessionId}/continuous-mode`,
+                    {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ enabled })
-                });
-                const payload = (await response.json()) as ToggleContinuousModeResponse | { error?: { message?: string } };
+                        body: JSON.stringify({ enabled }),
+                    },
+                );
+                const payload = (await response.json()) as
+                    | ToggleContinuousModeResponse
+                    | { error?: { message?: string } };
                 if (!response.ok) {
-                    if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) return;
-                    throw new Error(apiErrorMessage(payload, "Failed to set continuous mode."));
+                    if (
+                        await recoverFromSessionNotFoundResponse(
+                            activeSessionId,
+                            response,
+                            payload,
+                        )
+                    )
+                        return;
+                    throw new Error(
+                        apiErrorMessage(
+                            payload,
+                            "Failed to set continuous mode.",
+                        ),
+                    );
                 }
-                upsertSessionState((payload as ToggleContinuousModeResponse).session);
+                upsertSessionState(
+                    (payload as ToggleContinuousModeResponse).session,
+                );
             } catch (error) {
-                setErrorMessage(error instanceof Error ? error.message : "Failed to set continuous mode.");
+                setErrorMessage(
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to set continuous mode.",
+                );
             }
         },
-        [activeSessionId, recoverFromSessionNotFoundResponse, upsertSessionState]
+        [
+            activeSessionId,
+            recoverFromSessionNotFoundResponse,
+            upsertSessionState,
+        ],
     );
 
     /* ── Action: reset session ───────────────────────── */
@@ -484,21 +727,43 @@ export function useChatSession() {
         if (!activeSessionId) return;
         setErrorMessage(null);
         try {
-            const response = await fetch(`/api/sessions/${activeSessionId}/reset`, { method: "POST" });
+            const response = await fetch(
+                `/api/sessions/${activeSessionId}/reset`,
+                {
+                    method: "POST",
+                },
+            );
             const payload = await response.json();
             if (!response.ok) {
-                if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) return;
-                throw new Error(apiErrorMessage(payload, "Failed to reset session."));
+                if (
+                    await recoverFromSessionNotFoundResponse(
+                        activeSessionId,
+                        response,
+                        payload,
+                    )
+                )
+                    return;
+                throw new Error(
+                    apiErrorMessage(payload, "Failed to reset session."),
+                );
             }
             upsertSessionState((payload as ResetSessionResponse).session);
             setPluginStatesBySession((current) => ({
                 ...current,
-                [activeSessionId]: []
+                [activeSessionId]: [],
             }));
         } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : "Failed to reset session.");
+            setErrorMessage(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to reset session.",
+            );
         }
-    }, [activeSessionId, recoverFromSessionNotFoundResponse, upsertSessionState]);
+    }, [
+        activeSessionId,
+        recoverFromSessionNotFoundResponse,
+        upsertSessionState,
+    ]);
 
     /* ── Action: stop session ───────────────────────── */
 
@@ -506,14 +771,32 @@ export function useChatSession() {
         if (!activeSessionId) return;
         setErrorMessage(null);
         try {
-            const response = await fetch(`/api/sessions/${activeSessionId}/stop`, { method: "POST" });
+            const response = await fetch(
+                `/api/sessions/${activeSessionId}/stop`,
+                {
+                    method: "POST",
+                },
+            );
             const payload = await response.json();
             if (!response.ok) {
-                if (await recoverFromSessionNotFoundResponse(activeSessionId, response, payload)) return;
-                throw new Error(apiErrorMessage(payload, "Failed to stop session."));
+                if (
+                    await recoverFromSessionNotFoundResponse(
+                        activeSessionId,
+                        response,
+                        payload,
+                    )
+                )
+                    return;
+                throw new Error(
+                    apiErrorMessage(payload, "Failed to stop session."),
+                );
             }
         } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : "Failed to stop session.");
+            setErrorMessage(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to stop session.",
+            );
         }
     }, [activeSessionId, recoverFromSessionNotFoundResponse]);
 
@@ -523,11 +806,18 @@ export function useChatSession() {
         async (sessionId: string) => {
             setErrorMessage(null);
             try {
-                const response = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
+                const response = await fetch(`/api/sessions/${sessionId}`, {
+                    method: "DELETE",
+                });
                 const payload = await response.json();
-                if (!response.ok) throw new Error(apiErrorMessage(payload, "Failed to delete session."));
+                if (!response.ok)
+                    throw new Error(
+                        apiErrorMessage(payload, "Failed to delete session."),
+                    );
 
-                const remaining = sessions.filter((e) => e.sessionId !== sessionId);
+                const remaining = sessions.filter(
+                    (e) => e.sessionId !== sessionId,
+                );
                 setSessions(remaining);
                 setSessionStates((c) => {
                     const { [sessionId]: _, ...rest } = c;
@@ -543,13 +833,19 @@ export function useChatSession() {
                 });
 
                 if (activeSessionId === sessionId) {
-                    setActiveSessionId(remaining.length > 0 ? remaining[0]!.sessionId : null);
+                    setActiveSessionId(
+                        remaining.length > 0 ? remaining[0]!.sessionId : null,
+                    );
                 }
             } catch (error) {
-                setErrorMessage(error instanceof Error ? error.message : "Failed to delete session.");
+                setErrorMessage(
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to delete session.",
+                );
             }
         },
-        [activeSessionId, sessions]
+        [activeSessionId, sessions],
     );
 
     /* ── Computed ─────────────────────────────────────── */
@@ -579,7 +875,7 @@ export function useChatSession() {
         activeEvents,
         activePluginStates,
         availableAgentNames,
-        defaultMainAgent,
+        defaultAgentName,
         isLoading,
         isSubmitting,
         errorMessage,
@@ -598,6 +894,6 @@ export function useChatSession() {
         setContinuousMode,
         resetSession,
         stopSession,
-        deleteSession
+        deleteSession,
     };
 }

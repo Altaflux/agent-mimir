@@ -25,7 +25,7 @@ export function ChatHeader({
     onToggleSidebar,
     onTogglePluginStatePanel,
     onSetContinuousMode,
-    onResetSession
+    onResetSession,
 }: ChatHeaderProps) {
     return (
         <header className="flex items-center gap-3 px-4 py-2.5 border-b border-border/30 bg-background/80 backdrop-blur-sm shrink-0">
@@ -38,10 +38,12 @@ export function ChatHeader({
             </button>
 
             <div className="flex-1 min-w-0">
-                <h1 className="text-sm font-semibold truncate">{sessionLabel}</h1>
+                <h1 className="text-sm font-semibold truncate">
+                    {sessionLabel}
+                </h1>
                 {activeState ? (
                     <p className="text-xs text-muted-foreground truncate">
-                        Agent: {activeState.activeAgentName}
+                        Agent: {activeState.agentName}
                     </p>
                 ) : null}
             </div>
@@ -51,7 +53,11 @@ export function ChatHeader({
                     <button
                         className="relative rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                         onClick={onTogglePluginStatePanel}
-                        title={pluginStatePanelOpen ? "Close plugin state panel" : "Open plugin state panel"}
+                        title={
+                            pluginStatePanelOpen
+                                ? "Close plugin state panel"
+                                : "Open plugin state panel"
+                        }
                     >
                         <PanelRightOpen className="h-4 w-4" />
                         {pluginStateCount > 0 ? (
@@ -66,7 +72,9 @@ export function ChatHeader({
                         <span className="hidden sm:inline">Auto</span>
                         <Switch
                             checked={activeState.continuousMode}
-                            onCheckedChange={(checked) => onSetContinuousMode(Boolean(checked))}
+                            onCheckedChange={(checked) =>
+                                onSetContinuousMode(Boolean(checked))
+                            }
                         />
                     </label>
 

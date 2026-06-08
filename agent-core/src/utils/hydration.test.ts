@@ -9,31 +9,30 @@ describe("readHydrationEvents", () => {
                 yield {
                     config: {
                         configurable: {
-                            checkpoint_id: "checkpoint-1"
-                        }
+                            checkpoint_id: "checkpoint-1",
+                        },
                     },
                     checkpoint: {
                         ts: "2026-05-28T10:00:00.000Z",
                         channel_values: {
                             requestAttributes: {
-                                runtimeTraceId: "trace-1"
+                                runtimeTraceId: "trace-1",
                             },
                             messages: [
                                 new HumanMessage({
                                     id: "human-message-1",
-                                    content: "Hello"
-                                })
-                            ]
-                        }
-                    }
+                                    content: "Hello",
+                                }),
+                            ],
+                        },
+                    },
                 };
-            }
+            },
         };
 
         const events = await readHydrationEvents({
             sessionId: "session-1",
-            name: "Principal",
-            checkpointer: checkpointer as never
+            checkpointer: checkpointer as never,
         });
 
         expect(events).toHaveLength(1);
@@ -48,12 +47,12 @@ describe("readHydrationEvents", () => {
             type: "user_message",
             message: {
                 content: [{ type: "text", text: "Hello" }],
-                sharedFiles: []
-            }
+                sharedFiles: [],
+            },
         });
         expect(event.content).toEqual({
             content: [{ type: "text", text: "Hello" }],
-            sharedFiles: []
+            sharedFiles: [],
         });
         expect("id" in event.content).toBe(false);
     });
@@ -67,18 +66,25 @@ describe("readHydrationEvents", () => {
                 title: "Worker complete",
                 summary: "Worker has a result.",
                 content: {
-                    content: [{ type: "text" as const, text: "Original notification content" }],
-                    sharedFiles: [{ fileName: "result.txt", url: "/tmp/result.txt" }]
-                }
-            }
+                    content: [
+                        {
+                            type: "text" as const,
+                            text: "Original notification content",
+                        },
+                    ],
+                    sharedFiles: [
+                        { fileName: "result.txt", url: "/tmp/result.txt" },
+                    ],
+                },
+            },
         } as const;
         const checkpointer = {
             async *list() {
                 yield {
                     config: {
                         configurable: {
-                            checkpoint_id: "checkpoint-1"
-                        }
+                            checkpoint_id: "checkpoint-1",
+                        },
                     },
                     checkpoint: {
                         ts: "2026-05-28T10:00:00.000Z",
@@ -89,20 +95,19 @@ describe("readHydrationEvents", () => {
                                     id: "human-message-1",
                                     content: "LLM notification prompt",
                                     additional_kwargs: {
-                                        runtimeInput
-                                    }
-                                })
-                            ]
-                        }
-                    }
+                                        runtimeInput,
+                                    },
+                                }),
+                            ],
+                        },
+                    },
                 };
-            }
+            },
         };
 
         const events = await readHydrationEvents({
             sessionId: "session-1",
-            name: "Principal",
-            checkpointer: checkpointer as never
+            checkpointer: checkpointer as never,
         });
 
         expect(events).toHaveLength(1);
@@ -115,7 +120,7 @@ describe("readHydrationEvents", () => {
         expect(event.input).toEqual(runtimeInput);
         expect(event.content).toEqual({
             content: [{ type: "text", text: "Original notification content" }],
-            sharedFiles: [{ fileName: "result.txt", url: "/tmp/result.txt" }]
+            sharedFiles: [{ fileName: "result.txt", url: "/tmp/result.txt" }],
         });
     });
 });

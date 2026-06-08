@@ -8,12 +8,18 @@ import {
     SessionState,
     SessionSummary,
     ToolRequestPayload,
-    UserMessageOrigin
+    UserMessageOrigin,
 } from "../contracts.js";
 import { getConfig } from "./config.js";
 import { HttpError } from "./errors.js";
 import type { AgentMimirConfig } from "./types.js";
-import { Agent, AgentInput, AgentNotificationInput, InputAgentMessage, SharedFile } from "@mimir/agent-core/agent";
+import {
+    Agent,
+    AgentInput,
+    AgentNotificationInput,
+    InputAgentMessage,
+    SharedFile,
+} from "@mimir/agent-core/agent";
 import {
     AgentHydrationEventWithAgent,
     AgentToolRequestTwo,
@@ -21,17 +27,25 @@ import {
     HydratedOrchestratorEvent,
     IntermediateAgentResponse,
     MultiAgentCommunicationOrchestrator,
-    OrchestratorBuilder
+    OrchestratorBuilder,
 } from "@mimir/agent-core/communication/multi-agent";
 import { FileSystemAgentWorkspace } from "@mimir/agent-core/nodejs";
-import { PluginFactory, PluginNotification, PluginRuntimeProvider } from "@mimir/agent-core/plugins";
+import {
+    PluginFactory,
+    PluginNotification,
+    PluginRuntimeProvider,
+} from "@mimir/agent-core/plugins";
 import { ComplexMessageContent } from "@mimir/agent-core/schema";
 import { extractAllTextFromComplexResponse } from "@mimir/agent-core/utils/format";
 import crypto from "crypto";
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
-import { SessionStore, type StoredPluginRuntimeEvent } from "./session-store.js";
+import {
+    SessionStore,
+    type StoredPluginRuntimeEvent,
+    type StoredSessionRecord,
+} from "./session-store.js";
 import { BaseCheckpointSaver } from "@langchain/langgraph";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import Database from "better-sqlite3";
@@ -61,10 +75,17 @@ type SessionFileRecord = {
 };
 
 type SessionEventPayload = {
-    [K in SessionEvent["type"]]: Omit<Extract<SessionEvent, { type: K }>, "id" | "sessionId" | "timestamp">;
+    [K in SessionEvent["type"]]: Omit<
+        Extract<SessionEvent, { type: K }>,
+        "id" | "sessionId" | "timestamp"
+    >;
 }[SessionEvent["type"]];
 
-type PluginRuntimeSessionEventType = "plugin_event" | "plugin_notification" | "plugin_state" | "plugin_log";
+type PluginRuntimeSessionEventType =
+    | "plugin_event"
+    | "plugin_notification"
+    | "plugin_state"
+    | "plugin_log";
 
 type PluginRuntimeSessionEventPayload = {
     [K in PluginRuntimeSessionEventType]: Omit<
@@ -111,8 +132,8 @@ type SessionRuntime = {
     createdAt: number;
     lastActivityAt: number;
     continuousMode: boolean;
-    activeAgentName: string;
-    agentNames: string[];
+    agentName: string;
+    checkpointer: SqliteSaver;
     orchestrator: MultiAgentCommunicationOrchestrator;
     pluginRuntime: SessionPluginRuntimeController;
     pendingToolRequest: AgentToolRequestTwo | null;
@@ -128,15 +149,8 @@ type SessionRuntime = {
 
 type RuntimeConfigBundle = {
     config: AgentMimirConfig;
-    checkpointer: SqliteSaver;
-};
-
-type PersistedSessionInfo = {
-    sessionId: string;
-    earliestTimestampMs: number;
-    latestTimestampMs: number;
-    discoveredAgents: Set<string>;
-    name: string | null;
+    configuredRoot: string;
+    sessionsRoot: string;
 };
 
 type EmitEventOptions = {
@@ -166,14 +180,14 @@ function requirePositiveInteger(value: number, fieldName: string): number {
 
 export class SessionManager {
     private readonly sessions = new Map<string, SessionRuntime>();
-    private readonly discoveredSessions = new Map<string, PersistedSessionInfo>();
-    private readonly sessionHydrationPromises = new Map<string, Promise<SessionRuntime>>();
+    private readonly sessionHydrationPromises = new Map<
+        string,
+        Promise<SessionRuntime>
+    >();
     private readonly sessionTtlMs: number;
     private readonly uploadLimits: UploadLimits;
     private readonly cleanupTimer: NodeJS.Timeout;
     private runtimeConfigPromise: Promise<RuntimeConfigBundle> | null = null;
-    private discoveryPromise: Promise<void> | null = null;
-    private discoveryComplete = false;
     private store: SessionStore | null = null;
 
     constructor(options: SessionManagerOptions = {}) {
@@ -185,22 +199,31 @@ export class SessionManager {
         const maxFilesPerTurn =
             options.uploadLimits?.maxFilesPerTurn === undefined
                 ? DEFAULT_MAX_FILES_PER_TURN
-                : requirePositiveInteger(options.uploadLimits.maxFilesPerTurn, "uploadLimits.maxFilesPerTurn");
+                : requirePositiveInteger(
+                      options.uploadLimits.maxFilesPerTurn,
+                      "uploadLimits.maxFilesPerTurn",
+                  );
 
         const maxFileSizeBytes =
             options.uploadLimits?.maxFileSizeBytes === undefined
                 ? DEFAULT_MAX_FILE_SIZE_BYTES
-                : requirePositiveInteger(options.uploadLimits.maxFileSizeBytes, "uploadLimits.maxFileSizeBytes");
+                : requirePositiveInteger(
+                      options.uploadLimits.maxFileSizeBytes,
+                      "uploadLimits.maxFileSizeBytes",
+                  );
 
         this.uploadLimits = {
             maxFilesPerTurn,
-            maxFileSizeBytes
+            maxFileSizeBytes,
         };
 
         const cleanupIntervalMs =
             options.cleanupIntervalMs === undefined
                 ? DEFAULT_CLEANUP_INTERVAL_MS
-                : requirePositiveInteger(options.cleanupIntervalMs, "cleanupIntervalMs");
+                : requirePositiveInteger(
+                      options.cleanupIntervalMs,
+                      "cleanupIntervalMs",
+                  );
 
         this.cleanupTimer = setInterval(() => {
             this.cleanupExpiredSessions().catch((error) => {
@@ -216,11 +239,16 @@ export class SessionManager {
     async getBootstrap(): Promise<BootstrapResponse> {
         const config = await getConfig();
         const entries = Object.entries(config.agents);
-        const main = entries.length === 1 ? entries[0]?.[0] : entries.find(([, definition]) => definition.mainAgent)?.[0] ?? null;
+        const defaultAgentName =
+            entries.length === 1
+                ? entries[0]?.[0]
+                : (entries.find(
+                      ([, definition]) => definition.mainAgent,
+                  )?.[0] ?? null);
         return {
             availableAgentNames: entries.map(([agentName]) => agentName),
             defaultContinuousMode: config.continuousMode ?? false,
-            defaultMainAgent: main
+            defaultAgentName,
         };
     }
 
@@ -231,12 +259,15 @@ export class SessionManager {
                 const configuredRoot = config.workingDirectory
                     ? path.resolve(config.workingDirectory)
                     : path.join(os.tmpdir(), "mimir-web-db-fallback");
-                const dbPath = path.join(configuredRoot, "chat-checkpointer.db");
-                const db = new Database(dbPath);
-                this.store = new SessionStore();
+                const sessionsRoot = path.join(configuredRoot, "sessions");
+                await fs.mkdir(sessionsRoot, { recursive: true });
+                const store = new SessionStore();
+                await store.init(configuredRoot);
+                this.store = store;
                 return {
                     config,
-                    checkpointer: new SqliteSaver(db)
+                    configuredRoot,
+                    sessionsRoot,
                 };
             })();
         }
@@ -244,68 +275,22 @@ export class SessionManager {
         return await this.runtimeConfigPromise;
     }
 
-    private async ensureDiscovered(): Promise<void> {
-        if (this.discoveryComplete) {
-            return;
-        }
-
-        if (!this.discoveryPromise) {
-            this.discoveryPromise = (async () => {
-                try {
-                    const { config, checkpointer } = await this.getRuntimeConfig();
-                    const validAgentNames = new Set(Object.keys(config.agents));
-                    const persistedSessions = await this.discoverPersistedSessions(checkpointer, validAgentNames);
-
-                    const configuredRoot = config.workingDirectory
-                        ? path.resolve(config.workingDirectory)
-                        : path.join(os.tmpdir(), "mimir-web-db-fallback");
-                    this.store = new SessionStore();
-                    await this.store.init(configuredRoot);
-                    const nameMap = this.store.getAllNames();
-                    const pluginActivity = this.store.getPluginSessionActivity();
-
-                    for (const persistedSession of persistedSessions) {
-                        persistedSession.name = nameMap.get(persistedSession.sessionId) ?? null;
-                        this.discoveredSessions.set(persistedSession.sessionId, persistedSession);
-                    }
-
-                    for (const [sessionId, activity] of pluginActivity) {
-                        const existing = this.discoveredSessions.get(sessionId);
-                        if (existing) {
-                            existing.earliestTimestampMs = Math.min(existing.earliestTimestampMs, activity.earliestTimestampMs);
-                            existing.latestTimestampMs = Math.max(existing.latestTimestampMs, activity.latestTimestampMs);
-                            continue;
-                        }
-
-                        this.discoveredSessions.set(sessionId, {
-                            sessionId,
-                            earliestTimestampMs: activity.earliestTimestampMs,
-                            latestTimestampMs: activity.latestTimestampMs,
-                            discoveredAgents: new Set<string>(),
-                            name: nameMap.get(sessionId) ?? null
-                        });
-                    }
-                } catch (error) {
-                    console.error("Session discovery failed.", error);
-                } finally {
-                    this.discoveryComplete = true;
-                }
-            })();
-        }
-
-        await this.discoveryPromise;
-    }
-
-    private async ensureSessionLoaded(sessionId: string): Promise<SessionRuntime> {
-        await this.ensureDiscovered();
+    private async ensureSessionLoaded(
+        sessionId: string,
+    ): Promise<SessionRuntime> {
         const existingSession = this.sessions.get(sessionId);
         if (existingSession) {
             return existingSession;
         }
 
-        const discovered = this.discoveredSessions.get(sessionId);
-        if (!discovered) {
-            throw new HttpError(404, "SESSION_NOT_FOUND", `Session \"${sessionId}\" was not found.`);
+        const { config, sessionsRoot } = await this.getRuntimeConfig();
+        const storedSession = this.store?.getSession(sessionId);
+        if (!storedSession) {
+            throw new HttpError(
+                404,
+                "SESSION_NOT_FOUND",
+                `Session \"${sessionId}\" was not found.`,
+            );
         }
 
         const existingHydration = this.sessionHydrationPromises.get(sessionId);
@@ -314,8 +299,11 @@ export class SessionManager {
         }
 
         const hydrationPromise = (async () => {
-            const { config, checkpointer } = await this.getRuntimeConfig();
-            await this.hydrateSessionRuntime(discovered, config, checkpointer);
+            await this.hydrateSessionRuntime(
+                storedSession,
+                config,
+                sessionsRoot,
+            );
             return this.requireSession(sessionId);
         })();
 
@@ -327,7 +315,7 @@ export class SessionManager {
         }
     }
 
-    private getDefaultMainAgentName(config: AgentMimirConfig): string | null {
+    private getDefaultAgentName(config: AgentMimirConfig): string | null {
         const entries = Object.entries(config.agents);
         if (entries.length === 0) {
             return null;
@@ -336,157 +324,125 @@ export class SessionManager {
             return entries[0]![0];
         }
 
-        return entries.find(([, definition]) => definition.mainAgent)?.[0] ?? entries[0]![0];
+        return (
+            entries.find(([, definition]) => definition.mainAgent)?.[0] ??
+            entries[0]![0]
+        );
     }
 
-    private getPersistedPrincipalAgentName(sessionInfo: PersistedSessionInfo, config: AgentMimirConfig): string | null {
-        const validAgentNames = new Set(Object.keys(config.agents));
-        const discovered = [...sessionInfo.discoveredAgents].filter((agentName) => validAgentNames.has(agentName));
-        if (discovered.length === 1) {
-            return discovered[0]!;
-        }
-
-        return this.getDefaultMainAgentName(config);
-    }
-
-    private async buildDiscoveredSessionSummary(sessionInfo: PersistedSessionInfo): Promise<SessionSummary> {
-        const { config } = await this.getRuntimeConfig();
-        const principalAgentName = this.getPersistedPrincipalAgentName(sessionInfo, config) ?? "Unknown";
+    private buildStoredSessionSummary(
+        record: StoredSessionRecord,
+    ): SessionSummary {
         return {
-            sessionId: sessionInfo.sessionId,
-            name: sessionInfo.name || `Chat ${sessionInfo.sessionId.slice(0, 8)}`,
-            createdAt: new Date(sessionInfo.earliestTimestampMs).toISOString(),
-            lastActivityAt: new Date(sessionInfo.latestTimestampMs).toISOString(),
-            activeAgentName: principalAgentName,
-            continuousMode: config.continuousMode ?? false,
-            hasPendingToolRequest: false
+            sessionId: record.sessionId,
+            name: record.name,
+            createdAt: new Date(record.createdAtMs).toISOString(),
+            lastActivityAt: new Date(record.lastActivityAtMs).toISOString(),
+            agentName: record.agentName,
+            continuousMode: record.continuousMode,
+            hasPendingToolRequest: false,
         };
     }
 
-    private upsertDiscoveredSession(sessionId: string, timestampMs: number, name?: string | null) {
-        const existing = this.discoveredSessions.get(sessionId);
-        if (existing) {
-            existing.earliestTimestampMs = Math.min(existing.earliestTimestampMs, timestampMs);
-            existing.latestTimestampMs = Math.max(existing.latestTimestampMs, timestampMs);
-            if (name !== undefined && name !== null) {
-                existing.name = name;
-            }
-            return;
+    private getSessionPaths(sessionsRoot: string, sessionId: string) {
+        const workingRoot = path.join(sessionsRoot, sessionId);
+        return {
+            workingRoot,
+            cleanupPath: workingRoot,
+            uploadDirectory: path.join(workingRoot, "_uploads"),
+            pluginStateDirectory: path.join(workingRoot, "_plugin_state"),
+            checkpointerPath: path.join(workingRoot, "chat-checkpointer.db"),
+        };
         }
 
-        this.discoveredSessions.set(sessionId, {
-            sessionId,
-            earliestTimestampMs: timestampMs,
-            latestTimestampMs: timestampMs,
-            name: name ?? null,
-            discoveredAgents: new Set<string>()
-        });
-    }
-
-    private async discoverPersistedSessions(
-        checkpointer: BaseCheckpointSaver,
-        validAgentNames: Set<string>
-    ): Promise<PersistedSessionInfo[]> {
-        const sessions = new Map<string, PersistedSessionInfo>();
-        const allThreads = checkpointer.list({ configurable: {} });
-        for await (const checkpointTuple of allThreads) {
-            const threadId = checkpointTuple.config?.configurable?.thread_id;
-            if (typeof threadId !== "string") {
-                continue;
-            }
-
-            const parsed = this.parseSessionThreadId(threadId);
-            if (!parsed) {
-                continue;
-            }
-
-            const timestampMs = Date.parse(checkpointTuple.checkpoint.ts);
-            const normalizedTimestampMs = Number.isFinite(timestampMs) ? timestampMs : Date.now();
-            const existing = sessions.get(parsed.sessionId);
-            if (existing) {
-                existing.earliestTimestampMs = Math.min(existing.earliestTimestampMs, normalizedTimestampMs);
-                existing.latestTimestampMs = Math.max(existing.latestTimestampMs, normalizedTimestampMs);
-                existing.discoveredAgents.add(parsed.agentName);
-                continue;
-            }
-
-            sessions.set(parsed.sessionId, {
-                sessionId: parsed.sessionId,
-                earliestTimestampMs: normalizedTimestampMs,
-                latestTimestampMs: normalizedTimestampMs,
-                discoveredAgents: new Set([parsed.agentName]),
-                name: null
-            });
-        }
-
-        return [...sessions.values()].sort((left, right) => left.earliestTimestampMs - right.earliestTimestampMs);
+    private createSessionCheckpointer(checkpointerPath: string): SqliteSaver {
+        return new SqliteSaver(new Database(checkpointerPath));
     }
 
     private async hydrateSessionRuntime(
-        persistedSession: PersistedSessionInfo,
+        persistedSession: StoredSessionRecord,
         config: AgentMimirConfig,
-        checkpointer: BaseCheckpointSaver
+        sessionsRoot: string,
     ): Promise<void> {
         if (this.sessions.has(persistedSession.sessionId)) {
             return;
         }
 
-        const configuredRoot = config.workingDirectory
-            ? path.resolve(config.workingDirectory)
-            : await fs.mkdtemp(path.join(os.tmpdir(), "mimir-web-"));
-        const workingRoot = path.join(configuredRoot, persistedSession.sessionId);
-        const cleanupPath = config.workingDirectory ? workingRoot : configuredRoot;
-        const uploadDirectory = path.join(workingRoot, "_uploads");
-        await fs.mkdir(uploadDirectory, { recursive: true });
+        const paths = this.getSessionPaths(
+            sessionsRoot,
+            persistedSession.sessionId,
+        );
+        await fs.mkdir(paths.uploadDirectory, { recursive: true });
+        const checkpointer = this.createSessionCheckpointer(
+            paths.checkpointerPath,
+        );
 
-        const orchestratorBuilder = new OrchestratorBuilder(persistedSession.sessionId);
-        const workspaceFactory = async (agentName: string) => {
-            const tempDir = path.join(workingRoot, agentName);
-            await fs.mkdir(tempDir, { recursive: true });
-            const workspace = new FileSystemAgentWorkspace(tempDir);
+        const orchestratorBuilder = new OrchestratorBuilder(
+            persistedSession.sessionId,
+        );
+        const workspaceFactory = async () => {
+            await fs.mkdir(paths.workingRoot, { recursive: true });
+            const workspace = new FileSystemAgentWorkspace(paths.workingRoot);
             await fs.mkdir(workspace.workingDirectory, { recursive: true });
             return workspace;
         };
 
-        const principalAgentName = this.getPersistedPrincipalAgentName(persistedSession, config);
-        if (!principalAgentName) {
-            throw new HttpError(500, "INVALID_CONFIG", "No principal agent found in configuration.");
-        }
-        const storedNotifications = this.store?.listPluginNotifications(persistedSession.sessionId) ?? [];
+        const principalAgentName = persistedSession.agentName;
+        const storedNotifications =
+            this.store?.listPluginNotifications(persistedSession.sessionId) ??
+            [];
         const pluginRuntime = new SessionPluginRuntimeController(
             principalAgentName,
-            storedNotifications.map((storedNotification) => storedNotification.notification)
+            storedNotifications.map(
+                (storedNotification) => storedNotification.notification,
+            ),
         );
-        const pluginStateStore = new DiskPluginStateStore(path.join(workingRoot, "_plugin_state"));
+        const pluginStateStore = new DiskPluginStateStore(
+            paths.pluginStateDirectory,
+        );
         await pluginStateStore.clear();
-        this.configurePluginRuntimeStorage(persistedSession.sessionId, pluginRuntime, pluginStateStore);
-        const principal = await this.createAgent(config, checkpointer, orchestratorBuilder, workspaceFactory, principalAgentName, pluginRuntime);
+        this.configurePluginRuntimeStorage(
+            persistedSession.sessionId,
+            pluginRuntime,
+            pluginStateStore,
+        );
+        const principal = await this.createAgent(
+            config,
+            checkpointer,
+            orchestratorBuilder,
+            workspaceFactory,
+            principalAgentName,
+            pluginRuntime,
+        );
 
         const session: SessionRuntime = {
             sessionId: persistedSession.sessionId,
-            name: persistedSession.name || `Chat ${persistedSession.sessionId.slice(0, 8)}`,
-            createdAt: persistedSession.earliestTimestampMs,
-            lastActivityAt: persistedSession.latestTimestampMs,
-            continuousMode: config.continuousMode ?? false,
-            activeAgentName: principal.agent.name,
-            agentNames: [principal.name],
+            name: persistedSession.name,
+            createdAt: persistedSession.createdAtMs,
+            lastActivityAt: persistedSession.lastActivityAtMs,
+            continuousMode: persistedSession.continuousMode,
+            agentName: principal.agent.name,
+            checkpointer,
             orchestrator: orchestratorBuilder.build(principal.agent),
             pluginRuntime,
             pendingToolRequest: null,
             eventBuffer: [],
             subscribers: new Set<SessionListener>(),
             fileRegistry: new Map(),
-            uploadDirectory,
-            workingRoot,
-            cleanupPath,
+            uploadDirectory: paths.uploadDirectory,
+            workingRoot: paths.workingRoot,
+            cleanupPath: paths.cleanupPath,
             running: false,
-            abortController: undefined
+            abortController: undefined,
         };
 
         const hydrationEvents: AgentHydrationEventWithAgent[] = [];
         let sequence = 0;
 
-        const events = await readHydrationEvents({ sessionId: persistedSession.sessionId, name: principal.name, checkpointer: checkpointer });
+        const events = await readHydrationEvents({
+            sessionId: persistedSession.sessionId,
+            checkpointer,
+        });
         for (const event of events) {
             hydrationEvents.push({
                 ...event,
@@ -495,28 +451,19 @@ export class SessionManager {
             });
         }
 
-        const replayedConversation = await session.orchestrator.hydrateConversation(hydrationEvents);
+        const replayedConversation =
+            await session.orchestrator.hydrateConversation(hydrationEvents);
         await this.applyHydratedConversation(session, replayedConversation);
         this.restorePersistedPluginRuntimeEvents(session);
         this.sessions.set(session.sessionId, session);
         this.attachPluginRuntime(session);
-        this.upsertDiscoveredSession(session.sessionId, session.createdAt, session.name);
-        this.upsertDiscoveredSession(session.sessionId, session.lastActivityAt);
+        this.persistSessionMetadata(session);
     }
 
-    private parseSessionThreadId(threadId: string): { sessionId: string; agentName: string } | null {
-        const separatorIndex = threadId.lastIndexOf("#");
-        if (separatorIndex <= 0 || separatorIndex >= threadId.length - 1) {
-            return null;
-        }
-
-        return {
-            sessionId: threadId.slice(0, separatorIndex),
-            agentName: threadId.slice(separatorIndex + 1)
-        };
-    }
-
-    private async applyHydratedConversation(session: SessionRuntime, events: HydratedOrchestratorEvent[]) {
+    private async applyHydratedConversation(
+        session: SessionRuntime,
+        events: HydratedOrchestratorEvent[],
+    ) {
         let latestActivity = session.lastActivityAt;
         for (const event of events) {
             const parsedTimestamp = Date.parse(event.timestamp);
@@ -525,7 +472,9 @@ export class SessionManager {
             }
 
             if (event.type === "userMessage") {
-                const presentation = this.getHydratedInputPresentation(event.input);
+                const presentation = this.getHydratedInputPresentation(
+                    event.input,
+                );
                 this.emitEvent(
                     session,
                     {
@@ -533,9 +482,9 @@ export class SessionManager {
                         origin: presentation.origin,
                         text: presentation.text,
                         workspaceFiles: presentation.workspaceFiles,
-                        chatImages: presentation.chatImages
+                        chatImages: presentation.chatImages,
                     },
-                    { timestamp: event.timestamp, preserveLastActivity: true }
+                    { timestamp: event.timestamp, preserveLastActivity: true },
                 );
                 session.pendingToolRequest = null;
                 continue;
@@ -550,9 +499,14 @@ export class SessionManager {
                             agentName: event.value.agentName,
                             toolName: event.value.value.toolResponse.name,
                             toolCallId: event.value.value.toolResponse.id,
-                            response: extractAllTextFromComplexResponse(event.value.value.toolResponse.response)
+                            response: extractAllTextFromComplexResponse(
+                                event.value.value.toolResponse.response,
+                            ),
                         },
-                        { timestamp: event.timestamp, preserveLastActivity: true }
+                        {
+                            timestamp: event.timestamp,
+                            preserveLastActivity: true,
+                        },
                     );
                     continue;
                 }
@@ -566,17 +520,24 @@ export class SessionManager {
                     {
                         type: "tool_request",
                         payload: this.toToolRequestPayload(event.value),
-                        requiresApproval: !session.continuousMode
+                        requiresApproval: !session.continuousMode,
                     },
-                    { timestamp: event.timestamp, preserveLastActivity: true }
+                    { timestamp: event.timestamp, preserveLastActivity: true },
                 );
                 session.pendingToolRequest = event.value;
                 continue;
             }
 
-            const text = extractAllTextFromComplexResponse(event.value.content.content);
-            const attachments = await this.registerSharedFiles(session, event.value.content.sharedFiles ?? []);
-            const responseMessageId = (event.value.content as { id?: string }).id ?? crypto.randomUUID();
+            const text = extractAllTextFromComplexResponse(
+                event.value.content.content,
+            );
+            const attachments = await this.registerSharedFiles(
+                session,
+                event.value.content.sharedFiles ?? [],
+            );
+            const responseMessageId =
+                (event.value.content as { id?: string }).id ??
+                crypto.randomUUID();
             this.emitEvent(
                 session,
                 {
@@ -584,9 +545,9 @@ export class SessionManager {
                     agentName: event.agentName,
                     messageId: responseMessageId,
                     markdown: text,
-                    attachments
+                    attachments,
                 },
-                { timestamp: event.timestamp, preserveLastActivity: true }
+                { timestamp: event.timestamp, preserveLastActivity: true },
             );
             session.pendingToolRequest = null;
         }
@@ -595,14 +556,18 @@ export class SessionManager {
     }
 
     private restorePersistedPluginRuntimeEvents(session: SessionRuntime): void {
-        const persistedEvents = this.store?.listPluginRuntimeEvents(session.sessionId) ?? [];
+        const persistedEvents =
+            this.store?.listPluginRuntimeEvents(session.sessionId) ?? [];
         for (const persistedEvent of persistedEvents) {
             this.insertPersistedPluginRuntimeEvent(session, persistedEvent);
         }
         this.trimEventBuffer(session);
     }
 
-    private insertPersistedPluginRuntimeEvent(session: SessionRuntime, persistedEvent: StoredPluginRuntimeEvent): void {
+    private insertPersistedPluginRuntimeEvent(
+        session: SessionRuntime,
+        persistedEvent: StoredPluginRuntimeEvent,
+    ): void {
         const event = persistedEvent.event;
         if (session.eventBuffer.some((existing) => existing.id === event.id)) {
             return;
@@ -612,7 +577,7 @@ export class SessionManager {
             const toolResponseIndex = session.eventBuffer.findIndex(
                 (existing) =>
                     existing.type === "tool_response" &&
-                    existing.toolCallId === event.toolCallId
+                    existing.toolCallId === event.toolCallId,
             );
             if (toolResponseIndex >= 0) {
                 session.eventBuffer.splice(toolResponseIndex, 0, event);
@@ -625,8 +590,9 @@ export class SessionManager {
                     existing.payload.toolCalls.some(
                         (toolCall) =>
                             toolCall.id === event.toolCallId ||
-                            (toolCall.id === undefined && toolCall.toolName === event.toolName)
-                    )
+                            (toolCall.id === undefined &&
+                                toolCall.toolName === event.toolName),
+                    ),
             );
             if (toolRequestIndex >= 0) {
                 session.eventBuffer.splice(toolRequestIndex + 1, 0, event);
@@ -640,7 +606,10 @@ export class SessionManager {
         this.insertEventByTimestamp(session, event);
     }
 
-    private insertEventByTimestamp(session: SessionRuntime, event: SessionEvent): void {
+    private insertEventByTimestamp(
+        session: SessionRuntime,
+        event: SessionEvent,
+    ): void {
         const eventTimestampMs = Date.parse(event.timestamp);
         if (!Number.isFinite(eventTimestampMs)) {
             session.eventBuffer.push(event);
@@ -649,7 +618,10 @@ export class SessionManager {
 
         const insertIndex = session.eventBuffer.findIndex((existing) => {
             const existingTimestampMs = Date.parse(existing.timestamp);
-            return Number.isFinite(existingTimestampMs) && existingTimestampMs > eventTimestampMs;
+            return (
+                Number.isFinite(existingTimestampMs) &&
+                existingTimestampMs > eventTimestampMs
+            );
         });
 
         if (insertIndex >= 0) {
@@ -660,13 +632,20 @@ export class SessionManager {
         session.eventBuffer.push(event);
     }
 
-    private classifyHydratedSharedFiles(sharedFiles: SharedFile[]): { workspaceFiles: string[]; chatImages: string[] } {
+    private classifyHydratedSharedFiles(sharedFiles: SharedFile[]): {
+        workspaceFiles: string[];
+        chatImages: string[];
+    } {
         const workspaceFiles: string[] = [];
         const chatImages: string[] = [];
 
         for (const file of sharedFiles) {
             const extension = path.extname(file.fileName).toLowerCase();
-            if (extension === ".png" || extension === ".jpg" || extension === ".jpeg") {
+            if (
+                extension === ".png" ||
+                extension === ".jpg" ||
+                extension === ".jpeg"
+            ) {
                 chatImages.push(file.fileName);
                 continue;
             }
@@ -676,7 +655,7 @@ export class SessionManager {
 
         return {
             workspaceFiles,
-            chatImages
+            chatImages,
         };
     }
 
@@ -689,70 +668,98 @@ export class SessionManager {
         if (input.type === "plugin_notification") {
             return {
                 origin: this.buildNotificationMessageOrigin(input.notification),
-                text: this.buildNotificationProcessingDisplayText(input.notification),
-                workspaceFiles: (input.notification.content.sharedFiles ?? []).map((sharedFile) => sharedFile.fileName),
-                chatImages: []
+                text: this.buildNotificationProcessingDisplayText(
+                    input.notification,
+                ),
+                workspaceFiles: (
+                    input.notification.content.sharedFiles ?? []
+                ).map((sharedFile) => sharedFile.fileName),
+                chatImages: [],
             };
         }
 
-        const { workspaceFiles, chatImages } = this.classifyHydratedSharedFiles(input.message.sharedFiles ?? []);
+        const { workspaceFiles, chatImages } = this.classifyHydratedSharedFiles(
+            input.message.sharedFiles ?? [],
+        );
         return {
             origin: { type: "user" },
             text: extractAllTextFromComplexResponse(input.message.content),
             workspaceFiles,
-            chatImages
+            chatImages,
         };
     }
 
-    private buildNotificationMessageOrigin(notification: AgentNotificationInput): UserMessageOrigin {
+    private buildNotificationMessageOrigin(
+        notification: AgentNotificationInput,
+    ): UserMessageOrigin {
         return {
             type: "plugin_notification",
             notificationId: notification.notificationId,
             pluginName: notification.pluginName,
             title: notification.title,
-            summary: notification.summary
+            summary: notification.summary,
         };
     }
 
-    async createSession(name?: string, agentName?: string): Promise<SessionState> {
-        await this.ensureDiscovered();
+    async createSession(
+        name?: string,
+        agentName?: string,
+    ): Promise<SessionState> {
         const sessionId = crypto.randomUUID();
-        const { config, checkpointer } = await this.getRuntimeConfig();
+        const { config, sessionsRoot } = await this.getRuntimeConfig();
         const now = Date.now();
-
-        const configuredRoot = config.workingDirectory
-            ? path.resolve(config.workingDirectory)
-            : await fs.mkdtemp(path.join(os.tmpdir(), "mimir-web-"));
-        const workingRoot = path.join(configuredRoot, sessionId);
-        const cleanupPath = config.workingDirectory ? workingRoot : configuredRoot;
-        const uploadDirectory = path.join(workingRoot, "_uploads");
+        const paths = this.getSessionPaths(sessionsRoot, sessionId);
+        let checkpointer: SqliteSaver | null = null;
 
         try {
-            await fs.mkdir(uploadDirectory, { recursive: true });
+            await fs.mkdir(paths.uploadDirectory, { recursive: true });
+            checkpointer = this.createSessionCheckpointer(
+                paths.checkpointerPath,
+            );
 
             const orchestratorBuilder = new OrchestratorBuilder(sessionId);
-            const workspaceFactory = async (agentName: string) => {
-                const tempDir = path.join(workingRoot, agentName);
-                await fs.mkdir(tempDir, { recursive: true });
-                const workspace = new FileSystemAgentWorkspace(tempDir);
+            const workspaceFactory = async () => {
+                await fs.mkdir(paths.workingRoot, { recursive: true });
+                const workspace = new FileSystemAgentWorkspace(
+                    paths.workingRoot,
+                );
                 await fs.mkdir(workspace.workingDirectory, { recursive: true });
                 return workspace;
             };
 
-            const principalAgentName = agentName?.trim() || this.getDefaultMainAgentName(config);
+            const principalAgentName =
+                agentName?.trim() || this.getDefaultAgentName(config);
             if (!principalAgentName) {
-                throw new HttpError(500, "INVALID_CONFIG", "No principal agent found in configuration.");
+                throw new HttpError(
+                    500,
+                    "INVALID_CONFIG",
+                    "No principal agent found in configuration.",
+                );
             }
-            const pluginRuntime = new SessionPluginRuntimeController(principalAgentName);
-            const pluginStateStore = new DiskPluginStateStore(path.join(workingRoot, "_plugin_state"));
+            const pluginRuntime = new SessionPluginRuntimeController(
+                principalAgentName,
+            );
+            const pluginStateStore = new DiskPluginStateStore(
+                paths.pluginStateDirectory,
+            );
             await pluginStateStore.clear();
-            this.configurePluginRuntimeStorage(sessionId, pluginRuntime, pluginStateStore);
-            const principal = await this.createAgent(config, checkpointer, orchestratorBuilder, workspaceFactory, principalAgentName, pluginRuntime);
+            this.configurePluginRuntimeStorage(
+                sessionId,
+                pluginRuntime,
+                pluginStateStore,
+            );
+            const principal = await this.createAgent(
+                config,
+                checkpointer,
+                orchestratorBuilder,
+                workspaceFactory,
+                principalAgentName,
+                pluginRuntime,
+            );
 
-            const activeAgentName = principal.agent.name;
-
-            const finalName = name?.trim() || `Chat ${this.discoveredSessions.size + 1}`;
-            this.store?.upsertName(sessionId, finalName);
+            const finalName =
+                name?.trim() ||
+                `Chat ${(this.store?.listSessions().length ?? this.sessions.size) + 1}`;
 
             const session: SessionRuntime = {
                 sessionId,
@@ -760,28 +767,31 @@ export class SessionManager {
                 createdAt: now,
                 lastActivityAt: now,
                 continuousMode: config.continuousMode ?? false,
-                activeAgentName,
-                agentNames: [principal.name],
+                agentName: principal.agent.name,
+                checkpointer,
                 orchestrator: orchestratorBuilder.build(principal.agent),
                 pluginRuntime,
                 pendingToolRequest: null,
                 eventBuffer: [],
                 subscribers: new Set<SessionListener>(),
                 fileRegistry: new Map(),
-                uploadDirectory,
-                workingRoot,
-                cleanupPath,
+                uploadDirectory: paths.uploadDirectory,
+                workingRoot: paths.workingRoot,
+                cleanupPath: paths.cleanupPath,
                 running: false,
-                abortController: undefined
+                abortController: undefined,
             };
 
+            this.persistSessionMetadata(session);
             this.sessions.set(sessionId, session);
-            this.upsertDiscoveredSession(sessionId, now, finalName);
             this.attachPluginRuntime(session);
             this.emitStateChanged(session);
             return this.toSessionState(session);
         } catch (error) {
-            await fs.rm(cleanupPath, { recursive: true, force: true }).catch(() => {
+            checkpointer?.db.close();
+            await fs
+                .rm(paths.cleanupPath, { recursive: true, force: true })
+                .catch(() => {
                 return;
             });
             throw error;
@@ -789,17 +799,25 @@ export class SessionManager {
     }
 
     async listSessions(): Promise<SessionSummary[]> {
-        await this.ensureDiscovered();
+        await this.getRuntimeConfig();
         const summaryBySessionId = new Map<string, SessionSummary>();
-        for (const [sessionId, discoveredSession] of this.discoveredSessions) {
-            summaryBySessionId.set(sessionId, await this.buildDiscoveredSessionSummary(discoveredSession));
+        for (const storedSession of this.store?.listSessions() ?? []) {
+            summaryBySessionId.set(
+                storedSession.sessionId,
+                this.buildStoredSessionSummary(storedSession),
+            );
         }
 
         for (const session of this.sessions.values()) {
-            summaryBySessionId.set(session.sessionId, this.toSessionSummary(session));
+            summaryBySessionId.set(
+                session.sessionId,
+                this.toSessionSummary(session),
+            );
         }
 
-        return [...summaryBySessionId.values()].sort((left, right) => right.lastActivityAt.localeCompare(left.lastActivityAt));
+        return [...summaryBySessionId.values()].sort((left, right) =>
+            right.lastActivityAt.localeCompare(left.lastActivityAt),
+        );
     }
 
     async getSessionState(sessionId: string): Promise<SessionState> {
@@ -808,13 +826,41 @@ export class SessionManager {
     }
 
     async deleteSession(sessionId: string): Promise<void> {
-        const session = await this.ensureSessionLoaded(sessionId);
-        if (session.running) {
-            throw new HttpError(409, "SESSION_BUSY", "Cannot delete a session while it is processing a request.");
+        const session =
+            this.sessions.get(sessionId) ??
+            (await this.sessionHydrationPromises.get(sessionId));
+        if (!session) {
+            const { sessionsRoot } = await this.getRuntimeConfig();
+            const storedSession = this.store?.getSession(sessionId);
+            if (!storedSession) {
+                throw new HttpError(
+                    404,
+                    "SESSION_NOT_FOUND",
+                    `Session \"${sessionId}\" was not found.`,
+                );
+            }
+
+            this.store?.deleteSession(sessionId);
+            await fs
+                .rm(this.getSessionPaths(sessionsRoot, sessionId).cleanupPath, {
+                    recursive: true,
+                    force: true,
+                })
+                .catch(() => {
+                    return;
+                });
+            return;
         }
 
-        await session.orchestrator.reset();
-        await this.disposeSession(session, { removeDiscovery: true });
+        if (session.running) {
+            throw new HttpError(
+                409,
+                "SESSION_BUSY",
+                "Cannot delete a session while it is processing a request.",
+            );
+        }
+
+        await this.disposeSession(session, { removeCatalog: true });
     }
 
     async resetSession(sessionId: string): Promise<SessionState> {
@@ -827,14 +873,16 @@ export class SessionManager {
             this.store?.clearPluginRuntimeEvents(session.sessionId);
             session.fileRegistry.clear();
             session.eventBuffer = [];
-            await fs.rm(session.uploadDirectory, { recursive: true, force: true }).catch(() => {
+            await fs
+                .rm(session.uploadDirectory, { recursive: true, force: true })
+                .catch(() => {
                 return;
             });
             await fs.mkdir(session.uploadDirectory, { recursive: true });
 
             this.emitEvent(session, {
                 type: "reset",
-                message: "Session reset."
+                message: "Session reset.",
             });
 
             this.emitStateChanged(session);
@@ -850,31 +898,55 @@ export class SessionManager {
         return this.toSessionState(session);
     }
 
-    async setContinuousMode(sessionId: string, enabled: boolean): Promise<SessionState> {
+    async setContinuousMode(
+        sessionId: string,
+        enabled: boolean,
+    ): Promise<SessionState> {
         const session = await this.ensureSessionLoaded(sessionId);
         if (session.running) {
-            throw new HttpError(409, "SESSION_BUSY", "Cannot change continuous mode while the session is processing.");
+            throw new HttpError(
+                409,
+                "SESSION_BUSY",
+                "Cannot change continuous mode while the session is processing.",
+            );
         }
 
         session.continuousMode = enabled;
         session.lastActivityAt = Date.now();
+        this.persistSessionMetadata(session);
         this.emitStateChanged(session);
         return this.toSessionState(session);
     }
 
-    async sendMessage(sessionId: string, input: SendMessageInput): Promise<SessionState> {
+    async sendMessage(
+        sessionId: string,
+        input: SendMessageInput,
+    ): Promise<SessionState> {
         const session = await this.ensureSessionLoaded(sessionId);
         return await this.withSessionLock(session, async () => {
             if (session.pendingToolRequest) {
-                throw new HttpError(409, "PENDING_APPROVAL", "A tool approval decision is required before sending a new message.");
+                throw new HttpError(
+                    409,
+                    "PENDING_APPROVAL",
+                    "A tool approval decision is required before sending a new message.",
+                );
             }
 
             await this.validateUploadInput(input);
-            const { agentInput, workspaceFileNames, chatImageNames } = await this.buildInputMessage(session, input);
+            const { agentInput, workspaceFileNames, chatImageNames } =
+                await this.buildInputMessage(session, input);
 
-            if ((agentInput.content.length === 0 || extractAllTextFromComplexResponse(agentInput.content).trim().length === 0) &&
-                (agentInput.sharedFiles?.length ?? 0) === 0) {
-                throw new HttpError(400, "EMPTY_MESSAGE", "Message text or attachments are required.");
+            if (
+                (agentInput.content.length === 0 ||
+                    extractAllTextFromComplexResponse(agentInput.content).trim()
+                        .length === 0) &&
+                (agentInput.sharedFiles?.length ?? 0) === 0
+            ) {
+                throw new HttpError(
+                    400,
+                    "EMPTY_MESSAGE",
+                    "Message text or attachments are required.",
+                );
             }
 
             this.emitEvent(session, {
@@ -882,18 +954,18 @@ export class SessionManager {
                 origin: { type: "user" },
                 text: input.text,
                 workspaceFiles: workspaceFileNames,
-                chatImages: chatImageNames
+                chatImages: chatImageNames,
             });
 
             let generator = session.orchestrator.handleMessage(
                 {
                     input: {
                         type: "user_message",
-                        message: agentInput
+                        message: agentInput,
                     },
-                    abortSignal: session.abortController?.signal
+                    abortSignal: session.abortController?.signal,
                 },
-                session.sessionId
+                session.sessionId,
             );
             await this.consumeGenerator(session, generator);
             this.emitStateChanged(session);
@@ -905,30 +977,40 @@ export class SessionManager {
         const session = await this.ensureSessionLoaded(sessionId);
         return await this.withSessionLock(session, async () => {
             if (session.pendingToolRequest) {
-                throw new HttpError(409, "PENDING_APPROVAL", "A tool approval decision is required before processing notifications.");
+                throw new HttpError(
+                    409,
+                    "PENDING_APPROVAL",
+                    "A tool approval decision is required before processing notifications.",
+                );
             }
 
             const notification = session.pluginRuntime.nextUnread();
             if (!notification) {
-                throw new HttpError(409, "NO_PENDING_NOTIFICATIONS", "There are no pending plugin notifications to process.");
+                throw new HttpError(
+                    409,
+                    "NO_PENDING_NOTIFICATIONS",
+                    "There are no pending plugin notifications to process.",
+                );
             }
 
-            const notificationInput = this.buildNotificationAgentInput(notification);
-            const notificationPresentation = this.getHydratedInputPresentation(notificationInput);
+            const notificationInput =
+                this.buildNotificationAgentInput(notification);
+            const notificationPresentation =
+                this.getHydratedInputPresentation(notificationInput);
             this.emitEvent(session, {
                 type: "user_message",
                 origin: notificationPresentation.origin,
                 text: notificationPresentation.text,
                 workspaceFiles: notificationPresentation.workspaceFiles,
-                chatImages: notificationPresentation.chatImages
+                chatImages: notificationPresentation.chatImages,
             });
 
             const generator = session.orchestrator.handleMessage(
                 {
                     input: notificationInput,
-                    abortSignal: session.abortController?.signal
+                    abortSignal: session.abortController?.signal,
                 },
-                session.sessionId
+                session.sessionId,
             );
             await this.consumeGenerator(session, generator);
             session.pluginRuntime.remove([notification.id]);
@@ -937,12 +1019,19 @@ export class SessionManager {
         });
     }
 
-    async submitApproval(sessionId: string, request: ApprovalRequest): Promise<SessionState> {
+    async submitApproval(
+        sessionId: string,
+        request: ApprovalRequest,
+    ): Promise<SessionState> {
         const session = await this.ensureSessionLoaded(sessionId);
         return await this.withSessionLock(session, async () => {
             const pending = session.pendingToolRequest;
             if (!pending) {
-                throw new HttpError(409, "NO_PENDING_TOOL_REQUEST", "There is no pending tool request to approve or reject.");
+                throw new HttpError(
+                    409,
+                    "NO_PENDING_TOOL_REQUEST",
+                    "There is no pending tool request to approve or reject.",
+                );
             }
 
             session.pendingToolRequest = null;
@@ -951,7 +1040,11 @@ export class SessionManager {
             if (request.action === "disapprove") {
                 const feedback = request.feedback?.trim();
                 if (!feedback) {
-                    throw new HttpError(400, "MISSING_FEEDBACK", "Disapproval requires a feedback message.");
+                    throw new HttpError(
+                        400,
+                        "MISSING_FEEDBACK",
+                        "Disapproval requires a feedback message.",
+                    );
                 }
 
                 this.emitEvent(session, {
@@ -959,7 +1052,7 @@ export class SessionManager {
                     origin: { type: "user" },
                     text: feedback,
                     workspaceFiles: [],
-                    chatImages: []
+                    chatImages: [],
                 });
 
                 const generator = session.orchestrator.handleMessage(
@@ -968,20 +1061,20 @@ export class SessionManager {
                             type: "user_message",
                             message: {
                                 content: [{ type: "text", text: feedback }],
-                                sharedFiles: []
-                            }
-                        }
+                                sharedFiles: [],
+                            },
                     },
-                    session.sessionId
+                    },
+                    session.sessionId,
                 );
                 await this.consumeGenerator(session, generator);
             } else {
                 const generator = session.orchestrator.handleMessage(
                     {
                         input: null,
-                        abortSignal: session.abortController?.signal
+                        abortSignal: session.abortController?.signal,
                     },
-                    session.sessionId
+                    session.sessionId,
                 );
                 await this.consumeGenerator(session, generator);
             }
@@ -991,7 +1084,10 @@ export class SessionManager {
         });
     }
 
-    async subscribe(sessionId: string, listener: SessionListener): Promise<SessionSubscription> {
+    async subscribe(
+        sessionId: string,
+        listener: SessionListener,
+    ): Promise<SessionSubscription> {
         const session = await this.ensureSessionLoaded(sessionId);
         session.subscribers.add(listener);
         session.lastActivityAt = Date.now();
@@ -1001,15 +1097,22 @@ export class SessionManager {
             backlog: [...session.eventBuffer],
             unsubscribe: () => {
                 session.subscribers.delete(listener);
-            }
+            },
         };
     }
 
-    async resolveFile(sessionId: string, fileId: string): Promise<SessionFileRecord> {
+    async resolveFile(
+        sessionId: string,
+        fileId: string,
+    ): Promise<SessionFileRecord> {
         const session = await this.ensureSessionLoaded(sessionId);
         const found = session.fileRegistry.get(fileId);
         if (!found) {
-            throw new HttpError(404, "FILE_NOT_FOUND", "File not found for this session.");
+            throw new HttpError(
+                404,
+                "FILE_NOT_FOUND",
+                "File not found for this session.",
+            );
         }
 
         const exists = await fs
@@ -1018,7 +1121,11 @@ export class SessionManager {
             .catch(() => false);
 
         if (!exists) {
-            throw new HttpError(404, "FILE_NOT_FOUND", "File no longer exists on disk.");
+            throw new HttpError(
+                404,
+                "FILE_NOT_FOUND",
+                "File no longer exists on disk.",
+            );
         }
 
         return found;
@@ -1031,39 +1138,53 @@ export class SessionManager {
 
     async getPluginState(
         sessionId: string,
-        pluginName: string,
-        publicApiBasePath: string
+        pluginInstanceId: string,
+        publicApiBasePath: string,
     ): Promise<PluginStateDetail> {
         const session = await this.ensureSessionLoaded(sessionId);
-        const state = await session.pluginRuntime.readPluginState(pluginName);
+        const state =
+            await session.pluginRuntime.readPluginState(pluginInstanceId);
         if (!state) {
-            throw new HttpError(404, "PLUGIN_STATE_NOT_FOUND", `Plugin state for "${pluginName}" was not found.`);
+            throw new HttpError(
+                404,
+                "PLUGIN_STATE_NOT_FOUND",
+                `Plugin state for "${pluginInstanceId}" was not found.`,
+            );
         }
 
         return {
+            pluginInstanceId: state.pluginInstanceId,
             pluginName: state.pluginName,
             agentName: state.agentName,
             updatedAt: state.updatedAt,
             revision: state.revision,
             markdown: this.rewritePluginStateAssetUrls(state.markdown, {
                 sessionId,
-                pluginName: state.pluginName,
+                pluginInstanceId: state.pluginInstanceId,
                 revision: state.revision,
-                publicApiBasePath
-            })
+                publicApiBasePath,
+            }),
         };
     }
 
     async resolvePluginStateAsset(
         sessionId: string,
-        pluginName: string,
+        pluginInstanceId: string,
         revision: string,
-        assetId: string
+        assetId: string,
     ): Promise<PluginStateAssetFileRecord> {
         const session = await this.ensureSessionLoaded(sessionId);
-        const asset = await session.pluginRuntime.resolvePluginStateAsset(pluginName, revision, assetId);
+        const asset = await session.pluginRuntime.resolvePluginStateAsset(
+            pluginInstanceId,
+            revision,
+            assetId,
+        );
         if (!asset) {
-            throw new HttpError(404, "PLUGIN_STATE_ASSET_NOT_FOUND", "Plugin state asset was not found.");
+            throw new HttpError(
+                404,
+                "PLUGIN_STATE_ASSET_NOT_FOUND",
+                "Plugin state asset was not found.",
+            );
         }
 
         const exists = await fs
@@ -1071,7 +1192,11 @@ export class SessionManager {
             .then(() => true)
             .catch(() => false);
         if (!exists) {
-            throw new HttpError(404, "PLUGIN_STATE_ASSET_NOT_FOUND", "Plugin state asset no longer exists.");
+            throw new HttpError(
+                404,
+                "PLUGIN_STATE_ASSET_NOT_FOUND",
+                "Plugin state asset no longer exists.",
+            );
         }
 
         return asset;
@@ -1081,16 +1206,26 @@ export class SessionManager {
         config: AgentMimirConfig,
         checkpointer: BaseCheckpointSaver,
         builder: OrchestratorBuilder,
-        workspaceFactory: (agentName: string) => Promise<FileSystemAgentWorkspace>,
+        workspaceFactory: (
+            agentName: string,
+        ) => Promise<FileSystemAgentWorkspace>,
         agentName: string,
-        pluginRuntime: PluginRuntimeProvider
+        pluginRuntime: PluginRuntimeProvider,
     ): Promise<AgentDefinitionRuntime> {
         const agentDefinition = config.agents[agentName];
         if (!agentDefinition) {
-            throw new HttpError(404, "AGENT_NOT_FOUND", `Agent \"${agentName}\" is not registered in configuration.`);
+            throw new HttpError(
+                404,
+                "AGENT_NOT_FOUND",
+                `Agent \"${agentName}\" is not registered in configuration.`,
+            );
         }
         if (!agentDefinition.definition) {
-            throw new HttpError(500, "INVALID_CONFIG", `Agent \"${agentName}\" has no definition.`);
+            throw new HttpError(
+                500,
+                "INVALID_CONFIG",
+                `Agent \"${agentName}\" has no definition.`,
+            );
         }
 
         const definition = agentDefinition.definition;
@@ -1112,43 +1247,55 @@ export class SessionManager {
             checkpointer: checkpointer,
             visionSupport: definition.visionSupport,
             constitution: definition.constitution,
-            plugins: [...(definition.plugins ?? []) as PluginFactory[]],
+            plugins: [...((definition.plugins ?? []) as PluginFactory[])],
             workspaceFactory,
-            pluginRuntime
+            pluginRuntime,
         });
         const initialized = await builder.initializeAgent(factory, agentName);
 
         return {
             mainAgent: agentDefinition.mainAgent,
             name: agentName,
-            agent: initialized
+            agent: initialized,
         } satisfies AgentDefinitionRuntime;
     }
 
     private async validateUploadInput(input: SendMessageInput) {
         const fileCount = input.workspaceFiles.length + input.chatImages.length;
         if (fileCount > this.uploadLimits.maxFilesPerTurn) {
-            throw new HttpError(400, "TOO_MANY_FILES", `A maximum of ${this.uploadLimits.maxFilesPerTurn} files are allowed per message.`);
+            throw new HttpError(
+                400,
+                "TOO_MANY_FILES",
+                `A maximum of ${this.uploadLimits.maxFilesPerTurn} files are allowed per message.`,
+            );
         }
 
         const allFiles = [...input.workspaceFiles, ...input.chatImages];
         for (const file of allFiles) {
             const byteLength = await this.resolveUploadByteLength(file);
             if (byteLength > this.uploadLimits.maxFileSizeBytes) {
-                throw new HttpError(400, "FILE_TOO_LARGE", `File ${file.fileName} exceeds ${this.uploadLimits.maxFileSizeBytes / (1024 * 1024)}MB.`);
+                throw new HttpError(
+                    400,
+                    "FILE_TOO_LARGE",
+                    `File ${file.fileName} exceeds ${this.uploadLimits.maxFileSizeBytes / (1024 * 1024)}MB.`,
+                );
             }
         }
 
         for (const image of input.chatImages) {
             if (!this.isImageMimeType(image.contentType)) {
-                throw new HttpError(422, "UNSUPPORTED_CHAT_IMAGE", `Unsupported chat image type: ${image.contentType || "unknown"}.`);
+                throw new HttpError(
+                    422,
+                    "UNSUPPORTED_CHAT_IMAGE",
+                    `Unsupported chat image type: ${image.contentType || "unknown"}.`,
+                );
             }
         }
     }
 
     private async buildInputMessage(
         session: SessionRuntime,
-        input: SendMessageInput
+        input: SendMessageInput,
     ): Promise<{
         agentInput: InputAgentMessage;
         workspaceFileNames: string[];
@@ -1159,15 +1306,24 @@ export class SessionManager {
         const workspaceFileNames: string[] = [];
         const chatImageNames: string[] = [];
 
-        const writeUpload = async (upload: UploadInput, fallbackPrefix: string): Promise<SharedFile> => {
-            const safeFileName = this.makeUniqueFileName(usedNames, this.sanitizeFileName(upload.fileName, fallbackPrefix));
-            const storedPath = path.join(session.uploadDirectory, `${crypto.randomUUID()}-${safeFileName}`);
+        const writeUpload = async (
+            upload: UploadInput,
+            fallbackPrefix: string,
+        ): Promise<SharedFile> => {
+            const safeFileName = this.makeUniqueFileName(
+                usedNames,
+                this.sanitizeFileName(upload.fileName, fallbackPrefix),
+            );
+            const storedPath = path.join(
+                session.uploadDirectory,
+                `${crypto.randomUUID()}-${safeFileName}`,
+            );
             await fs.mkdir(session.uploadDirectory, { recursive: true });
             await this.persistUploadToPath(upload, storedPath);
 
             return {
                 fileName: safeFileName,
-                url: storedPath
+                url: storedPath,
             };
         };
 
@@ -1202,14 +1358,16 @@ export class SessionManager {
         return {
             agentInput: {
                 content,
-                sharedFiles
+                sharedFiles,
             },
             workspaceFileNames,
-            chatImageNames
+            chatImageNames,
         };
     }
 
-    private buildNotificationAgentInput(notification: PluginNotification): AgentInput {
+    private buildNotificationAgentInput(
+        notification: PluginNotification,
+    ): AgentInput {
         return {
             type: "plugin_notification",
             notification: {
@@ -1217,12 +1375,14 @@ export class SessionManager {
                 pluginName: notification.pluginName,
                 title: notification.title,
                 summary: notification.summary,
-                content: notification.content
-            }
+                content: notification.content,
+            },
         };
     }
 
-    private buildNotificationProcessingDisplayText(notification: AgentNotificationInput): string {
+    private buildNotificationProcessingDisplayText(
+        notification: AgentNotificationInput,
+    ): string {
         return `Process plugin notification: ${notification.title}`;
     }
 
@@ -1230,35 +1390,50 @@ export class SessionManager {
         markdown: string,
         args: {
             sessionId: string;
-            pluginName: string;
+            pluginInstanceId: string;
             revision: string;
             publicApiBasePath: string;
-        }
+        },
     ): string {
-        return markdown.replace(/asset:\/\/([A-Za-z0-9._-]+)/g, (_match, assetId: string) => {
+        return markdown.replace(
+            /asset:\/\/([A-Za-z0-9._-]+)/g,
+            (_match, assetId: string) => {
             const sessionId = encodeURIComponent(args.sessionId);
-            const pluginName = encodeURIComponent(args.pluginName);
+                const pluginInstanceId = encodeURIComponent(
+                    args.pluginInstanceId,
+                );
             const revision = encodeURIComponent(args.revision);
             const encodedAssetId = encodeURIComponent(assetId);
-            return `${args.publicApiBasePath}/sessions/${sessionId}/plugin-states/${pluginName}/assets/${revision}/${encodedAssetId}`;
-        });
+                return `${args.publicApiBasePath}/sessions/${sessionId}/plugin-states/${pluginInstanceId}/assets/${revision}/${encodedAssetId}`;
+            },
+        );
     }
 
-    private async resolveUploadByteLength(upload: UploadInput): Promise<number> {
+    private async resolveUploadByteLength(
+        upload: UploadInput,
+    ): Promise<number> {
         if (upload.bytes !== undefined) {
             return upload.bytes.byteLength;
         }
 
         const filePath = upload.filePath;
         if (!filePath) {
-            throw new HttpError(400, "INVALID_REQUEST", `Upload file ${upload.fileName} could not be read.`);
+            throw new HttpError(
+                400,
+                "INVALID_REQUEST",
+                `Upload file ${upload.fileName} could not be read.`,
+            );
         }
 
         try {
             const fileStats = await fs.stat(filePath);
             return fileStats.size;
         } catch {
-            throw new HttpError(400, "INVALID_REQUEST", `Upload file ${upload.fileName} could not be read.`);
+            throw new HttpError(
+                400,
+                "INVALID_REQUEST",
+                `Upload file ${upload.fileName} could not be read.`,
+            );
         }
     }
 
@@ -1269,17 +1444,28 @@ export class SessionManager {
 
         const filePath = upload.filePath;
         if (!filePath) {
-            throw new HttpError(400, "INVALID_REQUEST", `Upload file ${upload.fileName} could not be read.`);
+            throw new HttpError(
+                400,
+                "INVALID_REQUEST",
+                `Upload file ${upload.fileName} could not be read.`,
+            );
         }
 
         try {
             return await fs.readFile(filePath);
         } catch {
-            throw new HttpError(400, "INVALID_REQUEST", `Upload file ${upload.fileName} could not be read.`);
+            throw new HttpError(
+                400,
+                "INVALID_REQUEST",
+                `Upload file ${upload.fileName} could not be read.`,
+            );
         }
     }
 
-    private async persistUploadToPath(upload: UploadInput, destinationPath: string): Promise<void> {
+    private async persistUploadToPath(
+        upload: UploadInput,
+        destinationPath: string,
+    ): Promise<void> {
         if (upload.bytes !== undefined) {
             await fs.writeFile(destinationPath, upload.bytes);
             return;
@@ -1287,21 +1473,36 @@ export class SessionManager {
 
         const filePath = upload.filePath;
         if (!filePath) {
-            throw new HttpError(400, "INVALID_REQUEST", `Upload file ${upload.fileName} could not be saved.`);
+            throw new HttpError(
+                400,
+                "INVALID_REQUEST",
+                `Upload file ${upload.fileName} could not be saved.`,
+            );
         }
 
         try {
             await fs.copyFile(filePath, destinationPath);
         } catch {
-            throw new HttpError(400, "INVALID_REQUEST", `Upload file ${upload.fileName} could not be saved.`);
+            throw new HttpError(
+                400,
+                "INVALID_REQUEST",
+                `Upload file ${upload.fileName} could not be saved.`,
+            );
         }
     }
 
     private async consumeGenerator(
         session: SessionRuntime,
-        generator: AsyncGenerator<IntermediateAgentResponse, HandleMessageResult, void>
+        generator: AsyncGenerator<
+            IntermediateAgentResponse,
+            HandleMessageResult,
+            void
+        >,
     ) {
-        let result: IteratorResult<IntermediateAgentResponse, HandleMessageResult>;
+        let result: IteratorResult<
+            IntermediateAgentResponse,
+            HandleMessageResult
+        >;
 
         while (true) {
             while (!(result = await generator.next()).done) {
@@ -1309,15 +1510,22 @@ export class SessionManager {
             }
 
             if (result.value.type === "agentResponse") {
-                const text = extractAllTextFromComplexResponse(result.value.content.content);
-                const attachments = await this.registerSharedFiles(session, result.value.content.sharedFiles ?? []);
-                const responseMessageId = (result.value.content as { id?: string }).id ?? crypto.randomUUID();
+                const text = extractAllTextFromComplexResponse(
+                    result.value.content.content,
+                );
+                const attachments = await this.registerSharedFiles(
+                    session,
+                    result.value.content.sharedFiles ?? [],
+                );
+                const responseMessageId =
+                    (result.value.content as { id?: string }).id ??
+                    crypto.randomUUID();
                 this.emitEvent(session, {
                     type: "agent_response",
                     agentName: session.orchestrator.currentAgent.name,
                     messageId: responseMessageId,
                     markdown: text,
-                    attachments
+                    attachments,
                 });
                 return;
             }
@@ -1327,7 +1535,7 @@ export class SessionManager {
             this.emitEvent(session, {
                 type: "tool_request",
                 payload: pendingPayload,
-                requiresApproval: !session.continuousMode
+                requiresApproval: !session.continuousMode,
             });
 
             if (!session.continuousMode) {
@@ -1337,16 +1545,21 @@ export class SessionManager {
 
             generator = session.orchestrator.handleMessage(
                 {
-                    input: null
+                    input: null,
                 },
-                session.sessionId
+                session.sessionId,
             );
         }
     }
 
-    private async handleIntermediateResponse(session: SessionRuntime, chainResponse: IntermediateAgentResponse) {
+    private async handleIntermediateResponse(
+        session: SessionRuntime,
+        chainResponse: IntermediateAgentResponse,
+    ) {
         if (chainResponse.value.type === "messageChunk") {
-            const chunkText = extractAllTextFromComplexResponse(chainResponse.value.content);
+            const chunkText = extractAllTextFromComplexResponse(
+                chainResponse.value.content,
+            );
             if (chunkText.length === 0) {
                 return;
             }
@@ -1355,7 +1568,7 @@ export class SessionManager {
                 type: "agent_response_chunk",
                 agentName: chainResponse.agentName,
                 messageId: chainResponse.value.id,
-                markdownChunk: chunkText
+                markdownChunk: chunkText,
             });
             return;
         }
@@ -1367,13 +1580,18 @@ export class SessionManager {
                 agentName: chainResponse.agentName,
                 toolName: chainResponse.value.toolResponse.name,
                 toolCallId: chainResponse.value.toolResponse.id,
-                response: extractAllTextFromComplexResponse(chainResponse.value.toolResponse.response)
+                response: extractAllTextFromComplexResponse(
+                    chainResponse.value.toolResponse.response,
+                ),
             });
             return;
         }
     }
 
-    private async registerSharedFiles(session: SessionRuntime, sharedFiles: SharedFile[]): Promise<DownloadableFile[]> {
+    private async registerSharedFiles(
+        session: SessionRuntime,
+        sharedFiles: SharedFile[],
+    ): Promise<DownloadableFile[]> {
         const results: DownloadableFile[] = [];
 
         for (const file of sharedFiles) {
@@ -1381,19 +1599,21 @@ export class SessionManager {
             session.fileRegistry.set(fileId, {
                 fileId,
                 fileName: file.fileName,
-                absolutePath: file.url
+                absolutePath: file.url,
             });
 
             results.push({
                 fileId,
-                fileName: file.fileName
+                fileName: file.fileName,
             });
         }
 
         return results;
     }
 
-    private toToolRequestPayload(toolRequest: AgentToolRequestTwo): ToolRequestPayload {
+    private toToolRequestPayload(
+        toolRequest: AgentToolRequestTwo,
+    ): ToolRequestPayload {
         return {
             messageId: toolRequest.id,
             callingAgent: toolRequest.callingAgent,
@@ -1401,15 +1621,15 @@ export class SessionManager {
             toolCalls: (toolRequest.toolCalls ?? []).map((toolCall) => ({
                 id: toolCall.id,
                 toolName: toolCall.toolName,
-                input: toolCall.input
-            }))
+                input: toolCall.input,
+            })),
         };
     }
 
     private configurePluginRuntimeStorage(
         sessionId: string,
         pluginRuntime: SessionPluginRuntimeController,
-        pluginStateStore: DiskPluginStateStore
+        pluginStateStore: DiskPluginStateStore,
     ): void {
         pluginRuntime.configure({
             stateStore: pluginStateStore,
@@ -1418,32 +1638,35 @@ export class SessionManager {
                     this.store?.savePluginNotification(sessionId, notification);
                 },
                 deleteNotifications: (notificationIds) => {
-                    this.store?.deletePluginNotifications(sessionId, notificationIds);
+                    this.store?.deletePluginNotifications(
+                        sessionId,
+                        notificationIds,
+                    );
                 },
                 clearNotifications: () => {
                     this.store?.clearPluginNotifications(sessionId);
-                }
-            }
+                },
+            },
         });
     }
 
     private attachPluginRuntime(session: SessionRuntime) {
         session.pluginRuntime.attach({
             emitEvent: (event) => this.emitPluginRuntimeEvent(session, event),
-            emitStateChanged: () => this.emitStateChanged(session)
+            emitStateChanged: () => this.emitStateChanged(session),
         });
     }
 
     private emitStateChanged(session: SessionRuntime) {
         this.emitEvent(session, {
             type: "state_changed",
-            state: this.toSessionState(session)
+            state: this.toSessionState(session),
         });
     }
 
     private emitPluginRuntimeEvent(
         session: SessionRuntime,
-        event: PluginRuntimeSessionEventPayload
+        event: PluginRuntimeSessionEventPayload,
     ): void {
         if (event.type === "plugin_state" || event.type === "plugin_log") {
             this.emitTransientEvent(session, event);
@@ -1453,12 +1676,16 @@ export class SessionManager {
         this.emitEvent(session, event);
     }
 
-    private emitTransientEvent(session: SessionRuntime, event: SessionEventPayload, options: EmitEventOptions = {}) {
+    private emitTransientEvent(
+        session: SessionRuntime,
+        event: SessionEventPayload,
+        options: EmitEventOptions = {},
+    ) {
         const enriched = {
             ...event,
             id: crypto.randomUUID(),
             sessionId: session.sessionId,
-            timestamp: options.timestamp ?? new Date().toISOString()
+            timestamp: options.timestamp ?? new Date().toISOString(),
         } as unknown as SessionEvent;
 
         for (const listener of session.subscribers) {
@@ -1466,21 +1693,25 @@ export class SessionManager {
         }
     }
 
-    private emitEvent(session: SessionRuntime, event: SessionEventPayload, options: EmitEventOptions = {}) {
+    private emitEvent(
+        session: SessionRuntime,
+        event: SessionEventPayload,
+        options: EmitEventOptions = {},
+    ) {
         const eventTimestamp = options.timestamp ?? new Date().toISOString();
         const enriched = {
             ...event,
             id: crypto.randomUUID(),
             sessionId: session.sessionId,
-            timestamp: eventTimestamp
+            timestamp: eventTimestamp,
         } as unknown as SessionEvent;
 
         if (!options.preserveLastActivity) {
             session.lastActivityAt = Date.now();
-        }
-        const discoveredTimestampMs = Date.parse(eventTimestamp);
-        if (Number.isFinite(discoveredTimestampMs)) {
-            this.upsertDiscoveredSession(session.sessionId, discoveredTimestampMs);
+            this.store?.updateSessionActivity(
+                session.sessionId,
+                session.lastActivityAt,
+            );
         }
         if (
             enriched.type === "agent_response" ||
@@ -1496,7 +1727,9 @@ export class SessionManager {
 
             if (messageIdStr) {
                 session.eventBuffer = session.eventBuffer.filter(
-                    (e) => e.type !== "agent_response_chunk" || (e as any).messageId !== messageIdStr
+                    (e) =>
+                        e.type !== "agent_response_chunk" ||
+                        (e as any).messageId !== messageIdStr,
                 );
             }
         }
@@ -1510,13 +1743,19 @@ export class SessionManager {
         }
     }
 
-    private persistPluginRuntimeEvent(session: SessionRuntime, event: SessionEvent): void {
-        if (event.type !== "plugin_event" && event.type !== "plugin_notification") {
+    private persistPluginRuntimeEvent(
+        session: SessionRuntime,
+        event: SessionEvent,
+    ): void {
+        if (
+            event.type !== "plugin_event" &&
+            event.type !== "plugin_notification"
+        ) {
             return;
         }
 
         this.store?.appendPluginRuntimeEvent(session.sessionId, event, {
-            retentionLimit: SESSION_EVENT_CAP
+            retentionLimit: SESSION_EVENT_CAP,
         });
     }
 
@@ -1529,7 +1768,9 @@ export class SessionManager {
         }
 
         while (structuralCount > SESSION_EVENT_CAP) {
-            const targetIndex = session.eventBuffer.findIndex((e) => e.type !== "agent_response_chunk");
+            const targetIndex = session.eventBuffer.findIndex(
+                (e) => e.type !== "agent_response_chunk",
+            );
             if (targetIndex !== -1) {
                 session.eventBuffer.splice(targetIndex, 1);
                 structuralCount--;
@@ -1544,9 +1785,16 @@ export class SessionManager {
         }
     }
 
-    private async withSessionLock<T>(session: SessionRuntime, operation: () => Promise<T>): Promise<T> {
+    private async withSessionLock<T>(
+        session: SessionRuntime,
+        operation: () => Promise<T>,
+    ): Promise<T> {
         if (session.running) {
-            throw new HttpError(409, "SESSION_BUSY", "Session is already processing another request.");
+            throw new HttpError(
+                409,
+                "SESSION_BUSY",
+                "Session is already processing another request.",
+            );
         }
 
         session.running = true;
@@ -1556,11 +1804,20 @@ export class SessionManager {
         try {
             return await operation();
         } catch (error) {
-            const normalized = error instanceof HttpError ? error : new HttpError(500, "INTERNAL_ERROR", error instanceof Error ? error.message : "Unexpected error");
+            const normalized =
+                error instanceof HttpError
+                    ? error
+                    : new HttpError(
+                          500,
+                          "INTERNAL_ERROR",
+                          error instanceof Error
+                              ? error.message
+                              : "Unexpected error",
+                      );
             this.emitEvent(session, {
                 type: "error",
                 message: normalized.message,
-                code: normalized.code
+                code: normalized.code,
             });
             throw normalized;
         } finally {
@@ -1574,10 +1831,31 @@ export class SessionManager {
     private requireSession(sessionId: string): SessionRuntime {
         const session = this.sessions.get(sessionId);
         if (!session) {
-            throw new HttpError(404, "SESSION_NOT_FOUND", `Session \"${sessionId}\" was not found.`);
+            throw new HttpError(
+                404,
+                "SESSION_NOT_FOUND",
+                `Session \"${sessionId}\" was not found.`,
+            );
         }
 
         return session;
+    }
+
+    private toStoredSessionRecord(
+        session: SessionRuntime,
+    ): StoredSessionRecord {
+        return {
+            sessionId: session.sessionId,
+            name: session.name,
+            createdAtMs: session.createdAt,
+            lastActivityAtMs: session.lastActivityAt,
+            agentName: session.agentName,
+            continuousMode: session.continuousMode,
+        };
+    }
+
+    private persistSessionMetadata(session: SessionRuntime): void {
+        this.store?.upsertSession(this.toStoredSessionRecord(session));
     }
 
     private toSessionSummary(session: SessionRuntime): SessionSummary {
@@ -1586,24 +1864,29 @@ export class SessionManager {
             name: session.name,
             createdAt: new Date(session.createdAt).toISOString(),
             lastActivityAt: new Date(session.lastActivityAt).toISOString(),
-            activeAgentName: session.activeAgentName,
+            agentName: session.agentName,
             continuousMode: session.continuousMode,
-            hasPendingToolRequest: session.pendingToolRequest !== null
+            hasPendingToolRequest: session.pendingToolRequest !== null,
         };
     }
 
     private toSessionState(session: SessionRuntime): SessionState {
         return {
             ...this.toSessionSummary(session),
-            agentNames: [...session.agentNames],
-            pendingToolRequest: session.pendingToolRequest ? this.toToolRequestPayload(session.pendingToolRequest) : undefined,
-            pendingNotificationCount: session.pluginRuntime.unreadCount()
+            pendingToolRequest: session.pendingToolRequest
+                ? this.toToolRequestPayload(session.pendingToolRequest)
+                : undefined,
+            pendingNotificationCount: session.pluginRuntime.unreadCount(),
         };
     }
 
     private isImageMimeType(mimeType: string): boolean {
         const normalized = mimeType.toLowerCase();
-        return normalized === "image/png" || normalized === "image/jpeg" || normalized === "image/jpg";
+        return (
+            normalized === "image/png" ||
+            normalized === "image/jpeg" ||
+            normalized === "image/jpg"
+        );
     }
 
     private sanitizeFileName(fileName: string, prefix: string): string {
@@ -1617,7 +1900,10 @@ export class SessionManager {
         return shortened;
     }
 
-    private makeUniqueFileName(registry: Set<string>, fileName: string): string {
+    private makeUniqueFileName(
+        registry: Set<string>,
+        fileName: string,
+    ): string {
         if (!registry.has(fileName)) {
             registry.add(fileName);
             return fileName;
@@ -1640,7 +1926,10 @@ export class SessionManager {
     private async cleanupExpiredSessions() {
         const now = Date.now();
         const expired = [...this.sessions.values()].filter(
-            (session) => !session.running && session.subscribers.size === 0 && now - session.lastActivityAt > this.sessionTtlMs
+            (session) =>
+                !session.running &&
+                session.subscribers.size === 0 &&
+                now - session.lastActivityAt > this.sessionTtlMs,
         );
 
         for (const session of expired) {
@@ -1655,33 +1944,45 @@ export class SessionManager {
             await this.suspendSessionRuntime(session);
         }
         this.store?.close();
-        const { checkpointer } = await this.getRuntimeConfig();
-        checkpointer.db.close();
     }
 
-    private async suspendSessionRuntime(session: SessionRuntime): Promise<void> {
+    private async suspendSessionRuntime(
+        session: SessionRuntime,
+    ): Promise<void> {
         this.sessions.delete(session.sessionId);
         this.sessionHydrationPromises.delete(session.sessionId);
         session.subscribers.clear();
         session.pluginRuntime.detach();
         await session.pluginRuntime.clearPluginStates();
         await session.orchestrator.shutDown();
+        session.checkpointer.db.close();
     }
 
-    private async disposeSession(session: SessionRuntime, options: { removeDiscovery?: boolean } = {}): Promise<void> {
+    private async disposeSession(
+        session: SessionRuntime,
+        options: { removeCatalog?: boolean } = {},
+    ): Promise<void> {
         await this.suspendSessionRuntime(session);
-        if (options.removeDiscovery) {
-            this.discoveredSessions.delete(session.sessionId);
+        if (options.removeCatalog) {
             this.store?.deleteSession(session.sessionId);
         }
-        await fs.rm(session.cleanupPath, { recursive: true, force: true }).catch(() => {
+        await fs
+            .rm(session.cleanupPath, { recursive: true, force: true })
+            .catch(() => {
             return;
         });
     }
 }
 
-export function createSessionManager(options: SessionManagerOptions = {}): SessionManager {
+export function createSessionManager(
+    options: SessionManagerOptions = {},
+): SessionManager {
     return new SessionManager(options);
 }
 
-export type { UploadInput, SendMessageInput, UploadLimits, SessionManagerOptions };
+export type {
+    UploadInput,
+    SendMessageInput,
+    UploadLimits,
+    SessionManagerOptions,
+};

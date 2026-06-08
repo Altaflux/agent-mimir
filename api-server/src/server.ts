@@ -22,7 +22,7 @@ import type {
     SessionEvent,
     ToggleContinuousModeRequest,
     ToggleContinuousModeResponse,
-    StopSessionResponse
+    StopSessionResponse,
 } from "@mimir/api-contracts/contracts";
 import {
     createSessionManager,
@@ -30,7 +30,7 @@ import {
     type SessionManager,
     type SessionManagerOptions,
     type UploadInput,
-    type UploadLimits
+    type UploadLimits,
 } from "@mimir/runtime-shared/runtime/session-manager";
 import { HttpError, toHttpError } from "@mimir/runtime-shared/runtime/errors";
 import { requireBoolean } from "@mimir/runtime-shared/runtime/validators";
@@ -96,7 +96,11 @@ function normalizeError(error: unknown): HttpError {
     }
 
     if (typeof error === "object" && error !== null) {
-        const withStatus = error as { statusCode?: unknown; code?: unknown; message?: unknown };
+        const withStatus = error as {
+            statusCode?: unknown;
+            code?: unknown;
+            message?: unknown;
+        };
         if (typeof withStatus.statusCode === "number") {
             const code =
                 typeof withStatus.code === "string"
@@ -105,7 +109,8 @@ function normalizeError(error: unknown): HttpError {
                         ? "INTERNAL_ERROR"
                         : "INVALID_REQUEST";
             const message =
-                typeof withStatus.message === "string" && withStatus.message.length > 0
+                typeof withStatus.message === "string" &&
+                withStatus.message.length > 0
                     ? withStatus.message
                     : "Unexpected error";
             return new HttpError(withStatus.statusCode, code, message);
@@ -119,16 +124,23 @@ function getServiceTokenSettings(options: ApiServerOptions): {
     serviceToken: string;
     enforceServiceToken: boolean;
 } {
-    const serviceToken = (options.serviceToken ?? process.env.MIMIR_API_SERVICE_TOKEN ?? "").trim();
-    const enforceServiceToken = options.enforceServiceToken ?? process.env.NODE_ENV !== "development";
+    const serviceToken = (
+        options.serviceToken ??
+        process.env.MIMIR_API_SERVICE_TOKEN ??
+        ""
+    ).trim();
+    const enforceServiceToken =
+        options.enforceServiceToken ?? process.env.NODE_ENV !== "development";
 
     if (enforceServiceToken && serviceToken.length === 0) {
-        throw new Error("MIMIR_API_SERVICE_TOKEN must be set when service-token auth is enforced.");
+        throw new Error(
+            "MIMIR_API_SERVICE_TOKEN must be set when service-token auth is enforced.",
+        );
     }
 
     return {
         serviceToken,
-        enforceServiceToken
+        enforceServiceToken,
     };
 }
 
@@ -136,7 +148,10 @@ function encodeSseChunk(payload: SessionEvent): string {
     return `data: ${JSON.stringify(payload)}\n\n`;
 }
 
-function parseOptionalPositiveInt(raw: string | undefined, label: string): number | undefined {
+function parseOptionalPositiveInt(
+    raw: string | undefined,
+    label: string,
+): number | undefined {
     if (!raw) {
         return undefined;
     }
@@ -149,7 +164,10 @@ function parseOptionalPositiveInt(raw: string | undefined, label: string): numbe
     return parsed;
 }
 
-function normalizeOptionalPositiveInt(value: number | undefined, label: string): number | undefined {
+function normalizeOptionalPositiveInt(
+    value: number | undefined,
+    label: string,
+): number | undefined {
     if (value === undefined) {
         return undefined;
     }
@@ -165,30 +183,54 @@ function getApiUploadLimits(options: ApiServerOptions): ApiUploadLimits {
     const optionUploadLimits = options.uploadLimits;
 
     const maxFilesPerTurn =
-        normalizeOptionalPositiveInt(optionUploadLimits?.maxFilesPerTurn, "uploadLimits.maxFilesPerTurn") ??
-        parseOptionalPositiveInt(process.env.MIMIR_API_MAX_FILES_PER_TURN, "MIMIR_API_MAX_FILES_PER_TURN") ??
+        normalizeOptionalPositiveInt(
+            optionUploadLimits?.maxFilesPerTurn,
+            "uploadLimits.maxFilesPerTurn",
+        ) ??
+        parseOptionalPositiveInt(
+            process.env.MIMIR_API_MAX_FILES_PER_TURN,
+            "MIMIR_API_MAX_FILES_PER_TURN",
+        ) ??
         10;
 
     const maxFileSizeBytes =
-        normalizeOptionalPositiveInt(optionUploadLimits?.maxFileSizeBytes, "uploadLimits.maxFileSizeBytes") ??
-        parseOptionalPositiveInt(process.env.MIMIR_API_MAX_FILE_SIZE_BYTES, "MIMIR_API_MAX_FILE_SIZE_BYTES") ??
+        normalizeOptionalPositiveInt(
+            optionUploadLimits?.maxFileSizeBytes,
+            "uploadLimits.maxFileSizeBytes",
+        ) ??
+        parseOptionalPositiveInt(
+            process.env.MIMIR_API_MAX_FILE_SIZE_BYTES,
+            "MIMIR_API_MAX_FILE_SIZE_BYTES",
+        ) ??
         25 * 1024 * 1024;
 
     const maxMultipartFields =
-        normalizeOptionalPositiveInt(optionUploadLimits?.maxMultipartFields, "uploadLimits.maxMultipartFields") ??
-        parseOptionalPositiveInt(process.env.MIMIR_API_MULTIPART_MAX_FIELDS, "MIMIR_API_MULTIPART_MAX_FIELDS") ??
+        normalizeOptionalPositiveInt(
+            optionUploadLimits?.maxMultipartFields,
+            "uploadLimits.maxMultipartFields",
+        ) ??
+        parseOptionalPositiveInt(
+            process.env.MIMIR_API_MULTIPART_MAX_FIELDS,
+            "MIMIR_API_MULTIPART_MAX_FIELDS",
+        ) ??
         DEFAULT_MAX_MULTIPART_FIELDS;
 
     const bodyLimitBytes =
-        normalizeOptionalPositiveInt(optionUploadLimits?.bodyLimitBytes, "uploadLimits.bodyLimitBytes") ??
-        parseOptionalPositiveInt(process.env.MIMIR_API_BODY_LIMIT_BYTES, "MIMIR_API_BODY_LIMIT_BYTES") ??
+        normalizeOptionalPositiveInt(
+            optionUploadLimits?.bodyLimitBytes,
+            "uploadLimits.bodyLimitBytes",
+        ) ??
+        parseOptionalPositiveInt(
+            process.env.MIMIR_API_BODY_LIMIT_BYTES,
+            "MIMIR_API_BODY_LIMIT_BYTES",
+        ) ??
         DEFAULT_API_BODY_LIMIT_BYTES;
 
     return {
         maxFilesPerTurn,
         maxFileSizeBytes,
         maxMultipartFields,
-        bodyLimitBytes
+        bodyLimitBytes,
     };
 }
 
@@ -205,54 +247,67 @@ function sanitizeStagedUploadName(fileName: string): string {
 function withAttachmentLinks(
     attachments: DownloadableFile[],
     sessionId: string,
-    publicApiBasePath: string
+    publicApiBasePath: string,
 ): DownloadableFile[] {
     return attachments.map((file) => ({
         ...file,
-        href: file.href ?? `${publicApiBasePath}/sessions/${sessionId}/files/${file.fileId}`
+        href:
+            file.href ??
+            `${publicApiBasePath}/sessions/${sessionId}/files/${file.fileId}`,
     }));
 }
 
-function enrichSessionEventForClient(event: SessionEvent, publicApiBasePath: string): SessionEvent {
+function enrichSessionEventForClient(
+    event: SessionEvent,
+    publicApiBasePath: string,
+): SessionEvent {
     if (event.type === "agent_response") {
         return {
             ...event,
-            attachments: withAttachmentLinks(event.attachments, event.sessionId, publicApiBasePath)
+            attachments: withAttachmentLinks(
+                event.attachments,
+                event.sessionId,
+                publicApiBasePath,
+            ),
         };
     }
 
     return event;
 }
 
-export async function createApiServer(options: ApiServerOptions = {}): Promise<FastifyInstance> {
-    const prefix = normalizePathPrefix(options.prefix ?? process.env.MIMIR_API_PREFIX ?? "/v1");
-    const { serviceToken, enforceServiceToken } = getServiceTokenSettings(options);
+export async function createApiServer(
+    options: ApiServerOptions = {},
+): Promise<FastifyInstance> {
+    const prefix = normalizePathPrefix(
+        options.prefix ?? process.env.MIMIR_API_PREFIX ?? "/v1",
+    );
+    const { serviceToken, enforceServiceToken } =
+        getServiceTokenSettings(options);
     const uploadLimits = getApiUploadLimits(options);
     const publicApiBasePath = getPublicApiBasePath();
-    const sessionManager =
-        createSessionManager({
+    const sessionManager = createSessionManager({
             ...(options.sessionManagerOptions ?? {}),
             uploadLimits: {
                 maxFilesPerTurn: uploadLimits.maxFilesPerTurn,
-                maxFileSizeBytes: uploadLimits.maxFileSizeBytes
-            }
+            maxFileSizeBytes: uploadLimits.maxFileSizeBytes,
+        },
         });
 
     const activeStreams = new Set<() => void>();
 
     const app = Fastify({
         logger: {
-            level: process.env.MIMIR_LOG_LEVEL ?? "info"
+            level: process.env.MIMIR_LOG_LEVEL ?? "info",
         },
-        bodyLimit: uploadLimits.bodyLimitBytes
+        bodyLimit: uploadLimits.bodyLimitBytes,
     });
 
     await app.register(multipart, {
         limits: {
             files: uploadLimits.maxFilesPerTurn,
             fileSize: uploadLimits.maxFileSizeBytes,
-            fields: uploadLimits.maxMultipartFields
-        }
+            fields: uploadLimits.maxMultipartFields,
+        },
     });
 
     app.addHook("onClose", async () => {
@@ -278,8 +333,8 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
         reply.status(normalized.status).send({
             error: {
                 code: normalized.code,
-                message: normalized.message
-            }
+                message: normalized.message,
+            },
         });
     });
 
@@ -294,15 +349,22 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
     await app.register(
         async (api) => {
             api.addHook("preHandler", async (request) => {
-                const shouldValidate = enforceServiceToken || serviceToken.length > 0;
+                const shouldValidate =
+                    enforceServiceToken || serviceToken.length > 0;
                 if (!shouldValidate) {
                     return;
                 }
 
                 const providedHeader = request.headers["x-mimir-service-token"];
-                const provided = Array.isArray(providedHeader) ? providedHeader[0] : providedHeader;
+                const provided = Array.isArray(providedHeader)
+                    ? providedHeader[0]
+                    : providedHeader;
                 if (provided !== serviceToken) {
-                    throw new HttpError(401, "UNAUTHORIZED", "Invalid or missing service token.");
+                    throw new HttpError(
+                        401,
+                        "UNAUTHORIZED",
+                        "Invalid or missing service token.",
+                    );
                 }
             });
 
@@ -314,7 +376,7 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
 
             api.get("/sessions", async (_request, reply) => {
                 const response: ListSessionsResponse = {
-                    sessions: await sessionManager.listSessions()
+                    sessions: await sessionManager.listSessions(),
                 };
                 reply.header("Cache-Control", "no-store");
                 reply.send(response);
@@ -322,138 +384,212 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
 
             api.post("/sessions", async (request, reply) => {
                 const payload = (request.body ?? {}) as CreateSessionRequest;
-                const session = await sessionManager.createSession(payload.name, payload.agentName);
+                const session = await sessionManager.createSession(
+                    payload.name,
+                    payload.agentName,
+                );
                 const response: CreateSessionResponse = { session };
                 reply.status(201).send(response);
             });
 
-            api.delete<{ Params: { sessionId: string } }>("/sessions/:sessionId", async (request, reply) => {
-                await sessionManager.deleteSession(request.params.sessionId);
+            api.delete<{ Params: { sessionId: string } }>(
+                "/sessions/:sessionId",
+                async (request, reply) => {
+                    await sessionManager.deleteSession(
+                        request.params.sessionId,
+                    );
                 const response: DeleteSessionResponse = { deleted: true };
                 reply.send(response);
-            });
+                },
+            );
 
-            api.post<{ Params: { sessionId: string } }>("/sessions/:sessionId/reset", async (request, reply) => {
-                const session = await sessionManager.resetSession(request.params.sessionId);
+            api.post<{ Params: { sessionId: string } }>(
+                "/sessions/:sessionId/reset",
+                async (request, reply) => {
+                    const session = await sessionManager.resetSession(
+                        request.params.sessionId,
+                    );
                 const response: ResetSessionResponse = { session };
                 reply.send(response);
-            });
+                },
+            );
 
-            api.post<{ Params: { sessionId: string } }>("/sessions/:sessionId/stop", async (request, reply) => {
-                const session = await sessionManager.stopSession(request.params.sessionId);
+            api.post<{ Params: { sessionId: string } }>(
+                "/sessions/:sessionId/stop",
+                async (request, reply) => {
+                    const session = await sessionManager.stopSession(
+                        request.params.sessionId,
+                    );
                 const response: StopSessionResponse = { session };
                 reply.send(response);
-            });
+                },
+            );
 
-            api.post<{ Params: { sessionId: string } }>("/sessions/:sessionId/continuous-mode", async (request, reply) => {
+            api.post<{ Params: { sessionId: string } }>(
+                "/sessions/:sessionId/continuous-mode",
+                async (request, reply) => {
                 const payload = request.body as ToggleContinuousModeRequest;
                 const enabled = requireBoolean(payload.enabled, "enabled");
-                const session = await sessionManager.setContinuousMode(request.params.sessionId, enabled);
+                    const session = await sessionManager.setContinuousMode(
+                        request.params.sessionId,
+                        enabled,
+                    );
                 const response: ToggleContinuousModeResponse = { session };
                 reply.send(response);
-            });
+                },
+            );
 
-            api.post<{ Params: { sessionId: string } }>("/sessions/:sessionId/approval", async (request, reply) => {
+            api.post<{ Params: { sessionId: string } }>(
+                "/sessions/:sessionId/approval",
+                async (request, reply) => {
                 const payload = request.body as ApprovalRequest;
-                if (payload.action !== "approve" && payload.action !== "disapprove") {
-                    throw new HttpError(400, "INVALID_REQUEST", "action must be either 'approve' or 'disapprove'.");
+                    if (
+                        payload.action !== "approve" &&
+                        payload.action !== "disapprove"
+                    ) {
+                        throw new HttpError(
+                            400,
+                            "INVALID_REQUEST",
+                            "action must be either 'approve' or 'disapprove'.",
+                        );
                 }
 
-                const session = await sessionManager.submitApproval(request.params.sessionId, payload);
+                    const session = await sessionManager.submitApproval(
+                        request.params.sessionId,
+                        payload,
+                    );
                 const response: ApprovalResponse = { session };
                 reply.send(response);
-            });
+                },
+            );
 
-            api.post<{ Params: { sessionId: string } }>("/sessions/:sessionId/notifications/process", async (request, reply) => {
-                const session = await sessionManager.processNotifications(request.params.sessionId);
+            api.post<{ Params: { sessionId: string } }>(
+                "/sessions/:sessionId/notifications/process",
+                async (request, reply) => {
+                    const session = await sessionManager.processNotifications(
+                        request.params.sessionId,
+                    );
                 const response: ProcessNotificationsResponse = { session };
                 reply.send(response);
-            });
+                },
+            );
 
-            api.get<{ Params: { sessionId: string } }>("/sessions/:sessionId/plugin-states", async (request, reply) => {
-                const states = await sessionManager.listPluginStates(request.params.sessionId);
+            api.get<{ Params: { sessionId: string } }>(
+                "/sessions/:sessionId/plugin-states",
+                async (request, reply) => {
+                    const states = await sessionManager.listPluginStates(
+                        request.params.sessionId,
+                    );
                 const response: ListPluginStatesResponse = { states };
                 reply.header("Cache-Control", "no-store");
                 reply.send(response);
-            });
+                },
+            );
 
-            api.get<{ Params: { sessionId: string; pluginName: string } }>(
-                "/sessions/:sessionId/plugin-states/:pluginName",
+            api.get<{
+                Params: { sessionId: string; pluginInstanceId: string };
+            }>(
+                "/sessions/:sessionId/plugin-states/:pluginInstanceId",
                 async (request, reply) => {
                     const state = await sessionManager.getPluginState(
                         request.params.sessionId,
-                        request.params.pluginName,
-                        publicApiBasePath
+                        request.params.pluginInstanceId,
+                        publicApiBasePath,
                     );
                     const response: GetPluginStateResponse = { state };
                     reply.header("Cache-Control", "no-store");
                     reply.send(response);
-                }
+                },
             );
 
             api.get<{
                 Params: {
                     sessionId: string;
-                    pluginName: string;
+                    pluginInstanceId: string;
                     revision: string;
                     assetId: string;
                 };
             }>(
-                "/sessions/:sessionId/plugin-states/:pluginName/assets/:revision/:assetId",
+                "/sessions/:sessionId/plugin-states/:pluginInstanceId/assets/:revision/:assetId",
                 async (request, reply) => {
                     const asset = await sessionManager.resolvePluginStateAsset(
                         request.params.sessionId,
-                        request.params.pluginName,
+                        request.params.pluginInstanceId,
                         request.params.revision,
-                        request.params.assetId
+                        request.params.assetId,
                     );
                     const fileStats = await fs.stat(asset.absolutePath);
                     const stream = createReadStream(asset.absolutePath);
                     const safeFileName = asset.fileName.replaceAll('"', "");
                     return reply
-                        .header("Content-Disposition", `inline; filename=\"${safeFileName}\"`)
+                        .header(
+                            "Content-Disposition",
+                            `inline; filename=\"${safeFileName}\"`,
+                        )
                         .header("Content-Length", String(fileStats.size))
-                        .type(asset.contentType || inferMimeType(asset.fileName))
+                        .type(
+                            asset.contentType || inferMimeType(asset.fileName),
+                        )
                         .send(stream);
-                }
+                },
             );
 
-            api.post<{ Params: { sessionId: string } }>("/sessions/:sessionId/message", async (request, reply) => {
+            api.post<{ Params: { sessionId: string } }>(
+                "/sessions/:sessionId/message",
+                async (request, reply) => {
                 if (!request.isMultipart()) {
-                    throw new HttpError(415, "INVALID_REQUEST", "Content-Type must be multipart/form-data.");
+                        throw new HttpError(
+                            415,
+                            "INVALID_REQUEST",
+                            "Content-Type must be multipart/form-data.",
+                        );
                 }
 
                 let text = "";
                 const workspaceFiles: UploadInput[] = [];
                 const chatImages: UploadInput[] = [];
-                const stagedUploadsDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "mimir-api-upload-"));
+                    const stagedUploadsDirectory = await fs.mkdtemp(
+                        path.join(os.tmpdir(), "mimir-api-upload-"),
+                    );
 
                 try {
                     for await (const part of request.parts()) {
                         if (part.type === "field") {
                             if (part.fieldname === "message") {
-                                text = typeof part.value === "string" ? part.value : String(part.value ?? "");
+                                    text =
+                                        typeof part.value === "string"
+                                            ? part.value
+                                            : String(part.value ?? "");
                             }
                             continue;
                         }
 
-                        const uploadFileName = part.filename || `${part.fieldname}-${Date.now()}`;
+                            const uploadFileName =
+                                part.filename ||
+                                `${part.fieldname}-${Date.now()}`;
                         const stagedFileName = `${crypto.randomUUID()}-${sanitizeStagedUploadName(uploadFileName)}`;
-                        const stagedFilePath = path.join(stagedUploadsDirectory, stagedFileName);
-                        await pipeline(part.file, createWriteStream(stagedFilePath));
+                            const stagedFilePath = path.join(
+                                stagedUploadsDirectory,
+                                stagedFileName,
+                            );
+                            await pipeline(
+                                part.file,
+                                createWriteStream(stagedFilePath),
+                            );
 
                         if (part.file.truncated) {
                             throw new HttpError(
                                 400,
                                 "FILE_TOO_LARGE",
-                                `File ${uploadFileName} exceeds the ${uploadLimits.maxFileSizeBytes / (1024 * 1024)}MB limit.`
+                                    `File ${uploadFileName} exceeds the ${uploadLimits.maxFileSizeBytes / (1024 * 1024)}MB limit.`,
                             );
                         }
 
                         const upload: UploadInput = {
                             fileName: uploadFileName,
-                            contentType: part.mimetype || "application/octet-stream",
-                            filePath: stagedFilePath
+                                contentType:
+                                    part.mimetype || "application/octet-stream",
+                                filePath: stagedFilePath,
                         };
 
                         if (part.fieldname === "workspaceFiles") {
@@ -466,39 +602,66 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
                         }
                     }
 
-                    if (workspaceFiles.length + chatImages.length > uploadLimits.maxFilesPerTurn) {
-                        throw new HttpError(400, "TOO_MANY_FILES", `Maximum ${uploadLimits.maxFilesPerTurn} files per message.`);
+                        if (
+                            workspaceFiles.length + chatImages.length >
+                            uploadLimits.maxFilesPerTurn
+                        ) {
+                            throw new HttpError(
+                                400,
+                                "TOO_MANY_FILES",
+                                `Maximum ${uploadLimits.maxFilesPerTurn} files per message.`,
+                            );
                     }
 
                     const payload: SendMessageInput = {
                         text,
                         workspaceFiles,
-                        chatImages
+                            chatImages,
                     };
 
-                    const session = await sessionManager.sendMessage(request.params.sessionId, payload);
+                        const session = await sessionManager.sendMessage(
+                            request.params.sessionId,
+                            payload,
+                        );
                     const response: SendMessageResponse = { session };
                     reply.send(response);
                 } finally {
-                    await fs.rm(stagedUploadsDirectory, { recursive: true, force: true }).catch(() => {
+                        await fs
+                            .rm(stagedUploadsDirectory, {
+                                recursive: true,
+                                force: true,
+                            })
+                            .catch(() => {
                         return;
                     });
                 }
-            });
+                },
+            );
 
-            api.get<{ Params: { sessionId: string; fileId: string } }>("/sessions/:sessionId/files/:fileId", async (request, reply) => {
-                const file = await sessionManager.resolveFile(request.params.sessionId, request.params.fileId);
+            api.get<{ Params: { sessionId: string; fileId: string } }>(
+                "/sessions/:sessionId/files/:fileId",
+                async (request, reply) => {
+                    const file = await sessionManager.resolveFile(
+                        request.params.sessionId,
+                        request.params.fileId,
+                    );
                 const fileStats = await fs.stat(file.absolutePath);
                 const stream = createReadStream(file.absolutePath);
                 const safeFileName = file.fileName.replaceAll('"', "");
                 return reply
-                    .header("Content-Disposition", `attachment; filename=\"${safeFileName}\"`)
+                        .header(
+                            "Content-Disposition",
+                            `attachment; filename=\"${safeFileName}\"`,
+                        )
                     .header("Content-Length", String(fileStats.size))
                     .type(inferMimeType(file.fileName))
-                    .send(stream)
-            });
+                        .send(stream);
+                },
+            );
 
-            api.get<{ Params: { sessionId: string } }>("/sessions/:sessionId/stream", async (request, reply) => {
+            api.get<{ Params: { sessionId: string } }>(
+                "/sessions/:sessionId/stream",
+                async (request, reply) => {
                 const { sessionId } = request.params;
 
                 const emitRaw = (chunk: string) => {
@@ -508,18 +671,28 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
                 };
 
                 const emitEvent = (event: SessionEvent) => {
-                    emitRaw(encodeSseChunk(enrichSessionEventForClient(event, publicApiBasePath)));
+                        emitRaw(
+                            encodeSseChunk(
+                                enrichSessionEventForClient(
+                                    event,
+                                    publicApiBasePath,
+                                ),
+                            ),
+                        );
                 };
 
-                const subscription = await sessionManager.subscribe(sessionId, (event) => {
+                    const subscription = await sessionManager.subscribe(
+                        sessionId,
+                        (event) => {
                     emitEvent(event);
-                });
+                        },
+                    );
 
                 reply.hijack();
                 reply.raw.writeHead(200, {
                     "Content-Type": "text/event-stream",
                     Connection: "keep-alive",
-                    "Cache-Control": "no-cache, no-transform"
+                        "Cache-Control": "no-cache, no-transform",
                 });
 
                 emitEvent({
@@ -527,7 +700,7 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
                     sessionId,
                     timestamp: new Date().toISOString(),
                     type: "state_changed",
-                    state: subscription.state
+                        state: subscription.state,
                 });
 
                 for (const event of subscription.backlog) {
@@ -551,9 +724,10 @@ export async function createApiServer(options: ApiServerOptions = {}): Promise<F
 
                 request.raw.on("close", close);
                 request.raw.on("error", close);
-            });
         },
-        { prefix }
+            );
+        },
+        { prefix },
     );
 
     return app;

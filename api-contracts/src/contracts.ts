@@ -22,18 +22,18 @@ export type SessionSummary = {
     name: string;
     createdAt: string;
     lastActivityAt: string;
-    activeAgentName: string;
+    agentName: string;
     continuousMode: boolean;
     hasPendingToolRequest: boolean;
 };
 
 export type SessionState = SessionSummary & {
-    agentNames: string[];
     pendingToolRequest?: ToolRequestPayload;
     pendingNotificationCount: number;
 };
 
 export type PluginStateSummary = {
+    pluginInstanceId: string;
     pluginName: string;
     agentName: string;
     updatedAt: string;
@@ -141,6 +141,7 @@ export type SessionEvent =
         type: "plugin_event";
         toolCallId: string;
         toolName: string;
+          pluginInstanceId: string;
         pluginName: string;
         agentName: string;
         visibility: PluginRuntimeEventVisibility;
@@ -152,6 +153,7 @@ export type SessionEvent =
         timestamp: string;
         type: "plugin_notification";
         notificationId: string;
+          pluginInstanceId: string;
         pluginName: string;
         agentName: string;
         title: string;
@@ -164,6 +166,7 @@ export type SessionEvent =
         sessionId: string;
         timestamp: string;
         type: "plugin_state";
+          pluginInstanceId: string;
         pluginName: string;
         agentName: string;
         updatedAt: string;
@@ -174,6 +177,7 @@ export type SessionEvent =
         sessionId: string;
         timestamp: string;
         type: "plugin_log";
+          pluginInstanceId: string;
         pluginName: string;
         agentName: string;
         text: string;
@@ -197,7 +201,7 @@ export type SessionEvent =
 export type BootstrapResponse = {
     availableAgentNames: string[];
     defaultContinuousMode: boolean;
-    defaultMainAgent: string | null;
+    defaultAgentName: string | null;
 };
 
 export type ListSessionsResponse = {

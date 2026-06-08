@@ -2,20 +2,27 @@ import Database from "better-sqlite3";
 import path from "path";
 import { promises as fs } from "fs";
 import type { SessionEvent } from "../contracts.js";
-import type { PluginNotification } from "@mimir/agent-core/plugins";
+import type { RuntimePluginNotification } from "./plugin-runtime.js";
 
 export type StoredPluginRuntimeEvent = {
     sequence: number;
-    event: Extract<SessionEvent, { type: "plugin_event" | "plugin_notification" }>;
+    event: Extract<
+        SessionEvent,
+        { type: "plugin_event" | "plugin_notification" }
+    >;
 };
 
 export type StoredPluginNotification = {
-    notification: PluginNotification;
+    notification: RuntimePluginNotification;
 };
 
-type PluginSessionActivity = {
-    earliestTimestampMs: number;
-    latestTimestampMs: number;
+export type StoredSessionRecord = {
+    sessionId: string;
+    name: string;
+    createdAtMs: number;
+    lastActivityAtMs: number;
+    agentName: string;
+    continuousMode: boolean;
 };
 
 export class SessionStore {
@@ -27,10 +34,16 @@ export class SessionStore {
         this.db = new Database(dbPath);
         this.db.pragma("journal_mode = WAL");
         this.db.exec(`
-            CREATE TABLE IF NOT EXISTS conversations (
+            CREATE TABLE IF NOT EXISTS sessions (
                 id TEXT PRIMARY KEY,
-                name TEXT NOT NULL
+                name TEXT NOT NULL,
+                created_at_ms INTEGER NOT NULL,
+                last_activity_at_ms INTEGER NOT NULL,
+                agent_name TEXT NOT NULL,
+                continuous_mode INTEGER NOT NULL
             );
+            CREATE INDEX IF NOT EXISTS idx_sessions_last_activity
+                ON sessions(last_activity_at_ms DESC, id ASC);
 
             CREATE TABLE IF NOT EXISTS plugin_runtime_events (
                 sequence INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,6 +55,7 @@ export class SessionStore {
                 tool_call_id TEXT,
                 tool_name TEXT,
                 notification_id TEXT,
+                plugin_instance_id TEXT NOT NULL,
                 plugin_name TEXT NOT NULL,
                 agent_name TEXT NOT NULL,
                 payload_json TEXT NOT NULL
@@ -55,6 +69,7 @@ export class SessionStore {
             CREATE TABLE IF NOT EXISTS plugin_notifications (
                 session_id TEXT NOT NULL,
                 notification_id TEXT NOT NULL,
+                plugin_instance_id TEXT NOT NULL,
                 plugin_name TEXT NOT NULL,
                 agent_name TEXT NOT NULL,
                 created_at INTEGER NOT NULL,
@@ -70,41 +85,142 @@ export class SessionStore {
             CREATE INDEX IF NOT EXISTS idx_plugin_notifications_session_deduplication
                 ON plugin_notifications(session_id, deduplication_id);
         `);
+        this.ensureColumn(
+            "plugin_runtime_events",
+            "plugin_instance_id",
+            "TEXT NOT NULL DEFAULT 'legacy'",
+        );
+        this.ensureColumn(
+            "plugin_notifications",
+            "plugin_instance_id",
+            "TEXT NOT NULL DEFAULT 'legacy'",
+        );
     }
 
-    getAllNames(): Map<string, string> {
+    listSessions(): StoredSessionRecord[] {
         if (!this.db) {
-            return new Map();
+            return [];
         }
 
-        const names = this.db.prepare("SELECT id, name FROM conversations").all() as { id: string; name: string }[];
-        const nameMap = new Map<string, string>();
-        for (const row of names) {
-            nameMap.set(row.id, row.name);
-        }
+        const rows = this.db
+            .prepare(
+                `
+            SELECT id, name, created_at_ms, last_activity_at_ms, agent_name, continuous_mode
+            FROM sessions
+            ORDER BY last_activity_at_ms DESC, id ASC
+        `,
+            )
+            .all() as Array<{
+            id: string;
+            name: string;
+            created_at_ms: number;
+            last_activity_at_ms: number;
+            agent_name: string;
+            continuous_mode: number;
+        }>;
 
-        return nameMap;
+        return rows.map((row) => ({
+            sessionId: row.id,
+            name: row.name,
+            createdAtMs: row.created_at_ms,
+            lastActivityAtMs: row.last_activity_at_ms,
+            agentName: row.agent_name,
+            continuousMode: row.continuous_mode !== 0,
+        }));
     }
 
-    getName(sessionId: string): string | null {
+    getSession(sessionId: string): StoredSessionRecord | null {
         if (!this.db) {
             return null;
         }
 
-        const result = this.db.prepare("SELECT name FROM conversations WHERE id = ?").get(sessionId) as
-            | { name: string }
+        const row = this.db
+            .prepare(
+                `
+            SELECT id, name, created_at_ms, last_activity_at_ms, agent_name, continuous_mode
+            FROM sessions
+            WHERE id = ?
+        `,
+            )
+            .get(sessionId) as
+            | {
+                  id: string;
+                  name: string;
+                  created_at_ms: number;
+                  last_activity_at_ms: number;
+                  agent_name: string;
+                  continuous_mode: number;
+              }
             | undefined;
-        return result?.name ?? null;
+        if (!row) {
+            return null;
+        }
+
+        return {
+            sessionId: row.id,
+            name: row.name,
+            createdAtMs: row.created_at_ms,
+            lastActivityAtMs: row.last_activity_at_ms,
+            agentName: row.agent_name,
+            continuousMode: row.continuous_mode !== 0,
+        };
     }
 
-    upsertName(sessionId: string, name: string): void {
+    upsertSession(record: StoredSessionRecord): void {
         if (!this.db) {
             return;
         }
 
         this.db
-            .prepare("INSERT INTO conversations (id, name) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name")
-            .run(sessionId, name);
+            .prepare(
+                `
+            INSERT INTO sessions (
+                id,
+                name,
+                created_at_ms,
+                last_activity_at_ms,
+                agent_name,
+                continuous_mode
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                created_at_ms = excluded.created_at_ms,
+                last_activity_at_ms = excluded.last_activity_at_ms,
+                agent_name = excluded.agent_name,
+                continuous_mode = excluded.continuous_mode
+        `,
+            )
+            .run(
+                record.sessionId,
+                record.name,
+                record.createdAtMs,
+                record.lastActivityAtMs,
+                record.agentName,
+                record.continuousMode ? 1 : 0,
+            );
+    }
+
+    updateSessionActivity(sessionId: string, lastActivityAtMs: number): void {
+        if (!this.db) {
+            return;
+        }
+
+        this.db
+            .prepare("UPDATE sessions SET last_activity_at_ms = ? WHERE id = ?")
+            .run(lastActivityAtMs, sessionId);
+    }
+
+    updateSessionContinuousMode(
+        sessionId: string,
+        continuousMode: boolean,
+    ): void {
+        if (!this.db) {
+            return;
+        }
+
+        this.db
+            .prepare("UPDATE sessions SET continuous_mode = ? WHERE id = ?")
+            .run(continuousMode ? 1 : 0, sessionId);
     }
 
     deleteSession(sessionId: string): void {
@@ -112,49 +228,35 @@ export class SessionStore {
             return;
         }
 
-        this.db.prepare("DELETE FROM plugin_runtime_events WHERE session_id = ?").run(sessionId);
-        this.db.prepare("DELETE FROM plugin_notifications WHERE session_id = ?").run(sessionId);
-        this.db.prepare("DELETE FROM conversations WHERE id = ?").run(sessionId);
-    }
-
-    getPluginSessionActivity(): Map<string, PluginSessionActivity> {
-        if (!this.db) {
-            return new Map();
-        }
-
-        const rows = this.db.prepare(`
-            SELECT session_id, MIN(timestamp_ms) AS earliestTimestampMs, MAX(timestamp_ms) AS latestTimestampMs
-            FROM (
-                SELECT session_id, timestamp_ms FROM plugin_runtime_events
-                UNION ALL
-                SELECT session_id, created_at AS timestamp_ms FROM plugin_notifications
-            )
-            GROUP BY session_id
-        `).all() as { session_id: string; earliestTimestampMs: number; latestTimestampMs: number }[];
-
-        const activity = new Map<string, PluginSessionActivity>();
-        for (const row of rows) {
-            activity.set(row.session_id, {
-                earliestTimestampMs: row.earliestTimestampMs,
-                latestTimestampMs: row.latestTimestampMs
-            });
-        }
-        return activity;
+        this.db
+            .prepare("DELETE FROM plugin_runtime_events WHERE session_id = ?")
+            .run(sessionId);
+        this.db
+            .prepare("DELETE FROM plugin_notifications WHERE session_id = ?")
+            .run(sessionId);
+        this.db.prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
     }
 
     appendPluginRuntimeEvent(
         sessionId: string,
-        event: Extract<SessionEvent, { type: "plugin_event" | "plugin_notification" }>,
-        options: { retentionLimit: number }
+        event: Extract<
+            SessionEvent,
+            { type: "plugin_event" | "plugin_notification" }
+        >,
+        options: { retentionLimit: number },
     ): void {
         if (!this.db) {
             return;
         }
 
         const timestampMs = Date.parse(event.timestamp);
-        const normalizedTimestampMs = Number.isFinite(timestampMs) ? timestampMs : Date.now();
+        const normalizedTimestampMs = Number.isFinite(timestampMs)
+            ? timestampMs
+            : Date.now();
 
-        this.db.prepare(`
+        this.db
+            .prepare(
+                `
             INSERT INTO plugin_runtime_events (
                 event_id,
                 session_id,
@@ -164,12 +266,15 @@ export class SessionStore {
                 tool_call_id,
                 tool_name,
                 notification_id,
+                plugin_instance_id,
                 plugin_name,
                 agent_name,
                 payload_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(event_id) DO NOTHING
-        `).run(
+        `,
+            )
+            .run(
             event.id,
             sessionId,
             event.timestamp,
@@ -177,10 +282,13 @@ export class SessionStore {
             event.type,
             event.type === "plugin_event" ? event.toolCallId : null,
             event.type === "plugin_event" ? event.toolName : null,
-            event.type === "plugin_notification" ? event.notificationId : null,
+                event.type === "plugin_notification"
+                    ? event.notificationId
+                    : null,
+                event.pluginInstanceId,
             event.pluginName,
             event.agentName,
-            JSON.stringify(event)
+                JSON.stringify(event),
         );
 
         this.prunePluginRuntimeEvents(sessionId, options.retentionLimit);
@@ -191,16 +299,23 @@ export class SessionStore {
             return [];
         }
 
-        const rows = this.db.prepare(`
+        const rows = this.db
+            .prepare(
+                `
             SELECT sequence, payload_json
             FROM plugin_runtime_events
             WHERE session_id = ?
             ORDER BY sequence ASC
-        `).all(sessionId) as { sequence: number; payload_json: string }[];
+        `,
+            )
+            .all(sessionId) as { sequence: number; payload_json: string }[];
 
         return rows.map((row) => ({
             sequence: row.sequence,
-            event: JSON.parse(row.payload_json) as Extract<SessionEvent, { type: "plugin_event" | "plugin_notification" }>
+            event: JSON.parse(row.payload_json) as Extract<
+                SessionEvent,
+                { type: "plugin_event" | "plugin_notification" }
+            >,
         }));
     }
 
@@ -209,18 +324,26 @@ export class SessionStore {
             return;
         }
 
-        this.db.prepare("DELETE FROM plugin_runtime_events WHERE session_id = ?").run(sessionId);
+        this.db
+            .prepare("DELETE FROM plugin_runtime_events WHERE session_id = ?")
+            .run(sessionId);
     }
 
-    savePluginNotification(sessionId: string, notification: PluginNotification): void {
+    savePluginNotification(
+        sessionId: string,
+        notification: RuntimePluginNotification,
+    ): void {
         if (!this.db) {
             return;
         }
 
-        this.db.prepare(`
+        this.db
+            .prepare(
+                `
             INSERT INTO plugin_notifications (
                 session_id,
                 notification_id,
+                plugin_instance_id,
                 plugin_name,
                 agent_name,
                 created_at,
@@ -228,8 +351,9 @@ export class SessionStore {
                 summary,
                 deduplication_id,
                 content_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(session_id, notification_id) DO UPDATE SET
+                plugin_instance_id = excluded.plugin_instance_id,
                 plugin_name = excluded.plugin_name,
                 agent_name = excluded.agent_name,
                 created_at = excluded.created_at,
@@ -237,16 +361,19 @@ export class SessionStore {
                 summary = excluded.summary,
                 deduplication_id = excluded.deduplication_id,
                 content_json = excluded.content_json
-        `).run(
+        `,
+            )
+            .run(
             sessionId,
             notification.id,
+                notification.pluginInstanceId,
             notification.pluginName,
             notification.agentName,
             notification.createdAt,
             notification.title,
             notification.summary ?? null,
             notification.deduplicationId ?? null,
-            JSON.stringify(notification.content)
+                JSON.stringify(notification.content),
         );
     }
 
@@ -255,9 +382,12 @@ export class SessionStore {
             return [];
         }
 
-        const rows = this.db.prepare(`
+        const rows = this.db
+            .prepare(
+                `
             SELECT
                 notification_id,
+                plugin_instance_id,
                 plugin_name,
                 agent_name,
                 created_at,
@@ -268,8 +398,11 @@ export class SessionStore {
             FROM plugin_notifications
             WHERE session_id = ?
             ORDER BY created_at ASC, notification_id ASC
-        `).all(sessionId) as Array<{
+        `,
+            )
+            .all(sessionId) as Array<{
             notification_id: string;
+            plugin_instance_id: string;
             plugin_name: string;
             agent_name: string;
             created_at: number;
@@ -282,23 +415,29 @@ export class SessionStore {
         return rows.map((row) => ({
             notification: {
                 id: row.notification_id,
+                pluginInstanceId: row.plugin_instance_id,
                 pluginName: row.plugin_name,
                 agentName: row.agent_name,
                 createdAt: row.created_at,
                 title: row.title,
                 summary: row.summary ?? undefined,
                 deduplicationId: row.deduplication_id ?? undefined,
-                content: JSON.parse(row.content_json)
-            }
+                content: JSON.parse(row.content_json),
+            },
         }));
     }
 
-    deletePluginNotifications(sessionId: string, notificationIds: string[]): void {
+    deletePluginNotifications(
+        sessionId: string,
+        notificationIds: string[],
+    ): void {
         if (!this.db || notificationIds.length === 0) {
             return;
         }
 
-        const remove = this.db.prepare("DELETE FROM plugin_notifications WHERE session_id = ? AND notification_id = ?");
+        const remove = this.db.prepare(
+            "DELETE FROM plugin_notifications WHERE session_id = ? AND notification_id = ?",
+        );
         const transaction = this.db.transaction((ids: string[]) => {
             for (const id of ids) {
                 remove.run(sessionId, id);
@@ -312,7 +451,9 @@ export class SessionStore {
             return;
         }
 
-        this.db.prepare("DELETE FROM plugin_notifications WHERE session_id = ?").run(sessionId);
+        this.db
+            .prepare("DELETE FROM plugin_notifications WHERE session_id = ?")
+            .run(sessionId);
     }
 
     close(): void {
@@ -320,12 +461,17 @@ export class SessionStore {
         this.db = null;
     }
 
-    private prunePluginRuntimeEvents(sessionId: string, retentionLimit: number): void {
+    private prunePluginRuntimeEvents(
+        sessionId: string,
+        retentionLimit: number,
+    ): void {
         if (!this.db || retentionLimit <= 0) {
             return;
         }
 
-        this.db.prepare(`
+        this.db
+            .prepare(
+                `
             DELETE FROM plugin_runtime_events
             WHERE session_id = ?
               AND sequence NOT IN (
@@ -335,6 +481,29 @@ export class SessionStore {
                   ORDER BY sequence DESC
                   LIMIT ?
               )
-        `).run(sessionId, sessionId, retentionLimit);
+        `,
+            )
+            .run(sessionId, sessionId, retentionLimit);
+    }
+
+    private ensureColumn(
+        tableName: string,
+        columnName: string,
+        definition: string,
+    ): void {
+        if (!this.db) {
+            return;
+        }
+
+        const columns = this.db
+            .prepare(`PRAGMA table_info(${tableName})`)
+            .all() as Array<{ name: string }>;
+        if (columns.some((column) => column.name === columnName)) {
+            return;
+        }
+
+        this.db.exec(
+            `ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`,
+        );
     }
 }

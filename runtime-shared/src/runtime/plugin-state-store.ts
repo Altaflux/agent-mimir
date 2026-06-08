@@ -27,6 +27,7 @@ export type PluginStateAssetFile = {
 };
 
 type PluginStateManifest = {
+    pluginInstanceId: string;
     pluginName: string;
     agentName: string;
     updatedAt: string;
@@ -36,13 +37,17 @@ type PluginStateManifest = {
 };
 
 export class DiskPluginStateStore {
-    constructor(private readonly rootDirectory: string) {
-    }
+    constructor(private readonly rootDirectory: string) {}
 
-    async writeState(pluginName: string, agentName: string, input: PluginStateInput): Promise<PluginStateSummary> {
+    async writeState(
+        pluginInstanceId: string,
+        pluginName: string,
+        agentName: string,
+        input: PluginStateInput,
+    ): Promise<PluginStateSummary> {
         const revision = crypto.randomUUID();
         const updatedAt = new Date().toISOString();
-        const pluginDirectory = this.pluginDirectory(pluginName);
+        const pluginDirectory = this.pluginDirectory(pluginInstanceId);
         const currentDirectory = path.join(pluginDirectory, "current");
         const nextDirectory = path.join(pluginDirectory, `next-${revision}`);
         const assetsDirectory = path.join(nextDirectory, "assets");
@@ -55,11 +60,15 @@ export class DiskPluginStateStore {
             for (const asset of input.assets ?? []) {
                 const assetId = this.validateAssetId(asset.id);
                 if (seenAssetIds.has(assetId)) {
-                    throw new Error(`Duplicate plugin state asset id "${assetId}".`);
+                    throw new Error(
+                        `Duplicate plugin state asset id "${assetId}".`,
+                    );
                 }
                 seenAssetIds.add(assetId);
 
-                const fileName = this.sanitizeFileName(asset.fileName ?? assetId);
+                const fileName = this.sanitizeFileName(
+                    asset.fileName ?? assetId,
+                );
                 const storedFileName = `${assetId}-${fileName}`;
                 const destination = path.join(assetsDirectory, storedFileName);
                 if (asset.bytes !== undefined) {
@@ -71,32 +80,41 @@ export class DiskPluginStateStore {
                 assetRecords.push({
                     id: assetId,
                     fileName,
-                    contentType: asset.contentType?.trim() || "application/octet-stream",
-                    storedFileName
+                    contentType:
+                        asset.contentType?.trim() || "application/octet-stream",
+                    storedFileName,
                 });
             }
 
             const manifest: PluginStateManifest = {
+                pluginInstanceId,
                 pluginName,
                 agentName,
                 updatedAt,
                 revision,
                 markdown: input.markdown,
-                assets: assetRecords
+                assets: assetRecords,
             };
-            await fs.writeFile(path.join(nextDirectory, "state.json"), JSON.stringify(manifest), "utf8");
+            await fs.writeFile(
+                path.join(nextDirectory, "state.json"),
+                JSON.stringify(manifest),
+                "utf8",
+            );
 
             await fs.rm(currentDirectory, { recursive: true, force: true });
             await fs.rename(nextDirectory, currentDirectory);
 
             return {
+                pluginInstanceId,
                 pluginName,
                 agentName,
                 updatedAt,
-                revision
+                revision,
             };
         } catch (error) {
-            await fs.rm(nextDirectory, { recursive: true, force: true }).catch(() => {
+            await fs
+                .rm(nextDirectory, { recursive: true, force: true })
+                .catch(() => {
                 return;
             });
             throw error;
@@ -104,7 +122,9 @@ export class DiskPluginStateStore {
     }
 
     async listStates(): Promise<PluginStateSummary[]> {
-        const pluginDirectories = await fs.readdir(this.rootDirectory, { withFileTypes: true }).catch(() => []);
+        const pluginDirectories = await fs
+            .readdir(this.rootDirectory, { withFileTypes: true })
+            .catch(() => []);
         const states: PluginStateSummary[] = [];
 
         for (const directory of pluginDirectories) {
@@ -112,57 +132,95 @@ export class DiskPluginStateStore {
                 continue;
             }
 
-            const manifest = await this.readManifestFromDirectory(path.join(this.rootDirectory, directory.name, "current"));
+            const manifest = await this.readManifestFromDirectory(
+                path.join(this.rootDirectory, directory.name, "current"),
+            );
             if (!manifest) {
                 continue;
             }
 
             states.push({
+                pluginInstanceId: manifest.pluginInstanceId,
                 pluginName: manifest.pluginName,
                 agentName: manifest.agentName,
                 updatedAt: manifest.updatedAt,
-                revision: manifest.revision
+                revision: manifest.revision,
             });
         }
 
-        states.sort((left, right) => left.pluginName.localeCompare(right.pluginName));
+        states.sort((left, right) => {
+            const pluginNameComparison = left.pluginName.localeCompare(
+                right.pluginName,
+            );
+            if (pluginNameComparison !== 0) {
+                return pluginNameComparison;
+            }
+
+            const agentNameComparison = left.agentName.localeCompare(
+                right.agentName,
+            );
+            if (agentNameComparison !== 0) {
+                return agentNameComparison;
+            }
+
+            return left.pluginInstanceId.localeCompare(right.pluginInstanceId);
+        });
         return states;
     }
 
-    async readState(pluginName: string): Promise<StoredPluginStateDetail | null> {
-        const currentDirectory = path.join(this.pluginDirectory(pluginName), "current");
+    async readState(
+        pluginInstanceId: string,
+    ): Promise<StoredPluginStateDetail | null> {
+        const currentDirectory = path.join(
+            this.pluginDirectory(pluginInstanceId),
+            "current",
+        );
         const manifest = await this.readManifestFromDirectory(currentDirectory);
         if (!manifest) {
             return null;
         }
 
         return {
+            pluginInstanceId: manifest.pluginInstanceId,
             pluginName: manifest.pluginName,
             agentName: manifest.agentName,
             updatedAt: manifest.updatedAt,
             revision: manifest.revision,
             markdown: manifest.markdown,
-            assets: manifest.assets
+            assets: manifest.assets,
         };
     }
 
-    async resolveAsset(pluginName: string, revision: string, assetId: string): Promise<PluginStateAssetFile | null> {
-        const currentDirectory = path.join(this.pluginDirectory(pluginName), "current");
+    async resolveAsset(
+        pluginInstanceId: string,
+        revision: string,
+        assetId: string,
+    ): Promise<PluginStateAssetFile | null> {
+        const currentDirectory = path.join(
+            this.pluginDirectory(pluginInstanceId),
+            "current",
+        );
         const manifest = await this.readManifestFromDirectory(currentDirectory);
         if (!manifest || manifest.revision !== revision) {
             return null;
         }
 
-        const asset = manifest.assets.find((candidate) => candidate.id === assetId);
+        const asset = manifest.assets.find(
+            (candidate) => candidate.id === assetId,
+        );
         if (!asset) {
             return null;
         }
 
-        const absolutePath = path.join(currentDirectory, "assets", asset.storedFileName);
+        const absolutePath = path.join(
+            currentDirectory,
+            "assets",
+            asset.storedFileName,
+        );
         return {
             absolutePath,
             fileName: asset.fileName,
-            contentType: asset.contentType
+            contentType: asset.contentType,
         };
     }
 
@@ -171,31 +229,50 @@ export class DiskPluginStateStore {
         await fs.mkdir(this.rootDirectory, { recursive: true });
     }
 
-    private async readManifestFromDirectory(directory: string): Promise<PluginStateManifest | null> {
+    private async readManifestFromDirectory(
+        directory: string,
+    ): Promise<PluginStateManifest | null> {
         try {
-            const raw = await fs.readFile(path.join(directory, "state.json"), "utf8");
+            const raw = await fs.readFile(
+                path.join(directory, "state.json"),
+                "utf8",
+            );
             return JSON.parse(raw) as PluginStateManifest;
         } catch {
             return null;
         }
     }
 
-    private pluginDirectory(pluginName: string): string {
-        const digest = crypto.createHash("sha256").update(pluginName).digest("hex");
-        return path.join(this.rootDirectory, digest);
+    private pluginDirectory(pluginInstanceId: string): string {
+        return path.join(
+            this.rootDirectory,
+            this.validatePathSegment(pluginInstanceId, "plugin instance id"),
+        );
     }
 
     private validateAssetId(assetId: string): string {
-        const trimmed = assetId.trim();
-        if (!/^[A-Za-z0-9._-]+$/.test(trimmed) || trimmed === "." || trimmed === "..") {
-            throw new Error(`Invalid plugin state asset id "${assetId}". Asset ids must be URL-safe.`);
+        return this.validatePathSegment(assetId, "plugin state asset id");
+    }
+
+    private validatePathSegment(value: string, label: string): string {
+        const trimmed = value.trim();
+        if (
+            !/^[A-Za-z0-9._-]+$/.test(trimmed) ||
+            trimmed === "." ||
+            trimmed === ".."
+        ) {
+            throw new Error(
+                `Invalid ${label} "${value}". Values must be URL-safe.`,
+            );
         }
         return trimmed;
     }
 
     private sanitizeFileName(fileName: string): string {
         const candidate = path.basename(fileName);
-        const cleaned = candidate.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 180);
+        const cleaned = candidate
+            .replace(/[^a-zA-Z0-9._-]/g, "_")
+            .slice(0, 180);
         return cleaned.length > 0 ? cleaned : "asset";
     }
 }

@@ -4,7 +4,7 @@ import {
     NOOP_PLUGIN_RUNTIME_PROVIDER,
     createPluginContext,
     type PluginRuntimeContext,
-    type PluginRuntimeProvider
+    type PluginRuntimeProvider,
 } from "./index.js";
 import { AgentTool, type ToolCallRuntimeContext } from "../tools/index.js";
 import { z } from "zod/v4";
@@ -27,24 +27,28 @@ function createWorkspace(): AgentWorkspace {
         },
         async fileAsBuffer() {
             return undefined;
-        }
+        },
     };
 }
 
 describe("Plugin runtime context", () => {
     it("provides a noop runtime for standalone agent creation", async () => {
-        const runtime = NOOP_PLUGIN_RUNTIME_PROVIDER.forPlugin("unit-test");
+        const runtime =
+            NOOP_PLUGIN_RUNTIME_PROVIDER.bindPlugin("unit-test").runtime;
         const notification = await runtime.notifications.enqueue({
             title: "No-op notification",
             content: {
-                content: [{ type: "text", text: "No-op content" }]
-            }
+                content: [{ type: "text", text: "No-op content" }],
+            },
         });
 
         expect(notification.pluginName).toBe("unit-test");
         expect(notification.title).toBe("No-op notification");
+        expect("pluginInstanceId" in notification).toBe(false);
         expect("emitEvent" in runtime).toBe(false);
-        await Promise.resolve(runtime.events.emit({ type: "LOG", text: "hello" }));
+        await Promise.resolve(
+            runtime.events.emit({ type: "LOG", text: "hello" }),
+        );
     });
 
     it("builds plugin contexts with plugin-specific runtime contexts", () => {
@@ -57,30 +61,36 @@ describe("Plugin runtime context", () => {
                     createdAt: 1767225600000,
                     title: input.title,
                     summary: input.summary,
-                    content: input.content
-                })
+                    content: input.content,
+                }),
             },
             events: {
                 emit: () => {
                     return;
-                }
-            }
+                },
+            },
         };
         const requestedPluginNames: string[] = [];
         const pluginRuntime: PluginRuntimeProvider = {
-            forPlugin(pluginName: string) {
+            bindPlugin(pluginName: string) {
                 requestedPluginNames.push(pluginName);
-                return pluginName === "capturing"
+                const fallback =
+                    NOOP_PLUGIN_RUNTIME_PROVIDER.bindPlugin(pluginName);
+                return {
+                    runtime:
+                        pluginName === "capturing"
                     ? expectedRuntime
-                    : NOOP_PLUGIN_RUNTIME_PROVIDER.forPlugin(pluginName);
+                            : fallback.runtime,
+                    toolRuntime: fallback.toolRuntime,
+                };
             },
-            forToolCall(pluginName, source) {
-                return NOOP_PLUGIN_RUNTIME_PROVIDER.forToolCall(pluginName, source);
-            }
         };
         const workspace = createWorkspace();
 
-        const context = createPluginContext(workspace, pluginRuntime, "capturing");
+        const context = createPluginContext(
+            workspace,
+            pluginRuntime.bindPlugin("capturing").runtime,
+        );
 
         expect(requestedPluginNames).toContain("capturing");
         expect(context.workspace).toBe(workspace);
@@ -91,21 +101,21 @@ describe("Plugin runtime context", () => {
         const tool = new CapturingTool();
         const response = await tool.invoke(
             {
-                value: "hello"
+                value: "hello",
             },
             {
                 toolCallId: "tool-call-1",
                 toolName: "capturing_tool",
                 emitEvent: () => {
                     return;
-                }
-            }
+                },
+            },
         );
 
         expect(response).toEqual([{ type: "text", text: "hello" }]);
         expect(tool.context).toMatchObject({
             toolCallId: "tool-call-1",
-            toolName: "capturing_tool"
+            toolName: "capturing_tool",
         });
     });
 
@@ -116,32 +126,40 @@ describe("Plugin runtime context", () => {
             input: Parameters<ToolCallRuntimeContext["emitEvent"]>[0];
         }> = [];
         const pluginRuntime: PluginRuntimeProvider = {
-            forPlugin(pluginName: string) {
-                return NOOP_PLUGIN_RUNTIME_PROVIDER.forPlugin(pluginName);
-            },
-            forToolCall(pluginName, source) {
+            bindPlugin(pluginName: string) {
+                const fallback =
+                    NOOP_PLUGIN_RUNTIME_PROVIDER.bindPlugin(pluginName);
+                return {
+                    runtime: fallback.runtime,
+                    toolRuntime: {
+                        forToolCall(source) {
                 return {
                     ...source,
                     emitEvent(input) {
                         emitted.push({
                             pluginName,
                             context: source,
-                            input
+                                        input,
                         });
-                    }
+                                },
                 };
-            }
+                        },
+                    },
+                };
+            },
         };
-        const tool = new EventEmittingTool().bindPluginRuntime("event-plugin", pluginRuntime);
+        const tool = new EventEmittingTool().bindPluginRuntime(
+            pluginRuntime.bindPlugin("event-plugin").toolRuntime,
+        );
 
         await tool.invoke(
             {
-                value: "hello"
+                value: "hello",
             },
             {
                 toolCallId: "tool-call-1",
-                toolName: "event_tool"
-            }
+                toolName: "event_tool",
+            },
         );
 
         expect(emitted).toEqual([
@@ -149,15 +167,15 @@ describe("Plugin runtime context", () => {
                 pluginName: "event-plugin",
                 context: {
                     toolCallId: "tool-call-1",
-                    toolName: "event_tool"
+                    toolName: "event_tool",
                 },
                 input: {
                     body: {
                         type: "status",
-                        message: "hello"
-                    }
-                }
-            }
+                        message: "hello",
+                    },
+                },
+            },
         ]);
     });
 });
@@ -166,11 +184,14 @@ class CapturingTool extends AgentTool {
     name = "capturing_tool";
     description = "Captures tool runtime context.";
     schema = z.object({
-        value: z.string()
+        value: z.string(),
     });
     context: ToolCallRuntimeContext | undefined;
 
-    protected async _call(input: z.output<this["schema"]>, context: ToolCallRuntimeContext) {
+    protected async _call(
+        input: z.output<this["schema"]>,
+        context: ToolCallRuntimeContext,
+    ) {
         this.context = context;
         return [{ type: "text" as const, text: input.value }];
     }
@@ -180,15 +201,18 @@ class EventEmittingTool extends AgentTool {
     name = "event_tool";
     description = "Emits a tool-scoped runtime event.";
     schema = z.object({
-        value: z.string()
+        value: z.string(),
     });
 
-    protected async _call(input: z.output<this["schema"]>, context: ToolCallRuntimeContext) {
+    protected async _call(
+        input: z.output<this["schema"]>,
+        context: ToolCallRuntimeContext,
+    ) {
         await context.emitEvent({
             body: {
                 type: "status",
-                message: input.value
-            }
+                message: input.value,
+            },
         });
         return [{ type: "text" as const, text: input.value }];
     }

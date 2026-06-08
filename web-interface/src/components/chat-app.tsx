@@ -6,13 +6,20 @@ import { Bot, Loader2 } from "lucide-react";
 import { useChatSession } from "@/components/chat/use-chat-session";
 import { Sidebar } from "@/components/chat/sidebar";
 import { ChatHeader } from "@/components/chat/chat-header";
-import { MessageEvent, type RenderableSessionEvent, type ToolRequestWithPluginEvents } from "@/components/chat/message-event";
+import {
+    MessageEvent,
+    type RenderableSessionEvent,
+    type ToolRequestWithPluginEvents,
+} from "@/components/chat/message-event";
 import { ThinkingDots } from "@/components/chat/thinking-dots";
 import { Composer } from "@/components/chat/composer";
 import { PluginStatePanel } from "@/components/chat/plugin-state-panel";
 import { type SessionEvent } from "@/lib/contracts";
 
-type ToolCallPayload = Extract<SessionEvent, { type: "tool_request" }>["payload"]["toolCalls"][number];
+type ToolCallPayload = Extract<
+    SessionEvent,
+    { type: "tool_request" }
+>["payload"]["toolCalls"][number];
 
 /**
  * Root chat application component.
@@ -24,7 +31,10 @@ export function ChatApp() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [pluginStatePanelOpen, setPluginStatePanelOpen] = useState(false);
     const conversationScrollRef = useRef<HTMLDivElement | null>(null);
-    const renderEvents = useMemo(() => embedPluginEventsInToolRequests(session.activeEvents), [session.activeEvents]);
+    const renderEvents = useMemo(
+        () => embedPluginEventsInToolRequests(session.activeEvents),
+        [session.activeEvents],
+    );
 
     /* Auto-scroll to bottom when new events arrive */
     useEffect(() => {
@@ -41,7 +51,9 @@ export function ChatApp() {
                 <div className="flex flex-col items-center gap-4">
                     <div className="flex items-center gap-3">
                         <Bot className="h-10 w-10 text-muted-foreground animate-pulse-glow" />
-                        <h1 className="text-2xl font-heading font-semibold text-foreground">Agent Mimir</h1>
+                        <h1 className="text-2xl font-heading font-semibold text-foreground">
+                            Agent Mimir
+                        </h1>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -75,27 +87,40 @@ export function ChatApp() {
                     }
                 }}
                 onCreateSession={() => {
-                    const name = window.prompt("Enter name for a new conversation:", "New Conversation");
+                    const name = window.prompt(
+                        "Enter name for a new conversation:",
+                        "New Conversation",
+                    );
                     if (name === null) return;
 
-                    const defaultAgent = session.defaultMainAgent ?? session.availableAgentNames[0];
+                    const defaultAgent =
+                        session.defaultAgentName ??
+                        session.availableAgentNames[0];
                     let agentName = defaultAgent;
                     if (session.availableAgentNames.length > 1) {
                         const selected = window.prompt(
                             `Choose a principal agent:\n${session.availableAgentNames.join("\n")}`,
-                            defaultAgent
+                            defaultAgent,
                         );
                         if (selected === null) return;
                         agentName = selected.trim() || defaultAgent;
                     }
 
                     session.createSession(name, agentName).catch((error) => {
-                        session.setErrorMessage(error instanceof Error ? error.message : "Failed to create session.");
+                        session.setErrorMessage(
+                            error instanceof Error
+                                ? error.message
+                                : "Failed to create session.",
+                        );
                     });
                 }}
                 onDeleteSession={(id) => {
                     session.deleteSession(id).catch((error) => {
-                        session.setErrorMessage(error instanceof Error ? error.message : "Failed to delete session.");
+                        session.setErrorMessage(
+                            error instanceof Error
+                                ? error.message
+                                : "Failed to delete session.",
+                        );
                     });
                 }}
             />
@@ -109,28 +134,45 @@ export function ChatApp() {
                         pluginStateCount={session.activePluginStates.length}
                         pluginStatePanelOpen={pluginStatePanelOpen}
                         onToggleSidebar={() => setSidebarOpen((o) => !o)}
-                        onTogglePluginStatePanel={() => setPluginStatePanelOpen((o) => !o)}
+                        onTogglePluginStatePanel={() =>
+                            setPluginStatePanelOpen((o) => !o)
+                        }
                         onSetContinuousMode={(enabled) => {
-                            session.setContinuousMode(enabled).catch((error) => {
-                                session.setErrorMessage(error instanceof Error ? error.message : "Could not toggle continuous mode.");
+                            session
+                                .setContinuousMode(enabled)
+                                .catch((error) => {
+                                    session.setErrorMessage(
+                                        error instanceof Error
+                                            ? error.message
+                                            : "Could not toggle continuous mode.",
+                                    );
                             });
                         }}
                         onResetSession={() => {
                             session.resetSession().catch((error) => {
-                                session.setErrorMessage(error instanceof Error ? error.message : "Could not reset session.");
+                                session.setErrorMessage(
+                                    error instanceof Error
+                                        ? error.message
+                                        : "Could not reset session.",
+                                );
                             });
                         }}
                     />
 
                     {/* ── Chat messages ──────────────────────── */}
-                    <div ref={conversationScrollRef} className="flex-1 overflow-y-auto overscroll-contain">
+                    <div
+                        ref={conversationScrollRef}
+                        className="flex-1 overflow-y-auto overscroll-contain"
+                    >
                         <div className="mx-auto max-w-3xl px-4 py-6 space-y-5">
                             {/* Empty state */}
                             {session.activeEvents.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center py-24 text-center">
                                     <Bot className="h-12 w-12 text-muted-foreground/40 mb-4" />
                                     <h2 className="text-lg font-heading font-semibold text-foreground/80 mb-1">
-                                        {session.activeSessionId ? "Start a conversation" : "Create a conversation"}
+                                        {session.activeSessionId
+                                            ? "Start a conversation"
+                                            : "Create a conversation"}
                                     </h2>
                                     <p className="text-sm text-muted-foreground max-w-sm">
                                         {session.activeSessionId
@@ -141,7 +183,13 @@ export function ChatApp() {
                             ) : null}
 
                             {renderEvents.map((event) => (
-                                <MessageEvent key={(event as { messageId?: string }).messageId ?? event.id} event={event} />
+                                <MessageEvent
+                                    key={
+                                        (event as { messageId?: string })
+                                            .messageId ?? event.id
+                                    }
+                                    event={event}
+                                />
                             ))}
 
                             {/* Thinking animation */}
@@ -153,27 +201,47 @@ export function ChatApp() {
                         activeSessionId={session.activeSessionId}
                         isSubmitting={session.isSubmitting}
                         hasPendingToolRequest={session.hasPendingToolRequest}
-                        pendingNotificationCount={session.pendingNotificationCount}
+                        pendingNotificationCount={
+                            session.pendingNotificationCount
+                        }
                         errorMessage={session.errorMessage}
                         onSendMessage={(text, files) => {
                             session.sendMessage(text, files).catch((error) => {
-                                session.setErrorMessage(error instanceof Error ? error.message : "Failed to send message.");
+                                session.setErrorMessage(
+                                    error instanceof Error
+                                        ? error.message
+                                        : "Failed to send message.",
+                                );
                             });
                         }}
                         onProcessNotifications={() => {
                             session.processNotifications().catch((error) => {
-                                session.setErrorMessage(error instanceof Error ? error.message : "Notification processing failed.");
+                                session.setErrorMessage(
+                                    error instanceof Error
+                                        ? error.message
+                                        : "Notification processing failed.",
+                                );
                             });
                         }}
                         onSubmitApproval={(action, feedback) => {
-                            session.submitApproval(action, feedback).catch((error) => {
-                                session.setErrorMessage(error instanceof Error ? error.message : "Approval failed.");
+                            session
+                                .submitApproval(action, feedback)
+                                .catch((error) => {
+                                    session.setErrorMessage(
+                                        error instanceof Error
+                                            ? error.message
+                                            : "Approval failed.",
+                                    );
                             });
                         }}
                         onClearError={() => session.setErrorMessage(null)}
                         onStopSession={() => {
                             session.stopSession().catch((error) => {
-                                session.setErrorMessage(error instanceof Error ? error.message : "Stop failed.");
+                                session.setErrorMessage(
+                                    error instanceof Error
+                                        ? error.message
+                                        : "Stop failed.",
+                                );
                             });
                         }}
                     />
@@ -190,7 +258,9 @@ export function ChatApp() {
     );
 }
 
-function embedPluginEventsInToolRequests(events: SessionEvent[]): RenderableSessionEvent[] {
+function embedPluginEventsInToolRequests(
+    events: SessionEvent[],
+): RenderableSessionEvent[] {
     const renderEvents: RenderableSessionEvent[] = [];
     const toolRequestsByCallId = new Map<string, ToolRequestWithPluginEvents>();
     const embeddedPluginEventIds = new Set<string>();
@@ -203,7 +273,7 @@ function embedPluginEventsInToolRequests(events: SessionEvent[]): RenderableSess
 
         const toolRequest: ToolRequestWithPluginEvents = {
             ...event,
-            pluginEventsByToolCallId: {}
+            pluginEventsByToolCallId: {},
         };
         renderEvents.push(toolRequest);
 
@@ -224,12 +294,20 @@ function embedPluginEventsInToolRequests(events: SessionEvent[]): RenderableSess
             continue;
         }
 
-        const existingEvents = toolRequest.pluginEventsByToolCallId[event.toolCallId] ?? [];
-        toolRequest.pluginEventsByToolCallId[event.toolCallId] = [...existingEvents, event];
+        const existingEvents =
+            toolRequest.pluginEventsByToolCallId[event.toolCallId] ?? [];
+        toolRequest.pluginEventsByToolCallId[event.toolCallId] = [
+            ...existingEvents,
+            event,
+        ];
         embeddedPluginEventIds.add(event.id);
     }
 
-    return renderEvents.filter((event) => event.type !== "plugin_event" || !embeddedPluginEventIds.has(event.id));
+    return renderEvents.filter(
+        (event) =>
+            event.type !== "plugin_event" ||
+            !embeddedPluginEventIds.has(event.id),
+    );
 }
 
 function getRenderableToolCallIds(call: ToolCallPayload): string[] {
@@ -244,8 +322,14 @@ function getRenderableToolCallIds(call: ToolCallPayload): string[] {
         }
 
         return parsed
-            .map((item) => item && typeof item === "object" ? (item as { id?: unknown }).id : undefined)
-            .filter((id): id is string => typeof id === "string" && id.length > 0);
+            .map((item) =>
+                item && typeof item === "object"
+                    ? (item as { id?: unknown }).id
+                    : undefined,
+            )
+            .filter(
+                (id): id is string => typeof id === "string" && id.length > 0,
+            );
     } catch {
         return [];
     }

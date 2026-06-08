@@ -1,19 +1,35 @@
 import { BaseCheckpointSaver, CheckpointTuple } from "@langchain/langgraph";
-import { AgentHydrationEvent, AgentInput, AgentMessageToolRequest, InputAgentMessage, SharedFile } from "../agent-manager/index.js";
-import { AIMessage, BaseMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
-import { getHumanMessageSharedFiles, lCmessageContentToContent, readRuntimeInput } from "../agent-manager/message-utils.js";
+import {
+    AgentHydrationEvent,
+    AgentInput,
+    AgentMessageToolRequest,
+    InputAgentMessage,
+    SharedFile,
+} from "../agent-manager/index.js";
+import {
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    ToolMessage,
+} from "@langchain/core/messages";
+import {
+    getHumanMessageSharedFiles,
+    lCmessageContentToContent,
+    readRuntimeInput,
+} from "../agent-manager/message-utils.js";
 import { extractAllTextFromComplexResponse } from "./format.js";
 import { v4 } from "uuid";
 
-export async function readHydrationEvents(args: { sessionId: string; name: string, checkpointer: BaseCheckpointSaver }): Promise<AgentHydrationEvent[]> {
-
-    const threadId = `${args.sessionId}#${args.name}`;
+export async function readHydrationEvents(args: {
+    sessionId: string;
+    checkpointer: BaseCheckpointSaver;
+}): Promise<AgentHydrationEvent[]> {
     //// Using Checkpointer
     const checkpointTuples: CheckpointTuple[] = [];
-    const checkpointTuplesAsyncGenerator = (args.checkpointer).list({
+    const checkpointTuplesAsyncGenerator = args.checkpointer.list({
         configurable: {
-            thread_id: threadId
-        }
+            thread_id: args.sessionId,
+        },
     });
     for await (const snapshot of checkpointTuplesAsyncGenerator) {
         checkpointTuples.push(snapshot);
@@ -24,28 +40,49 @@ export async function readHydrationEvents(args: { sessionId: string; name: strin
     const events: AgentHydrationEvent[] = [];
 
     for (const snapshot of checkpointTuples) {
-        const values = (snapshot.checkpoint?.channel_values ?? {}) as Record<string, any>;
+        const values = (snapshot.checkpoint?.channel_values ?? {}) as Record<
+            string,
+            any
+        >;
         const messages = (values.messages ?? []) as BaseMessage[];
-        const checkpointId =
-            String(snapshot.config?.configurable?.checkpoint_id ?? snapshot.metadata?.step ?? "unknown-checkpoint");
+        const checkpointId = String(
+            snapshot.config?.configurable?.checkpoint_id ??
+                snapshot.metadata?.step ??
+                "unknown-checkpoint",
+        );
         const timestamp = snapshot.checkpoint?.ts ?? new Date().toISOString();
-        const responseAttributes = (values.responseAttributes ?? {}) as Record<string, any>;
-        const requestAttributes = (values.requestAttributes ?? {}) as Record<string, any>;
+        const responseAttributes = (values.responseAttributes ?? {}) as Record<
+            string,
+            any
+        >;
+        const requestAttributes = (values.requestAttributes ?? {}) as Record<
+            string,
+            any
+        >;
 
         for (let idx = 0; idx < messages.length; idx += 1) {
             const message = messages[idx]!;
-            const messageId = message.id ?? `${checkpointId}:${idx}:${message.constructor?.name ?? "message"}`;
+            const messageId =
+                message.id ??
+                `${checkpointId}:${idx}:${message.constructor?.name ?? "message"}`;
             if (seenMessageIds.has(messageId)) {
                 continue;
             }
             seenMessageIds.add(messageId);
 
             if (HumanMessage.isInstance(message)) {
-                const content = lCmessageContentToContent(message.contentBlocks);
-                const messageText = extractAllTextFromComplexResponse(content).trim();
+                const content = lCmessageContentToContent(
+                    message.contentBlocks,
+                );
+                const messageText =
+                    extractAllTextFromComplexResponse(content).trim();
                 const sharedFiles = getHumanMessageSharedFiles(message);
-                const isForwardedMessage = messageText.startsWith("This message is from ");
-                const isSyntheticMessage = typeof message.id === "string" && message.id.startsWith("do-not-render-");
+                const isForwardedMessage = messageText.startsWith(
+                    "This message is from ",
+                );
+                const isSyntheticMessage =
+                    typeof message.id === "string" &&
+                    message.id.startsWith("do-not-render-");
 
                 if (isForwardedMessage || isSyntheticMessage) {
                     continue;
@@ -55,13 +92,15 @@ export async function readHydrationEvents(args: { sessionId: string; name: strin
                     continue;
                 }
 
-                const input = readRuntimeInput(message) ?? {
+                const input =
+                    readRuntimeInput(message) ??
+                    ({
                     type: "user_message",
                     message: {
                         content,
-                        sharedFiles
-                    }
-                } satisfies AgentInput;
+                            sharedFiles,
+                        },
+                    } satisfies AgentInput);
 
                 events.push({
                     type: "userMessage",
@@ -70,13 +109,15 @@ export async function readHydrationEvents(args: { sessionId: string; name: strin
                     messageId,
                     input,
                     content: getHydratedInputContent(input),
-                    requestAttributes
+                    requestAttributes,
                 });
                 continue;
             }
 
             if (ToolMessage.isInstance(message)) {
-                const response = lCmessageContentToContent(message.contentBlocks);
+                const response = lCmessageContentToContent(
+                    message.contentBlocks,
+                );
                 events.push({
                     type: "toolResponse",
                     timestamp,
@@ -87,9 +128,9 @@ export async function readHydrationEvents(args: { sessionId: string; name: strin
                         toolResponse: {
                             id: message.tool_call_id ?? message.id ?? undefined,
                             name: message.name ?? "Unknown",
-                            response
-                        }
-                    }
+                            response,
+                        },
+                    },
                 });
                 continue;
             }
@@ -99,7 +140,10 @@ export async function readHydrationEvents(args: { sessionId: string; name: strin
             }
 
             const content = lCmessageContentToContent(message.contentBlocks);
-            const sharedFiles = (message.additional_kwargs?.shared_files as SharedFile[] | undefined) ?? [];
+            const sharedFiles =
+                (message.additional_kwargs?.shared_files as
+                    | SharedFile[]
+                    | undefined) ?? [];
             const outputId = message.id ?? v4();
             if ((message.tool_calls?.length ?? 0) > 0) {
                 events.push({
@@ -113,10 +157,10 @@ export async function readHydrationEvents(args: { sessionId: string; name: strin
                         toolCalls: message.tool_calls!.map((toolCall) => ({
                             id: toolCall.id,
                             toolName: toolCall.name ?? "Unknown",
-                            input: JSON.stringify(toolCall.args ?? {}, null, 2)
-                        }))
+                            input: JSON.stringify(toolCall.args ?? {}, null, 2),
+                        })),
                     } satisfies AgentMessageToolRequest,
-                    responseAttributes
+                    responseAttributes,
                 });
                 continue;
             }
@@ -128,9 +172,9 @@ export async function readHydrationEvents(args: { sessionId: string; name: strin
                 output: {
                     id: outputId,
                     content,
-                    sharedFiles
+                    sharedFiles,
                 },
-                responseAttributes
+                responseAttributes,
             });
         }
     }

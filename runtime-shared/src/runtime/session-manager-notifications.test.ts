@@ -1,22 +1,29 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { AgentInput, AgentNotificationInput } from "@mimir/agent-core/agent";
+import type {
+    AgentInput,
+    AgentNotificationInput,
+} from "@mimir/agent-core/agent";
 import type { PluginNotification } from "@mimir/agent-core/plugins";
 import type { UserMessageOrigin } from "../contracts.js";
 import { SessionManager } from "./session-manager.js";
 
 type NotificationProcessingAccessor = {
     buildNotificationAgentInput(notification: PluginNotification): AgentInput;
-    buildNotificationProcessingDisplayText(notification: AgentNotificationInput): string;
-    buildNotificationMessageOrigin(notification: AgentNotificationInput): UserMessageOrigin;
+    buildNotificationProcessingDisplayText(
+        notification: AgentNotificationInput,
+    ): string;
+    buildNotificationMessageOrigin(
+        notification: AgentNotificationInput,
+    ): UserMessageOrigin;
     rewritePluginStateAssetUrls(
         markdown: string,
         args: {
             sessionId: string;
-            pluginName: string;
+            pluginInstanceId: string;
             revision: string;
             publicApiBasePath: string;
-        }
+        },
     ): string;
     getHydratedInputPresentation(input: AgentInput): {
         origin: UserMessageOrigin;
@@ -26,7 +33,9 @@ type NotificationProcessingAccessor = {
     };
 };
 
-function createNotification(overrides: Partial<PluginNotification> = {}): PluginNotification {
+function createNotification(
+    overrides: Partial<PluginNotification> = {},
+): PluginNotification {
     return {
         id: "notification-1",
         pluginName: "runtime-smoke-test",
@@ -36,14 +45,16 @@ function createNotification(overrides: Partial<PluginNotification> = {}): Plugin
         summary: "Worker has a result.",
         content: {
             content: [{ type: "text", text: "result body" }],
-            sharedFiles: [{ fileName: "result.txt", url: "/tmp/result.txt" }]
+            sharedFiles: [{ fileName: "result.txt", url: "/tmp/result.txt" }],
         },
-        ...overrides
+        ...overrides,
     };
 }
 
 test("notification processing passes one first-class notification input", () => {
-    const manager = new SessionManager({ cleanupIntervalMs: 60_000 }) as unknown as NotificationProcessingAccessor;
+    const manager = new SessionManager({
+        cleanupIntervalMs: 60_000,
+    }) as unknown as NotificationProcessingAccessor;
     const notification = createNotification();
 
     assert.deepEqual(manager.buildNotificationAgentInput(notification), {
@@ -53,38 +64,49 @@ test("notification processing passes one first-class notification input", () => 
             pluginName: "runtime-smoke-test",
             title: "Worker complete",
             summary: "Worker has a result.",
-            content: notification.content
-        }
+            content: notification.content,
+        },
     });
 });
 
 test("notification processing display text names the single notification", () => {
-    const manager = new SessionManager({ cleanupIntervalMs: 60_000 }) as unknown as NotificationProcessingAccessor;
-    const input = manager.buildNotificationAgentInput(createNotification({ title: "Timer fired" }));
+    const manager = new SessionManager({
+        cleanupIntervalMs: 60_000,
+    }) as unknown as NotificationProcessingAccessor;
+    const input = manager.buildNotificationAgentInput(
+        createNotification({ title: "Timer fired" }),
+    );
     assert.equal(input.type, "plugin_notification");
 
     assert.equal(
         manager.buildNotificationProcessingDisplayText(input.notification),
-        "Process plugin notification: Timer fired"
+        "Process plugin notification: Timer fired",
     );
 });
 
 test("notification message origin exposes full notification metadata", () => {
-    const manager = new SessionManager({ cleanupIntervalMs: 60_000 }) as unknown as NotificationProcessingAccessor;
+    const manager = new SessionManager({
+        cleanupIntervalMs: 60_000,
+    }) as unknown as NotificationProcessingAccessor;
     const input = manager.buildNotificationAgentInput(createNotification());
     assert.equal(input.type, "plugin_notification");
 
-    assert.deepEqual(manager.buildNotificationMessageOrigin(input.notification), {
+    assert.deepEqual(
+        manager.buildNotificationMessageOrigin(input.notification),
+        {
         type: "plugin_notification",
         notificationId: "notification-1",
         pluginName: "runtime-smoke-test",
         title: "Worker complete",
-        summary: "Worker has a result."
-    });
+            summary: "Worker has a result.",
+        },
+    );
 });
 
 test("hydrated notification presentation is derived from first-class input", () => {
-    const manager = new SessionManager({ cleanupIntervalMs: 60_000 }) as unknown as NotificationProcessingAccessor;
+    const manager = new SessionManager({
+        cleanupIntervalMs: 60_000,
+    }) as unknown as NotificationProcessingAccessor;
     const input = manager.buildNotificationAgentInput(createNotification());
 
     assert.deepEqual(manager.getHydratedInputPresentation(input), {
@@ -93,24 +115,26 @@ test("hydrated notification presentation is derived from first-class input", () 
             notificationId: "notification-1",
             pluginName: "runtime-smoke-test",
             title: "Worker complete",
-            summary: "Worker has a result."
+            summary: "Worker has a result.",
         },
         text: "Process plugin notification: Worker complete",
         workspaceFiles: ["result.txt"],
-        chatImages: []
+        chatImages: [],
     });
 });
 
 test("plugin state markdown rewrites asset references to session asset urls", () => {
-    const manager = new SessionManager({ cleanupIntervalMs: 60_000 }) as unknown as NotificationProcessingAccessor;
+    const manager = new SessionManager({
+        cleanupIntervalMs: 60_000,
+    }) as unknown as NotificationProcessingAccessor;
 
     assert.equal(
         manager.rewritePluginStateAssetUrls("![Shot](asset://screenshot_1)", {
             sessionId: "session-1",
-            pluginName: "browser plugin",
+            pluginInstanceId: "browser-instance-1",
             revision: "revision-1",
-            publicApiBasePath: "/api"
+            publicApiBasePath: "/api",
         }),
-        "![Shot](/api/sessions/session-1/plugin-states/browser%20plugin/assets/revision-1/screenshot_1)"
+        "![Shot](/api/sessions/session-1/plugin-states/browser-instance-1/assets/revision-1/screenshot_1)",
     );
 });

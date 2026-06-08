@@ -1,6 +1,6 @@
 import type { AgentMessageToolRequest, AgentNotificationInput, AgentWorkspace, InputAgentMessage } from "../agent-manager/index.js";
 import { ComplexMessageContent } from "../schema.js";
-import { AgentTool, type ToolCallRuntimeContext, type ToolCallRuntimeSource } from "../tools/index.js";
+import { AgentTool, type ToolCallRuntimeContext, type ToolCallRuntimeSource, type ToolRuntimeProvider } from "../tools/index.js";
 
 /** 
  * Represents a message response from the AI agent containing a tool request.
@@ -131,40 +131,48 @@ export type PluginRuntimeContext = {
     events: PluginEventRuntime,
 };
 
+export type PluginRuntimeBinding = {
+    runtime: PluginRuntimeContext,
+    toolRuntime: ToolRuntimeProvider,
+};
+
 export type PluginRuntimeProvider = {
-    forPlugin(pluginName: string): PluginRuntimeContext,
-    forToolCall(pluginName: string, source: ToolCallRuntimeSource): ToolCallRuntimeContext,
+    bindPlugin(pluginName: string): PluginRuntimeBinding,
 };
 
 export const NOOP_PLUGIN_RUNTIME_PROVIDER: PluginRuntimeProvider = {
-    forPlugin(pluginName: string): PluginRuntimeContext {
+    bindPlugin(pluginName: string): PluginRuntimeBinding {
         return {
-            notifications: {
-                async enqueue(input) {
-                    return {
-                        id: "noop",
-                        pluginName,
-                        agentName: "unknown",
-                        createdAt: Date.now(),
-                        title: input.title,
-                        summary: input.summary,
-                        deduplicationId: input.deduplicationId,
-                        content: input.content
-                    };
+            runtime: {
+                notifications: {
+                    async enqueue(input) {
+                        return {
+                            id: "noop",
+                            pluginName,
+                            agentName: "unknown",
+                            createdAt: Date.now(),
+                            title: input.title,
+                            summary: input.summary,
+                            deduplicationId: input.deduplicationId,
+                            content: input.content
+                        };
+                    }
+                },
+                events: {
+                    emit() {
+                        return;
+                    }
                 }
             },
-            events: {
-                emit() {
-                    return;
+            toolRuntime: {
+                forToolCall(_source: ToolCallRuntimeSource): ToolCallRuntimeContext {
+                    return {
+                        ..._source,
+                        emitEvent() {
+                            return;
+                        }
+                    };
                 }
-            }
-        };
-    },
-    forToolCall(_pluginName: string, source: ToolCallRuntimeSource): ToolCallRuntimeContext {
-        return {
-            ...source,
-            emitEvent() {
-                return;
             }
         };
     }
@@ -172,12 +180,11 @@ export const NOOP_PLUGIN_RUNTIME_PROVIDER: PluginRuntimeProvider = {
 
 export function createPluginContext(
     workspace: AgentWorkspace,
-    runtimeProvider: PluginRuntimeProvider,
-    pluginName: string
+    runtime: PluginRuntimeContext
 ): PluginContext {
     return {
         workspace,
-        runtime: runtimeProvider.forPlugin(pluginName)
+        runtime
     };
 }
 

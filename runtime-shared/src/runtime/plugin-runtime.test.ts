@@ -1,12 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SessionPluginRuntimeController, type SessionPluginRuntimeSink } from "./plugin-runtime.js";
+import {
+    SessionPluginRuntimeController,
+    type SessionPluginRuntimeSink,
+} from "./plugin-runtime.js";
 import { DiskPluginStateStore } from "./plugin-state-store.js";
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
 
 type RuntimeEventPayload = Parameters<SessionPluginRuntimeSink["emitEvent"]>[0];
+
+function requireEvent<T extends RuntimeEventPayload["type"]>(
+    event: RuntimeEventPayload | undefined,
+    type: T,
+): Extract<RuntimeEventPayload, { type: T }> {
+    assert.equal(event?.type, type);
+    return event as Extract<RuntimeEventPayload, { type: T }>;
+}
 
 function createSink() {
     const events: RuntimeEventPayload[] = [];
@@ -23,13 +34,17 @@ function createSink() {
             },
             emitStateChanged() {
                 stateChangeCount += 1;
-            }
-        }
+            },
+        },
     };
 }
 
-async function withTempStateStore<T>(run: (store: DiskPluginStateStore, directory: string) => Promise<T>): Promise<T> {
-    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "mimir-plugin-state-"));
+async function withTempStateStore<T>(
+    run: (store: DiskPluginStateStore, directory: string) => Promise<T>,
+): Promise<T> {
+    const directory = await fs.mkdtemp(
+        path.join(os.tmpdir(), "mimir-plugin-state-"),
+    );
     const store = new DiskPluginStateStore(directory);
     await store.clear();
     try {
@@ -43,60 +58,98 @@ test("enqueue stores unread notifications and emits notification events", async 
     const controller = new SessionPluginRuntimeController("Principal");
     const sinkState = createSink();
     controller.attach(sinkState.sink);
+    const binding = controller.bindPlugin("subagents");
 
-    const notification = await controller.forPlugin("subagents").notifications.enqueue({
+    const notification = await binding.runtime.notifications.enqueue({
         title: "Worker complete",
         summary: "Worker has a result.",
         content: {
-            content: [{ type: "text", text: "result body" }]
-        }
+            content: [{ type: "text", text: "result body" }],
+        },
     });
 
     assert.equal(notification.pluginName, "subagents");
     assert.equal(notification.agentName, "Principal");
+    assert.equal("pluginInstanceId" in notification, false);
     assert.equal(controller.unreadCount(), 1);
     assert.equal(sinkState.stateChangeCount, 1);
     assert.equal(sinkState.events.length, 1);
+    const notificationEvent = requireEvent(
+        sinkState.events[0],
+        "plugin_notification",
+    );
+    const pluginInstanceId = notificationEvent.pluginInstanceId;
+    assert.match(pluginInstanceId ?? "", /^[0-9a-f-]{36}$/);
     assert.deepEqual(sinkState.events[0], {
         type: "plugin_notification",
         notificationId: notification.id,
+        pluginInstanceId,
         pluginName: "subagents",
         agentName: "Principal",
         title: "Worker complete",
         summary: "Worker has a result.",
         deduplicationId: undefined,
-        unreadCount: 1
+        unreadCount: 1,
     });
 });
 
 test("tool call runtime events emitted before attach are buffered and flushed", async () => {
     const controller = new SessionPluginRuntimeController("Principal");
-    await controller.forToolCall("timer", {
+    const binding = controller.bindPlugin("timer");
+    await binding.toolRuntime
+        .forToolCall({
         toolCallId: "tool-call-1",
-        toolName: "timer_tool"
-    }).emitEvent({
+            toolName: "timer_tool",
+        })
+        .emitEvent({
         body: {
             type: "status",
-            message: "Timer fired"
-        }
+                message: "Timer fired",
+            },
     });
 
     const { events, sink } = createSink();
     controller.attach(sink);
 
     assert.equal(events.length, 1);
+    const event = requireEvent(events[0], "plugin_event");
+    const pluginInstanceId = event.pluginInstanceId;
+    assert.match(pluginInstanceId ?? "", /^[0-9a-f-]{36}$/);
     assert.deepEqual(events[0], {
         type: "plugin_event",
         toolCallId: "tool-call-1",
         toolName: "timer_tool",
+        pluginInstanceId,
         pluginName: "timer",
         agentName: "Principal",
         visibility: "user",
         body: {
             type: "status",
-            message: "Timer fired"
-        }
+            message: "Timer fired",
+        },
     });
+});
+
+test("plugin-facing runtime contexts do not expose plugin instance ids", async () => {
+    const controller = new SessionPluginRuntimeController("Principal");
+    const binding = controller.bindPlugin("browser");
+    const toolContext = binding.toolRuntime.forToolCall({
+        toolCallId: "tool-call-1",
+        toolName: "browser_tool",
+    });
+
+    assert.equal("pluginInstanceId" in binding.runtime, false);
+    assert.equal("pluginInstanceId" in binding.runtime.notifications, false);
+    assert.equal("pluginInstanceId" in binding.runtime.events, false);
+    assert.equal("pluginInstanceId" in toolContext, false);
+
+    const notification = await binding.runtime.notifications.enqueue({
+        title: "Visible notification",
+        content: {
+            content: [{ type: "text", text: "visible" }],
+        },
+    });
+    assert.equal("pluginInstanceId" in notification, false);
 });
 
 test("plugin STATE writes disk state and emits summary events", async () => {
@@ -105,8 +158,9 @@ test("plugin STATE writes disk state and emits summary events", async () => {
         const sinkState = createSink();
         controller.configure({ stateStore });
         controller.attach(sinkState.sink);
+        const binding = controller.bindPlugin("browser");
 
-        await controller.forPlugin("browser").events.emit({
+        await binding.runtime.events.emit({
             type: "STATE",
             markdown: "# Browser\n\n![Current page](asset://screenshot)",
             assets: [
@@ -114,26 +168,41 @@ test("plugin STATE writes disk state and emits summary events", async () => {
                     id: "screenshot",
                     fileName: "page.png",
                     contentType: "image/png",
-                    bytes: Buffer.from("image-bytes")
-                }
-            ]
+                    bytes: Buffer.from("image-bytes"),
+                },
+            ],
         });
 
         assert.equal(sinkState.events.length, 1);
-        assert.equal(sinkState.events[0]?.type, "plugin_state");
-        assert.equal(sinkState.events[0]?.pluginName, "browser");
+        const event = requireEvent(sinkState.events[0], "plugin_state");
+        assert.equal(event.pluginName, "browser");
+        assert.match(event.pluginInstanceId, /^[0-9a-f-]{36}$/);
 
         const states = await controller.listPluginStates();
         assert.equal(states.length, 1);
         assert.equal(states[0]?.pluginName, "browser");
+        assert.equal(states[0]?.pluginInstanceId, event.pluginInstanceId);
 
-        const detail = await controller.readPluginState("browser");
-        assert.equal(detail?.markdown, "# Browser\n\n![Current page](asset://screenshot)");
+        const detail = await controller.readPluginState(
+            states[0]!.pluginInstanceId,
+        );
+        assert.equal(
+            detail?.markdown,
+            "# Browser\n\n![Current page](asset://screenshot)",
+        );
+        assert.equal(detail?.pluginInstanceId, states[0]!.pluginInstanceId);
 
-        const asset = await controller.resolvePluginStateAsset("browser", states[0]!.revision, "screenshot");
+        const asset = await controller.resolvePluginStateAsset(
+            states[0]!.pluginInstanceId,
+            states[0]!.revision,
+            "screenshot",
+        );
         assert.equal(asset?.fileName, "page.png");
         assert.equal(asset?.contentType, "image/png");
-        assert.equal(await fs.readFile(asset!.absolutePath, "utf8"), "image-bytes");
+        assert.equal(
+            await fs.readFile(asset!.absolutePath, "utf8"),
+            "image-bytes",
+        );
     });
 });
 
@@ -141,52 +210,154 @@ test("plugin STATE replaces previous state and assets", async () => {
     await withTempStateStore(async (stateStore) => {
         const controller = new SessionPluginRuntimeController("Principal");
         controller.configure({ stateStore });
+        const binding = controller.bindPlugin("tasks");
 
-        await controller.forPlugin("tasks").events.emit({
+        await binding.runtime.events.emit({
             type: "STATE",
             markdown: "first",
-            assets: [{ id: "first", bytes: Buffer.from("first") }]
+            assets: [{ id: "first", bytes: Buffer.from("first") }],
         });
         const first = (await controller.listPluginStates())[0]!;
 
-        await controller.forPlugin("tasks").events.emit({
+        await binding.runtime.events.emit({
             type: "STATE",
             markdown: "second",
-            assets: [{ id: "second", bytes: Buffer.from("second") }]
+            assets: [{ id: "second", bytes: Buffer.from("second") }],
         });
         const second = (await controller.listPluginStates())[0]!;
 
         assert.notEqual(second.revision, first.revision);
-        assert.equal((await controller.readPluginState("tasks"))?.markdown, "second");
-        assert.equal(await controller.resolvePluginStateAsset("tasks", first.revision, "first"), null);
-        assert.equal((await controller.resolvePluginStateAsset("tasks", second.revision, "second"))?.fileName, "second");
+        assert.equal(second.pluginInstanceId, first.pluginInstanceId);
+        assert.equal(
+            (await controller.readPluginState(second.pluginInstanceId))
+                ?.markdown,
+            "second",
+        );
+        assert.equal(
+            await controller.resolvePluginStateAsset(
+                second.pluginInstanceId,
+                first.revision,
+                "first",
+            ),
+            null,
+        );
+        assert.equal(
+            (
+                await controller.resolvePluginStateAsset(
+                    second.pluginInstanceId,
+                    second.revision,
+                    "second",
+                )
+            )?.fileName,
+            "second",
+        );
+    });
+});
+
+test("same-name plugin instances keep independent state", async () => {
+    await withTempStateStore(async (stateStore) => {
+        const controller = new SessionPluginRuntimeController("Principal");
+        controller.configure({ stateStore });
+        const firstBrowser = controller.bindPlugin("browser");
+        const secondBrowser = controller.bindPlugin("browser");
+
+        await firstBrowser.runtime.events.emit({
+            type: "STATE",
+            markdown: "first browser",
+            assets: [
+                {
+                    id: "shot",
+                    fileName: "first.txt",
+                    bytes: Buffer.from("first"),
+                },
+            ],
+        });
+        await secondBrowser.runtime.events.emit({
+            type: "STATE",
+            markdown: "second browser",
+            assets: [
+                {
+                    id: "shot",
+                    fileName: "second.txt",
+                    bytes: Buffer.from("second"),
+                },
+            ],
+        });
+
+        const states = await controller.listPluginStates();
+        assert.equal(states.length, 2);
+        assert.equal(states[0]?.pluginName, "browser");
+        assert.equal(states[1]?.pluginName, "browser");
+        assert.notEqual(
+            states[0]?.pluginInstanceId,
+            states[1]?.pluginInstanceId,
+        );
+
+        const firstDetail = await controller.readPluginState(
+            states[0]!.pluginInstanceId,
+        );
+        const secondDetail = await controller.readPluginState(
+            states[1]!.pluginInstanceId,
+        );
+        assert.deepEqual(
+            new Set([firstDetail?.markdown, secondDetail?.markdown]),
+            new Set(["first browser", "second browser"]),
+        );
+
+        const firstAsset = await controller.resolvePluginStateAsset(
+            states[0]!.pluginInstanceId,
+            states[0]!.revision,
+            "shot",
+        );
+        const secondAsset = await controller.resolvePluginStateAsset(
+            states[1]!.pluginInstanceId,
+            states[1]!.revision,
+            "shot",
+        );
+        assert.notEqual(firstAsset?.absolutePath, secondAsset?.absolutePath);
+        assert.deepEqual(
+            new Set([
+                firstAsset
+                    ? await fs.readFile(firstAsset.absolutePath, "utf8")
+                    : "",
+                secondAsset
+                    ? await fs.readFile(secondAsset.absolutePath, "utf8")
+                    : "",
+            ]),
+            new Set(["first", "second"]),
+        );
     });
 });
 
 test("plugin LOG emits live only and is not buffered", async () => {
     const controller = new SessionPluginRuntimeController("Principal");
+    const binding = controller.bindPlugin("logger");
 
-    await controller.forPlugin("logger").events.emit({
+    await binding.runtime.events.emit({
         type: "LOG",
-        text: "before attach"
+        text: "before attach",
     });
 
     const sinkState = createSink();
     controller.attach(sinkState.sink);
     assert.equal(sinkState.events.length, 0);
 
-    await controller.forPlugin("logger").events.emit({
+    await binding.runtime.events.emit({
         type: "LOG",
-        text: "after attach"
+        text: "after attach",
     });
 
+    const event = requireEvent(sinkState.events[0], "plugin_log");
+    const pluginInstanceId = event.pluginInstanceId;
+    assert.match(pluginInstanceId ?? "", /^[0-9a-f-]{36}$/);
     assert.deepEqual(sinkState.events, [
         {
             type: "plugin_log",
+            pluginInstanceId,
             pluginName: "logger",
             agentName: "Principal",
-            text: "after attach"
-        }
+            text: "after attach",
+        },
     ]);
 });
 
@@ -194,10 +365,11 @@ test("clearPluginStates removes disk state", async () => {
     await withTempStateStore(async (stateStore) => {
         const controller = new SessionPluginRuntimeController("Principal");
         controller.configure({ stateStore });
+        const binding = controller.bindPlugin("tasks");
 
-        await controller.forPlugin("tasks").events.emit({
+        await binding.runtime.events.emit({
             type: "STATE",
-            markdown: "pending"
+            markdown: "pending",
         });
         assert.equal((await controller.listPluginStates()).length, 1);
 
@@ -211,12 +383,13 @@ test("remove clears pending notifications", async () => {
     const controller = new SessionPluginRuntimeController("Principal");
     const sinkState = createSink();
     controller.attach(sinkState.sink);
+    const binding = controller.bindPlugin("subagents");
 
-    const notification = await controller.forPlugin("subagents").notifications.enqueue({
+    const notification = await binding.runtime.notifications.enqueue({
         title: "Done",
         content: {
-            content: [{ type: "text", text: "done" }]
-        }
+            content: [{ type: "text", text: "done" }],
+        },
     });
 
     controller.remove([notification.id]);
@@ -228,17 +401,19 @@ test("remove clears pending notifications", async () => {
 
 test("nextUnread returns one notification at a time in inbox order", async () => {
     const controller = new SessionPluginRuntimeController("Principal");
-    const first = await controller.forPlugin("subagents").notifications.enqueue({
+    const subagents = controller.bindPlugin("subagents");
+    const timer = controller.bindPlugin("timer");
+    const first = await subagents.runtime.notifications.enqueue({
         title: "First",
         content: {
-            content: [{ type: "text", text: "first" }]
-        }
+            content: [{ type: "text", text: "first" }],
+        },
     });
-    const second = await controller.forPlugin("timer").notifications.enqueue({
+    const second = await timer.runtime.notifications.enqueue({
         title: "Second",
         content: {
-            content: [{ type: "text", text: "second" }]
-        }
+            content: [{ type: "text", text: "second" }],
+        },
     });
 
     assert.equal(controller.nextUnread()?.id, first.id);
@@ -253,20 +428,21 @@ test("enqueue discards duplicate pending notifications by deduplication id", asy
     const controller = new SessionPluginRuntimeController("Principal");
     const sinkState = createSink();
     controller.attach(sinkState.sink);
+    const binding = controller.bindPlugin("subagents");
 
-    const first = await controller.forPlugin("subagents").notifications.enqueue({
+    const first = await binding.runtime.notifications.enqueue({
         title: "First",
         deduplicationId: "worker-1",
         content: {
-            content: [{ type: "text", text: "first" }]
-        }
+            content: [{ type: "text", text: "first" }],
+        },
     });
-    const duplicate = await controller.forPlugin("subagents").notifications.enqueue({
+    const duplicate = await binding.runtime.notifications.enqueue({
         title: "Duplicate",
         deduplicationId: "worker-1",
         content: {
-            content: [{ type: "text", text: "duplicate" }]
-        }
+            content: [{ type: "text", text: "duplicate" }],
+        },
     });
 
     assert.equal(duplicate.id, first.id);
@@ -276,23 +452,48 @@ test("enqueue discards duplicate pending notifications by deduplication id", asy
     assert.equal(sinkState.stateChangeCount, 1);
 });
 
-test("deduplication ids can be reused after pending notification removal", async () => {
+test("same-name plugin instances do not share notification deduplication", async () => {
     const controller = new SessionPluginRuntimeController("Principal");
-    const first = await controller.forPlugin("subagents").notifications.enqueue({
+    const firstInstance = controller.bindPlugin("subagents");
+    const secondInstance = controller.bindPlugin("subagents");
+
+    const first = await firstInstance.runtime.notifications.enqueue({
         title: "First",
         deduplicationId: "worker-1",
         content: {
-            content: [{ type: "text", text: "first" }]
-        }
+            content: [{ type: "text", text: "first" }],
+        },
+    });
+    const second = await secondInstance.runtime.notifications.enqueue({
+        title: "Second",
+        deduplicationId: "worker-1",
+        content: {
+            content: [{ type: "text", text: "second" }],
+        },
+    });
+
+    assert.notEqual(second.id, first.id);
+    assert.equal(controller.unreadCount(), 2);
+});
+
+test("deduplication ids can be reused after pending notification removal", async () => {
+    const controller = new SessionPluginRuntimeController("Principal");
+    const binding = controller.bindPlugin("subagents");
+    const first = await binding.runtime.notifications.enqueue({
+        title: "First",
+        deduplicationId: "worker-1",
+        content: {
+            content: [{ type: "text", text: "first" }],
+        },
     });
     controller.remove([first.id]);
 
-    const next = await controller.forPlugin("subagents").notifications.enqueue({
+    const next = await binding.runtime.notifications.enqueue({
         title: "Next",
         deduplicationId: "worker-1",
         content: {
-            content: [{ type: "text", text: "next" }]
-        }
+            content: [{ type: "text", text: "next" }],
+        },
     });
 
     assert.notEqual(next.id, first.id);
@@ -308,29 +509,36 @@ test("nextUnread returns null when there are no unread notifications", () => {
 
 test("notifications enqueued before persistence is configured are saved as pending notifications", async () => {
     const controller = new SessionPluginRuntimeController("Principal");
-    const notification = await controller.forPlugin("subagents").notifications.enqueue({
+    const binding = controller.bindPlugin("subagents");
+    const notification = await binding.runtime.notifications.enqueue({
         title: "Early notification",
         content: {
-            content: [{ type: "text", text: "ready" }]
-        }
+            content: [{ type: "text", text: "ready" }],
+        },
     });
     const saved: string[] = [];
+    const savedPluginInstanceIds: string[] = [];
 
     controller.configure({
         persistence: {
             saveNotification(persistedNotification) {
                 saved.push(persistedNotification.id);
+                savedPluginInstanceIds.push(
+                    persistedNotification.pluginInstanceId,
+                );
             },
             deleteNotifications() {
                 return;
             },
             clearNotifications() {
                 return;
-            }
-        }
+            },
+        },
     });
 
     assert.deepEqual(saved, [notification.id]);
+    assert.match(savedPluginInstanceIds[0] ?? "", /^[0-9a-f-]{36}$/);
+    assert.equal("pluginInstanceId" in notification, false);
 });
 
 test("remove deletes pending notification persistence rows", async () => {
@@ -346,15 +554,17 @@ test("remove deletes pending notification persistence rows", async () => {
             },
             clearNotifications() {
                 return;
-            }
-        }
+            },
+        },
     });
 
-    const notification = await controller.forPlugin("subagents").notifications.enqueue({
+    const notification = await controller
+        .bindPlugin("subagents")
+        .runtime.notifications.enqueue({
         title: "Done",
         content: {
-            content: [{ type: "text", text: "done" }]
-        }
+                content: [{ type: "text", text: "done" }],
+            },
     });
 
     controller.remove([notification.id]);
