@@ -2,92 +2,104 @@ import { z } from "zod";
 
 import { ToolResponse } from "@mimir/agent-core/tools";
 import { AgentTool } from "@mimir/agent-core/tools";
-import { AdditionalContent, AgentPlugin, PluginFactory, NextMessageUser, PluginContext } from "@mimir/agent-core/plugins";
+import {
+  AdditionalContent,
+  AgentPlugin,
+  PluginFactory,
+  NextMessageUser,
+  PluginContext,
+} from "@mimir/agent-core/plugins";
 import { InputAgentMessage } from "@mimir/agent-core/agent";
 import { GameboyController } from "./controller.js";
 
 export class GameboyPluginFactory implements PluginFactory {
-    constructor(private emulatorName: string) { }
-    async create(context: PluginContext): Promise<AgentPlugin> {
-        return new GameboyPlugin(this.emulatorName);
-    }
+  pluginId = "gameboyController";
 
-    name: string = "gameboy_controller_plugin";
+  constructor(private emulatorName: string) {}
+  async create(context: PluginContext): Promise<AgentPlugin> {
+    return new GameboyPlugin(this.emulatorName);
+  }
 }
 
 class GameboyPlugin extends AgentPlugin {
+  private controller: GameboyController;
 
-    private controller: GameboyController;
+  constructor(emulatorName: string) {
+    super();
+    this.controller = new GameboyController(emulatorName);
+  }
 
-    constructor(emulatorName: string) {
-        super();
-        this.controller = new GameboyController(emulatorName)
-    }
+  init(): Promise<void> {
+    return Promise.resolve();
+  }
+  async readyToProceed(nextMessage: NextMessageUser): Promise<void> {
+    await new Promise((r) => setTimeout(r, 500));
+    return Promise.resolve();
+  }
 
-    init(): Promise<void> {
+  async additionalMessageContent(
+    message: InputAgentMessage,
+  ): Promise<AdditionalContent[]> {
+    let screen = await this.controller.captureScreen();
+    return [
+      {
+        saveToChatHistory: 10,
+        displayOnCurrentMessage: true,
+        content: [
+          {
+            type: "image",
+            mimeType: "image/jpeg",
+            data: screen.toString("base64"),
+          },
+        ],
+      },
+    ];
+  }
 
-        return Promise.resolve();
-    }
-    async readyToProceed(nextMessage: NextMessageUser): Promise<void> {
-        await new Promise(r => setTimeout(r, 500));
-        return Promise.resolve();
-    }
-
-    async additionalMessageContent(message: InputAgentMessage): Promise<AdditionalContent[]> {
-
-        let screen = await this.controller.captureScreen();
-        return [
-            {
-                saveToChatHistory: 10,
-                displayOnCurrentMessage: true,
-                content: [
-                    {
-                        type: "image",
-                        mimeType: "image/jpeg",
-                        data: screen.toString("base64"),
-                    }
-                ]
-            }
-        ];
-    }
-
-    async tools(): Promise<(AgentTool)[]> {
-        return [
-            new GameboyControllerPlugin(this.controller),
-        ];
-    }
+  async tools(): Promise<AgentTool[]> {
+    return [new GameboyControllerPlugin(this.controller)];
+  }
 }
 
 class GameboyControllerPlugin extends AgentTool {
+  schema = z.object({
+    action: z
+      .enum(["a", "b", "start", "select", "up", "down", "left", "right"])
+      .describe("The button to click on the gameboy."),
+    stepsToTake: z
+      .number()
+      .optional()
+      .describe(
+        "The number of steps to move the characted in the game, this only applies to the up, down, left and right buttons.",
+      ),
+  });
 
-    schema = z.object({
-        action: z.enum(["a", "b", "start", "select", "up", "down", "left", "right"]).describe("The button to click on the gameboy."),
-        stepsToTake: z.number().optional().describe("The number of steps to move the characted in the game, this only applies to the up, down, left and right buttons."),
-    })
+  name: string = "gameboy_controller";
+  description: string = "Control the Pokémon game using button presses.";
+  private controller: GameboyController;
 
-    name: string = "gameboy_controller";
-    description: string = "Control the Pokémon game using button presses.";
-    private controller: GameboyController;
+  constructor(controller: GameboyController) {
+    super();
+    this.controller = controller;
+  }
 
-    constructor(controller: GameboyController) {
-        super();
-        this.controller = controller;
+  protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
+    if (
+      arg.stepsToTake &&
+      ["up", "down", "left", "right"].includes(arg.action)
+    ) {
+      for (let i = 0; i < arg.stepsToTake; i++) {
+        await this.controller.pressButton(arg.action, 100);
+      }
+    } else {
+      await this.controller.pressButton(arg.action, 100);
     }
 
-    protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
-        if (arg.stepsToTake && ["up", "down", "left", "right"].includes(arg.action)) {
-            for (let i = 0; i < arg.stepsToTake; i++) {
-                await this.controller.pressButton(arg.action, 100);
-            }
-        } else {
-            await this.controller.pressButton(arg.action, 100);
-        }
-
-        return [
-            {
-                type: "text",
-                text: `Pressed ${arg.action} on the gameboy.`,
-            }
-        ]
-    }
+    return [
+      {
+        type: "text",
+        text: `Pressed ${arg.action} on the gameboy.`,
+      },
+    ];
+  }
 }

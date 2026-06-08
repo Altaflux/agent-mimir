@@ -2,7 +2,7 @@ import { InputAgentMessage } from "../agent-manager/index.js";
 import { ComplexMessageContent } from "../schema.js";
 import { isEmptyMessageContent } from "../utils/format.js";
 import { AgentPlugin, type NextMessageInput } from "./index.js";
-
+import { AgentTool } from "../tools/index.js";
 
 const PROMPT = `
 #Plugin System
@@ -10,103 +10,101 @@ There is a plugin system that enhances your capabilities and context about the s
 
 The following is the list of plugins and their context:
 
-`
+`;
 export type PluginContextConfig = {
-    toolNameSanitizer?: (toolName: string) => string;
-}
+  toolNameSanitizer?: (toolName: string) => string;
+};
 
 export type RetentionAwareMessageContent = {
-    displayMessage: InputAgentMessage;
-    persistentMessage: {
-        message: InputAgentMessage;
-        retentionPolicy: (number | null)[];
-    };
-}
+  displayMessage: InputAgentMessage;
+  persistentMessage: {
+    message: InputAgentMessage;
+    retentionPolicy: (number | null)[];
+  };
+};
+
+export type PluginContextProviderEntry = {
+  plugin: AgentPlugin;
+  label: string;
+  tools: AgentTool[];
+};
+
 export class PluginContextProvider {
+  constructor(
+    private plugins: PluginContextProviderEntry[],
+    private config: PluginContextConfig,
+  ) {}
 
-    constructor(private plugins: AgentPlugin[], private config: PluginContextConfig) {
+  async getSystemPromptContext(): Promise<ComplexMessageContent[]> {
+    const results = (
+      await Promise.all(
+        this.plugins.map(async (entry) => {
+          const { content } = await entry.plugin.getSystemMessages();
+          const header = `\n\n### PLUGIN: ${entry.label} ###\n\n`;
+          const pluginList = entry.tools.map((tool) => {
+            return `- ${this.config.toolNameSanitizer ? this.config.toolNameSanitizer(tool.name) : tool.name}`;
+          });
 
+          //No system message content, no plugin list, return empty
+          if (
+            content.every((c) => isEmptyMessageContent(c)) &&
+            pluginList.length === 0
+          ) {
+            return content;
+          }
 
-    }
-
-
-    async getSystemPromptContext(): Promise<ComplexMessageContent[]> {
-
-        const namedPlugins = this.plugins.filter((plugin) => plugin.name);
-        const results = (await Promise.all(namedPlugins.map(async (plugin) => {
-            const { content } = await plugin.getSystemMessages();
-            const header = `\n\n### PLUGIN: ${plugin.name} ###\n\n`;
-            const pluginList = (await plugin.tools()).map((tool) => {
-                return `- ${this.config.toolNameSanitizer ? this.config.toolNameSanitizer(tool.name) : tool.name}`
-            });
-
-            //No system message content, no plugin list, return empty
-            if (content.every(c => isEmptyMessageContent(c)) && pluginList.length === 0) {
-                return content;
-            }
-
-            let pluginMessage: ComplexMessageContent[] = pluginList.length === 0 ? [] : [
-                {
+          let pluginMessage: ComplexMessageContent[] =
+            pluginList.length === 0
+              ? []
+              : [
+                  {
                     type: "text",
                     text: `\nThe plugin provides and manages the following tools/functions:\n${pluginList.join("\n")}`,
-                } satisfies ComplexMessageContent
-            ]
-            return [
-                {
-                    type: "text",
-                    text: header
-                } satisfies ComplexMessageContent,
-                ...content,
-                ...pluginMessage
-            ]
-        }))).flatMap((x) => x);
+                  } satisfies ComplexMessageContent,
+                ];
+          return [
+            {
+              type: "text",
+              text: header,
+            } satisfies ComplexMessageContent,
+            ...content,
+            ...pluginMessage,
+          ];
+        }),
+      )
+    ).flatMap((x) => x);
 
-        const namelessPlugins = this.plugins.filter((plugin) => !plugin.name);
-        const namelessPluginsSysMessage = (await Promise.all(namelessPlugins.map(async (plugin) => {
-            const { content } = await plugin.getSystemMessages();
-            if (content.every(c => isEmptyMessageContent(c))) {
-                return content;
-            }
-            return [
-                {
-                    type: "text",
-                    text: `\n\---------------------\n`
-                } satisfies ComplexMessageContent,
-                ...content
-            ];
-        }))).flatMap((x) => x);
+    return [
+      ...(results.every((e) => isEmptyMessageContent(e))
+        ? []
+        : [{ type: "text", text: PROMPT } satisfies ComplexMessageContent]),
+      ...results,
+    ];
+  }
 
-        return [
-            ...(results.every(e => isEmptyMessageContent(e)) ? [] : [{ type: "text", text: PROMPT } satisfies ComplexMessageContent]),
-            ...results,
-            ...namelessPluginsSysMessage
-        ]
-    }
-
-    /**
-     * Processes an incoming user message and potentially enriches it with additional
-     * context provided by registered agent plugins.
-     *
-     * This method iterates through the available plugins, calls their respective
-     * `additionalMessageContent` methods, and constructs two versions of the message:
-     * 1.  `displayMessage`: Intended for immediate display, includes original user
-     * content plus any plugin content marked for display.
-     * 2.  `persistentMessage`: Intended for saving to chat history, includes
-     * original user content plus any plugin content marked for saving, along
-     * with a detailed retention policy array.
-     *
-     * @param message The original incoming user message (`InputAgentMessage`).
-     * @returns A Promise resolving to a `RetentionAwareMessageContent` object containing
-     * the `displayMessage` and the `persistentMessage` (with its associated
-     * `retentionPolicy`).
-     */
-    async additionalMessageContent(message: InputAgentMessage | NextMessageInput): Promise<RetentionAwareMessageContent> {
-        return await addAdditionalContentToUserMessage(message, this.plugins);
-    }
+  /**
+   * Processes an incoming user message and potentially enriches it with additional
+   * context provided by registered agent plugins.
+   *
+   * This method iterates through the available plugins, calls their respective
+   * `additionalMessageContent` methods, and constructs two versions of the message:
+   * 1.  `displayMessage`: Intended for immediate display, includes original user
+   * content plus any plugin content marked for display.
+   * 2.  `persistentMessage`: Intended for saving to chat history, includes
+   * original user content plus any plugin content marked for saving, along
+   * with a detailed retention policy array.
+   *
+   * @param message The original incoming user message (`InputAgentMessage`).
+   * @returns A Promise resolving to a `RetentionAwareMessageContent` object containing
+   * the `displayMessage` and the `persistentMessage` (with its associated
+   * `retentionPolicy`).
+   */
+  async additionalMessageContent(
+    message: InputAgentMessage | NextMessageInput,
+  ): Promise<RetentionAwareMessageContent> {
+    return await addAdditionalContentToUserMessage(message, this.plugins);
+  }
 }
-
-
-
 
 // --- Documentation for the core logic (within addAdditionalContentToUserMessage) ---
 
@@ -115,17 +113,14 @@ export class PluginContextProvider {
  *
  * **Processing Steps:**
  *
- * 1.  **Plugin Sorting:** Plugins are sorted to process named plugins first,
- * followed by nameless plugins. The original relative order *within* the
- * named group and *within* the nameless group is preserved (stable sort).
+ * 1.  **Plugin Order:** Plugins are processed in their normalized configuration order.
  * 2.  **Iteration:** The method iterates through the sorted plugins.
  * 3.  **Plugin Call:** For each plugin, it calls `await plugin.additionalMessageContent(message)`.
  * 4.  **Customization Processing:** It processes the array of `AdditionalContent` objects
  * (`customizations`) returned by the plugin.
  * 5.  **Header Generation:** If any customization from a plugin contributes content to
  * either the display or persistent message, a context header is added for that plugin:
- * -   `\n### PLUGIN PluginName CONTEXT ###` for named plugins.
- * -   `----------------------` for nameless plugins.
+ * -   `\n### PLUGIN PluginLabel CONTEXT ###`.
  * This header is added *before* the content from that plugin's customizations.
  * 6.  **Content Aggregation:**
  * -   If `customization.displayOnCurrentMessage` is true, the `customization.content`
@@ -195,80 +190,97 @@ export class PluginContextProvider {
  *
  * The `displayMessage` would contain: `[originalUserContent, headerPluginA, txt1, spacing1]`
  */
-async function addAdditionalContentToUserMessage(message: InputAgentMessage | NextMessageInput, plugins: AgentPlugin[]) {
+async function addAdditionalContentToUserMessage(
+  message: InputAgentMessage | NextMessageInput,
+  plugins: PluginContextProviderEntry[],
+) {
+  const displayMessage = JSON.parse(
+    JSON.stringify(message),
+  ) as InputAgentMessage;
+  const persistentMessage = JSON.parse(
+    JSON.stringify(message),
+  ) as InputAgentMessage;
+  const persistantMessageRetentionPolicy: (number | null)[] = [];
 
-    const namedPlugins: AgentPlugin[] = [];
-    const namelessPlugins: AgentPlugin[] = [];
-    for (const plugin of plugins) {
-        if (plugin.name) {
-            namedPlugins.push(plugin);
-        } else {
-            namelessPlugins.push(plugin);
-        }
+  const spacing: ComplexMessageContent = {
+    type: "text",
+    text: "\n",
+  };
+  const additionalContent: ComplexMessageContent[] = [];
+  const persistentAdditionalContent: ComplexMessageContent[] = [];
+  const userContent = message.content;
+  for (const entry of plugins) {
+    const customizations =
+      await entry.plugin.additionalMessageContent(persistentMessage);
+    if (!customizations) continue;
+    const pluginContextName = {
+      type: "text",
+      text: `\n### PLUGIN ${entry.label} CONTEXT ###\n`,
+    } satisfies ComplexMessageContent;
+
+    if (
+      customizations.some(
+        (customization) => customization.displayOnCurrentMessage,
+      )
+    ) {
+      additionalContent.push(pluginContextName);
     }
+    //Checks where at least one customization is true or a number bigger than 0
+    if (
+      customizations.some((customization) => customization.saveToChatHistory)
+    ) {
+      const maxRetention = Math.max(
+        ...customizations
+          .filter(
+            (customization) =>
+              typeof customization.saveToChatHistory === "number",
+          )
+          .filter((f) => (f.saveToChatHistory as number) > 0)
+          .map((f) => f.saveToChatHistory as number),
+      );
 
-    // Combine the groups: named first, then nameless
-    const sortedPlugins = [...namedPlugins, ...namelessPlugins];
-
-    const displayMessage = JSON.parse(JSON.stringify(message)) as InputAgentMessage;
-    const persistentMessage = JSON.parse(JSON.stringify(message)) as InputAgentMessage;
-    const persistantMessageRetentionPolicy: (number | null)[] = [];
-
-    const spacing: ComplexMessageContent = {
-        type: "text",
-        text: "\n"
+      const containsOnePermanent = customizations.some(
+        (customization) => customization.saveToChatHistory === true,
+      );
+      const calculatedRetention = containsOnePermanent
+        ? null
+        : maxRetention === -Infinity
+          ? null
+          : maxRetention; //We need to remove the current message from the retention policy
+      persistantMessageRetentionPolicy.push(calculatedRetention);
+      persistentAdditionalContent.push(pluginContextName);
     }
-    const additionalContent: ComplexMessageContent[] = [];
-    const persistentAdditionalContent: ComplexMessageContent[] = [];
-    const userContent = message.content;
-    for (const plugin of sortedPlugins) {
-        const customizations = await plugin.additionalMessageContent(persistentMessage);
-        if (!customizations) continue;
-        const pluginContextName = {
-            type: "text",
-            text: plugin.name ? `\n### PLUGIN ${plugin.name} CONTEXT ###\n` : '\n----------------------\n'
-        } satisfies ComplexMessageContent;
+    for (const customization of customizations) {
+      if (customization.displayOnCurrentMessage) {
+        additionalContent.push(...customization.content);
+        additionalContent.push(spacing);
+      }
 
-        if (customizations.some((customization) => customization.displayOnCurrentMessage)) {
-            additionalContent.push(pluginContextName);
-        }
-        //Checks where at least one customization is true or a number bigger than 0
-        if (customizations.some(customization => customization.saveToChatHistory)) {
-            const maxRetention = Math.max(...customizations.filter((customization) => typeof customization.saveToChatHistory === "number")
-                .filter(f => (f.saveToChatHistory as number) > 0)
-                .map(f => f.saveToChatHistory as number));
-
-            const containsOnePermanent = customizations.some((customization) => customization.saveToChatHistory === true);
-            const calculatedRetention = containsOnePermanent ? null : maxRetention === -Infinity ? null : maxRetention; //We need to remove the current message from the retention policy
-            persistantMessageRetentionPolicy.push(calculatedRetention);
-            persistentAdditionalContent.push(pluginContextName);
-        }
-        for (const customization of customizations) {
-            if (customization.displayOnCurrentMessage) {
-                additionalContent.push(...customization.content)
-                additionalContent.push(spacing)
-            }
-
-            if (customization.saveToChatHistory) {
-                const retention = typeof customization.saveToChatHistory === "number" ? customization.saveToChatHistory : null;
-                persistantMessageRetentionPolicy.push(...customization.content.map(() => retention));
-                persistentAdditionalContent.push(...customization.content);
-                persistentAdditionalContent.push(spacing)
-                persistantMessageRetentionPolicy.push(retention); //This one is for spacing
-            }
-        }
+      if (customization.saveToChatHistory) {
+        const retention =
+          typeof customization.saveToChatHistory === "number"
+            ? customization.saveToChatHistory
+            : null;
+        persistantMessageRetentionPolicy.push(
+          ...customization.content.map(() => retention),
+        );
+        persistentAdditionalContent.push(...customization.content);
+        persistentAdditionalContent.push(spacing);
+        persistantMessageRetentionPolicy.push(retention); //This one is for spacing
+      }
     }
+  }
 
-    displayMessage.content.push(...additionalContent);
-    persistentMessage.content.push(...persistentAdditionalContent);
+  displayMessage.content.push(...additionalContent);
+  persistentMessage.content.push(...persistentAdditionalContent);
 
-    persistantMessageRetentionPolicy.unshift(...userContent.map(() => null));
+  persistantMessageRetentionPolicy.unshift(...userContent.map(() => null));
 
-    return {
-        displayMessage,
-        persistentMessage: {
-            message: persistentMessage,
-            retentionPolicy: persistantMessageRetentionPolicy
-        }
-    }
+  return {
+    displayMessage,
+    persistentMessage: {
+      message: persistentMessage,
+      retentionPolicy: persistantMessageRetentionPolicy,
+    },
+  };
 }

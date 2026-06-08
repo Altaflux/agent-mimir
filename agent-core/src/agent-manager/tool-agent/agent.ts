@@ -1,67 +1,73 @@
 import { ComplexMessageContent } from "../../schema.js";
 import {
-    WorkspacePluginFactory,
-    WorkspanceManager,
+  WorkspacePluginFactory,
+  WorkspanceManager,
 } from "../../plugins/workspace.js";
 import { ViewPluginFactory } from "../../tools/image_view.js";
 import { MimirToolToLangchainTool } from "./wrapper.js";
 import { ToolMessage } from "@langchain/core/messages/tool";
 import {
-    complexResponseToLangchainMessageContent,
-    trimAndSanitizeMessageContent,
+  complexResponseToLangchainMessageContent,
+  trimAndSanitizeMessageContent,
 } from "../../utils/format.js";
 import {
-    AIMessage,
-    BaseMessage,
-    ContentBlock,
-    HumanMessage,
-    RemoveMessage,
-    SystemMessage,
+  AIMessage,
+  BaseMessage,
+  ContentBlock,
+  HumanMessage,
+  RemoveMessage,
+  SystemMessage,
 } from "@langchain/core/messages";
 import {
-    BaseCheckpointSaver,
-    Command,
-    END,
-    interrupt,
-    MemorySaver,
-    START,
-    StateGraph,
-    GraphNode,
-    ConditionalEdgeRouter,
+  BaseCheckpointSaver,
+  Command,
+  END,
+  interrupt,
+  MemorySaver,
+  START,
+  StateGraph,
+  GraphNode,
+  ConditionalEdgeRouter,
 } from "@langchain/langgraph";
 import { v4 } from "uuid";
 import { ResponseFieldMapper } from "../../utils/instruction-mapper.js";
 import {
-    dividerSystemMessage,
-    lCmessageContentToContent,
-    mergeSystemMessages,
-    runtimeInputAdditionalKwargs,
-    toolMessageToInputAgentMessage,
+  dividerSystemMessage,
+  lCmessageContentToContent,
+  mergeSystemMessages,
+  runtimeInputAdditionalKwargs,
+  toolMessageToInputAgentMessage,
 } from "../message-utils.js";
 import { Agent, WorkspaceFactory } from "../index.js";
 import {
-    AttributeDescriptor,
-    createPluginContext,
-    NOOP_PLUGIN_RUNTIME_PROVIDER,
-    PluginFactory,
-    PluginRuntimeProvider,
+  AttributeDescriptor,
+  createPluginContext,
+  NOOP_PLUGIN_RUNTIME_PROVIDER,
+  PluginConfig,
+  PluginRuntimeProvider,
 } from "../../plugins/index.js";
+import {
+  assertUniqueToolNames,
+  createInternalPlugin,
+  createPublicPluginTool,
+  normalizePluginConfig,
+} from "../plugin-config.js";
 import { toolNodeFunction } from "./tool-node.js";
 import {
-    aiMessageToMimirAiMessage,
-    langChainHumanMessageToMimirHumanMessage,
-    langChainToolMessageToMimirToolMessage,
+  aiMessageToMimirAiMessage,
+  langChainHumanMessageToMimirHumanMessage,
+  langChainToolMessageToMimirToolMessage,
 } from "./utils.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { DEFAULT_CONSTITUTION } from "../constants.js";
 import {
-    PluginContextProvider,
-    RetentionAwareMessageContent,
+  PluginContextProvider,
+  RetentionAwareMessageContent,
 } from "../../plugins/context-provider.js";
 import {
-    AgentGraphType,
-    AgentState,
-    LanggraphAgent,
+  AgentGraphType,
+  AgentState,
+  LanggraphAgent,
 } from "../langgraph-agent.js";
 import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
 
@@ -70,560 +76,528 @@ import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
  * Contains all necessary parameters to initialize an agent with its capabilities.
  */
 export type CreateAgentArgs = {
-    /** The professional role or expertise of the agent */
-    profession: string;
-    /** A description of the agent's purpose and capabilities */
-    description: string;
-    /** The unique name identifier for the agent */
-    name: string;
-    /** The language model to be used by the agent */
-    model: BaseChatModel;
-    /** Optional array of plugin factories to extend agent functionality */
-    plugins?: PluginFactory[];
-    /** Optional runtime bridge used by plugins to emit events and notifications */
-    pluginRuntime?: PluginRuntimeProvider;
-    /** Optional constitution defining agent behavior guidelines */
-    constitution?: string;
-    /** Optional vision support type */
-    visionSupport?: boolean;
-    /** Factory function to create the agent's workspace */
-    workspaceFactory: WorkspaceFactory;
+  /** The professional role or expertise of the agent */
+  profession: string;
+  /** A description of the agent's purpose and capabilities */
+  description: string;
+  /** The unique name identifier for the agent */
+  name: string;
+  /** The language model to be used by the agent */
+  model: BaseChatModel;
+  /** Optional named plugin factories to extend agent functionality */
+  plugins?: PluginConfig;
+  /** Optional runtime bridge used by plugins to emit events and notifications */
+  pluginRuntime?: PluginRuntimeProvider;
+  /** Optional constitution defining agent behavior guidelines */
+  constitution?: string;
+  /** Optional vision support type */
+  visionSupport?: boolean;
+  /** Factory function to create the agent's workspace */
+  workspaceFactory: WorkspaceFactory;
 
-    checkpointer?: BaseCheckpointSaver;
+  checkpointer?: BaseCheckpointSaver;
 };
 
 export async function createLgAgent(config: CreateAgentArgs) {
-    const shortName = config.name;
-    const model = config.model;
-    const workspace = await config.workspaceFactory(shortName);
-    const allPluginFactories = config.plugins ?? [];
-    const pluginRuntime = config.pluginRuntime ?? NOOP_PLUGIN_RUNTIME_PROVIDER;
-    const fieldMapper = new ResponseFieldMapper();
-    const toolPlugins: PluginFactory[] = [];
-    toolPlugins.push(new WorkspacePluginFactory());
-    if (config.visionSupport) {
-        toolPlugins.push(new ViewPluginFactory());
-    }
-    const createdPluginEntries = await Promise.all(
-        [...allPluginFactories, ...toolPlugins].map(async (factory) => {
-            const runtimeBinding = pluginRuntime.bindPlugin(factory.name);
-            return {
-        factory,
-                runtimeBinding,
-                plugin: await factory.create(
-                    createPluginContext(workspace, runtimeBinding.runtime),
-                ),
-            };
-        }),
-    );
-    const allCreatedPlugins = createdPluginEntries.map((entry) => entry.plugin);
+  const shortName = config.name;
+  const model = config.model;
+  const workspace = await config.workspaceFactory(shortName);
+  const pluginRuntime = config.pluginRuntime ?? NOOP_PLUGIN_RUNTIME_PROVIDER;
+  const fieldMapper = new ResponseFieldMapper();
+  const toolPlugins = [createInternalPlugin(new WorkspacePluginFactory())];
+  if (config.visionSupport) {
+    toolPlugins.push(createInternalPlugin(new ViewPluginFactory()));
+  }
+  const allPluginFactories = normalizePluginConfig(config.plugins, toolPlugins);
+  const createdPluginEntries = await Promise.all(
+    allPluginFactories.map(async (entry) => {
+      const runtimeBinding = pluginRuntime.bindPlugin({
+        pluginId: entry.pluginId,
+        pluginPrefix: entry.pluginPrefix,
+        pluginNamespace: entry.pluginNamespace,
+      });
+      const plugin = await entry.factory.create(
+        createPluginContext(workspace, runtimeBinding.runtime),
+      );
+      return {
+        ...entry,
+        runtimeBinding,
+        plugin,
+      };
+    }),
+  );
+  const allCreatedPlugins = createdPluginEntries.map((entry) => entry.plugin);
 
-    const allTools = (
+  const publicToolEntries = await Promise.all(
+    createdPluginEntries.map(async (entry) => ({
+      entry,
+      tools: (await entry.plugin.tools()).map((tool) =>
+        createPublicPluginTool(entry.pluginNamespace, tool).bindPluginRuntime(
+          entry.runtimeBinding.toolRuntime,
+        ),
+      ),
+    })),
+  );
+  const allTools = publicToolEntries.flatMap((entry) => entry.tools);
+  assertUniqueToolNames(allTools);
+
+  const langChainTools = allTools.map((t) => new MimirToolToLangchainTool(t));
+  const modelWithTools = model.bindTools!(langChainTools);
+  const defaultAttributes: AttributeDescriptor[] = [];
+
+  const workspaceManager = new WorkspanceManager(workspace);
+
+  const pluginContextEntries = publicToolEntries.map(({ entry, tools }) => ({
+    plugin: entry.plugin,
+    label: entry.label,
+    tools,
+  }));
+  const pluginContextProvider = new PluginContextProvider(
+    pluginContextEntries,
+    {},
+  );
+
+  const callLLm = () => {
+    const callLLMNode: GraphNode<typeof AgentState> = async (state) => {
+      const lastMessage: BaseMessage =
+        state.messages[state.messages.length - 1];
+
+      let nextMessage = HumanMessage.isInstance(lastMessage)
+        ? langChainHumanMessageToMimirHumanMessage(lastMessage)
+        : ToolMessage.isInstance(lastMessage)
+          ? langChainToolMessageToMimirToolMessage(lastMessage)
+          : undefined;
+      if (nextMessage === undefined) {
+        throw new Error("No next message found");
+      }
+      await Promise.all(
+        allCreatedPlugins.map((p) => p.readyToProceed(nextMessage!)),
+      );
+
+      const pluginAttributes = (
         await Promise.all(
-            createdPluginEntries.map(async (entry) =>
-                (await entry.plugin.tools()).map((tool) =>
-                    tool.bindPluginRuntime(entry.runtimeBinding.toolRuntime),
-                ),
+          allCreatedPlugins.map(
+            async (plugin) => await plugin.attributes(nextMessage!),
+          ),
+        )
+      ).flatMap((e) => e);
+
+      fieldMapper.setAttributeSetters([
+        ...pluginAttributes,
+        ...defaultAttributes,
+      ]);
+      const responseFormatSystemMessage = [
+        {
+          type: "text",
+          text: `${config.constitution ?? DEFAULT_CONSTITUTION}\n`,
+        } satisfies ComplexMessageContent,
+        {
+          text: fieldMapper.createFieldInstructions(),
+          type: "text",
+        } satisfies ComplexMessageContent,
+      ];
+
+      let response: AIMessage;
+      let messageToStore: BaseMessage[] = [];
+      const messageId = lastMessage.id ?? v4();
+
+      const messageListToSend = [...state.messages].slice(0, -1).map((m) => {
+        if (m.type === "ai" && m.additional_kwargs["original_ai_content"]) {
+          return new AIMessage({
+            ...m,
+            content: m.additional_kwargs[
+              "original_ai_content"
+            ] as ContentBlock.Standard[],
+          });
+        }
+        return m;
+      });
+
+      if (
+        nextMessage.type === "USER_MESSAGE" ||
+        nextMessage.type === "PLUGIN_NOTIFICATION"
+      ) {
+        const inputMessage = nextMessage;
+        await workspaceManager.loadFiles(inputMessage.sharedFiles ?? []);
+        const { displayMessage, persistentMessage } =
+          await pluginContextProvider.additionalMessageContent(inputMessage);
+        displayMessage.content = trimAndSanitizeMessageContent(
+          displayMessage.content,
+        );
+        persistentMessage.message.content = trimAndSanitizeMessageContent(
+          persistentMessage.message.content,
+        );
+
+        messageListToSend.push(
+          new HumanMessage({
+            id: messageId,
+            contentBlocks: complexResponseToLangchainMessageContent(
+              displayMessage.content,
             ),
-        )
-    ).flat();
+          }),
+        );
+        messageToStore = [
+          new HumanMessage({
+            additional_kwargs: {
+              ...runtimeInputAdditionalKwargs(lastMessage as HumanMessage),
+              persistentMessageRetentionPolicy:
+                persistentMessage.retentionPolicy,
+              original_content: persistentMessage.message.content,
+              shared_files: inputMessage.sharedFiles,
+            },
+            id: messageId,
+            contentBlocks: complexResponseToLangchainMessageContent(
+              persistentMessage.message.content,
+            ),
+          }),
+        ];
 
-    const langChainTools = allTools.map((t) => new MimirToolToLangchainTool(t));
-    const modelWithTools = model.bindTools!(langChainTools);
-    const defaultAttributes: AttributeDescriptor[] = [];
-
-    const workspaceManager = new WorkspanceManager(workspace);
-
-    const pluginContextProvider = new PluginContextProvider(
-        allCreatedPlugins,
-        {},
-    );
-
-    const callLLm = () => {
-        const callLLMNode: GraphNode<typeof AgentState> = async (state) => {
-            const lastMessage: BaseMessage =
-                state.messages[state.messages.length - 1];
-
-            let nextMessage = HumanMessage.isInstance(lastMessage)
-                ? langChainHumanMessageToMimirHumanMessage(lastMessage)
-                : ToolMessage.isInstance(lastMessage)
-                  ? langChainToolMessageToMimirToolMessage(lastMessage)
-                  : undefined;
-            if (nextMessage === undefined) {
-                throw new Error("No next message found");
-            }
-            await Promise.all(
-                allCreatedPlugins.map((p) => p.readyToProceed(nextMessage!)),
-            );
-
-            const pluginAttributes = (
-                await Promise.all(
-                    allCreatedPlugins.map(
-                        async (plugin) => await plugin.attributes(nextMessage!),
-                    ),
-                )
-            ).flatMap((e) => e);
-
-            fieldMapper.setAttributeSetters([
-                ...pluginAttributes,
-                ...defaultAttributes,
-            ]);
-            const responseFormatSystemMessage = [
-                {
-                    type: "text",
-                    text: `${config.constitution ?? DEFAULT_CONSTITUTION}\n`,
-                } satisfies ComplexMessageContent,
-                {
-                    text: fieldMapper.createFieldInstructions(),
-                    type: "text",
-                } satisfies ComplexMessageContent,
-            ];
-
-            let response: AIMessage;
-            let messageToStore: BaseMessage[] = [];
-            const messageId = lastMessage.id ?? v4();
-
-            const messageListToSend = [...state.messages]
-                .slice(0, -1)
-                .map((m) => {
-                    if (
-                        m.type === "ai" &&
-                        m.additional_kwargs["original_ai_content"]
-                    ) {
-                    return new AIMessage({
-                        ...m,
-                            content: m.additional_kwargs[
-                                "original_ai_content"
-                            ] as ContentBlock.Standard[],
-                        });
-                }
-                return m;
-                });
-
-            if (
-                nextMessage.type === "USER_MESSAGE" ||
-                nextMessage.type === "PLUGIN_NOTIFICATION"
-            ) {
-                const inputMessage = nextMessage;
-                await workspaceManager.loadFiles(
-                    inputMessage.sharedFiles ?? [],
-                );
-                const { displayMessage, persistentMessage } =
-                    await pluginContextProvider.additionalMessageContent(
-                        inputMessage,
-                    );
-                displayMessage.content = trimAndSanitizeMessageContent(
-                    displayMessage.content,
-                );
-                persistentMessage.message.content =
-                    trimAndSanitizeMessageContent(
-                        persistentMessage.message.content,
-                    );
-
-                messageListToSend.push(
-                    new HumanMessage({
-                    id: messageId,
-                        contentBlocks: complexResponseToLangchainMessageContent(
-                            displayMessage.content,
-                        ),
-                    }),
-                );
-                messageToStore = [
-                    new HumanMessage({
-                    additional_kwargs: {
-                            ...runtimeInputAdditionalKwargs(
-                                lastMessage as HumanMessage,
-                            ),
-                            persistentMessageRetentionPolicy:
-                                persistentMessage.retentionPolicy,
-                        original_content: persistentMessage.message.content,
-                        shared_files: inputMessage.sharedFiles,
-                    },
-                    id: messageId,
-                        contentBlocks: complexResponseToLangchainMessageContent(
-                            persistentMessage.message.content,
-                        ),
-                    }),
-                ];
-
-                const pluginInputs =
-                    await pluginContextProvider.getSystemPromptContext();
-                const systemMessage = buildSystemMessage([
-                    ...responseFormatSystemMessage,
-                    dividerSystemMessage,
-                    ...pluginInputs,
-                ]);
-                response = await modelWithTools.invoke([
-                    systemMessage,
-                    ...messageListToSend,
-                ]);
-            } else {
-                messageListToSend.push(lastMessage);
-                if ((lastMessage as ToolMessage).status !== "error") {
-                    const { displayMessage, persistentMessage } =
-                        await pluginContextProvider.additionalMessageContent({
-                            content: [],
-                        });
-                    displayMessage.content = trimAndSanitizeMessageContent(
-                        displayMessage.content,
-                    );
-                    persistentMessage.message.content =
-                        trimAndSanitizeMessageContent(
-                            persistentMessage.message.content,
-                        );
-
-                    if (displayMessage.content.length > 0) {
-                        messageListToSend.push(
-                            new HumanMessage({
-                            id: v4(),
-                                contentBlocks:
-                                    complexResponseToLangchainMessageContent([
-                                {
-                                    type: "text",
-                                            text: "Tools invoked (unless a tool call told you it failed or was cancelled), continue please but be sure the results from the tools are correct and what you expected.",
-                                },
-                                        ...displayMessage.content,
-                                    ]),
-                            }),
-                        );
-                    }
-                    if (persistentMessage.message.content.length > 0) {
-                        messageToStore = [
-                            new HumanMessage({
-                            id: `do-not-render-${v4()}`,
-                            additional_kwargs: {
-                                    persistentMessageRetentionPolicy:
-                                        persistentMessage.retentionPolicy,
-                                    original_content:
-                                        persistentMessage.message.content,
-                            },
-                                contentBlocks:
-                                    complexResponseToLangchainMessageContent(
-                                        persistentMessage.message.content,
-                                    ),
-                            }),
-                        ];
-                    }
-                }
-
-                const pluginInputs =
-                    await pluginContextProvider.getSystemPromptContext();
-                const systemMessage = buildSystemMessage([
-                    ...responseFormatSystemMessage,
-                    dividerSystemMessage,
-                    ...pluginInputs,
-                ]);
-                response = await modelWithTools.invoke([
-                    systemMessage,
-                    ...messageListToSend,
-                ]);
-            }
-
-            // Claude sometimes likes to respond with empty messages when there is no more content to send
-            if (
-                response.content.length === 0 &&
-                response.tool_calls?.length === 0
-            ) {
-                response = new AIMessage({
-                    id: response.id,
-                    content: [
-                        {
-                        type: "text",
-                        text: "I have completed my task.",
-                        },
-                    ],
-                    tool_calls: response.tool_calls,
-                });
-            }
-            //Agents calling agents cannot see the messages from the tool, so we remove them so the AI doesn't think it has already responded.
-            if (
-                (response.tool_calls?.length ?? 0 > 0) &&
-                state.noMessagesInTool
-            ) {
-                if (Array.isArray(response.content)) {
-                    response = new AIMessage({
-                        id: response.id,
-                        content: [
-                            ...response.content.filter(
-                                (e) => e.type !== "text",
-                            ),
-                        ],
-                        tool_calls: response.tool_calls,
-                    });
-                } else {
-                    response = new AIMessage({
-                        id: response.id,
-                        content: [],
-                        tool_calls: response.tool_calls,
-                    });
-                }
-            }
-            const messageContent = fieldMapper.produceCleanMessageContent(
-                lCmessageContentToContent(response.contentBlocks),
-            );
-            const rawResponseAttributes =
-                await fieldMapper.readInstructionsFromResponse(messageContent);
-            const sharedFiles = await workspaceManager.readAttributes(
-                rawResponseAttributes,
-            );
-            let mimirAiMessage = aiMessageToMimirAiMessage(
-                response,
-                sharedFiles,
-                fieldMapper,
-            );
-
-            for (const plugin of allCreatedPlugins) {
-                await plugin.readResponse(
-                    mimirAiMessage,
-                    rawResponseAttributes,
-                );
-            }
-
-            const reformattedAiMessage = new AIMessage({
-                ...response,
-                content: complexResponseToLangchainMessageContent(
-                    fieldMapper.getUserMessage(messageContent).result,
-                ),
-                additional_kwargs: {
-                    original_ai_content: response.content,
-                },
+        const pluginInputs =
+          await pluginContextProvider.getSystemPromptContext();
+        const systemMessage = buildSystemMessage([
+          ...responseFormatSystemMessage,
+          dividerSystemMessage,
+          ...pluginInputs,
+        ]);
+        response = await modelWithTools.invoke([
+          systemMessage,
+          ...messageListToSend,
+        ]);
+      } else {
+        messageListToSend.push(lastMessage);
+        if ((lastMessage as ToolMessage).status !== "error") {
+          const { displayMessage, persistentMessage } =
+            await pluginContextProvider.additionalMessageContent({
+              content: [],
             });
+          displayMessage.content = trimAndSanitizeMessageContent(
+            displayMessage.content,
+          );
+          persistentMessage.message.content = trimAndSanitizeMessageContent(
+            persistentMessage.message.content,
+          );
 
-            return {
-                messages: [...messageToStore, reformattedAiMessage],
-                responseAttributes: rawResponseAttributes,
-            };
-        };
+          if (displayMessage.content.length > 0) {
+            messageListToSend.push(
+              new HumanMessage({
+                id: v4(),
+                contentBlocks: complexResponseToLangchainMessageContent([
+                  {
+                    type: "text",
+                    text: "Tools invoked (unless a tool call told you it failed or was cancelled), continue please but be sure the results from the tools are correct and what you expected.",
+                  },
+                  ...displayMessage.content,
+                ]),
+              }),
+            );
+          }
+          if (persistentMessage.message.content.length > 0) {
+            messageToStore = [
+              new HumanMessage({
+                id: `do-not-render-${v4()}`,
+                additional_kwargs: {
+                  persistentMessageRetentionPolicy:
+                    persistentMessage.retentionPolicy,
+                  original_content: persistentMessage.message.content,
+                },
+                contentBlocks: complexResponseToLangchainMessageContent(
+                  persistentMessage.message.content,
+                ),
+              }),
+            ];
+          }
+        }
 
-        return callLLMNode;
-    };
+        const pluginInputs =
+          await pluginContextProvider.getSystemPromptContext();
+        const systemMessage = buildSystemMessage([
+          ...responseFormatSystemMessage,
+          dividerSystemMessage,
+          ...pluginInputs,
+        ]);
+        response = await modelWithTools.invoke([
+          systemMessage,
+          ...messageListToSend,
+        ]);
+      }
 
-    const routeAfterLLM: ConditionalEdgeRouter<typeof AgentState> = (state) => {
-        const lastMessage = state.messages[state.messages.length - 1];
-
-        if (((lastMessage as AIMessage)?.tool_calls?.length ?? 0) === 0) {
-            return END;
+      // Claude sometimes likes to respond with empty messages when there is no more content to send
+      if (response.content.length === 0 && response.tool_calls?.length === 0) {
+        response = new AIMessage({
+          id: response.id,
+          content: [
+            {
+              type: "text",
+              text: "I have completed my task.",
+            },
+          ],
+          tool_calls: response.tool_calls,
+        });
+      }
+      //Agents calling agents cannot see the messages from the tool, so we remove them so the AI doesn't think it has already responded.
+      if ((response.tool_calls?.length ?? 0 > 0) && state.noMessagesInTool) {
+        if (Array.isArray(response.content)) {
+          response = new AIMessage({
+            id: response.id,
+            content: [...response.content.filter((e) => e.type !== "text")],
+            tool_calls: response.tool_calls,
+          });
         } else {
-            return "human_review_node";
+          response = new AIMessage({
+            id: response.id,
+            content: [],
+            tool_calls: response.tool_calls,
+          });
         }
+      }
+      const messageContent = fieldMapper.produceCleanMessageContent(
+        lCmessageContentToContent(response.contentBlocks),
+      );
+      const rawResponseAttributes =
+        await fieldMapper.readInstructionsFromResponse(messageContent);
+      const sharedFiles = await workspaceManager.readAttributes(
+        rawResponseAttributes,
+      );
+      let mimirAiMessage = aiMessageToMimirAiMessage(
+        response,
+        sharedFiles,
+        fieldMapper,
+      );
+
+      for (const plugin of allCreatedPlugins) {
+        await plugin.readResponse(mimirAiMessage, rawResponseAttributes);
+      }
+
+      const reformattedAiMessage = new AIMessage({
+        ...response,
+        content: complexResponseToLangchainMessageContent(
+          fieldMapper.getUserMessage(messageContent).result,
+        ),
+        additional_kwargs: {
+          original_ai_content: response.content,
+        },
+      });
+
+      return {
+        messages: [...messageToStore, reformattedAiMessage],
+        responseAttributes: rawResponseAttributes,
+      };
     };
 
-    const messageRetentionNode: GraphNode<typeof AgentState> = async (
-        state,
-    ) => {
-        const modifiedMessages: BaseMessage[] = [];
+    return callLLMNode;
+  };
 
-        // Get messages with a persistent retention policy and reverse the order
-        const messagesWithRetention = state.messages
-            .filter(
-                (m) => m.additional_kwargs?.persistentMessageRetentionPolicy,
-            )
-            .reverse();
+  const routeAfterLLM: ConditionalEdgeRouter<typeof AgentState> = (state) => {
+    const lastMessage = state.messages[state.messages.length - 1];
 
-        // Iterate over messages with retention policies
-        for (const [idx, message] of messagesWithRetention.entries()) {
-            const retentionPolicy: RetentionAwareMessageContent["persistentMessage"]["retentionPolicy"] =
-                message.additional_kwargs!
-                    .persistentMessageRetentionPolicy as any;
-            const messageContent = message.additional_kwargs[
-                "original_content"
-            ] as ComplexMessageContent[];
-
-            // Map content with its corresponding retention value and filter those
-            // whose retention is either null or greater than the current idx.
-            const filteredContentWithRetention = messageContent
-                .map((content, index) => ({
-                content,
-                    retention: retentionPolicy[index],
-                }))
-                .filter(
-                    ({ retention }) =>
-                        retention === null ||
-                        (retention !== null && retention > idx),
-                );
-
-            // If the content was modified drop the unwanted elements
-            if (filteredContentWithRetention.length < messageContent.length) {
-                const updatedContent = filteredContentWithRetention.map(
-                    (item) => item.content,
-                );
-                const updatedRetention = filteredContentWithRetention.map(
-                    (item) => item.retention,
-                );
-
-                if (updatedContent.length > 0) {
-                    modifiedMessages.push(
-                        new HumanMessage({
-                        id: message.id!,
-                            contentBlocks:
-                                complexResponseToLangchainMessageContent(
-                                    updatedContent,
-                                ),
-                        additional_kwargs: {
-                            ...message.additional_kwargs,
-                                persistentMessageRetentionPolicy:
-                                    updatedRetention,
-                                original_content: updatedContent,
-                            },
-                        }),
-                    );
-                } else {
-                    modifiedMessages.push(
-                        new RemoveMessage({
-                        id: message.id!,
-                        }),
-                    );
-                }
-            }
-        }
-        return { messages: modifiedMessages };
-    };
-    const humanReviewNode: GraphNode<typeof AgentState> = async (state) => {
-        const toolRequest = state.messages[
-            state.messages.length - 1
-        ] as AIMessage;
-
-        const humanInterrupt: HumanInterrupt = {
-            description:
-                "The agent is requesting permission to execute the following tool.",
-            action_request: {
-                action: "Execute_Tools",
-                args: toolRequest.tool_calls ?? [],
-            },
-            config: {
-                allow_accept: true,
-                allow_ignore: false,
-                allow_respond: true,
-                allow_edit: true,
-            },
-        };
-        const humanReviewResponse = interrupt<
-            HumanInterrupt,
-            HumanResponse | HumanResponse[]
-        >(humanInterrupt);
-        const humanReview: HumanResponse = Array.isArray(humanReviewResponse)
-            ? humanReviewResponse[0]
-            : humanReviewResponse;
-
-        const name = modelWithTools.getName();
-        if (humanReview.type === "response") {
-            //Claude forcefully needs a tool message after a tool call, so we need to send it a tool message with the feedback. Every other model can just receive a human message.
-            if (name === "ChatAnthropic" || name === "ChatOpenAI") {
-                const responseMessage = new ToolMessage({
-                    id: v4(),
-                    tool_call_id: toolRequest.tool_calls![0].id!,
-                    contentBlocks: complexResponseToLangchainMessageContent([
-                        {
-                            type: "text",
-                            text: `The user has cancelled the execution of the tool calls and instead he is giving you the following feedback:\n\n`,
-                        },
-                        { type: "text", text: humanReview.args as string },
-                    ]),
-                });
-                return new Command({
-                    goto: "call_llm",
-                    update: { messages: [responseMessage] },
-                });
-            } else {
-                const responseMessage = new HumanMessage({
-                    id: v4(),
-                    contentBlocks: complexResponseToLangchainMessageContent([
-                        {
-                            type: "text",
-                            text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n\n`,
-                        },
-                        { type: "text", text: humanReview.args as string },
-                    ]),
-                });
-                return new Command({
-                    goto: "call_llm",
-                    update: { messages: [responseMessage] },
-                });
-            }
-        }
-        return new Command({ goto: "run_tool" });
-    };
-
-    const workflow = new StateGraph(AgentState)
-        .addNode("call_llm", callLLm())
-        .addNode(
-            "run_tool",
-            toolNodeFunction(langChainTools, { handleToolErrors: true }),
-        )
-        .addNode("message_prep", messageRetentionNode)
-        .addNode("human_review_node", humanReviewNode, {
-            ends: ["run_tool", "message_prep"],
-        })
-        .addEdge(START, "message_prep")
-        .addConditionalEdges("call_llm", routeAfterLLM, [
-            "human_review_node",
-            END,
-        ])
-        .addEdge("run_tool", "message_prep")
-        .addEdge("message_prep", "call_llm");
-
-    for (const plugin of allCreatedPlugins) {
-        await plugin.init();
+    if (((lastMessage as AIMessage)?.tool_calls?.length ?? 0) === 0) {
+      return END;
+    } else {
+      return "human_review_node";
     }
+  };
 
-    const agentCommands = await Promise.all(
-        allCreatedPlugins.map(async (plugin) => {
-            return {
-                commands: await plugin.getCommands(),
-                plugin: plugin,
-            };
-        }),
-    );
+  const messageRetentionNode: GraphNode<typeof AgentState> = async (state) => {
+    const modifiedMessages: BaseMessage[] = [];
 
-    const commandList = agentCommands.map((ac) => ac.commands).flat();
+    // Get messages with a persistent retention policy and reverse the order
+    const messagesWithRetention = state.messages
+      .filter((m) => m.additional_kwargs?.persistentMessageRetentionPolicy)
+      .reverse();
 
-    const memory = config.checkpointer ?? new MemorySaver();
-    const graph: AgentGraphType = workflow.compile({
-        checkpointer: memory,
-    });
+    // Iterate over messages with retention policies
+    for (const [idx, message] of messagesWithRetention.entries()) {
+      const retentionPolicy: RetentionAwareMessageContent["persistentMessage"]["retentionPolicy"] =
+        message.additional_kwargs!.persistentMessageRetentionPolicy as any;
+      const messageContent = message.additional_kwargs[
+        "original_content"
+      ] as ComplexMessageContent[];
 
-    return {
-        graph: graph,
-        workspace: workspace,
-        commandList: commandList,
-        plugins: allCreatedPlugins,
-        fieldMapper: fieldMapper,
+      // Map content with its corresponding retention value and filter those
+      // whose retention is either null or greater than the current idx.
+      const filteredContentWithRetention = messageContent
+        .map((content, index) => ({
+          content,
+          retention: retentionPolicy[index],
+        }))
+        .filter(
+          ({ retention }) =>
+            retention === null || (retention !== null && retention > idx),
+        );
+
+      // If the content was modified drop the unwanted elements
+      if (filteredContentWithRetention.length < messageContent.length) {
+        const updatedContent = filteredContentWithRetention.map(
+          (item) => item.content,
+        );
+        const updatedRetention = filteredContentWithRetention.map(
+          (item) => item.retention,
+        );
+
+        if (updatedContent.length > 0) {
+          modifiedMessages.push(
+            new HumanMessage({
+              id: message.id!,
+              contentBlocks:
+                complexResponseToLangchainMessageContent(updatedContent),
+              additional_kwargs: {
+                ...message.additional_kwargs,
+                persistentMessageRetentionPolicy: updatedRetention,
+                original_content: updatedContent,
+              },
+            }),
+          );
+        } else {
+          modifiedMessages.push(
+            new RemoveMessage({
+              id: message.id!,
+            }),
+          );
+        }
+      }
+    }
+    return { messages: modifiedMessages };
+  };
+  const humanReviewNode: GraphNode<typeof AgentState> = async (state) => {
+    const toolRequest = state.messages[state.messages.length - 1] as AIMessage;
+
+    const humanInterrupt: HumanInterrupt = {
+      description:
+        "The agent is requesting permission to execute the following tool.",
+      action_request: {
+        action: "Execute_Tools",
+        args: toolRequest.tool_calls ?? [],
+      },
+      config: {
+        allow_accept: true,
+        allow_ignore: false,
+        allow_respond: true,
+        allow_edit: true,
+      },
     };
+    const humanReviewResponse = interrupt<
+      HumanInterrupt,
+      HumanResponse | HumanResponse[]
+    >(humanInterrupt);
+    const humanReview: HumanResponse = Array.isArray(humanReviewResponse)
+      ? humanReviewResponse[0]
+      : humanReviewResponse;
+
+    const name = modelWithTools.getName();
+    if (humanReview.type === "response") {
+      //Claude forcefully needs a tool message after a tool call, so we need to send it a tool message with the feedback. Every other model can just receive a human message.
+      if (name === "ChatAnthropic" || name === "ChatOpenAI") {
+        const responseMessage = new ToolMessage({
+          id: v4(),
+          tool_call_id: toolRequest.tool_calls![0].id!,
+          contentBlocks: complexResponseToLangchainMessageContent([
+            {
+              type: "text",
+              text: `The user has cancelled the execution of the tool calls and instead he is giving you the following feedback:\n\n`,
+            },
+            { type: "text", text: humanReview.args as string },
+          ]),
+        });
+        return new Command({
+          goto: "call_llm",
+          update: { messages: [responseMessage] },
+        });
+      } else {
+        const responseMessage = new HumanMessage({
+          id: v4(),
+          contentBlocks: complexResponseToLangchainMessageContent([
+            {
+              type: "text",
+              text: `I have cancelled the execution of the tool calls and instead I am giving you the following feedback:\n\n`,
+            },
+            { type: "text", text: humanReview.args as string },
+          ]),
+        });
+        return new Command({
+          goto: "call_llm",
+          update: { messages: [responseMessage] },
+        });
+      }
+    }
+    return new Command({ goto: "run_tool" });
+  };
+
+  const workflow = new StateGraph(AgentState)
+    .addNode("call_llm", callLLm())
+    .addNode(
+      "run_tool",
+      toolNodeFunction(langChainTools, { handleToolErrors: true }),
+    )
+    .addNode("message_prep", messageRetentionNode)
+    .addNode("human_review_node", humanReviewNode, {
+      ends: ["run_tool", "message_prep"],
+    })
+    .addEdge(START, "message_prep")
+    .addConditionalEdges("call_llm", routeAfterLLM, ["human_review_node", END])
+    .addEdge("run_tool", "message_prep")
+    .addEdge("message_prep", "call_llm");
+
+  for (const plugin of allCreatedPlugins) {
+    await plugin.init();
+  }
+
+  const agentCommands = await Promise.all(
+    allCreatedPlugins.map(async (plugin) => {
+      return {
+        commands: await plugin.getCommands(),
+        plugin: plugin,
+      };
+    }),
+  );
+
+  const commandList = agentCommands.map((ac) => ac.commands).flat();
+
+  const memory = config.checkpointer ?? new MemorySaver();
+  const graph: AgentGraphType = workflow.compile({
+    checkpointer: memory,
+  });
+
+  return {
+    graph: graph,
+    workspace: workspace,
+    commandList: commandList,
+    plugins: allCreatedPlugins,
+    fieldMapper: fieldMapper,
+  };
 }
 
 export async function createAgent(config: CreateAgentArgs): Promise<Agent> {
-    const agent = await createLgAgent(config);
+  const agent = await createLgAgent(config);
 
-    return new LanggraphAgent({
-        name: config.name,
-        description: config.description,
-        workspace: agent.workspace,
-        commands: agent.commandList,
-        graph: agent.graph,
-        plugins: agent.plugins,
-        fieldMapper: agent.fieldMapper,
-    });
+  return new LanggraphAgent({
+    name: config.name,
+    description: config.description,
+    workspace: agent.workspace,
+    commands: agent.commandList,
+    graph: agent.graph,
+    plugins: agent.plugins,
+    fieldMapper: agent.fieldMapper,
+  });
 }
 
 function buildSystemMessage(agentSystemMessages: ComplexMessageContent[]) {
-    const messages = agentSystemMessages.map((m) => {
-        return mergeSystemMessages([
-            new SystemMessage({
-                contentBlocks: complexResponseToLangchainMessageContent([m]),
-            }),
-        ]);
-    });
+  const messages = agentSystemMessages.map((m) => {
+    return mergeSystemMessages([
+      new SystemMessage({
+        contentBlocks: complexResponseToLangchainMessageContent([m]),
+      }),
+    ]);
+  });
 
-    const finalMessage = mergeSystemMessages(messages);
-    const content = finalMessage.contentBlocks as ContentBlock.Standard[];
-    const containsOnlyText =
-        content.find((f) => f.type !== "text") === undefined;
-    if (containsOnlyText) {
-        const systemMessageText = content.reduce((prev, next) => {
-            return prev + (next as ContentBlock.Text).text;
-        }, "");
+  const finalMessage = mergeSystemMessages(messages);
+  const content = finalMessage.contentBlocks as ContentBlock.Standard[];
+  const containsOnlyText = content.find((f) => f.type !== "text") === undefined;
+  if (containsOnlyText) {
+    const systemMessageText = content.reduce((prev, next) => {
+      return prev + (next as ContentBlock.Text).text;
+    }, "");
 
-        return new SystemMessage(systemMessageText);
-    }
-    return finalMessage;
+    return new SystemMessage(systemMessageText);
+  }
+  return finalMessage;
 }
