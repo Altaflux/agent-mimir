@@ -195,46 +195,6 @@ export function createPluginToolName(
   return `${pluginNamespace}${PLUGIN_TOOL_NAME_SEPARATOR}${toolName}`;
 }
 
-export const NOOP_PLUGIN_RUNTIME_PROVIDER: PluginRuntimeProvider = {
-  bindPlugin(identity: PluginRuntimeBindingIdentity): PluginRuntimeBinding {
-    return {
-      runtime: {
-        notifications: {
-          async enqueue(input) {
-            return {
-              id: "noop",
-              pluginId: identity.pluginId,
-              pluginPrefix: identity.pluginPrefix,
-              pluginNamespace: identity.pluginNamespace,
-              agentName: "unknown",
-              createdAt: Date.now(),
-              title: input.title,
-              summary: input.summary,
-              deduplicationId: input.deduplicationId,
-              content: input.content,
-            };
-          },
-        },
-        events: {
-          emit() {
-            return;
-          },
-        },
-      },
-      toolRuntime: {
-        forToolCall(_source: ToolCallRuntimeSource): ToolCallRuntimeContext {
-          return {
-            ..._source,
-            emitEvent() {
-              return;
-            },
-          };
-        },
-      },
-    };
-  },
-};
-
 export function createPluginContext(
   workspace: AgentWorkspace,
   runtime: PluginRuntimeContext,

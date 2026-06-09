@@ -45,7 +45,6 @@ import {
 import { Agent, AgentWorkspace, WorkspaceFactory } from "./../index.js";
 import {
   createPluginContext,
-  NOOP_PLUGIN_RUNTIME_PROVIDER,
   PluginConfig,
   PluginRuntimeProvider,
 } from "../../plugins/index.js";
@@ -100,8 +99,8 @@ export type CreateAgentArgs = {
   model: BaseChatModel;
   /** Optional named plugin factories to extend agent functionality */
   plugins?: PluginConfig;
-  /** Optional runtime bridge used by plugins to emit events and notifications */
-  pluginRuntime?: PluginRuntimeProvider;
+  /** Runtime bridge used by plugins to emit events and notifications */
+  pluginRuntime: PluginRuntimeProvider;
   /** Optional constitution defining agent behavior guidelines */
   constitution?: string;
   /** Optional vision support type*/
@@ -118,7 +117,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
   const shortName = config.name;
   const model = config.model;
   const workspace = await config.workspaceFactory(shortName);
-  const pluginRuntime = config.pluginRuntime ?? NOOP_PLUGIN_RUNTIME_PROVIDER;
+  const pluginRuntime = config.pluginRuntime;
   const fieldMapper = new ResponseFieldMapper();
   const toolPlugins = [createInternalPlugin(new WorkspacePluginFactory())];
   if (config.visionSupport) {

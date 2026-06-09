@@ -1,7 +1,6 @@
 import { describe, expect, it } from "@jest/globals";
 import type { AgentWorkspace } from "../agent-manager/index.js";
 import {
-  NOOP_PLUGIN_RUNTIME_PROVIDER,
   createPluginContext,
   type PluginRuntimeContext,
   type PluginRuntimeProvider,
@@ -14,6 +13,48 @@ const pluginIdentity = (pluginId: string, pluginPrefix?: string) => ({
   pluginPrefix,
   pluginNamespace: pluginPrefix ? `${pluginPrefix}__${pluginId}` : pluginId,
 });
+
+function createTestPluginRuntime(): PluginRuntimeProvider {
+  return {
+    bindPlugin(identity) {
+      return {
+        runtime: {
+          notifications: {
+            async enqueue(input) {
+              return {
+                id: "test",
+                pluginId: identity.pluginId,
+                pluginPrefix: identity.pluginPrefix,
+                pluginNamespace: identity.pluginNamespace,
+                agentName: "test-agent",
+                createdAt: Date.now(),
+                title: input.title,
+                summary: input.summary,
+                deduplicationId: input.deduplicationId,
+                content: input.content,
+              };
+            },
+          },
+          events: {
+            emit() {
+              return;
+            },
+          },
+        },
+        toolRuntime: {
+          forToolCall(source) {
+            return {
+              ...source,
+              emitEvent() {
+                return;
+              },
+            };
+          },
+        },
+      };
+    },
+  };
+}
 
 function createWorkspace(): AgentWorkspace {
   return {
@@ -38,8 +79,8 @@ function createWorkspace(): AgentWorkspace {
 }
 
 describe("Plugin runtime context", () => {
-  it("provides a noop runtime for standalone agent creation", async () => {
-    const runtime = NOOP_PLUGIN_RUNTIME_PROVIDER.bindPlugin(
+  it("can use a test runtime for standalone plugin context checks", async () => {
+    const runtime = createTestPluginRuntime().bindPlugin(
       pluginIdentity("unitTest"),
     ).runtime;
     const notification = await runtime.notifications.enqueue({
@@ -81,7 +122,7 @@ describe("Plugin runtime context", () => {
     const pluginRuntime: PluginRuntimeProvider = {
       bindPlugin(identity) {
         requestedPluginNames.push(identity.pluginId);
-        const fallback = NOOP_PLUGIN_RUNTIME_PROVIDER.bindPlugin(identity);
+        const fallback = createTestPluginRuntime().bindPlugin(identity);
         return {
           runtime:
             identity.pluginId === "capturing"
@@ -133,7 +174,7 @@ describe("Plugin runtime context", () => {
     }> = [];
     const pluginRuntime: PluginRuntimeProvider = {
       bindPlugin(identity) {
-        const fallback = NOOP_PLUGIN_RUNTIME_PROVIDER.bindPlugin(identity);
+        const fallback = createTestPluginRuntime().bindPlugin(identity);
         return {
           runtime: fallback.runtime,
           toolRuntime: {

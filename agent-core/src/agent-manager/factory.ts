@@ -28,7 +28,7 @@ export interface AgentConfig {
 
   checkpointer?: BaseCheckpointSaver;
 
-  pluginRuntime?: PluginRuntimeProvider;
+  pluginRuntime: PluginRuntimeProvider;
 }
 
 /**
