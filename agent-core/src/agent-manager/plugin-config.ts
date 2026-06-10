@@ -12,6 +12,7 @@ import {
 export type NormalizedPluginConfig = PluginRuntimeBindingIdentity & {
   factory: PluginFactory;
   label: string;
+  description?: string;
   displayName?: string;
 };
 
@@ -41,6 +42,7 @@ export function normalizePluginConfig(
       factory: config.factory,
       pluginId,
       pluginPrefix: prefix,
+      description: config.description,
       pluginNamespace,
       label: createPluginLabel(pluginId, prefix),
       displayName: config.factory.displayName,

@@ -149,6 +149,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
   const pluginContextEntries = publicToolEntries.map(({ entry, tools }) => ({
     plugin: entry.plugin,
     label: entry.label,
+    description: entry.description,
     tools,
   }));
   const pluginContextProvider = new PluginContextProvider(

@@ -26,6 +26,7 @@ export type RetentionAwareMessageContent = {
 export type PluginContextProviderEntry = {
   plugin: AgentPlugin;
   label: string;
+  description?: string;
   tools: AgentTool[];
 };
 
@@ -40,13 +41,16 @@ export class PluginContextProvider {
       await Promise.all(
         this.plugins.map(async (entry) => {
           const { content } = await entry.plugin.getSystemMessages();
-          const header = `\n\n### PLUGIN: ${entry.label} ###\n\n`;
+          const description = entry.description?.trim();
+          const header = `\n\n### PLUGIN: ${entry.label} ###\n\n${description ? `${description}\n\n` : ""}`;
+
           const pluginList = entry.tools.map((tool) => {
             return `- ${this.config.toolNameSanitizer ? this.config.toolNameSanitizer(tool.name) : tool.name}`;
           });
 
-          //No system message content, no plugin list, return empty
+          // No system message content, no plugin description, no plugin list, return empty.
           if (
+            !description &&
             content.every((c) => isEmptyMessageContent(c)) &&
             pluginList.length === 0
           ) {

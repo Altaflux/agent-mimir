@@ -159,6 +159,7 @@ export type PluginRuntimeProvider = {
 
 export type PluginInstanceConfig = {
   factory: PluginFactory;
+  description?: string;
   prefix?: string;
 };
 

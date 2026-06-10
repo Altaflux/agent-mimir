@@ -39,10 +39,12 @@ function createEntry(
   label: string,
   plugin: AgentPlugin,
   tools: AgentTool[] = [],
+  description?: string,
 ): PluginContextProviderEntry {
   return {
     label,
     plugin,
+    description,
     tools,
   };
 }
@@ -174,6 +176,30 @@ describe("PluginContextProvider", () => {
       {
         type: "text",
         text: "\nThe plugin provides and manages the following tools/functions:\n- officePCControl__desktopPlugin__clickMouse",
+      },
+    ]);
+  });
+
+  it("includes configured descriptions for plugins without tools or system messages", async () => {
+    const provider = new PluginContextProvider(
+      [
+        createEntry(
+          "officePCControl / desktopPlugin",
+          new DummyPlugin([]),
+          [],
+          "Controls the office desktop.",
+        ),
+      ],
+      {},
+    );
+
+    const result = await provider.getSystemPromptContext();
+
+    expect(result).toEqual([
+      expect.objectContaining({ type: "text" }),
+      {
+        type: "text",
+        text: "\n\n### PLUGIN: officePCControl / desktopPlugin ###\n\nControls the office desktop.\n\n",
       },
     ]);
   });
