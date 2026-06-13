@@ -1,5 +1,4 @@
 import { ComplexMessageContent } from "@mimir/agent-core/schema";
-import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { AgentTool } from "@mimir/agent-core/tools";
 import { ToolResponse } from "@mimir/agent-core/tools";
 import screenshot from 'screenshot-desktop';
@@ -91,7 +90,7 @@ class MoveMouseToLabel extends AgentTool {
     name: string = "moveMouseLocationOnComputerScreenToLabel";
     description: string = "Move the mouse to a location labeled on the computer screen. ";
 
-    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
+    protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
         const coordinates = this.context.coordinates.filter((el) => el.index === arg.labelNumber)[0];
 
         if (!coordinates) {

@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This is an npm workspace TypeScript monorepo. Core agent logic lives in `agent-core/src`, shared runtime utilities in `runtime-shared/src`, and API contract types in `api-contracts/src`. Entry points are split by interface: `cli-interface/src`, `discord-interface/src`, `api-server/src`, `lg-server/src`, and `web-interface/src`. Tool packages live under `tools/*`, examples under `tool-examples/*`, technical docs under `docs/technical`, and static/readme assets under `assets`.
+This is an npm workspace TypeScript monorepo. Core agent logic lives in `agent-core/src`, shared runtime utilities in `runtime-shared/src`, and API contract types in `api-contracts/src`. Entry points are split by interface: `api-server/src`, `lg-server/src`, and `web-interface/src`. Tool packages live under `tools/*`, examples under `tool-examples/*`, technical docs under `docs/technical`, and static/readme assets under `assets`.
 
 ## Build, Test, and Development Commands
 
@@ -12,7 +12,7 @@ This is an npm workspace TypeScript monorepo. Core agent logic lives in `agent-c
 - `npm run lint`: run workspace lint tasks.
 - `npm run format`: format `ts`, `tsx`, and Markdown files with Prettier.
 - `npm test`: run the root test command, currently `agent-core` Jest tests.
-- `npm run start-cli`, `npm run start-discord`, `npm run start-api`: prepare local config dependencies and start the selected interface.
+
 - `npm run start-web-dev`: start API and Vite web interface for local web development.
 
 Copy `.env.example` to `.env` before running services that require provider keys or Discord/API settings.

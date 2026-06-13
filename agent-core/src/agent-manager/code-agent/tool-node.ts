@@ -43,7 +43,6 @@ export const pythonToolNodeFunction = (
         const toolCall = (message.tool_calls ?? []).find(t => t.name === "CODE_EXECUTION")!;
         const pythonScript: string = toolCall.args["script"]!;
         const libraries: string[] = toolCall.args["libraries"]!;
-
         const toolResponses = new Map<string, ToolOutput>();
 
         const result = await executor.execute(tools, pythonScript, libraries, (wsUrl, tools) => {
@@ -112,7 +111,10 @@ export async function toolHandler(url: string, tools: AgentTool[], toolResponses
             try {
                 let output = await tool.invoke(
                     parsedData.request.arguments,
-
+                    {
+                        toolCallId: parsedData.request.call_id,
+                        toolName: parsedData.request.method
+                    }
                 );
                 actualOutput = output as any;
                 if (tool.outSchema) {

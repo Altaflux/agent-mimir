@@ -1,6 +1,4 @@
 
-import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
-
 import { WebDriverManager } from "./driver-manager.js";
 import { z } from "zod";
 import { AgentTool, ToolResponse } from "@mimir/agent-core/tools";
@@ -17,7 +15,7 @@ export class WebBrowserTool extends AgentTool {
     constructor(private toolManager: WebDriverManager) {
         super();
     }
-    protected async _call(inputs: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
+    protected async _call(inputs: z.input<this["schema"]>): Promise<ToolResponse> {
         const { url, keywords, searchDescription } = inputs;
         let formattedBaseUrl = url;
         if (!formattedBaseUrl.startsWith("http://") && !formattedBaseUrl.startsWith("https://")) {
@@ -50,7 +48,7 @@ export class ClickWebSiteLinkOrButton extends AgentTool {
     constructor(private toolManager: WebDriverManager) {
         super();
     }
-    protected async _call(inputs: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
+    protected async _call(inputs: z.input<this["schema"]>): Promise<ToolResponse> {
         if (!this.toolManager.currentPage) {
             return [
                 {
@@ -134,7 +132,7 @@ export class ScrollTool extends AgentTool {
     protected async _call(inputs: z.input<this["schema"]>): Promise<ToolResponse> {
         try {
             const height: number = await this.toolManager.executeScript(() => window.innerHeight,)!;
-            const adjustedHeight = height - 100;
+            const adjustedHeight = height - 50;
             if (inputs.direction === "up") {
 
                 await this.toolManager.executeScript((adjustedHeight: number) => window.scrollBy(0, -adjustedHeight), adjustedHeight)
@@ -235,7 +233,7 @@ export class AskSiteQuestion extends AgentTool {
     constructor(private toolManager: WebDriverManager) {
         super();
     }
-    protected async _call(inputs: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun): Promise<ToolResponse> {
+    protected async _call(inputs: z.input<this["schema"]>): Promise<ToolResponse> {
         if (!this.toolManager.currentPage) {
 
             return [
@@ -246,7 +244,7 @@ export class AskSiteQuestion extends AgentTool {
             ]
         }
         const { keywords, searchDescription } = inputs;
-        const result = await this.toolManager.obtainSummaryOfPage(keywords.join(' '), searchDescription, runManager);
+        const result = await this.toolManager.obtainSummaryOfPage(keywords.join(' '), searchDescription);
 
         return [
             {

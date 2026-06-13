@@ -2,15 +2,17 @@
 
 import { type SessionState } from "@/lib/contracts";
 import { Switch } from "@/components/ui/switch";
-import { Menu, RefreshCw, Zap } from "lucide-react";
+import { Menu, PanelRightOpen, RefreshCw, Zap } from "lucide-react";
 
 export interface ChatHeaderProps {
     sessionLabel: string;
     activeState: SessionState | undefined;
     sidebarOpen: boolean;
+    pluginStateCount: number;
+    pluginStatePanelOpen: boolean;
     onToggleSidebar: () => void;
+    onTogglePluginStatePanel: () => void;
     onSetContinuousMode: (enabled: boolean) => void;
-    onSetActiveAgent: (agentName: string) => void;
     onResetSession: () => void;
 }
 
@@ -18,10 +20,12 @@ export function ChatHeader({
     sessionLabel,
     activeState,
     sidebarOpen,
+    pluginStateCount,
+    pluginStatePanelOpen,
     onToggleSidebar,
+    onTogglePluginStatePanel,
     onSetContinuousMode,
-    onSetActiveAgent,
-    onResetSession
+    onResetSession,
 }: ChatHeaderProps) {
     return (
         <header className="flex items-center gap-3 px-4 py-2.5 border-b border-border/30 bg-background/80 backdrop-blur-sm shrink-0">
@@ -34,36 +38,45 @@ export function ChatHeader({
             </button>
 
             <div className="flex-1 min-w-0">
-                <h1 className="text-sm font-semibold truncate">{sessionLabel}</h1>
+                <h1 className="text-sm font-semibold truncate">
+                    {sessionLabel}
+                </h1>
                 {activeState ? (
                     <p className="text-xs text-muted-foreground truncate">
-                        Agent: {activeState.activeAgentName}
+                        Agent: {activeState.agentName}
                     </p>
                 ) : null}
             </div>
 
             {activeState ? (
                 <div className="flex items-center gap-2 shrink-0">
+                    <button
+                        className="relative rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                        onClick={onTogglePluginStatePanel}
+                        title={
+                            pluginStatePanelOpen
+                                ? "Close plugin state panel"
+                                : "Open plugin state panel"
+                        }
+                    >
+                        <PanelRightOpen className="h-4 w-4" />
+                        {pluginStateCount > 0 ? (
+                            <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-cyan-500 px-1 text-center text-[10px] font-medium leading-4 text-background">
+                                {pluginStateCount}
+                            </span>
+                        ) : null}
+                    </button>
+
                     <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
                         <Zap className="h-3.5 w-3.5" />
                         <span className="hidden sm:inline">Auto</span>
                         <Switch
                             checked={activeState.continuousMode}
-                            onCheckedChange={(checked) => onSetContinuousMode(Boolean(checked))}
+                            onCheckedChange={(checked) =>
+                                onSetContinuousMode(Boolean(checked))
+                            }
                         />
                     </label>
-
-                    <select
-                        className="h-8 rounded-lg border border-border bg-secondary px-2 text-xs text-foreground appearance-none cursor-pointer"
-                        value={activeState.activeAgentName}
-                        onChange={(event) => onSetActiveAgent(event.target.value)}
-                    >
-                        {activeState.agentNames.map((agentName) => (
-                            <option key={agentName} value={agentName}>
-                                {agentName}
-                            </option>
-                        ))}
-                    </select>
 
                     <button
                         className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"

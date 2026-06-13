@@ -1,5 +1,4 @@
 import { ComplexMessageContent } from "@mimir/agent-core/schema";
-import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { z } from "zod/v4";
 
 import { ToolResponse } from "@mimir/agent-core/tools";
@@ -16,7 +15,7 @@ class GetImageOfDesktop extends AgentTool {
     constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>) {
         super();
     }
-    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
+    protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
         return await this.getScreenFunc();
     }
 
@@ -35,7 +34,7 @@ export class ClickPositionOnDesktop extends AgentTool {
     constructor(private readonly getScreenFunc: () => Promise<ComplexMessageContent[]>) {
         super();
     }
-    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
+    protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
         const button = arg.clickButton === "leftButton" ? Button.LEFT : Button.RIGHT;
 
         if (arg.typeOfClick === "singleClick") {
@@ -66,7 +65,7 @@ export class TypeTextOnDesktop extends AgentTool {
         super();
     }
 
-    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
+    protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
 
 
         await keyboard.type(arg.keys);
@@ -87,7 +86,7 @@ export class ScrollScreen extends AgentTool {
         direction: z.enum(["up", "down"]).describe(`The direction to which scroll the website.`),
     })
 
-    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
+    protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
 
         if (arg.direction === "up") {
             await keyboard.type(Key.PageUp);
@@ -123,7 +122,7 @@ export class TypeOnDesktop extends AgentTool {
         super();
     }
 
-    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
+    protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
 
         for (const key of arg.keys) {
             let keyValue = Key[key.key as keyof typeof Key];

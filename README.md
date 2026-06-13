@@ -123,7 +123,6 @@ module.exports = async function() {
                 definition: {
                     chatModel: chatModel, //The main chat LLM used for conversation and memory.
                     profession: 'an Assistant', //The profession assigned to the agent.
-                    communicationWhitelist: ['MR_CHEF'], //The list of agents it is allowed to talk to.
                     chatHistory: {
                         summaryModel: summaryModel, //The model used when summarizing conversations. This model should preferably be able to handle double the token limit of the chat history.
                         tokenLimit: 4000, //Maximum number of tokens that can be used by the chat. 4000 by default.
@@ -308,9 +307,10 @@ The Web Browser plugin allows the agent to fully navigate thru any website, givi
 Take a look at the `tool-examples` directory  for other tools.
 
 ## Agent communication
-If you declare multiple agents in your configuration you can enable communication with each other. The agent may try to establish communication with another agent if it thinks it will help him complete a task.
-
-You can enable communication be setting `canCommunicateWithAgents` to either `true` if you want the agent to be able to communicate with every other agent or pass an array of the names of the agents it is allowed to talk to (`['Mr_Chef', 'Artist']`).
+Peer-to-peer agent communication has been removed from the core runtime. A
+conversation now uses one principal user-facing agent selected when the session
+is created. Future sub-agent collaboration is expected to be implemented through
+plugin/runtime capabilities.
 
 ## Roadmap
 

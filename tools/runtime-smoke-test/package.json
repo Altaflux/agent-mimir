@@ -1,0 +1,26 @@
+{
+  "name": "@mimir/runtime-smoke-test",
+  "description": "Dummy plugin for testing plugin runtime events and notification inbox behavior.",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "author": "Altaflux",
+  "keywords": [
+    "agent-mimir",
+    "plugin",
+    "runtime"
+  ],
+  "devDependencies": {
+    "@mimir/agent-core": "*",
+    "@types/node": "^18.16.3",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@mimir/agent-core": "*"
+  }
+}

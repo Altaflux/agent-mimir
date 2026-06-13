@@ -1,5 +1,4 @@
 import { ComplexMessageContent } from "@mimir/agent-core/schema";
-import { CallbackManagerForToolRun } from "@langchain/core/callbacks/manager";
 import { AgentTool } from "@mimir/agent-core/tools";
 import { ToolResponse } from "@mimir/agent-core/tools";
 import si from 'systeminformation';
@@ -83,7 +82,7 @@ class MoveMouseToCoordinate extends AgentTool {
     name: string = "moveMouseLocationOnComputerScreenGridCell";
     description: string = "Move the mouse to a location on the computer screen. Use the cell numbers on the computer screen to choose to which location to move the mouse.";
 
-    protected async _call(arg: z.input<this["schema"]>, runManager?: CallbackManagerForToolRun | undefined): Promise<ToolResponse> {
+    protected async _call(arg: z.input<this["schema"]>): Promise<ToolResponse> {
 
         if (arg.gridCellNumber < 0 || arg.gridCellNumber > 999) {
             return [

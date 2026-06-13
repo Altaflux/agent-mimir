@@ -7,6 +7,8 @@ import {
 import { RunnableConfig, RunnableToolLike } from "@langchain/core/runnables";
 import { StructuredToolInterface } from "@langchain/core/tools";
 import { END, isCommand, isGraphInterrupt, MessagesAnnotation } from "@langchain/langgraph";
+import { v4 } from "uuid";
+import { runWithToolCallRuntimeSource } from "../../tools/index.js";
 
 export type ToolNodeOptions = {
     name?: string;
@@ -30,13 +32,22 @@ export const toolNodeFunction = (
         const outputs = [];
         for (const call of (message as AIMessage).tool_calls ?? []) {
             const tool = tools.find((tool) => tool.name === call.name);
+            const toolCallId = call.id ?? v4();
+            const toolName = call.name;
+            const normalizedCall = { ...call, id: toolCallId };
             try {
                 if (tool === undefined) {
                     throw new Error(`Tool "${call.name}" not found.`);
                 }
-                const output = await tool.invoke(
-                    { ...call, type: "tool_call" },
-                    config
+                const output = await runWithToolCallRuntimeSource(
+                    {
+                        toolCallId,
+                        toolName
+                    },
+                    async () => await tool.invoke(
+                        { ...normalizedCall, type: "tool_call" },
+                        config
+                    )
                 );
                 if (
                     ( BaseMessage.isInstance(output) && output.type === "tool") ||
@@ -48,7 +59,7 @@ export const toolNodeFunction = (
                         name: tool.name,
                         content:
                             typeof output === "string" ? output : JSON.stringify(output),
-                        tool_call_id: call.id!,
+                        tool_call_id: toolCallId,
                     }));
                 }
 
@@ -65,7 +76,7 @@ export const toolNodeFunction = (
                 outputs.push(new ToolMessage({
                     content: `Error: ${e.message}\n Please fix your mistakes.`,
                     name: call.name,
-                    tool_call_id: call.id ?? "",
+                    tool_call_id: toolCallId,
                 }));
             }
         }
