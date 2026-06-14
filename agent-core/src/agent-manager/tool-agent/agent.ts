@@ -3,6 +3,7 @@ import {
   WorkspacePluginFactory,
   WorkspanceManager,
 } from "../../plugins/workspace.js";
+import { DefaultPluginFactory } from "../../plugins/default-plugins.js";
 import { ViewPluginFactory } from "../../tools/image_view.js";
 import { MimirToolToLangchainTool } from "./wrapper.js";
 import { ToolMessage } from "@langchain/core/messages/tool";
@@ -107,6 +108,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
   if (config.visionSupport) {
     toolPlugins.push(createInternalPlugin(new ViewPluginFactory()));
   }
+  toolPlugins.push(createInternalPlugin(new DefaultPluginFactory()));
   const allPluginFactories = normalizePluginConfig(config.plugins, toolPlugins);
   const createdPluginEntries = await Promise.all(
     allPluginFactories.map(async (entry) => {
