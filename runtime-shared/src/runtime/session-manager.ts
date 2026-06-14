@@ -2,6 +2,7 @@ import {
   ApprovalRequest,
   BootstrapResponse,
   DownloadableFile,
+  PluginElicitationResponseRequest,
   PluginStateDetail,
   PluginStateSummary,
   SessionEvent,
@@ -84,7 +85,10 @@ type PluginRuntimeSessionEventType =
   | "plugin_event"
   | "plugin_notification"
   | "plugin_state"
-  | "plugin_log";
+  | "plugin_log"
+  | "plugin_elicitation_request"
+  | "plugin_elicitation_response"
+  | "plugin_elicitation_complete";
 
 type PluginRuntimeSessionEventPayload = {
   [K in PluginRuntimeSessionEventType]: Omit<
@@ -848,6 +852,7 @@ export class SessionManager {
     return await this.withSessionLock(session, async () => {
       await session.orchestrator.reset();
       session.pendingToolRequest = null;
+      session.pluginRuntime.cancelPendingElicitations();
       session.pluginRuntime.clearNotifications();
       await session.pluginRuntime.clearPluginStates();
       this.store?.clearPluginRuntimeEvents(session.sessionId);
@@ -872,6 +877,7 @@ export class SessionManager {
 
   async stopSession(sessionId: string): Promise<SessionState> {
     const session = await this.ensureSessionLoaded(sessionId);
+    session.pluginRuntime.cancelPendingElicitations();
     if (session.running && session.abortController) {
       session.abortController.abort("User requested stop");
     }
@@ -1061,6 +1067,28 @@ export class SessionManager {
       this.emitStateChanged(session);
       return this.toSessionState(session);
     });
+  }
+
+  async submitElicitationResponse(
+    sessionId: string,
+    elicitationRequestId: string,
+    response: PluginElicitationResponseRequest,
+  ): Promise<SessionState> {
+    const session = await this.ensureSessionLoaded(sessionId);
+    const result = session.pluginRuntime.respondToElicitation(
+      elicitationRequestId,
+      response,
+    );
+    if (!result.ok) {
+      throw new HttpError(
+        result.code === "ELICITATION_NOT_FOUND" ? 404 : 400,
+        result.code,
+        result.message,
+      );
+    }
+
+    this.emitStateChanged(session);
+    return this.toSessionState(session);
   }
 
   async subscribe(
@@ -1839,6 +1867,7 @@ export class SessionManager {
         ? this.toToolRequestPayload(session.pendingToolRequest)
         : undefined,
       pendingNotificationCount: session.pluginRuntime.unreadCount(),
+      pendingElicitations: session.pluginRuntime.listPendingElicitations(),
     };
   }
 
@@ -1909,6 +1938,7 @@ export class SessionManager {
     this.sessions.delete(session.sessionId);
     this.sessionHydrationPromises.delete(session.sessionId);
     session.subscribers.clear();
+    session.pluginRuntime.cancelPendingElicitations();
     session.pluginRuntime.detach();
     await session.pluginRuntime.clearPluginStates();
     await session.orchestrator.shutDown();

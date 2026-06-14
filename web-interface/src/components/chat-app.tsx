@@ -201,6 +201,8 @@ export function ChatApp() {
                         activeSessionId={session.activeSessionId}
                         isSubmitting={session.isSubmitting}
                         hasPendingToolRequest={session.hasPendingToolRequest}
+                        hasPendingElicitation={session.hasPendingElicitation}
+                        pendingElicitations={session.pendingElicitations}
                         pendingNotificationCount={
                             session.pendingNotificationCount
                         }
@@ -231,6 +233,17 @@ export function ChatApp() {
                                         error instanceof Error
                                             ? error.message
                                             : "Approval failed.",
+                                    );
+                            });
+                        }}
+                        onSubmitElicitationResponse={(id, payload) => {
+                            session
+                                .submitElicitationResponse(id, payload)
+                                .catch((error) => {
+                                    session.setErrorMessage(
+                                        error instanceof Error
+                                            ? error.message
+                                            : "Elicitation response failed.",
                                     );
                             });
                         }}

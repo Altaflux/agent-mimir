@@ -17,6 +17,14 @@ const pluginIdentity = (pluginId: string, pluginPrefix?: string) => ({
 function createTestPluginRuntime(): PluginRuntimeProvider {
   return {
     bindPlugin(identity) {
+      const elicitation = {
+        async create() {
+          return { action: "cancel" as const };
+        },
+        complete() {
+          return;
+        },
+      };
       return {
         runtime: {
           notifications: {
@@ -40,6 +48,7 @@ function createTestPluginRuntime(): PluginRuntimeProvider {
               return;
             },
           },
+          elicitation,
         },
         toolRuntime: {
           forToolCall(source) {
@@ -48,6 +57,7 @@ function createTestPluginRuntime(): PluginRuntimeProvider {
               emitEvent() {
                 return;
               },
+              elicitation,
             };
           },
         },
@@ -117,6 +127,14 @@ describe("Plugin runtime context", () => {
           return;
         },
       },
+      elicitation: {
+        async create() {
+          return { action: "cancel" };
+        },
+        complete() {
+          return;
+        },
+      },
     };
     const requestedPluginNames: string[] = [];
     const pluginRuntime: PluginRuntimeProvider = {
@@ -156,6 +174,14 @@ describe("Plugin runtime context", () => {
         emitEvent: () => {
           return;
         },
+        elicitation: {
+          async create() {
+            return { action: "cancel" };
+          },
+          complete() {
+            return;
+          },
+        },
       },
     );
 
@@ -187,6 +213,14 @@ describe("Plugin runtime context", () => {
                     context: source,
                     input,
                   });
+                },
+                elicitation: {
+                  async create() {
+                    return { action: "cancel" };
+                  },
+                  complete() {
+                    return;
+                  },
                 },
               };
             },

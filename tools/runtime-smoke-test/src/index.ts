@@ -38,7 +38,8 @@ class RuntimeSmokeTestPlugin extends AgentPlugin {
           type: "text",
           text:
             "You have access to a runtime smoke-test tool. " +
-            "Use it only when the user asks to test plugin runtime events or notification inbox behavior.",
+            "Use it only when the user asks to test plugin runtime events, " +
+            "elicitation, or notification inbox behavior.",
         },
       ],
     };
@@ -53,7 +54,7 @@ class RuntimeSmokeTestTool extends AgentTool {
   name = "runtime_smoke_test";
   description =
     "Emit sample plugin runtime events and enqueue a sample plugin notification. " +
-    "Use this to test the UI event stream and manual notification processing flow.";
+    "Use this to test the UI event stream, elicitation flow, and manual notification processing flow.";
 
   schema = z.object({
     label: z
@@ -88,6 +89,20 @@ class RuntimeSmokeTestTool extends AgentTool {
       .describe(
         "Content the principal agent should receive when notifications are processed.",
       ),
+    elicitationMode: z
+      .enum(["none", "form", "url"])
+      .optional()
+      .describe(
+        "Set to form or url to make the tool request user elicitation during the smoke test.",
+      ),
+    elicitationMessage: z
+      .string()
+      .optional()
+      .describe("Optional message to show in the elicitation request."),
+    elicitationUrl: z
+      .string()
+      .optional()
+      .describe("URL to use when elicitationMode is url."),
   });
 
   constructor(private readonly runtime: PluginRuntimeContext) {
@@ -110,6 +125,7 @@ class RuntimeSmokeTestTool extends AgentTool {
       input.notificationContent?.trim() ||
       `The runtime smoke-test tool finished the run named "${label}". ` +
         "This notification exists only to verify manual inbox processing.";
+    const elicitationMode = input.elicitationMode ?? "none";
 
     await context.emitEvent({
       body: {
@@ -163,6 +179,14 @@ class RuntimeSmokeTestTool extends AgentTool {
       });
     }
 
+    const elicitationSummary = await this.invokeElicitationIfRequested(
+      context,
+      label,
+      elicitationMode,
+      input.elicitationMessage,
+      input.elicitationUrl,
+    );
+
     await context.emitEvent({
       body: {
         type: "message",
@@ -196,9 +220,101 @@ class RuntimeSmokeTestTool extends AgentTool {
           `Runtime smoke test finished.\n` +
           `Notification ID: ${notification.id}\n` +
           `Title: ${notification.title}\n` +
+          elicitationSummary +
           "Use the pending notification Process button to route it to the principal agent.",
       },
     ];
+  }
+
+  private async invokeElicitationIfRequested(
+    context: ToolCallRuntimeContext,
+    label: string,
+    mode: "none" | "form" | "url",
+    messageInput: string | undefined,
+    urlInput: string | undefined,
+  ): Promise<string> {
+    if (mode === "none") {
+      return "";
+    }
+
+    await context.emitEvent({
+      body: {
+        type: "status",
+        title: "Runtime smoke test",
+        message: `Requesting ${mode} elicitation for "${label}".`,
+      },
+    });
+
+    if (mode === "url") {
+      const elicitationId = `runtime-smoke-${Date.now()}`;
+      const response = await context.elicitation.create({
+        mode: "url",
+        message:
+          messageInput?.trim() ||
+          `Open the smoke-test URL to continue "${label}".`,
+        url: urlInput?.trim() || "https://example.com/runtime-smoke-test",
+        elicitationId,
+      });
+
+      if (response.action === "accept") {
+        await context.elicitation.complete({ elicitationId });
+      }
+
+      await context.emitEvent({
+        body: {
+          type: "status",
+          title: "Runtime smoke test",
+          message: `URL elicitation resolved with action "${response.action}".`,
+        },
+      });
+      return `Elicitation action: ${response.action}\n`;
+    }
+
+    const response = await context.elicitation.create({
+      mode: "form",
+      message:
+        messageInput?.trim() ||
+        `Provide smoke-test elicitation inputs for "${label}".`,
+      requestedSchema: {
+        type: "object",
+        properties: {
+          confirmation: {
+            type: "string",
+            title: "Confirmation",
+            description: "Short text echoed by the runtime smoke-test tool.",
+            minLength: 1,
+            default: label,
+          },
+          priority: {
+            type: "string",
+            title: "Priority",
+            enum: ["low", "normal", "high"],
+            default: "normal",
+          },
+          notify: {
+            type: "boolean",
+            title: "Notify",
+            description: "Boolean field used to verify checkbox handling.",
+            default: true,
+          },
+        },
+        required: ["confirmation", "priority"],
+      },
+    });
+
+    await context.emitEvent({
+      body: {
+        type: "status",
+        title: "Runtime smoke test",
+        message: `Form elicitation resolved with action "${response.action}".`,
+      },
+    });
+
+    const content =
+      response.action === "accept"
+        ? `Elicitation content: ${JSON.stringify(response.content ?? {})}\n`
+        : "";
+    return `Elicitation action: ${response.action}\n${content}`;
   }
 }
 

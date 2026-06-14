@@ -16,6 +16,8 @@ import type {
     GetPluginStateResponse,
     ListPluginStatesResponse,
     ListSessionsResponse,
+    PluginElicitationResponseRequest,
+    PluginElicitationResponseResponse,
     ProcessNotificationsResponse,
     ResetSessionResponse,
     SendMessageResponse,
@@ -460,6 +462,38 @@ export async function createApiServer(
                     );
                 const response: ApprovalResponse = { session };
                 reply.send(response);
+                },
+            );
+
+            api.post<{
+                Params: { sessionId: string; elicitationRequestId: string };
+            }>(
+                "/sessions/:sessionId/elicitations/:elicitationRequestId/response",
+                async (request, reply) => {
+                    const payload =
+                        request.body as PluginElicitationResponseRequest;
+                    if (
+                        payload.action !== "accept" &&
+                        payload.action !== "decline" &&
+                        payload.action !== "cancel"
+                    ) {
+                        throw new HttpError(
+                            400,
+                            "INVALID_REQUEST",
+                            "action must be 'accept', 'decline', or 'cancel'.",
+                        );
+                    }
+
+                    const session =
+                        await sessionManager.submitElicitationResponse(
+                            request.params.sessionId,
+                            request.params.elicitationRequestId,
+                            payload,
+                        );
+                    const response: PluginElicitationResponseResponse = {
+                        session,
+                    };
+                    reply.send(response);
                 },
             );
 

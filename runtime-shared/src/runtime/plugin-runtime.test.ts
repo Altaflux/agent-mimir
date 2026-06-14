@@ -590,3 +590,176 @@ test("remove deletes pending notification persistence rows", async () => {
 
   assert.deepEqual(deletedIds, [notification.id]);
 });
+
+test("form elicitation emits a request and resolves with accepted content", async () => {
+  const controller = new SessionPluginRuntimeController("Principal");
+  const sinkState = createSink();
+  controller.attach(sinkState.sink);
+  const binding = controller.bindPlugin(pluginIdentity("profile"));
+
+  const responsePromise = binding.toolRuntime
+    .forToolCall({
+      toolCallId: "tool-call-1",
+      toolName: "profile__lookup",
+    })
+    .elicitation.create({
+      mode: "form",
+      message: "Provide a profile lookup key.",
+      requestedSchema: {
+        type: "object",
+        properties: {
+          username: {
+            type: "string",
+            minLength: 2,
+          },
+          age: {
+            type: "integer",
+            minimum: 18,
+          },
+        },
+        required: ["username"],
+      },
+    });
+
+  const pending = controller.listPendingElicitations();
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0]?.pluginId, "profile");
+  assert.equal(pending[0]?.toolCallId, "tool-call-1");
+  assert.equal(pending[0]?.toolName, "profile__lookup");
+
+  const requestEvent = requireEvent(
+    sinkState.events[0],
+    "plugin_elicitation_request",
+  );
+  assert.equal(requestEvent.payload.elicitationRequestId, pending[0]?.elicitationRequestId);
+
+  const result = controller.respondToElicitation(
+    pending[0]!.elicitationRequestId,
+    {
+      action: "accept",
+      content: {
+        username: "octocat",
+        age: 30,
+      },
+    },
+  );
+
+  assert.deepEqual(result, { ok: true });
+  assert.deepEqual(await responsePromise, {
+    action: "accept",
+    content: {
+      username: "octocat",
+      age: 30,
+    },
+  });
+  assert.equal(controller.listPendingElicitations().length, 0);
+  const responseEvent = requireEvent(
+    sinkState.events[1],
+    "plugin_elicitation_response",
+  );
+  assert.equal(responseEvent.action, "accept");
+  assert.equal(sinkState.stateChangeCount, 2);
+});
+
+test("form elicitation rejects schema-invalid accepted content", async () => {
+  const controller = new SessionPluginRuntimeController("Principal");
+  const binding = controller.bindPlugin(pluginIdentity("profile"));
+
+  const responsePromise = binding.runtime.elicitation.create({
+    message: "Provide a profile lookup key.",
+    requestedSchema: {
+      type: "object",
+      properties: {
+        username: {
+          type: "string",
+          minLength: 2,
+        },
+      },
+      required: ["username"],
+    },
+  });
+
+  const pending = controller.listPendingElicitations()[0]!;
+  const result = controller.respondToElicitation(pending.elicitationRequestId, {
+    action: "accept",
+    content: {
+      username: "x",
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(controller.listPendingElicitations().length, 1);
+
+  const cancelResult = controller.respondToElicitation(
+    pending.elicitationRequestId,
+    { action: "cancel" },
+  );
+  assert.deepEqual(cancelResult, { ok: true });
+  assert.deepEqual(await responsePromise, { action: "cancel" });
+});
+
+test("url elicitation emits completion notifications for known pending ids", async () => {
+  const controller = new SessionPluginRuntimeController("Principal");
+  const sinkState = createSink();
+  controller.attach(sinkState.sink);
+  const binding = controller.bindPlugin(pluginIdentity("auth"));
+
+  const responsePromise = binding.runtime.elicitation.create({
+    mode: "url",
+    message: "Authorize access.",
+    url: "https://example.test/connect",
+    elicitationId: "auth-flow-1",
+  });
+
+  binding.runtime.elicitation.complete({ elicitationId: "unknown" });
+  binding.runtime.elicitation.complete({ elicitationId: "auth-flow-1" });
+
+  assert.equal(sinkState.events.length, 2);
+  requireEvent(sinkState.events[0], "plugin_elicitation_request");
+  const completeEvent = requireEvent(
+    sinkState.events[1],
+    "plugin_elicitation_complete",
+  );
+  assert.equal(completeEvent.elicitationId, "auth-flow-1");
+
+  const pending = controller.listPendingElicitations()[0]!;
+  controller.respondToElicitation(pending.elicitationRequestId, {
+    action: "accept",
+    content: {
+      ignored: true,
+    },
+  });
+
+  assert.deepEqual(await responsePromise, { action: "accept" });
+});
+
+test("cancelPendingElicitations resolves all pending requests as cancel", async () => {
+  const controller = new SessionPluginRuntimeController("Principal");
+  const binding = controller.bindPlugin(pluginIdentity("tasks"));
+  const first = binding.runtime.elicitation.create({
+    message: "First value.",
+    requestedSchema: {
+      type: "object",
+      properties: {
+        value: { type: "string" },
+      },
+    },
+  });
+  const second = binding.runtime.elicitation.create({
+    message: "Second value.",
+    requestedSchema: {
+      type: "object",
+      properties: {
+        value: { type: "string" },
+      },
+    },
+  });
+
+  assert.equal(controller.listPendingElicitations().length, 2);
+
+  controller.cancelPendingElicitations();
+
+  assert.equal(controller.listPendingElicitations().length, 0);
+  assert.deepEqual(await first, { action: "cancel" });
+  assert.deepEqual(await second, { action: "cancel" });
+});

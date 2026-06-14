@@ -2,7 +2,7 @@
 
 import { type SessionEvent } from "@/lib/contracts";
 import { formatTime } from "@/lib/api";
-import { Bell, Bot, Radio, User, Wrench } from "lucide-react";
+import { Bell, Bot, CheckCircle2, ExternalLink, Radio, User, Wrench } from "lucide-react";
 import { MarkdownContent } from "@/components/chat/markdown";
 import {
   CollapsibleSection,
@@ -344,6 +344,89 @@ export function MessageEvent({ event }: { event: RenderableSessionEvent }) {
                 {event.summary}
               </p>
             ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (event.type === "plugin_elicitation_request") {
+    const request = event.payload.request;
+    return (
+      <div className="flex items-start gap-3 animate-msg-in">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+          {request.mode === "url" ? (
+            <ExternalLink className="h-4 w-4 text-amber-500" />
+          ) : (
+            <Wrench className="h-4 w-4 text-emerald-500" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                {pluginDisplayLabel(event.payload)}
+              </span>
+              <span className="text-[10px] text-muted-foreground/60">
+                {formatTime(event.timestamp)}
+              </span>
+              <span className="rounded bg-secondary/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                {request.mode === "url" ? "url elicitation" : "form elicitation"}
+              </span>
+            </div>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">
+              {request.message}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (event.type === "plugin_elicitation_response") {
+    return (
+      <div className="flex items-start gap-3 animate-msg-in">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+          <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="rounded-xl border border-border/50 bg-secondary/30 px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                {pluginDisplayLabel(event)}
+              </span>
+              <span className="text-[10px] text-muted-foreground/60">
+                {formatTime(event.timestamp)}
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-foreground">
+              Elicitation {event.action}.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (event.type === "plugin_elicitation_complete") {
+    return (
+      <div className="flex items-start gap-3 animate-msg-in">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
+          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                {pluginDisplayLabel(event)}
+              </span>
+              <span className="text-[10px] text-muted-foreground/60">
+                {formatTime(event.timestamp)}
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-foreground">
+              URL interaction completed.
+            </p>
           </div>
         </div>
       </div>

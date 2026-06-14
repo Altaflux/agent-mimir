@@ -7,6 +7,8 @@ import {
   type ListPluginStatesResponse,
   type ListSessionsResponse,
   type ProcessNotificationsResponse,
+  type PluginElicitationResponseRequest,
+  type PluginElicitationResponseResponse,
   type PluginStateSummary,
   type ResetSessionResponse,
   type SessionEvent,
@@ -643,6 +645,61 @@ export function useChatSession() {
     [activeSessionId, recoverFromSessionNotFoundResponse],
   );
 
+  /* ── Action: elicitation ─────────────────────────── */
+
+  const submitElicitationResponse = useCallback(
+    async (
+      elicitationRequestId: string,
+      payload: PluginElicitationResponseRequest,
+    ) => {
+      if (!activeSessionId) return;
+      setErrorMessage(null);
+      try {
+        const response = await fetch(
+          `/api/sessions/${activeSessionId}/elicitations/${encodeURIComponent(elicitationRequestId)}/response`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          },
+        );
+        const responsePayload = (await response.json()) as
+          | PluginElicitationResponseResponse
+          | { error?: { message?: string } };
+        if (!response.ok) {
+          if (
+            await recoverFromSessionNotFoundResponse(
+              activeSessionId,
+              response,
+              responsePayload,
+            )
+          )
+            return;
+          throw new Error(
+            apiErrorMessage(
+              responsePayload,
+              "Failed to submit elicitation response.",
+            ),
+          );
+        }
+        upsertSessionState(
+          (responsePayload as PluginElicitationResponseResponse).session,
+        );
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "Failed to submit elicitation response.",
+        );
+      }
+    },
+    [
+      activeSessionId,
+      recoverFromSessionNotFoundResponse,
+      upsertSessionState,
+    ],
+  );
+
   /* ── Action: continuous mode ─────────────────────── */
 
   const setContinuousMode = useCallback(
@@ -800,6 +857,8 @@ export function useChatSession() {
 
   const pendingToolRequest = activeState?.pendingToolRequest;
   const hasPendingToolRequest = Boolean(pendingToolRequest);
+  const pendingElicitations = activeState?.pendingElicitations ?? [];
+  const hasPendingElicitation = pendingElicitations.length > 0;
   const pendingNotificationCount = activeState?.pendingNotificationCount ?? 0;
 
   const isAgentThinking = useMemo(() => {
@@ -825,6 +884,8 @@ export function useChatSession() {
     sessionLabel,
     isAgentThinking,
     hasPendingToolRequest,
+    hasPendingElicitation,
+    pendingElicitations,
     pendingNotificationCount,
 
     /* Actions */
@@ -834,6 +895,7 @@ export function useChatSession() {
     sendMessage,
     processNotifications,
     submitApproval,
+    submitElicitationResponse,
     setContinuousMode,
     resetSession,
     stopSession,

@@ -17,6 +17,99 @@ export type ToolRequestPayload = {
   toolCalls: ToolCallPayload[];
 };
 
+export type ElicitationResponseAction = "accept" | "decline" | "cancel";
+
+export type ElicitationStringFormat = "email" | "uri" | "date" | "date-time";
+
+export type ElicitationStringOption = {
+  const: string;
+  title?: string;
+};
+
+export type ElicitationStringSchema = {
+  type: "string";
+  title?: string;
+  description?: string;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
+  format?: ElicitationStringFormat;
+  default?: string;
+  enum?: string[];
+  oneOf?: ElicitationStringOption[];
+};
+
+export type ElicitationNumberSchema = {
+  type: "number" | "integer";
+  title?: string;
+  description?: string;
+  minimum?: number;
+  maximum?: number;
+  default?: number;
+};
+
+export type ElicitationBooleanSchema = {
+  type: "boolean";
+  title?: string;
+  description?: string;
+  default?: boolean;
+};
+
+export type ElicitationStringArraySchema = {
+  type: "array";
+  title?: string;
+  description?: string;
+  minItems?: number;
+  maxItems?: number;
+  default?: string[];
+  items:
+    | {
+        type: "string";
+        enum: string[];
+      }
+    | {
+        anyOf: ElicitationStringOption[];
+      };
+};
+
+export type ElicitationPropertySchema =
+  | ElicitationStringSchema
+  | ElicitationNumberSchema
+  | ElicitationBooleanSchema
+  | ElicitationStringArraySchema;
+
+export type ElicitationRequestedSchema = {
+  type: "object";
+  properties: Record<string, ElicitationPropertySchema>;
+  required?: string[];
+};
+
+export type PluginElicitationCreateRequest =
+  | {
+      mode?: "form";
+      message: string;
+      requestedSchema: ElicitationRequestedSchema;
+    }
+  | {
+      mode: "url";
+      message: string;
+      url: string;
+      elicitationId: string;
+    };
+
+export type PluginElicitationPayload = {
+  elicitationRequestId: string;
+  pluginInstanceId: string;
+  pluginId: string;
+  pluginPrefix?: string;
+  pluginNamespace: string;
+  agentName: string;
+  createdAt: string;
+  toolCallId?: string;
+  toolName?: string;
+  request: PluginElicitationCreateRequest;
+};
+
 export type SessionSummary = {
   sessionId: string;
   name: string;
@@ -30,6 +123,7 @@ export type SessionSummary = {
 export type SessionState = SessionSummary & {
   pendingToolRequest?: ToolRequestPayload;
   pendingNotificationCount: number;
+  pendingElicitations: PluginElicitationPayload[];
 };
 
 export type PluginStateSummary = {
@@ -198,6 +292,38 @@ export type SessionEvent =
       id: string;
       sessionId: string;
       timestamp: string;
+      type: "plugin_elicitation_request";
+      payload: PluginElicitationPayload;
+    }
+  | {
+      id: string;
+      sessionId: string;
+      timestamp: string;
+      type: "plugin_elicitation_response";
+      elicitationRequestId: string;
+      pluginInstanceId: string;
+      pluginId: string;
+      pluginPrefix?: string;
+      pluginNamespace: string;
+      agentName: string;
+      action: ElicitationResponseAction;
+    }
+  | {
+      id: string;
+      sessionId: string;
+      timestamp: string;
+      type: "plugin_elicitation_complete";
+      pluginInstanceId: string;
+      pluginId: string;
+      pluginPrefix?: string;
+      pluginNamespace: string;
+      agentName: string;
+      elicitationId: string;
+    }
+  | {
+      id: string;
+      sessionId: string;
+      timestamp: string;
       type: "reset";
       message: string;
     }
@@ -255,6 +381,22 @@ export type ApprovalRequest = {
 };
 
 export type ApprovalResponse = {
+  session: SessionState;
+};
+
+export type PluginElicitationResponseRequest =
+  | {
+      action: "accept";
+      content?: Record<string, unknown>;
+    }
+  | {
+      action: "decline";
+    }
+  | {
+      action: "cancel";
+    };
+
+export type PluginElicitationResponseResponse = {
   session: SessionState;
 };
 

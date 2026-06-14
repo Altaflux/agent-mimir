@@ -81,6 +81,109 @@ export type PluginRuntimeEventInput = {
   body: PluginRuntimeEventBody;
 };
 
+export type ElicitationResponseAction = "accept" | "decline" | "cancel";
+
+export type ElicitationStringFormat = "email" | "uri" | "date" | "date-time";
+
+export type ElicitationStringOption = {
+  const: string;
+  title?: string;
+};
+
+export type ElicitationStringSchema = {
+  type: "string";
+  title?: string;
+  description?: string;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
+  format?: ElicitationStringFormat;
+  default?: string;
+  enum?: string[];
+  oneOf?: ElicitationStringOption[];
+};
+
+export type ElicitationNumberSchema = {
+  type: "number" | "integer";
+  title?: string;
+  description?: string;
+  minimum?: number;
+  maximum?: number;
+  default?: number;
+};
+
+export type ElicitationBooleanSchema = {
+  type: "boolean";
+  title?: string;
+  description?: string;
+  default?: boolean;
+};
+
+export type ElicitationStringArraySchema = {
+  type: "array";
+  title?: string;
+  description?: string;
+  minItems?: number;
+  maxItems?: number;
+  default?: string[];
+  items:
+    | {
+        type: "string";
+        enum: string[];
+      }
+    | {
+        anyOf: ElicitationStringOption[];
+      };
+};
+
+export type ElicitationPropertySchema =
+  | ElicitationStringSchema
+  | ElicitationNumberSchema
+  | ElicitationBooleanSchema
+  | ElicitationStringArraySchema;
+
+export type ElicitationRequestedSchema = {
+  type: "object";
+  properties: Record<string, ElicitationPropertySchema>;
+  required?: string[];
+};
+
+export type PluginElicitationCreateRequest =
+  | {
+      mode?: "form";
+      message: string;
+      requestedSchema: ElicitationRequestedSchema;
+    }
+  | {
+      mode: "url";
+      message: string;
+      url: string;
+      elicitationId: string;
+    };
+
+export type PluginElicitationResponse =
+  | {
+      action: "accept";
+      content?: Record<string, unknown>;
+    }
+  | {
+      action: "decline";
+    }
+  | {
+      action: "cancel";
+    };
+
+export type PluginElicitationCompleteInput = {
+  elicitationId: string;
+};
+
+export type PluginElicitationRuntime = {
+  create(
+    input: PluginElicitationCreateRequest,
+  ): Promise<PluginElicitationResponse>;
+  complete(input: PluginElicitationCompleteInput): void | Promise<void>;
+};
+
 export type PluginNotificationContent = InputAgentMessage;
 
 export type PluginNotificationInput = {
@@ -140,6 +243,7 @@ export type PluginEventRuntime = {
 export type PluginRuntimeContext = {
   notifications: PluginNotificationInbox;
   events: PluginEventRuntime;
+  elicitation: PluginElicitationRuntime;
 };
 
 export type PluginRuntimeBinding = {
