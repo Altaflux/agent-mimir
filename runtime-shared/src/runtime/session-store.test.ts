@@ -69,6 +69,82 @@ function pluginNotificationEvent(
   };
 }
 
+function elicitationRequestEvent(
+  overrides: Partial<
+    Extract<SessionEvent, { type: "plugin_elicitation_request" }>
+  > = {},
+): Extract<SessionEvent, { type: "plugin_elicitation_request" }> {
+  return {
+    id: "elicitation-request-event-1",
+    sessionId: "session-1",
+    timestamp: "2026-05-28T10:02:00.000Z",
+    type: "plugin_elicitation_request",
+    payload: {
+      elicitationRequestId: "elicitation-request-1",
+      pluginInstanceId: "plugin-instance-1",
+      pluginId: "runtimeSmokeTest",
+      pluginNamespace: "runtimeSmokeTest",
+      agentName: "Principal",
+      createdAt: "2026-05-28T10:02:00.000Z",
+      request: {
+        mode: "form",
+        message: "Pick a value.",
+        requestedSchema: {
+          type: "object",
+          properties: {
+            value: { type: "string" },
+          },
+          required: ["value"],
+        },
+      },
+    },
+    ...overrides,
+  };
+}
+
+function elicitationResponseEvent(
+  overrides: Partial<
+    Extract<SessionEvent, { type: "plugin_elicitation_response" }>
+  > = {},
+): Extract<SessionEvent, { type: "plugin_elicitation_response" }> {
+  return {
+    id: "elicitation-response-event-1",
+    sessionId: "session-1",
+    timestamp: "2026-05-28T10:03:00.000Z",
+    type: "plugin_elicitation_response",
+    elicitationRequestId: "elicitation-request-1",
+    pluginInstanceId: "plugin-instance-1",
+    pluginId: "runtimeSmokeTest",
+    pluginNamespace: "runtimeSmokeTest",
+    agentName: "Principal",
+    action: "accept",
+    content: {
+      value: "chosen",
+    },
+    ...overrides,
+  };
+}
+
+function elicitationCompleteEvent(
+  overrides: Partial<
+    Extract<SessionEvent, { type: "plugin_elicitation_complete" }>
+  > = {},
+): Extract<SessionEvent, { type: "plugin_elicitation_complete" }> {
+  return {
+    id: "elicitation-complete-event-1",
+    sessionId: "session-1",
+    timestamp: "2026-05-28T10:04:00.000Z",
+    type: "plugin_elicitation_complete",
+    elicitationRequestId: "elicitation-request-2",
+    pluginInstanceId: "plugin-instance-1",
+    pluginId: "runtimeSmokeTest",
+    pluginNamespace: "runtimeSmokeTest",
+    agentName: "Principal",
+    elicitationId: "auth-flow-1",
+    ...overrides,
+  };
+}
+
 function notification(
   overrides: Partial<RuntimePluginNotification> = {},
 ): RuntimePluginNotification {
@@ -116,6 +192,29 @@ test("plugin notification events persist without notification anchors", async ()
     const storedEvents = store.listPluginRuntimeEvents("session-1");
     assert.equal(storedEvents.length, 1);
     assert.deepEqual(storedEvents[0]?.event, event);
+  });
+});
+
+test("plugin elicitation events persist with plugin origin and accepted content", async () => {
+  await withStore((store) => {
+    const events = [
+      elicitationRequestEvent(),
+      elicitationResponseEvent(),
+      elicitationCompleteEvent(),
+    ];
+
+    for (const event of events) {
+      store.appendPluginRuntimeEvent("session-1", event, {
+        retentionLimit: 10,
+      });
+    }
+
+    const storedEvents = store.listPluginRuntimeEvents("session-1");
+    assert.equal(storedEvents.length, 3);
+    assert.deepEqual(
+      storedEvents.map((storedEvent) => storedEvent.event),
+      events,
+    );
   });
 });
 

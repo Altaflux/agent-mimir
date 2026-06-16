@@ -9,6 +9,7 @@ import {
   type ElicitationPropertySchema,
   PluginFactory,
   PluginContext,
+  type PluginRuntimeContext,
   AdditionalContent,
 } from "./index.js";
 import { z } from "zod/v4";
@@ -81,11 +82,15 @@ export class DefaultPluginFactory implements PluginFactory {
   pluginId = "core";
 
   async create(context: PluginContext): Promise<AgentPlugin> {
-    return new DefaultPlugin();
+    return new DefaultPlugin(context.runtime);
   }
 }
 
 class DefaultPlugin extends AgentPlugin {
+  constructor(private readonly runtime: PluginRuntimeContext) {
+    super();
+  }
+
   async additionalMessageContent(
     message: InputAgentMessage,
   ): Promise<AdditionalContent[]> {
@@ -104,7 +109,7 @@ class DefaultPlugin extends AgentPlugin {
   }
 
   async tools(): Promise<AgentTool[]> {
-    return [new AskUserTool()];
+    return [new AskUserTool(this.runtime)];
   }
 }
 
@@ -116,9 +121,13 @@ class AskUserTool extends AgentTool {
 
   schema = askUserSchema;
 
+  constructor(private readonly runtime: PluginRuntimeContext) {
+    super();
+  }
+
   protected async _call(
     input: AskUserToolInput,
-    context: ToolCallRuntimeContext,
+    _context: ToolCallRuntimeContext,
   ): Promise<ToolResponse> {
     const fields =
       input.fields && input.fields.length > 0
@@ -132,7 +141,7 @@ class AskUserTool extends AgentTool {
             },
           ];
 
-    const response = await context.elicitation.create({
+    const response = await this.runtime.elicitation.create({
       mode: "form",
       message: input.message,
       requestedSchema: {

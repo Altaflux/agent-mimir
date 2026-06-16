@@ -173,14 +173,6 @@ describe("named plugin config", () => {
           emitEvent() {
             emittedToolNames.push(source.toolName);
           },
-          elicitation: {
-            async create() {
-              return { action: "cancel" as const };
-            },
-            complete() {
-              return;
-            },
-          },
         };
       },
     });

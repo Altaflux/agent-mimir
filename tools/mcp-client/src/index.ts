@@ -1,18 +1,18 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-export {
-  StdioClientTransport,
-  StdioServerParameters,
-} from "@modelcontextprotocol/sdk/client/stdio.js";
+export { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+export type { StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js";
 export { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-export {
-  StreamableHTTPClientTransport,
-  StreamableHTTPClientTransportOptions,
-} from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+export { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+export type { StreamableHTTPClientTransportOptions } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 export { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/websocket.js";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
   CallToolResult,
   EmbeddedResource,
+  type ElicitationCompleteNotification,
+  ElicitationCompleteNotificationSchema,
+  type ElicitRequest,
+  ElicitRequestSchema,
   ImageContent,
   PromptMessage,
   TextContent,
@@ -25,6 +25,9 @@ import {
   AgentPlugin,
   PluginFactory,
   PluginContext,
+  type PluginElicitationCreateRequest,
+  type PluginElicitationResponse,
+  type PluginRuntimeContext,
 } from "@mimir/agent-core/plugins";
 import { AgentTool, ToolResponse } from "@mimir/agent-core/tools";
 import { ComplexMessageContent } from "@mimir/agent-core/schema";
@@ -45,6 +48,26 @@ export type McpClientParameters = {
     }
   >;
 };
+
+export function createMcpElicitationRequestHandler(
+  runtime: PluginRuntimeContext,
+): (request: ElicitRequest) => Promise<PluginElicitationResponse> {
+  return async (request) =>
+    await runtime.elicitation.create(
+      request.params as PluginElicitationCreateRequest,
+    );
+}
+
+export function createMcpElicitationCompleteHandler(
+  runtime: PluginRuntimeContext,
+): (notification: ElicitationCompleteNotification) => void | Promise<void> {
+  return (notification) => {
+    runtime.elicitation.complete({
+      elicitationId: notification.params.elicitationId,
+    });
+  };
+}
+
 export class McpClientPluginFactory implements PluginFactory {
   pluginId = "mcpClient";
 
@@ -58,6 +81,7 @@ export class McpClientPluginFactory implements PluginFactory {
             const init = await this.initializeClient(
               clientName,
               config.transport(),
+              context.runtime,
             );
             return {
               clientName: clientName,
@@ -84,6 +108,7 @@ export class McpClientPluginFactory implements PluginFactory {
   private async initializeClient(
     clientName: string,
     transport: Transport,
+    runtime: PluginRuntimeContext,
   ): Promise<{ pluginResult: PluginResult; client: Client }> {
     const client = new Client(
       {
@@ -91,8 +116,21 @@ export class McpClientPluginFactory implements PluginFactory {
         version: "1.0.0",
       },
       {
-        capabilities: {},
+        capabilities: {
+          elicitation: {
+            form: {},
+            url: {},
+          },
+        },
       },
+    );
+    client.setRequestHandler(
+      ElicitRequestSchema,
+      createMcpElicitationRequestHandler(runtime),
+    );
+    client.setNotificationHandler(
+      ElicitationCompleteNotificationSchema,
+      createMcpElicitationCompleteHandler(runtime),
     );
 
     try {

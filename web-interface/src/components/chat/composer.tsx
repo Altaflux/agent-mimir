@@ -453,11 +453,6 @@ function FormElicitationCard({
                 <span className="text-sm font-medium text-foreground">
                     {pluginLabel(elicitation)} needs information
                 </span>
-                {elicitation.toolName ? (
-                    <span className="rounded bg-secondary/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                        {elicitation.toolName}
-                    </span>
-                ) : null}
             </div>
             <p className="mb-3 whitespace-pre-wrap text-sm text-foreground">
                 {elicitation.request.message}

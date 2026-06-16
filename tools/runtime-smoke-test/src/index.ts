@@ -247,7 +247,7 @@ class RuntimeSmokeTestTool extends AgentTool {
 
     if (mode === "url") {
       const elicitationId = `runtime-smoke-${Date.now()}`;
-      const response = await context.elicitation.create({
+      const response = await this.runtime.elicitation.create({
         mode: "url",
         message:
           messageInput?.trim() ||
@@ -257,7 +257,7 @@ class RuntimeSmokeTestTool extends AgentTool {
       });
 
       if (response.action === "accept") {
-        await context.elicitation.complete({ elicitationId });
+        await this.runtime.elicitation.complete({ elicitationId });
       }
 
       await context.emitEvent({
@@ -270,7 +270,7 @@ class RuntimeSmokeTestTool extends AgentTool {
       return `Elicitation action: ${response.action}\n`;
     }
 
-    const response = await context.elicitation.create({
+    const response = await this.runtime.elicitation.create({
       mode: "form",
       message:
         messageInput?.trim() ||

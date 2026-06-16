@@ -4,12 +4,21 @@ import { promises as fs } from "fs";
 import type { SessionEvent } from "../contracts.js";
 import type { RuntimePluginNotification } from "./plugin-runtime.js";
 
+type PersistedPluginRuntimeEventType =
+  | "plugin_event"
+  | "plugin_notification"
+  | "plugin_elicitation_request"
+  | "plugin_elicitation_response"
+  | "plugin_elicitation_complete";
+
+type PersistedPluginRuntimeEvent = Extract<
+  SessionEvent,
+  { type: PersistedPluginRuntimeEventType }
+>;
+
 export type StoredPluginRuntimeEvent = {
   sequence: number;
-  event: Extract<
-    SessionEvent,
-    { type: "plugin_event" | "plugin_notification" }
-  >;
+  event: PersistedPluginRuntimeEvent;
 };
 
 export type StoredPluginNotification = {
@@ -265,10 +274,7 @@ export class SessionStore {
 
   appendPluginRuntimeEvent(
     sessionId: string,
-    event: Extract<
-      SessionEvent,
-      { type: "plugin_event" | "plugin_notification" }
-    >,
+    event: PersistedPluginRuntimeEvent,
     options: { retentionLimit: number },
   ): void {
     if (!this.db) {
@@ -308,14 +314,14 @@ export class SessionStore {
         event.timestamp,
         normalizedTimestampMs,
         event.type,
-        event.type === "plugin_event" ? event.toolCallId : null,
-        event.type === "plugin_event" ? event.toolName : null,
+        this.pluginRuntimeEventToolCallId(event),
+        this.pluginRuntimeEventToolName(event),
         event.type === "plugin_notification" ? event.notificationId : null,
-        event.pluginInstanceId,
-        event.pluginId,
-        event.pluginPrefix ?? null,
-        event.pluginNamespace,
-        event.agentName,
+        this.pluginRuntimeEventIdentity(event).pluginInstanceId,
+        this.pluginRuntimeEventIdentity(event).pluginId,
+        this.pluginRuntimeEventIdentity(event).pluginPrefix ?? null,
+        this.pluginRuntimeEventIdentity(event).pluginNamespace,
+        this.pluginRuntimeEventIdentity(event).agentName,
         JSON.stringify(event),
       );
 
@@ -342,7 +348,7 @@ export class SessionStore {
       sequence: row.sequence,
       event: JSON.parse(row.payload_json) as Extract<
         SessionEvent,
-        { type: "plugin_event" | "plugin_notification" }
+        { type: PersistedPluginRuntimeEventType }
       >,
     }));
   }
@@ -545,5 +551,49 @@ export class SessionStore {
     this.db.exec(
       `ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`,
     );
+  }
+
+  private pluginRuntimeEventIdentity(event: PersistedPluginRuntimeEvent): {
+    pluginInstanceId: string;
+    pluginId: string;
+    pluginPrefix?: string;
+    pluginNamespace: string;
+    agentName: string;
+  } {
+    if (event.type === "plugin_elicitation_request") {
+      return event.payload;
+    }
+
+    return event;
+  }
+
+  private pluginRuntimeEventToolCallId(
+    event: PersistedPluginRuntimeEvent,
+  ): string | null {
+    if (
+      event.type === "plugin_notification" ||
+      event.type === "plugin_elicitation_request" ||
+      event.type === "plugin_elicitation_response" ||
+      event.type === "plugin_elicitation_complete"
+    ) {
+      return null;
+    }
+
+    return event.toolCallId;
+  }
+
+  private pluginRuntimeEventToolName(
+    event: PersistedPluginRuntimeEvent,
+  ): string | null {
+    if (
+      event.type === "plugin_notification" ||
+      event.type === "plugin_elicitation_request" ||
+      event.type === "plugin_elicitation_response" ||
+      event.type === "plugin_elicitation_complete"
+    ) {
+      return null;
+    }
+
+    return event.toolName;
   }
 }

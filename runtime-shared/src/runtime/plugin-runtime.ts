@@ -9,7 +9,6 @@ import type {
   PluginEventInput,
   PluginElicitationResponse,
   PluginRuntimeBinding,
-  PluginRuntimeContext,
   PluginRuntimeEventInput,
   PluginRuntimeBindingIdentity,
   PluginRuntimeProvider,
@@ -142,8 +141,7 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
           emit: (input) => this.emitPluginEvent(identity, input),
         },
         elicitation: {
-          create: (input) =>
-            this.createPluginElicitation(identity, undefined, input),
+          create: (input) => this.createPluginElicitation(identity, input),
           complete: (input) => this.completePluginElicitation(identity, input),
         },
       },
@@ -151,12 +149,6 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
         forToolCall: (source) => ({
           ...source,
           emitEvent: (input) => this.emitToolCallEvent(identity, source, input),
-          elicitation: {
-            create: (input) =>
-              this.createPluginElicitation(identity, source, input),
-            complete: (input) =>
-              this.completePluginElicitation(identity, input),
-          },
         }),
       },
     };
@@ -213,6 +205,10 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
       pluginNamespace: pending.payload.pluginNamespace,
       agentName: pending.payload.agentName,
       action: validation.response.action,
+      ...(validation.response.action === "accept" &&
+      validation.response.content !== undefined
+        ? { content: validation.response.content }
+        : {}),
     });
     this.sink?.emitStateChanged();
     return { ok: true };
@@ -319,7 +315,6 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
 
   private async createPluginElicitation(
     identity: PluginRuntimeIdentity,
-    source: ToolCallRuntimeSource | undefined,
     input: PluginElicitationCreateRequest,
   ): Promise<PluginElicitationResponse> {
     const request = this.normalizeElicitationCreateRequest(input);
@@ -331,8 +326,6 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
       pluginNamespace: identity.pluginNamespace,
       agentName: this.agentName,
       createdAt: new Date().toISOString(),
-      toolCallId: source?.toolCallId,
-      toolName: source?.toolName,
       request,
     };
 
@@ -365,6 +358,7 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
 
     this.emitRuntimeEvent({
       type: "plugin_elicitation_complete",
+      elicitationRequestId: matching.payload.elicitationRequestId,
       pluginInstanceId: identity.pluginInstanceId,
       pluginId: identity.pluginId,
       pluginPrefix: identity.pluginPrefix,
@@ -535,7 +529,10 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
     if (!input || typeof input !== "object") {
       throw new Error("Elicitation request must be an object.");
     }
-    if (typeof input.message !== "string" || input.message.trim().length === 0) {
+    if (
+      typeof input.message !== "string" ||
+      input.message.trim().length === 0
+    ) {
       throw new Error("Elicitation request message is required.");
     }
 
@@ -726,10 +723,16 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
         return this.invalidField(name, "must be a string.");
       }
       if (schema.minLength !== undefined && value.length < schema.minLength) {
-        return this.invalidField(name, `must be at least ${schema.minLength} characters.`);
+        return this.invalidField(
+          name,
+          `must be at least ${schema.minLength} characters.`,
+        );
       }
       if (schema.maxLength !== undefined && value.length > schema.maxLength) {
-        return this.invalidField(name, `must be at most ${schema.maxLength} characters.`);
+        return this.invalidField(
+          name,
+          `must be at most ${schema.maxLength} characters.`,
+        );
       }
       if (schema.pattern && !new RegExp(schema.pattern).test(value)) {
         return this.invalidField(name, "does not match the required pattern.");
@@ -737,7 +740,10 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
       if (schema.enum && !schema.enum.includes(value)) {
         return this.invalidField(name, "must be one of the allowed options.");
       }
-      if (schema.oneOf && !schema.oneOf.some((option) => option.const === value)) {
+      if (
+        schema.oneOf &&
+        !schema.oneOf.some((option) => option.const === value)
+      ) {
         return this.invalidField(name, "must be one of the allowed options.");
       }
       if (schema.format && !this.matchesStringFormat(value, schema.format)) {
@@ -776,10 +782,16 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
       return this.invalidField(name, "must be a list of strings.");
     }
     if (schema.minItems !== undefined && value.length < schema.minItems) {
-      return this.invalidField(name, `must include at least ${schema.minItems} selections.`);
+      return this.invalidField(
+        name,
+        `must include at least ${schema.minItems} selections.`,
+      );
     }
     if (schema.maxItems !== undefined && value.length > schema.maxItems) {
-      return this.invalidField(name, `must include at most ${schema.maxItems} selections.`);
+      return this.invalidField(
+        name,
+        `must include at most ${schema.maxItems} selections.`,
+      );
     }
 
     const allowed = this.arraySchemaAllowedValues(schema);
@@ -814,7 +826,9 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
 
   private matchesStringFormat(
     value: string,
-    format: NonNullable<Extract<ElicitationPropertySchema, { type: "string" }>["format"]>,
+    format: NonNullable<
+      Extract<ElicitationPropertySchema, { type: "string" }>["format"]
+    >,
   ): boolean {
     if (format === "email") {
       return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -828,7 +842,9 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
       }
     }
     if (format === "date") {
-      return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
+      return (
+        /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value))
+      );
     }
     return !Number.isNaN(Date.parse(value));
   }

@@ -2,7 +2,15 @@
 
 import { type SessionEvent } from "@/lib/contracts";
 import { formatTime } from "@/lib/api";
-import { Bell, Bot, CheckCircle2, ExternalLink, Radio, User, Wrench } from "lucide-react";
+import {
+  Bell,
+  Bot,
+  CheckCircle2,
+  ExternalLink,
+  Radio,
+  User,
+  Wrench,
+} from "lucide-react";
 import { MarkdownContent } from "@/components/chat/markdown";
 import {
   CollapsibleSection,
@@ -371,7 +379,9 @@ export function MessageEvent({ event }: { event: RenderableSessionEvent }) {
                 {formatTime(event.timestamp)}
               </span>
               <span className="rounded bg-secondary/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                {request.mode === "url" ? "url elicitation" : "form elicitation"}
+                {request.mode === "url"
+                  ? "url elicitation"
+                  : "form elicitation"}
               </span>
             </div>
             <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">
@@ -402,6 +412,15 @@ export function MessageEvent({ event }: { event: RenderableSessionEvent }) {
             <p className="mt-1 text-sm text-foreground">
               Elicitation {event.action}.
             </p>
+            {event.action === "accept" &&
+            event.content &&
+            Object.keys(event.content).length > 0 ? (
+              <div className="mt-2">
+                <ScrollableCodeBlock
+                  text={JSON.stringify(event.content, null, 2)}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

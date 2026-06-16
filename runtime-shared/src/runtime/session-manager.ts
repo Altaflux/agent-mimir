@@ -1744,7 +1744,13 @@ export class SessionManager {
     session: SessionRuntime,
     event: SessionEvent,
   ): void {
-    if (event.type !== "plugin_event" && event.type !== "plugin_notification") {
+    if (
+      event.type !== "plugin_event" &&
+      event.type !== "plugin_notification" &&
+      event.type !== "plugin_elicitation_request" &&
+      event.type !== "plugin_elicitation_response" &&
+      event.type !== "plugin_elicitation_complete"
+    ) {
       return;
     }
 

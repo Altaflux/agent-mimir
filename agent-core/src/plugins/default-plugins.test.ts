@@ -1,9 +1,9 @@
 import { describe, expect, it } from "@jest/globals";
 import type { AgentWorkspace } from "../agent-manager/index.js";
-import type { ToolCallRuntimeContext } from "../tools/index.js";
 import {
   createPluginContext,
   type PluginElicitationCreateRequest,
+  type PluginElicitationResponse,
   type PluginRuntimeContext,
 } from "./index.js";
 import { DefaultPluginFactory } from "./default-plugins.js";
@@ -30,7 +30,10 @@ function createWorkspace(): AgentWorkspace {
   };
 }
 
-function createRuntime(): PluginRuntimeContext {
+function createRuntime(
+  elicitationResponse: PluginElicitationResponse = { action: "cancel" },
+  onElicitationCreate?: (input: PluginElicitationCreateRequest) => void,
+): PluginRuntimeContext {
   return {
     notifications: {
       async enqueue(input) {
@@ -52,8 +55,9 @@ function createRuntime(): PluginRuntimeContext {
       },
     },
     elicitation: {
-      async create() {
-        return { action: "cancel" };
+      async create(input) {
+        onElicitationCreate?.(input);
+        return elicitationResponse;
       },
       complete() {
         return;
@@ -74,37 +78,28 @@ describe("DefaultPluginFactory", () => {
     expect(tools.map((tool) => tool.name)).toContain("ask_user");
   });
 
-  it("uses tool-scoped elicitation to ask the user for structured input", async () => {
+  it("uses plugin-level elicitation to ask the user for structured input", async () => {
+    let request: PluginElicitationCreateRequest | undefined;
     const plugin = await new DefaultPluginFactory().create(
-      createPluginContext(createWorkspace(), createRuntime()),
+      createPluginContext(
+        createWorkspace(),
+        createRuntime(
+          {
+            action: "accept",
+            content: {
+              priority: "high",
+            },
+          },
+          (input) => {
+            request = input;
+          },
+        ),
+      ),
     );
     const askUser = (await plugin.tools()).find(
       (tool) => tool.name === "ask_user",
     );
     expect(askUser).toBeDefined();
-
-    let request: PluginElicitationCreateRequest | undefined;
-    const context: ToolCallRuntimeContext = {
-      toolCallId: "tool-call-1",
-      toolName: "core__ask_user",
-      emitEvent() {
-        return;
-      },
-      elicitation: {
-        async create(input) {
-          request = input;
-          return {
-            action: "accept",
-            content: {
-              priority: "high",
-            },
-          };
-        },
-        complete() {
-          return;
-        },
-      },
-    };
 
     const response = await askUser!.invoke(
       {
@@ -121,7 +116,6 @@ describe("DefaultPluginFactory", () => {
           },
         ],
       },
-      context,
     );
 
     expect(request).toEqual({

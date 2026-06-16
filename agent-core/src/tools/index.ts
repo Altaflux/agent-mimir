@@ -9,12 +9,7 @@ import {
   interopParseAsync,
 } from "@langchain/core/utils/types";
 import { AsyncLocalStorage } from "async_hooks";
-import type {
-  PluginElicitationCreateRequest,
-  PluginElicitationResponse,
-  PluginElicitationRuntime,
-  PluginRuntimeEventInput,
-} from "../plugins/index.js";
+import type { PluginRuntimeEventInput } from "../plugins/index.js";
 
 type JSONSchema = Record<string, unknown>;
 export type ToolResponse = ComplexMessageContent[];
@@ -57,7 +52,6 @@ export type ToolCallRuntimeSource = {
 
 export type ToolCallRuntimeContext = ToolCallRuntimeSource & {
   emitEvent(input: PluginRuntimeEventInput): void | Promise<void>;
-  elicitation: PluginElicitationRuntime;
 };
 
 export type ToolRuntimeProvider = {
@@ -87,20 +81,6 @@ function createNoopToolCallRuntimeContext(
     toolCallId: source?.toolCallId ?? "standalone",
     toolName: source?.toolName ?? toolName,
     emitEvent() {
-      return;
-    },
-    elicitation: createNoopElicitationRuntime(),
-  };
-}
-
-function createNoopElicitationRuntime(): PluginElicitationRuntime {
-  return {
-    async create(
-      _input: PluginElicitationCreateRequest,
-    ): Promise<PluginElicitationResponse> {
-      return { action: "cancel" };
-    },
-    complete() {
       return;
     },
   };
@@ -186,12 +166,7 @@ export abstract class AgentTool<
   ): ToolCallRuntimeContext {
     if (context) {
       if (isToolCallRuntimeContext(context)) {
-        return {
-          ...context,
-          elicitation:
-            (context as Partial<ToolCallRuntimeContext>).elicitation ??
-            createNoopElicitationRuntime(),
-        };
+        return context;
       }
 
       return (

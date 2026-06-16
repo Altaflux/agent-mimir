@@ -4,7 +4,8 @@
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json "
+    "build": "tsc -p tsconfig.json ",
+    "test": "tsx --test src/**/*.test.ts"
   },
   "author": "Altaflux",
   "keywords": [

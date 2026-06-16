@@ -17,14 +17,6 @@ const pluginIdentity = (pluginId: string, pluginPrefix?: string) => ({
 function createTestPluginRuntime(): PluginRuntimeProvider {
   return {
     bindPlugin(identity) {
-      const elicitation = {
-        async create() {
-          return { action: "cancel" as const };
-        },
-        complete() {
-          return;
-        },
-      };
       return {
         runtime: {
           notifications: {
@@ -48,7 +40,14 @@ function createTestPluginRuntime(): PluginRuntimeProvider {
               return;
             },
           },
-          elicitation,
+          elicitation: {
+            async create() {
+              return { action: "cancel" as const };
+            },
+            complete() {
+              return;
+            },
+          },
         },
         toolRuntime: {
           forToolCall(source) {
@@ -57,7 +56,6 @@ function createTestPluginRuntime(): PluginRuntimeProvider {
               emitEvent() {
                 return;
               },
-              elicitation,
             };
           },
         },
@@ -105,6 +103,7 @@ describe("Plugin runtime context", () => {
     expect(notification.title).toBe("No-op notification");
     expect("pluginInstanceId" in notification).toBe(false);
     expect("emitEvent" in runtime).toBe(false);
+    expect(typeof runtime.elicitation.create).toBe("function");
     await Promise.resolve(runtime.events.emit({ type: "LOG", text: "hello" }));
   });
 
@@ -174,14 +173,6 @@ describe("Plugin runtime context", () => {
         emitEvent: () => {
           return;
         },
-        elicitation: {
-          async create() {
-            return { action: "cancel" };
-          },
-          complete() {
-            return;
-          },
-        },
       },
     );
 
@@ -213,14 +204,6 @@ describe("Plugin runtime context", () => {
                     context: source,
                     input,
                   });
-                },
-                elicitation: {
-                  async create() {
-                    return { action: "cancel" };
-                  },
-                  complete() {
-                    return;
-                  },
                 },
               };
             },

@@ -47,6 +47,22 @@ function pluginIdentity(pluginId: string, pluginPrefix?: string) {
   };
 }
 
+test("plugin runtime exposes elicitation at plugin level only", () => {
+  const controller = new SessionPluginRuntimeController("Principal");
+  const binding = controller.bindPlugin(pluginIdentity("profile"));
+
+  assert.equal(typeof binding.runtime.elicitation.create, "function");
+  assert.equal(typeof binding.runtime.elicitation.complete, "function");
+  const toolRuntime = binding.toolRuntime.forToolCall({
+    toolCallId: "tool-call-1",
+    toolName: "profile__lookup",
+  });
+  assert.equal(
+    "elicitation" in toolRuntime,
+    false,
+  );
+});
+
 async function withTempStateStore<T>(
   run: (store: DiskPluginStateStore, directory: string) => Promise<T>,
 ): Promise<T> {
@@ -597,41 +613,37 @@ test("form elicitation emits a request and resolves with accepted content", asyn
   controller.attach(sinkState.sink);
   const binding = controller.bindPlugin(pluginIdentity("profile"));
 
-  const responsePromise = binding.toolRuntime
-    .forToolCall({
-      toolCallId: "tool-call-1",
-      toolName: "profile__lookup",
-    })
-    .elicitation.create({
-      mode: "form",
-      message: "Provide a profile lookup key.",
-      requestedSchema: {
-        type: "object",
-        properties: {
-          username: {
-            type: "string",
-            minLength: 2,
-          },
-          age: {
-            type: "integer",
-            minimum: 18,
-          },
+  const responsePromise = binding.runtime.elicitation.create({
+    mode: "form",
+    message: "Provide a profile lookup key.",
+    requestedSchema: {
+      type: "object",
+      properties: {
+        username: {
+          type: "string",
+          minLength: 2,
         },
-        required: ["username"],
+        age: {
+          type: "integer",
+          minimum: 18,
+        },
       },
-    });
+      required: ["username"],
+    },
+  });
 
   const pending = controller.listPendingElicitations();
   assert.equal(pending.length, 1);
   assert.equal(pending[0]?.pluginId, "profile");
-  assert.equal(pending[0]?.toolCallId, "tool-call-1");
-  assert.equal(pending[0]?.toolName, "profile__lookup");
 
   const requestEvent = requireEvent(
     sinkState.events[0],
     "plugin_elicitation_request",
   );
-  assert.equal(requestEvent.payload.elicitationRequestId, pending[0]?.elicitationRequestId);
+  assert.equal(
+    requestEvent.payload.elicitationRequestId,
+    pending[0]?.elicitationRequestId,
+  );
 
   const result = controller.respondToElicitation(
     pending[0]!.elicitationRequestId,
@@ -658,6 +670,10 @@ test("form elicitation emits a request and resolves with accepted content", asyn
     "plugin_elicitation_response",
   );
   assert.equal(responseEvent.action, "accept");
+  assert.deepEqual(responseEvent.content, {
+    username: "octocat",
+    age: 30,
+  });
   assert.equal(sinkState.stateChangeCount, 2);
 });
 
@@ -710,6 +726,7 @@ test("url elicitation emits completion notifications for known pending ids", asy
     url: "https://example.test/connect",
     elicitationId: "auth-flow-1",
   });
+  const pending = controller.listPendingElicitations()[0]!;
 
   binding.runtime.elicitation.complete({ elicitationId: "unknown" });
   binding.runtime.elicitation.complete({ elicitationId: "auth-flow-1" });
@@ -720,9 +737,12 @@ test("url elicitation emits completion notifications for known pending ids", asy
     sinkState.events[1],
     "plugin_elicitation_complete",
   );
+  assert.equal(
+    completeEvent.elicitationRequestId,
+    pending.elicitationRequestId,
+  );
   assert.equal(completeEvent.elicitationId, "auth-flow-1");
 
-  const pending = controller.listPendingElicitations()[0]!;
   controller.respondToElicitation(pending.elicitationRequestId, {
     action: "accept",
     content: {

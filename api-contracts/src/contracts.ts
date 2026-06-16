@@ -105,8 +105,6 @@ export type PluginElicitationPayload = {
   pluginNamespace: string;
   agentName: string;
   createdAt: string;
-  toolCallId?: string;
-  toolName?: string;
   request: PluginElicitationCreateRequest;
 };
 
@@ -307,12 +305,14 @@ export type SessionEvent =
       pluginNamespace: string;
       agentName: string;
       action: ElicitationResponseAction;
+      content?: Record<string, unknown>;
     }
   | {
       id: string;
       sessionId: string;
       timestamp: string;
       type: "plugin_elicitation_complete";
+      elicitationRequestId: string;
       pluginInstanceId: string;
       pluginId: string;
       pluginPrefix?: string;
