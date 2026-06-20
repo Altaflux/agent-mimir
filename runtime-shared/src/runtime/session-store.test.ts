@@ -117,6 +117,7 @@ function elicitationResponseEvent(
     pluginId: "runtimeSmokeTest",
     pluginNamespace: "runtimeSmokeTest",
     agentName: "Principal",
+    request: elicitationRequestEvent().payload.request,
     action: "accept",
     content: {
       value: "chosen",

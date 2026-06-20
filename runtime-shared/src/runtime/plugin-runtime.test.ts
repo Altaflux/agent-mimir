@@ -673,6 +673,7 @@ test("form elicitation emits a request and resolves with accepted content", asyn
     "plugin_elicitation_response",
   );
   assert.equal(responseEvent.action, "accept");
+  assert.deepEqual(responseEvent.request, pending[0]!.request);
   assert.equal("toolCallId" in responseEvent, false);
   assert.equal("toolName" in responseEvent, false);
   assert.deepEqual(responseEvent.content, {
@@ -770,6 +771,8 @@ test("url elicitation emits completion notifications for known pending ids", asy
 
 test("cancelPendingElicitations resolves all pending requests as cancel", async () => {
   const controller = new SessionPluginRuntimeController("Principal");
+  const sinkState = createSink();
+  controller.attach(sinkState.sink);
   const binding = controller.bindPlugin(pluginIdentity("tasks"));
   const firstToolRuntime = binding.toolRuntime.forToolCall({
     toolCallId: "tool-call-1",
@@ -798,11 +801,19 @@ test("cancelPendingElicitations resolves all pending requests as cancel", async 
     },
   });
 
-  assert.equal(controller.listPendingElicitations().length, 2);
+  const pendingBeforeCancel = controller.listPendingElicitations();
+  assert.equal(pendingBeforeCancel.length, 2);
 
   controller.cancelPendingElicitations();
 
   assert.equal(controller.listPendingElicitations().length, 0);
   assert.deepEqual(await first, { action: "cancel" });
   assert.deepEqual(await second, { action: "cancel" });
+  const cancelEvents = sinkState.events
+    .filter((event) => event.type === "plugin_elicitation_response")
+    .map((event) => requireEvent(event, "plugin_elicitation_response"));
+  assert.deepEqual(
+    cancelEvents.map((event) => event.request),
+    pendingBeforeCancel.map((pending) => pending.request),
+  );
 });

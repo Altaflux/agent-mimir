@@ -18,6 +18,10 @@ import {
   ScrollableCodeBlock,
   CopyButton,
 } from "@/components/chat/shared";
+import {
+  ElicitationFormFields,
+  elicitationFormValuesFromContent,
+} from "@/components/chat/elicitation-form";
 
 type PluginRuntimeEvent = Extract<SessionEvent, { type: "plugin_event" }>;
 type ToolRequestEvent = Extract<SessionEvent, { type: "tool_request" }>;
@@ -394,6 +398,11 @@ export function MessageEvent({ event }: { event: RenderableSessionEvent }) {
   }
 
   if (event.type === "plugin_elicitation_response") {
+    const acceptedFormResponse =
+      event.action === "accept" &&
+      event.request.mode !== "url" &&
+      event.content !== undefined;
+
     return (
       <div className="flex items-start gap-3 animate-msg-in">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
@@ -412,12 +421,16 @@ export function MessageEvent({ event }: { event: RenderableSessionEvent }) {
             <p className="mt-1 text-sm text-foreground">
               Elicitation {event.action}.
             </p>
-            {event.action === "accept" &&
-            event.content &&
-            Object.keys(event.content).length > 0 ? (
+            {acceptedFormResponse ? (
               <div className="mt-2">
-                <ScrollableCodeBlock
-                  text={JSON.stringify(event.content, null, 2)}
+                <ElicitationFormFields
+                  schema={event.request.requestedSchema}
+                  values={elicitationFormValuesFromContent(
+                    event.request.requestedSchema,
+                    event.content,
+                  )}
+                  disabled={true}
+                  readOnly={true}
                 />
               </div>
             ) : null}

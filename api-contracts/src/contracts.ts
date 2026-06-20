@@ -304,6 +304,7 @@ export type SessionEvent =
       pluginPrefix?: string;
       pluginNamespace: string;
       agentName: string;
+      request: PluginElicitationCreateRequest;
       action: ElicitationResponseAction;
       content?: Record<string, unknown>;
     }

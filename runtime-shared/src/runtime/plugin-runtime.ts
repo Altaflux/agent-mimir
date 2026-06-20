@@ -205,6 +205,7 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
       pluginPrefix: pending.payload.pluginPrefix,
       pluginNamespace: pending.payload.pluginNamespace,
       agentName: pending.payload.agentName,
+      request: pending.payload.request,
       action: validation.response.action,
       ...(validation.response.action === "accept" &&
       validation.response.content !== undefined
@@ -232,6 +233,7 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
         pluginPrefix: entry.payload.pluginPrefix,
         pluginNamespace: entry.payload.pluginNamespace,
         agentName: entry.payload.agentName,
+        request: entry.payload.request,
         action: "cancel",
       });
     }
