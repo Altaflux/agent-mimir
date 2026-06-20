@@ -83,6 +83,7 @@ import {
 } from "../langgraph-agent.js";
 import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
 import { fi } from "zod/locales";
+import type { RuntimePluginToolEntry } from "../runtime-tools.js";
 
 /**
  * Configuration options for creating a new agent.
@@ -144,13 +145,21 @@ export async function createLgAgent(config: CreateAgentArgs) {
   );
   const allCreatedPlugins = createdPluginEntries.map((entry) => entry.plugin);
 
-  const publicToolEntries = await Promise.all(
+  const publicToolEntries: RuntimePluginToolEntry[] = await Promise.all(
     createdPluginEntries.map(async (entry) => ({
-      entry,
+      entry: {
+        plugin: entry.plugin,
+        pluginId: entry.pluginId,
+        pluginPrefix: entry.pluginPrefix,
+        pluginNamespace: entry.pluginNamespace,
+        factory: entry.factory,
+        label: entry.label,
+        description: entry.description,
+        displayName: entry.displayName,
+        toolRuntime: entry.runtimeBinding.toolRuntime,
+      },
       tools: (await entry.plugin.tools()).map((tool) =>
-        createPublicPluginTool(entry.pluginNamespace, tool).bindPluginRuntime(
-          entry.runtimeBinding.toolRuntime,
-        ),
+        createPublicPluginTool(entry.pluginNamespace, tool),
       ),
     })),
   );
@@ -554,7 +563,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
     .addNode("call_llm", callLLm())
     .addNode(
       "run_tool",
-      pythonToolNodeFunction(allTools, codeExecutor, {
+      pythonToolNodeFunction(publicToolEntries, codeExecutor, {
         handleToolErrors: true,
       }),
     )

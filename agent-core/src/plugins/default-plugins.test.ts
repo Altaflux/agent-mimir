@@ -7,6 +7,7 @@ import {
   type PluginRuntimeContext,
 } from "./index.js";
 import { DefaultPluginFactory } from "./default-plugins.js";
+import type { ToolCallRuntimeContext } from "../tools/index.js";
 
 function createWorkspace(): AgentWorkspace {
   return {
@@ -30,10 +31,7 @@ function createWorkspace(): AgentWorkspace {
   };
 }
 
-function createRuntime(
-  elicitationResponse: PluginElicitationResponse = { action: "cancel" },
-  onElicitationCreate?: (input: PluginElicitationCreateRequest) => void,
-): PluginRuntimeContext {
+function createRuntime(): PluginRuntimeContext {
   return {
     notifications: {
       async enqueue(input) {
@@ -53,6 +51,19 @@ function createRuntime(
       emit() {
         return;
       },
+    },
+  };
+}
+
+function createToolRuntimeContext(
+  elicitationResponse: PluginElicitationResponse = { action: "cancel" },
+  onElicitationCreate?: (input: PluginElicitationCreateRequest) => void,
+): ToolCallRuntimeContext {
+  return {
+    toolCallId: "tool-call-1",
+    toolName: "core__ask_user",
+    emitEvent() {
+      return;
     },
     elicitation: {
       async create(input) {
@@ -78,23 +89,10 @@ describe("DefaultPluginFactory", () => {
     expect(tools.map((tool) => tool.name)).toContain("ask_user");
   });
 
-  it("uses plugin-level elicitation to ask the user for structured input", async () => {
+  it("uses tool-scoped elicitation to ask the user for structured input", async () => {
     let request: PluginElicitationCreateRequest | undefined;
     const plugin = await new DefaultPluginFactory().create(
-      createPluginContext(
-        createWorkspace(),
-        createRuntime(
-          {
-            action: "accept",
-            content: {
-              priority: "high",
-            },
-          },
-          (input) => {
-            request = input;
-          },
-        ),
-      ),
+      createPluginContext(createWorkspace(), createRuntime()),
     );
     const askUser = (await plugin.tools()).find(
       (tool) => tool.name === "ask_user",
@@ -116,6 +114,17 @@ describe("DefaultPluginFactory", () => {
           },
         ],
       },
+      createToolRuntimeContext(
+        {
+          action: "accept",
+          content: {
+            priority: "high",
+          },
+        },
+        (input) => {
+          request = input;
+        },
+      ),
     );
 
     expect(request).toEqual({

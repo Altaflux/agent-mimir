@@ -8,8 +8,10 @@ import {
   InteropZodType,
   interopParseAsync,
 } from "@langchain/core/utils/types";
-import { AsyncLocalStorage } from "async_hooks";
-import type { PluginRuntimeEventInput } from "../plugins/index.js";
+import type {
+  PluginElicitationRuntime,
+  PluginRuntimeEventInput,
+} from "../plugins/index.js";
 
 type JSONSchema = Record<string, unknown>;
 export type ToolResponse = ComplexMessageContent[];
@@ -52,28 +54,14 @@ export type ToolCallRuntimeSource = {
 
 export type ToolCallRuntimeContext = ToolCallRuntimeSource & {
   emitEvent(input: PluginRuntimeEventInput): void | Promise<void>;
+  elicitation: PluginElicitationRuntime;
 };
 
 export type ToolRuntimeProvider = {
   forToolCall(source: ToolCallRuntimeSource): ToolCallRuntimeContext;
 };
 
-const toolCallRuntimeStorage = new AsyncLocalStorage<ToolCallRuntimeSource>();
-
-export function runWithToolCallRuntimeSource<T>(
-  source: ToolCallRuntimeSource,
-  operation: () => Promise<T>,
-): Promise<T> {
-  return toolCallRuntimeStorage.run(source, operation);
-}
-
-function isToolCallRuntimeContext(
-  value: ToolCallRuntimeContext | ToolCallRuntimeSource,
-): value is ToolCallRuntimeContext {
-  return typeof (value as ToolCallRuntimeContext).emitEvent === "function";
-}
-
-function createNoopToolCallRuntimeContext(
+export function createStandaloneToolCallRuntimeContext(
   toolName: string,
   source?: Partial<ToolCallRuntimeSource>,
 ): ToolCallRuntimeContext {
@@ -82,6 +70,14 @@ function createNoopToolCallRuntimeContext(
     toolName: source?.toolName ?? toolName,
     emitEvent() {
       return;
+    },
+    elicitation: {
+      async create() {
+        throw new Error("Elicitation requires an active tool runtime context.");
+      },
+      complete() {
+        return;
+      },
     },
   };
 }
@@ -95,17 +91,6 @@ export abstract class AgentTool<
 
   outSchema: z3.ZodType | z4.ZodType | undefined = undefined;
 
-  private runtimeBinding?: {
-    runtimeProvider: ToolRuntimeProvider;
-  };
-
-  bindPluginRuntime(runtimeProvider: ToolRuntimeProvider): this {
-    this.runtimeBinding = {
-      runtimeProvider,
-    };
-    return this;
-  }
-
   protected abstract _call(
     arg: SchemaOutputT,
     context: ToolCallRuntimeContext,
@@ -113,7 +98,7 @@ export abstract class AgentTool<
 
   async invoke<TInput extends StructuredToolCallInput<SchemaT, SchemaInputT>>(
     input: TInput,
-    context?: ToolCallRuntimeContext | ToolCallRuntimeSource,
+    context: ToolCallRuntimeContext,
   ): Promise<ToolResponse> {
     return this.call(input, context);
   }
@@ -129,7 +114,7 @@ export abstract class AgentTool<
    */
   async call<TArg extends StructuredToolCallInput<SchemaT, SchemaInputT>>(
     arg: TArg,
-    context?: ToolCallRuntimeContext | ToolCallRuntimeSource,
+    context: ToolCallRuntimeContext,
   ): Promise<ToolResponse> {
     let parsed: SchemaOutputT;
     const inputForValidation = arg;
@@ -140,10 +125,7 @@ export abstract class AgentTool<
 
     let result;
     try {
-      result = await this._call(
-        parsed,
-        this.resolveToolCallRuntimeContext(context),
-      );
+      result = await this._call(parsed, context);
     } catch (e) {
       throw e;
     }
@@ -152,39 +134,14 @@ export abstract class AgentTool<
 
   async invokeParsed(
     arg: SchemaOutputT,
-    context?: ToolCallRuntimeContext | ToolCallRuntimeSource,
+    context: ToolCallRuntimeContext,
   ): Promise<ToolResponse> {
-    return this._call(arg, this.resolveToolCallRuntimeContext(context));
+    return this._call(arg, context);
   }
 
   abstract name: string;
 
   abstract description: string;
-
-  private resolveToolCallRuntimeContext(
-    context?: ToolCallRuntimeContext | ToolCallRuntimeSource,
-  ): ToolCallRuntimeContext {
-    if (context) {
-      if (isToolCallRuntimeContext(context)) {
-        return context;
-      }
-
-      return (
-        this.runtimeBinding?.runtimeProvider.forToolCall(context) ??
-        createNoopToolCallRuntimeContext(this.name, context)
-      );
-    }
-
-    const activeSource = toolCallRuntimeStorage.getStore();
-    if (activeSource) {
-      return (
-        this.runtimeBinding?.runtimeProvider.forToolCall(activeSource) ??
-        createNoopToolCallRuntimeContext(this.name, activeSource)
-      );
-    }
-
-    return createNoopToolCallRuntimeContext(this.name);
-  }
 }
 
 export class PublicNamedAgentTool extends AgentTool {

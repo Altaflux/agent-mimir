@@ -8,6 +8,7 @@ import {
 } from "../plugins/index.js";
 import {
   AgentTool,
+  createStandaloneToolCallRuntimeContext,
   ToolCallRuntimeContext,
   ToolResponse,
 } from "../tools/index.js";
@@ -166,21 +167,23 @@ describe("named plugin config", () => {
     const publicTool = createPublicPluginTool("browserPlugin", originalTool);
     const emittedToolNames: string[] = [];
 
-    publicTool.bindPluginRuntime({
-      forToolCall(source) {
-        return {
-          ...source,
-          emitEvent() {
-            emittedToolNames.push(source.toolName);
-          },
-        };
+    const toolRuntime: ToolCallRuntimeContext = {
+      toolCallId: "tool-call-1",
+      toolName: publicTool.name,
+      emitEvent() {
+        emittedToolNames.push(publicTool.name);
       },
-    });
+      elicitation: {
+        async create() {
+          return { action: "cancel" as const };
+        },
+        complete() {
+          return;
+        },
+      },
+    };
 
-    await publicTool.invoke(
-      { url: "https://example.test" },
-      { toolCallId: "tool-call-1", toolName: publicTool.name },
-    );
+    await publicTool.invoke({ url: "https://example.test" }, toolRuntime);
 
     expect(publicTool.name).toBe("browserPlugin__navigate");
     expect(originalTool.capturedContext?.toolName).toBe(
@@ -193,10 +196,13 @@ describe("named plugin config", () => {
     const originalTool = new TransformTool();
     const publicTool = createPublicPluginTool("mathPlugin", originalTool);
 
-    const response = await publicTool.invoke("21", {
-      toolCallId: "tool-call-1",
-      toolName: publicTool.name,
-    });
+    const response = await publicTool.invoke(
+      "21",
+      createStandaloneToolCallRuntimeContext(publicTool.name, {
+        toolCallId: "tool-call-1",
+        toolName: publicTool.name,
+      }),
+    );
 
     expect(originalTool.capturedInput).toBe(21);
     expect(response).toEqual([{ type: "text", text: "42" }]);

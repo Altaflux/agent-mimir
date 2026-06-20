@@ -243,7 +243,6 @@ export type PluginEventRuntime = {
 export type PluginRuntimeContext = {
   notifications: PluginNotificationInbox;
   events: PluginEventRuntime;
-  elicitation: PluginElicitationRuntime;
 };
 
 export type PluginRuntimeBinding = {

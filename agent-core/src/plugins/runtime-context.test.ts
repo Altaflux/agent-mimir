@@ -5,7 +5,11 @@ import {
   type PluginRuntimeContext,
   type PluginRuntimeProvider,
 } from "./index.js";
-import { AgentTool, type ToolCallRuntimeContext } from "../tools/index.js";
+import {
+  AgentTool,
+  createStandaloneToolCallRuntimeContext,
+  type ToolCallRuntimeContext,
+} from "../tools/index.js";
 import { z } from "zod/v4";
 
 const pluginIdentity = (pluginId: string, pluginPrefix?: string) => ({
@@ -40,14 +44,6 @@ function createTestPluginRuntime(): PluginRuntimeProvider {
               return;
             },
           },
-          elicitation: {
-            async create() {
-              return { action: "cancel" as const };
-            },
-            complete() {
-              return;
-            },
-          },
         },
         toolRuntime: {
           forToolCall(source) {
@@ -55,6 +51,14 @@ function createTestPluginRuntime(): PluginRuntimeProvider {
               ...source,
               emitEvent() {
                 return;
+              },
+              elicitation: {
+                async create() {
+                  return { action: "cancel" as const };
+                },
+                complete() {
+                  return;
+                },
               },
             };
           },
@@ -103,7 +107,7 @@ describe("Plugin runtime context", () => {
     expect(notification.title).toBe("No-op notification");
     expect("pluginInstanceId" in notification).toBe(false);
     expect("emitEvent" in runtime).toBe(false);
-    expect(typeof runtime.elicitation.create).toBe("function");
+    expect("elicitation" in runtime).toBe(false);
     await Promise.resolve(runtime.events.emit({ type: "LOG", text: "hello" }));
   });
 
@@ -123,14 +127,6 @@ describe("Plugin runtime context", () => {
       },
       events: {
         emit: () => {
-          return;
-        },
-      },
-      elicitation: {
-        async create() {
-          return { action: "cancel" };
-        },
-        complete() {
           return;
         },
       },
@@ -173,6 +169,14 @@ describe("Plugin runtime context", () => {
         emitEvent: () => {
           return;
         },
+        elicitation: {
+          async create() {
+            return { action: "cancel" };
+          },
+          complete() {
+            return;
+          },
+        },
       },
     );
 
@@ -183,7 +187,23 @@ describe("Plugin runtime context", () => {
     });
   });
 
-  it("uses bound plugin runtime providers for tool-scoped event emission", async () => {
+  it("standalone tool runtime context rejects elicitation", async () => {
+    const context = createStandaloneToolCallRuntimeContext("standalone_tool");
+
+    await expect(
+      context.elicitation.create({
+        message: "Need input.",
+        requestedSchema: {
+          type: "object",
+          properties: {
+            value: { type: "string" },
+          },
+        },
+      }),
+    ).rejects.toThrow(/active tool runtime context/);
+  });
+
+  it("uses plugin runtime providers for tool-scoped event emission", async () => {
     const emitted: Array<{
       pluginId: string;
       context: Pick<ToolCallRuntimeContext, "toolCallId" | "toolName">;
@@ -205,24 +225,33 @@ describe("Plugin runtime context", () => {
                     input,
                   });
                 },
+                elicitation: {
+                  async create() {
+                    return { action: "cancel" as const };
+                  },
+                  complete() {
+                    return;
+                  },
+                },
               };
             },
           },
         };
       },
     };
-    const tool = new EventEmittingTool().bindPluginRuntime(
-      pluginRuntime.bindPlugin(pluginIdentity("eventPlugin")).toolRuntime,
-    );
+    const tool = new EventEmittingTool();
+    const toolRuntime = pluginRuntime
+      .bindPlugin(pluginIdentity("eventPlugin"))
+      .toolRuntime.forToolCall({
+        toolCallId: "tool-call-1",
+        toolName: "event_tool",
+      });
 
     await tool.invoke(
       {
         value: "hello",
       },
-      {
-        toolCallId: "tool-call-1",
-        toolName: "event_tool",
-      },
+      toolRuntime,
     );
 
     expect(emitted).toEqual([

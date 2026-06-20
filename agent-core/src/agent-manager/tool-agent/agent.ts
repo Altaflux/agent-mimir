@@ -5,7 +5,6 @@ import {
 } from "../../plugins/workspace.js";
 import { DefaultPluginFactory } from "../../plugins/default-plugins.js";
 import { ViewPluginFactory } from "../../tools/image_view.js";
-import { MimirToolToLangchainTool } from "./wrapper.js";
 import { ToolMessage } from "@langchain/core/messages/tool";
 import {
   complexResponseToLangchainMessageContent,
@@ -70,6 +69,9 @@ import {
   LanggraphAgent,
 } from "../langgraph-agent.js";
 import { HumanInterrupt, HumanResponse } from "@langchain/langgraph/prebuilt";
+import { ToolDefinition } from "@langchain/core/language_models/base";
+import { toJsonSchema } from "@langchain/core/utils/json_schema";
+import type { RuntimePluginToolEntry } from "../runtime-tools.js";
 
 /**
  * Configuration options for creating a new agent.
@@ -129,20 +131,37 @@ export async function createLgAgent(config: CreateAgentArgs) {
   );
   const allCreatedPlugins = createdPluginEntries.map((entry) => entry.plugin);
 
-  const publicToolEntries = await Promise.all(
+  const publicToolEntries: RuntimePluginToolEntry[] = await Promise.all(
     createdPluginEntries.map(async (entry) => ({
-      entry,
+      entry: {
+        plugin: entry.plugin,
+        pluginId: entry.pluginId,
+        pluginPrefix: entry.pluginPrefix,
+        pluginNamespace: entry.pluginNamespace,
+        factory: entry.factory,
+        label: entry.label,
+        description: entry.description,
+        displayName: entry.displayName,
+        toolRuntime: entry.runtimeBinding.toolRuntime,
+      },
       tools: (await entry.plugin.tools()).map((tool) =>
-        createPublicPluginTool(entry.pluginNamespace, tool).bindPluginRuntime(
-          entry.runtimeBinding.toolRuntime,
-        ),
+        createPublicPluginTool(entry.pluginNamespace, tool),
       ),
     })),
   );
   const allTools = publicToolEntries.flatMap((entry) => entry.tools);
   assertUniqueToolNames(allTools);
 
-  const langChainTools = allTools.map((t) => new MimirToolToLangchainTool(t));
+  const langChainTools = allTools.map((t) => {
+    return {
+      type: "function",
+      function: {
+        name: t.name,
+        parameters: toJsonSchema(t.schema),
+        description: t.description,
+      },
+    } satisfies ToolDefinition;
+  });
   const modelWithTools = model.bindTools!(langChainTools);
   const defaultAttributes: AttributeDescriptor[] = [];
 
@@ -528,7 +547,7 @@ export async function createLgAgent(config: CreateAgentArgs) {
     .addNode("call_llm", callLLm())
     .addNode(
       "run_tool",
-      toolNodeFunction(langChainTools, { handleToolErrors: true }),
+      toolNodeFunction(publicToolEntries, { handleToolErrors: true }),
     )
     .addNode("message_prep", messageRetentionNode)
     .addNode("human_review_node", humanReviewNode, {

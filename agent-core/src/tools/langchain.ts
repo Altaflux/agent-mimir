@@ -1,4 +1,9 @@
-import { AgentTool, ToolInputSchemaBase, ToolResponse } from "./index.js";
+import {
+  AgentTool,
+  type ToolCallRuntimeContext,
+  ToolInputSchemaBase,
+  ToolResponse,
+} from "./index.js";
 import { AgentPlugin, PluginFactory, PluginContext } from "../plugins/index.js";
 import { lCmessageContentToContent } from "../agent-manager/message-utils.js";
 import { MessageContent } from "@langchain/core/messages";
@@ -17,6 +22,10 @@ export class LangchainToolToMimirTool<
   constructor(
     private tool: StructuredTool,
     readonly namePrefix?: string,
+    private readonly invokeWithContext?: (
+      context: ToolCallRuntimeContext,
+      operation: () => Promise<unknown>,
+    ) => Promise<unknown>,
   ) {
     super();
     this.schema = tool.schema as SchemaT;
@@ -24,8 +33,13 @@ export class LangchainToolToMimirTool<
     this.description = tool.description;
     this.returnDirect = tool.returnDirect;
   }
-  protected async _call(arg: any): Promise<ToolResponse> {
-    const response = await this.tool.invoke(arg);
+  protected async _call(
+    arg: any,
+    context: ToolCallRuntimeContext,
+  ): Promise<ToolResponse> {
+    const response = this.invokeWithContext
+      ? await this.invokeWithContext(context, async () => this.tool.invoke(arg))
+      : await this.tool.invoke(arg);
     const messageContent = this.toMessageContent(response);
     const textContent =
       extractTextContentFromComplexMessageContent(messageContent);

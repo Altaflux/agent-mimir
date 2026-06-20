@@ -140,15 +140,16 @@ export class SessionPluginRuntimeController implements PluginRuntimeProvider {
         events: {
           emit: (input) => this.emitPluginEvent(identity, input),
         },
-        elicitation: {
-          create: (input) => this.createPluginElicitation(identity, input),
-          complete: (input) => this.completePluginElicitation(identity, input),
-        },
       },
       toolRuntime: {
         forToolCall: (source) => ({
           ...source,
           emitEvent: (input) => this.emitToolCallEvent(identity, source, input),
+          elicitation: {
+            create: (input) => this.createPluginElicitation(identity, input),
+            complete: (input) =>
+              this.completePluginElicitation(identity, input),
+          },
         }),
       },
     };

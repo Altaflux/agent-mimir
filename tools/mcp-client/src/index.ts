@@ -27,9 +27,12 @@ import {
   PluginContext,
   type PluginElicitationCreateRequest,
   type PluginElicitationResponse,
-  type PluginRuntimeContext,
 } from "@mimir/agent-core/plugins";
-import { AgentTool, ToolResponse } from "@mimir/agent-core/tools";
+import {
+  AgentTool,
+  type ToolCallRuntimeContext,
+  ToolResponse,
+} from "@mimir/agent-core/tools";
 import { ComplexMessageContent } from "@mimir/agent-core/schema";
 import { z } from "zod";
 import { loadMcpTools } from "@langchain/mcp-adapters";
@@ -49,23 +52,89 @@ export type McpClientParameters = {
   >;
 };
 
-export function createMcpElicitationRequestHandler(
-  runtime: PluginRuntimeContext,
-): (request: ElicitRequest) => Promise<PluginElicitationResponse> {
-  return async (request) =>
-    await runtime.elicitation.create(
-      request.params as PluginElicitationCreateRequest,
+export class McpElicitationBridge {
+  private activeContexts: ToolCallRuntimeContext[] = [];
+  private completionHandlers = new Map<string, () => void | Promise<void>>();
+
+  async runWithToolContext<T>(
+    context: ToolCallRuntimeContext,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    this.activeContexts.push(context);
+    try {
+      return await operation();
+    } finally {
+      const index = this.activeContexts.lastIndexOf(context);
+      if (index >= 0) {
+        this.activeContexts.splice(index, 1);
+      }
+    }
+  }
+
+  async create(request: ElicitRequest): Promise<PluginElicitationResponse> {
+    const context = this.requireSingleActiveContext();
+    const input = request.params as PluginElicitationCreateRequest;
+    let removeCompletionHandler: (() => void) | undefined;
+
+    if (input.mode === "url" && input.elicitationId.trim().length > 0) {
+      const handler = () =>
+        context.elicitation.complete({ elicitationId: input.elicitationId });
+      this.completionHandlers.set(input.elicitationId, handler);
+      removeCompletionHandler = () => {
+        if (this.completionHandlers.get(input.elicitationId) === handler) {
+          this.completionHandlers.delete(input.elicitationId);
+        }
+      };
+    }
+
+    try {
+      return await context.elicitation.create(input);
+    } finally {
+      removeCompletionHandler?.();
+    }
+  }
+
+  complete(
+    notification: ElicitationCompleteNotification,
+  ): void | Promise<void> {
+    const handler = this.completionHandlers.get(
+      notification.params.elicitationId,
     );
+    return handler?.();
+  }
+
+  private requireSingleActiveContext(): ToolCallRuntimeContext {
+    if (this.activeContexts.length === 0) {
+      throw new Error(
+        "MCP elicitation is only supported during an active Mimir tool call.",
+      );
+    }
+    if (this.activeContexts.length > 1) {
+      throw new Error(
+        "MCP elicitation cannot be routed because multiple MCP operations are active for this client.",
+      );
+    }
+
+    const context = this.activeContexts[0];
+    if (!context) {
+      throw new Error(
+        "MCP elicitation is only supported during an active Mimir tool call.",
+      );
+    }
+    return context;
+  }
+}
+
+export function createMcpElicitationRequestHandler(
+  bridge: McpElicitationBridge,
+): (request: ElicitRequest) => Promise<PluginElicitationResponse> {
+  return async (request) => await bridge.create(request);
 }
 
 export function createMcpElicitationCompleteHandler(
-  runtime: PluginRuntimeContext,
+  bridge: McpElicitationBridge,
 ): (notification: ElicitationCompleteNotification) => void | Promise<void> {
-  return (notification) => {
-    runtime.elicitation.complete({
-      elicitationId: notification.params.elicitationId,
-    });
-  };
+  return (notification) => bridge.complete(notification);
 }
 
 export class McpClientPluginFactory implements PluginFactory {
@@ -73,7 +142,7 @@ export class McpClientPluginFactory implements PluginFactory {
 
   constructor(private readonly config: McpClientParameters) {}
 
-  async create(context: PluginContext): Promise<AgentPlugin> {
+  async create(_context: PluginContext): Promise<AgentPlugin> {
     try {
       const clientResults = await Promise.all(
         Object.entries(this.config.servers).map(
@@ -81,12 +150,12 @@ export class McpClientPluginFactory implements PluginFactory {
             const init = await this.initializeClient(
               clientName,
               config.transport(),
-              context.runtime,
             );
             return {
               clientName: clientName,
               description: config.description,
               client: init.client,
+              elicitationBridge: init.elicitationBridge,
               pluginResult: init.pluginResult,
             };
           },
@@ -108,8 +177,12 @@ export class McpClientPluginFactory implements PluginFactory {
   private async initializeClient(
     clientName: string,
     transport: Transport,
-    runtime: PluginRuntimeContext,
-  ): Promise<{ pluginResult: PluginResult; client: Client }> {
+  ): Promise<{
+    pluginResult: PluginResult;
+    client: Client;
+    elicitationBridge: McpElicitationBridge;
+  }> {
+    const elicitationBridge = new McpElicitationBridge();
     const client = new Client(
       {
         name: "agent-client",
@@ -126,22 +199,23 @@ export class McpClientPluginFactory implements PluginFactory {
     );
     client.setRequestHandler(
       ElicitRequestSchema,
-      createMcpElicitationRequestHandler(runtime),
+      createMcpElicitationRequestHandler(elicitationBridge),
     );
     client.setNotificationHandler(
       ElicitationCompleteNotificationSchema,
-      createMcpElicitationCompleteHandler(runtime),
+      createMcpElicitationCompleteHandler(elicitationBridge),
     );
 
     try {
       await client.connect(transport);
       const [agentTools, commands] = await Promise.all([
-        this.initializeTools(client, clientName),
+        this.initializeTools(client, clientName, elicitationBridge),
         this.initializePrompts(client, clientName),
       ]);
 
       return {
         client: client,
+        elicitationBridge,
         pluginResult: {
           tools: agentTools,
           prompts: commands,
@@ -151,6 +225,7 @@ export class McpClientPluginFactory implements PluginFactory {
       console.error(`Failed to initialize client ${clientName}:`, error);
       return {
         client: client,
+        elicitationBridge,
         pluginResult: {
           tools: [],
           prompts: [],
@@ -162,11 +237,15 @@ export class McpClientPluginFactory implements PluginFactory {
   private async initializeTools(
     client: Client,
     clientName: string,
+    elicitationBridge: McpElicitationBridge,
   ): Promise<AgentTool[]> {
     try {
       const tools = await loadMcpTools(clientName, client);
       const agentTools = tools.map(
-        (t) => new LangchainToolToMimirTool(t, clientName),
+        (t) =>
+          new LangchainToolToMimirTool(t, clientName, (context, operation) =>
+            elicitationBridge.runWithToolContext(context, operation),
+          ),
       );
       return agentTools;
     } catch (error) {
@@ -332,16 +411,27 @@ class McpResourceTool extends AgentTool {
     resourceURI: z.string().describe("The URI of the resource to read."),
   }) as any;
   constructor(
-    private readonly clients: { client: Client; clientName: string }[],
+    private readonly clients: {
+      client: Client;
+      clientName: string;
+      elicitationBridge: McpElicitationBridge;
+    }[],
   ) {
     super();
   }
-  protected async _call(arg: any): Promise<ToolResponse> {
+  protected async _call(
+    arg: any,
+    context: ToolCallRuntimeContext,
+  ): Promise<ToolResponse> {
     let client = this.clients.find((c) => c.clientName === arg.mcpServer)!;
     try {
-      const resource = await client.client.readResource({
-        uri: arg.resourceURI,
-      });
+      const resource = await client.elicitationBridge.runWithToolContext(
+        context,
+        async () =>
+          await client.client.readResource({
+            uri: arg.resourceURI,
+          }),
+      );
       if (!resource || resource.contents.length === 0) {
         return [
           {

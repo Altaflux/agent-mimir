@@ -4,50 +4,31 @@ import type {
   ElicitationCompleteNotification,
   ElicitRequest,
 } from "@modelcontextprotocol/sdk/types.js";
-import type {
-  PluginElicitationCreateRequest,
-  PluginRuntimeContext,
-} from "@mimir/agent-core/plugins";
+import type { PluginElicitationCreateRequest } from "@mimir/agent-core/plugins";
+import type { ToolCallRuntimeContext } from "@mimir/agent-core/tools";
 import {
   createMcpElicitationCompleteHandler,
   createMcpElicitationRequestHandler,
+  McpElicitationBridge,
 } from "./index.js";
 
-function createRuntime(
-  onCreate: (input: PluginElicitationCreateRequest) => void,
-  onComplete: (elicitationId: string) => void,
-): PluginRuntimeContext {
+function createToolContext(
+  onCreate: (input: PluginElicitationCreateRequest) => Promise<{
+    action: "accept";
+    content: Record<string, unknown>;
+  }>,
+  onComplete: (elicitationId: string) => void = () => {
+    return;
+  },
+): ToolCallRuntimeContext {
   return {
-    notifications: {
-      async enqueue(input) {
-        return {
-          id: "notification-1",
-          pluginId: "mcpClient",
-          pluginNamespace: "mcpClient",
-          agentName: "Principal",
-          createdAt: Date.now(),
-          title: input.title,
-          summary: input.summary,
-          deduplicationId: input.deduplicationId,
-          content: input.content,
-        };
-      },
-    },
-    events: {
-      emit() {
-        return;
-      },
+    toolCallId: "tool-call-1",
+    toolName: "mcpClient__tool",
+    emitEvent() {
+      return;
     },
     elicitation: {
-      async create(input) {
-        onCreate(input);
-        return {
-          action: "accept",
-          content: {
-            value: "accepted",
-          },
-        };
-      },
+      create: onCreate,
       complete(input) {
         onComplete(input.elicitationId);
       },
@@ -55,19 +36,8 @@ function createRuntime(
   };
 }
 
-test("MCP elicitation request handler delegates to plugin runtime", async () => {
-  let received: PluginElicitationCreateRequest | undefined;
-  const runtime = createRuntime(
-    (input) => {
-      received = input;
-    },
-    () => {
-      return;
-    },
-  );
-  const handler = createMcpElicitationRequestHandler(runtime);
-
-  const result = await handler({
+function formRequest(): ElicitRequest {
+  return {
     method: "elicitation/create",
     params: {
       mode: "form",
@@ -82,7 +52,26 @@ test("MCP elicitation request handler delegates to plugin runtime", async () => 
         required: ["value"],
       },
     },
-  } as ElicitRequest);
+  } as ElicitRequest;
+}
+
+test("MCP elicitation request handler delegates to active tool runtime", async () => {
+  const bridge = new McpElicitationBridge();
+  let received: PluginElicitationCreateRequest | undefined;
+  const context = createToolContext(async (input) => {
+    received = input;
+    return {
+      action: "accept",
+      content: {
+        value: "accepted",
+      },
+    };
+  });
+  const handler = createMcpElicitationRequestHandler(bridge);
+
+  const result = await bridge.runWithToolContext(context, async () =>
+    handler(formRequest()),
+  );
 
   assert.deepEqual(received, {
     mode: "form",
@@ -105,24 +94,91 @@ test("MCP elicitation request handler delegates to plugin runtime", async () => 
   });
 });
 
-test("MCP elicitation completion notification delegates to plugin runtime", () => {
+test("MCP elicitation request handler rejects without an active tool runtime", async () => {
+  const bridge = new McpElicitationBridge();
+  const handler = createMcpElicitationRequestHandler(bridge);
+
+  await assert.rejects(
+    async () => await handler(formRequest()),
+    /only supported during an active Mimir tool call/,
+  );
+});
+
+test("MCP elicitation request handler rejects ambiguous active tool runtimes", async () => {
+  const bridge = new McpElicitationBridge();
+  const handler = createMcpElicitationRequestHandler(bridge);
+  const contextA = createToolContext(async () => ({
+    action: "accept",
+    content: {},
+  }));
+  const contextB = createToolContext(async () => ({
+    action: "accept",
+    content: {},
+  }));
+
+  await assert.rejects(
+    async () =>
+      await Promise.all([
+        bridge.runWithToolContext(
+          contextA,
+          async () =>
+            await bridge.runWithToolContext(
+              contextB,
+              async () => await handler(formRequest()),
+            ),
+        ),
+      ]),
+    /multiple MCP operations are active/,
+  );
+});
+
+test("MCP elicitation completion notification delegates to active URL completion callback", async () => {
+  const bridge = new McpElicitationBridge();
+  const requestHandler = createMcpElicitationRequestHandler(bridge);
+  const completeHandler = createMcpElicitationCompleteHandler(bridge);
   let completed: string | undefined;
-  const runtime = createRuntime(
-    () => {
-      return;
-    },
+  let resolveCreate:
+    | ((value: { action: "accept"; content: Record<string, unknown> }) => void)
+    | undefined;
+  const context = createToolContext(
+    async () =>
+      await new Promise((resolve) => {
+        resolveCreate = resolve;
+      }),
     (elicitationId) => {
       completed = elicitationId;
     },
   );
-  const handler = createMcpElicitationCompleteHandler(runtime);
 
-  handler({
+  const pending = bridge.runWithToolContext(context, async () =>
+    requestHandler({
+      method: "elicitation/create",
+      params: {
+        mode: "url",
+        message: "Authorize access.",
+        url: "https://example.test/connect",
+        elicitationId: "auth-flow-1",
+      },
+    } as ElicitRequest),
+  );
+  await Promise.resolve();
+
+  completeHandler({
+    method: "notifications/elicitation/complete",
+    params: {
+      elicitationId: "unknown",
+    },
+  } as ElicitationCompleteNotification);
+  assert.equal(completed, undefined);
+
+  completeHandler({
     method: "notifications/elicitation/complete",
     params: {
       elicitationId: "auth-flow-1",
     },
   } as ElicitationCompleteNotification);
-
   assert.equal(completed, "auth-flow-1");
+
+  resolveCreate?.({ action: "accept", content: {} });
+  assert.deepEqual(await pending, { action: "accept", content: {} });
 });
