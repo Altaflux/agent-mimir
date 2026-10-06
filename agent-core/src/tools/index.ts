@@ -7,6 +7,7 @@ import {
   InferInteropZodOutput,
   InteropZodType,
   interopParseAsync,
+  isInteropZodSchema,
 } from "@langchain/core/utils/types";
 import type {
   PluginElicitationRuntime,
@@ -118,10 +119,11 @@ export abstract class AgentTool<
   ): Promise<ToolResponse> {
     let parsed: SchemaOutputT;
     const inputForValidation = arg;
-    parsed = await interopParseAsync(
-      this.schema as InteropZodType,
-      inputForValidation as TArg,
-    );
+    // Match LangChain's StructuredTool behavior: Zod schemas parse locally,
+    // while JSON Schema inputs are passed to the tool (or MCP server).
+    parsed = isInteropZodSchema(this.schema)
+      ? await interopParseAsync(this.schema, inputForValidation as TArg)
+      : (inputForValidation as unknown as SchemaOutputT);
 
     let result;
     try {

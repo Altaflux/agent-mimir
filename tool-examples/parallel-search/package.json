@@ -1,0 +1,8 @@
+{
+  "name": "mimir-parallel-search-example",
+  "private": true,
+  "dependencies": {
+    "@langchain/openai": "1.4.5",
+    "@mimir/mcp-client": "*"
+  }
+}

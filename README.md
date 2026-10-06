@@ -209,6 +209,9 @@ We have support for Claude's MCP (Model Context Protocol) servers which enable t
     }
 ```
 
+For a runnable, opt-in remote search configuration using Streamable HTTP, see
+the [Parallel Search MCP example](tool-examples/parallel-search/README.md).
+
 ### Code Interpreter Plugin:
 The Code Interpreter plugin allows the agent to run Python 3 scripts directly in your machine. The interpreter can access resources inside your computer. The interpreter will automatically install any dependencies the script requires to run.
 
